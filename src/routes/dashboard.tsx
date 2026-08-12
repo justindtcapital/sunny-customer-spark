@@ -44,7 +44,6 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { buildIntelligence, temperatureRiver } from "@/lib/dashboard-intelligence";
-import { ThesisIntelligenceMap } from "@/components/dashboard/ThesisIntelligenceMap";
 
 
 export const Route = createFileRoute("/dashboard")({
@@ -583,24 +582,8 @@ function DashboardPage() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-
-          <Card className="border-border/80 shadow-none">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">
-                Thesis Intelligence{" "}
-                <span className="font-normal text-muted-foreground">
-                  · relationship capital by thesis
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ThesisIntelligenceMap
-                contacts={filtered}
-                onSelectThesis={(name) => focus("sector", name)}
-              />
-            </CardContent>
-          </Card>
         </div>
+
       </section>
 
       {/* 06 Investor Analytics */}
@@ -721,7 +704,7 @@ function DashboardPage() {
             { groupBy: "month", metric: "engagements", label: "Intro Activity Velocity" },
             { groupBy: "month", metric: "intros", label: "Intro Activity Velocity (alt)" },
             { groupBy: "temperature", metric: "count", label: "Temperature River / mix" },
-            { groupBy: "sector", metric: "count", label: "Thesis Intelligence / Sector Exposure" },
+            { groupBy: "sector", metric: "count", label: "Sector Exposure" },
             { groupBy: "portco", metric: "intros", label: "Portfolio Company Exposure" },
             { groupBy: "event", metric: "count", label: "Events Activity Distribution" },
             { groupBy: "event", metric: "events", label: "Events attended by event" },
