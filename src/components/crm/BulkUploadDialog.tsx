@@ -267,6 +267,8 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const [source, setSource] = useState("");
   // Hands-off by default: imported contacts are auto-enriched unless unchecked.
   const [enrichOnImport, setEnrichOnImport] = useState(true);
+  // Flag every imported contact for follow-up (writes Contacts → "Follow Up Flag").
+  const [flagFollowUp, setFlagFollowUp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -400,6 +402,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
             employmentHistory: r.employmentHistory,
             temperature: "Warm",
             source: "CSV Import",
+            followUp: flagFollowUp,
           },
         });
         added++;
@@ -429,7 +432,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
         }
         if (src) {
           try {
-            await addNote({ data: { contactEmail: r.email, noteContent: `Source: ${src}`, requiresFollowUp: false } });
+            await addNote({ data: { contactEmail: r.email, noteContent: `Source: ${src}`, requiresFollowUp: flagFollowUp } });
             taggedSource++;
           } catch (e) {
             console.error("source tag failed", r.email, e);
@@ -606,6 +609,18 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                       />
                     </div>
                   </div>
+
+                  <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+                    <Checkbox
+                      checked={flagFollowUp}
+                      onCheckedChange={(v) => setFlagFollowUp(v === true)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Flag these people for follow-up.
+                      <span className="text-muted-foreground/70"> Writes TRUE to the “Follow Up Flag” column on the Contacts sheet so they show up in the follow-up queue.</span>
+                    </span>
+                  </label>
 
                   <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
                     <Checkbox

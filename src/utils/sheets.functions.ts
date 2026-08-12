@@ -330,11 +330,14 @@ export const addContact = createServerFn({ method: "POST" })
       linkedinUrl?: string;
       /** Keep on Network CRM even if employer matches a PortCo name. */
       skipPortfolioSector?: boolean;
+      /** Stamp the Contacts "Follow Up Flag" column TRUE on create. */
+      followUp?: boolean;
     }) => data,
   )
   .handler(async ({ data }) => {
     // Ensure the Source columns exist before the header-aware append writes them.
     await ensureColumn(TAB_NAMES.contacts, "Source");
+    if (data.followUp) await ensureColumn(TAB_NAMES.contacts, "Follow Up Flag");
     if (data.sourceContext) await ensureColumn(TAB_NAMES.contacts, "Source Context");
     await addContactRow({
       ...data,
