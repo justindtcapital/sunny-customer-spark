@@ -517,7 +517,7 @@ function TargetingPage() {
       )
         return false;
       if (filters.stage !== "all" && t.stage !== filters.stage) return false;
-      if (filters.sector !== "all" && t.sector !== filters.sector) return false;
+      if (filters.sector.length && !filters.sector.includes(t.sector)) return false;
       if (filters.city !== "all" && t.location !== filters.city) return false;
       if (filters.origin !== "all" && t.originSource !== filters.origin) return false;
       if (filters.title && !t.title.toLowerCase().includes(filters.title.toLowerCase()))
