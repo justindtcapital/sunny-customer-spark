@@ -166,7 +166,7 @@ type WatchCtx = {
   onWatched: (company: string, entry: RadarEntry) => void;
 };
 
-/** A company name linked to its entity page (/companies). */
+/** A company name (plain text). */
 function CompanyLink({ name, className = "" }: { name: string; className?: string }) {
   if (!name) return null;
   return (

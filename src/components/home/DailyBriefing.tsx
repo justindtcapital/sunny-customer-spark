@@ -298,7 +298,7 @@ export function DailyBriefing({
                       <span className="text-[11px] text-muted-foreground shrink-0">
                         {o.networkCount} in network
                       </span>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               </CardContent>
