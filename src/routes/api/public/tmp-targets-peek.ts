@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { fetchSheetTab } from "@/utils/sheets.server";
 
-export const Route = createFileRoute("/api/public/_tmp-targets-peek")({
+export const Route = createFileRoute("/api/public/tmp-targets-peek")({
   server: {
     handlers: {
       GET: async () => {
