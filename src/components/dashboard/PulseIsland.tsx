@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
 import type { PulseInsight } from "@/lib/dashboard-intelligence";
 import { cn } from "@/lib/utils";
 
@@ -113,9 +112,6 @@ export function PulseIsland({ pulse, onAct, onFocusConstellation }: PulseIslandP
               Focus constellation
             </Button>
           )}
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" asChild>
-            <Link to="/query">Open in Query</Link>
-          </Button>
         </div>
       )}
     </div>

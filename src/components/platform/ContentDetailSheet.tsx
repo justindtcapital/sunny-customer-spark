@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 import { Check, ExternalLink, FileDown, Loader2, Plus, Printer, Star } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -166,17 +165,11 @@ type WatchCtx = {
   onWatched: (company: string, entry: RadarEntry) => void;
 };
 
-/** A company name linked to its entity page (/companies). */
+/** A company name (plain text). */
 function CompanyLink({ name, className = "" }: { name: string; className?: string }) {
   if (!name) return null;
   return (
-    <Link
-      to="/companies"
-      search={{ c: name }}
-      className={`font-medium text-foreground hover:text-primary hover:underline ${className}`}
-    >
-      {name}
-    </Link>
+    <span className={`font-medium text-foreground ${className}`}>{name}</span>
   );
 }
 

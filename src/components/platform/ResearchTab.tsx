@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -170,13 +169,9 @@ export function ResearchTab({
                   <div key={r.id} className="py-2 flex items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <Link
-                          to="/companies"
-                          search={{ c: r.company }}
-                          className="text-sm font-medium text-foreground hover:text-primary hover:underline truncate"
-                        >
+                        <span className="text-sm font-medium text-foreground truncate">
                           {r.company}
-                        </Link>
+                        </span>
                         {r.segment && (
                           <Badge variant="outline" className="text-[9px] shrink-0">
                             {r.segment}

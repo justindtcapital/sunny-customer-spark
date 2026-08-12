@@ -96,15 +96,7 @@ function ActionRow({ a, onEmail }: { a: BriefingAction; onEmail: (a: BriefingAct
       </Link>
     );
   }
-  return (
-    <Link
-      to="/companies"
-      search={(a.company ? { c: a.company } : undefined) as never}
-      className={cls}
-    >
-      {inner}
-    </Link>
-  );
+  return <span className={cls}>{inner}</span>;
 }
 
 // The Daily Briefing surface, reusable on Home. Greeting/date are owned by the
@@ -238,13 +230,9 @@ export function DailyBriefing({
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Link
-                            to="/companies"
-                            search={{ c: p.company }}
-                            className="text-sm font-semibold text-foreground hover:text-primary truncate"
-                          >
+                          <span className="text-sm font-semibold text-foreground truncate">
                             {p.company}
-                          </Link>
+                          </span>
                           {p.category && (
                             <Badge
                               variant="outline"
@@ -289,11 +277,9 @@ export function DailyBriefing({
                 </h2>
                 <div className="space-y-1.5">
                   {briefing.opportunities.map((o) => (
-                    <Link
+                    <div
                       key={o.company}
-                      to="/companies"
-                      search={{ c: o.company }}
-                      className="flex items-center gap-3 py-2 -mx-1 px-1 rounded-md hover:bg-accent transition-colors"
+                      className="flex items-center gap-3 py-2 -mx-1 px-1 rounded-md"
                     >
                       <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="min-w-0 flex-1">
@@ -312,7 +298,7 @@ export function DailyBriefing({
                       <span className="text-[11px] text-muted-foreground shrink-0">
                         {o.networkCount} in network
                       </span>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               </CardContent>
