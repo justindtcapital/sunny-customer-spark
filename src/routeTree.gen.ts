@@ -18,6 +18,7 @@ import { Route as CrmRouteImport } from './routes/crm'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
+import { Route as ApiPublicTmpTargetsPeekRouteImport } from './routes/api/public/_tmp-targets-peek'
 import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
 import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
@@ -67,6 +68,11 @@ const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   path: '/api/public/inngest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTmpTargetsPeekRoute = ApiPublicTmpTargetsPeekRouteImport.update({
+  id: '/api/public/_tmp-targets-peek',
+  path: '/api/public',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronSignalsReconcileRoute = ApiCronSignalsReconcileRouteImport.update({
   id: '/api/cron/signals-reconcile',
   path: '/api/cron/signals-reconcile',
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
+  '/api/public': typeof ApiPublicTmpTargetsPeekRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
 }
 export interface FileRoutesByTo {
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
+  '/api/public': typeof ApiPublicTmpTargetsPeekRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
 }
 export interface FileRoutesById {
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
+  '/api/public/_tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
+    | '/api/public'
     | '/api/public/inngest'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -154,6 +164,7 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
+    | '/api/public'
     | '/api/public/inngest'
   id:
     | '__root__'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
+    | '/api/public/_tmp-targets-peek'
     | '/api/public/inngest'
   fileRoutesById: FileRoutesById
 }
@@ -183,6 +195,7 @@ export interface RootRouteChildren {
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
   ApiCronSignalsReconcileRoute: typeof ApiCronSignalsReconcileRoute
+  ApiPublicTmpTargetsPeekRoute: typeof ApiPublicTmpTargetsPeekRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
 }
 
@@ -251,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/_tmp-targets-peek': {
+      id: '/api/public/_tmp-targets-peek'
+      path: '/api/public'
+      fullPath: '/api/public'
+      preLoaderRoute: typeof ApiPublicTmpTargetsPeekRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/signals-reconcile': {
       id: '/api/cron/signals-reconcile'
       path: '/api/cron/signals-reconcile'
@@ -287,6 +307,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,
   ApiCronSignalsReconcileRoute: ApiCronSignalsReconcileRoute,
+  ApiPublicTmpTargetsPeekRoute: ApiPublicTmpTargetsPeekRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
 }
 export const routeTree = rootRouteImport
