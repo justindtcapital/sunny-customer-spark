@@ -1642,7 +1642,13 @@ export async function buildContacts(): Promise<Contact[]> {
 
   const portCoMap = buildPortCoCanonicalMap(portfolioCompanies.map((p) => p.name));
 
-  const rawContacts = mapRows<Record<string, string>>(contactRows, CONTACT_COLS);
+  const rawContacts = mapRows<Record<string, string>>(contactRows, CONTACT_COLS).map((r, i) =>
+    // Column A of the Contacts tab is the contact name. If its header ever gets
+    // mislabeled (it shipped as a second "Source" once), fall back to the raw
+    // first cell so names never render blank on the Network page.
+    r.name ? r : { ...r, name: (contactRows[i + 1]?.[0] || "").trim() },
+  );
+
   const rawEvents = mapRows<Record<string, string>>(eventRows, EVENT_COLS);
   const rawIntros = mapRows<Record<string, string>>(introRows, PORTCO_INTRO_COLS).map((r) =>
     // Self-heal a mislabeled header on the PortCos Introduced tab (the email
