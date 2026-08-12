@@ -1120,7 +1120,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
       data.prime,
       data.sector,
       data.temperature,
-      "FALSE",
+      data.followUp ? "TRUE" : "FALSE",
       now,
     ]);
   } else {
