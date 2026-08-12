@@ -3232,7 +3232,10 @@ export async function buildTargets(): Promise<TargetLead[]> {
       email: t.email || "",
       phone: t.phone || "",
       location: t.location || "",
-      sector: t.sector || "",
+      // The Sector column is an industry list: canonicalize casing and reject
+      // rows where a job title / headline landed in the Sector cell, so the
+      // Sector filter only ever offers real sectors.
+      sector: normalizeSector(t.sector),
       stage: (t.stage || "Prospecting") as PipelineStage,
       // Constrain the free-text "Source" column to the canonical enum on read
       // (legacy values like "Customer Discovery — Acme" → "Customer Discovery").
