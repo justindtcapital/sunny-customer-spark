@@ -2723,10 +2723,10 @@ export async function updateTargetFields(
     if (lastIdx !== -1) updates.push({ range: `${colLetters(lastIdx)}${rowNum}`, value: last });
   }
 
-  for (const [field, header] of Object.entries(TARGET_UPDATE_HEADERS)) {
+  for (const [field, aliases] of Object.entries(TARGET_UPDATE_HEADERS)) {
     const val = fields[field];
     if (val === undefined) continue;
-    const idx = headers.indexOf(header);
+    const idx = headerIdxFor(headers, aliases);
     if (idx === -1) continue;
     updates.push({ range: `${colLetters(idx)}${rowNum}`, value: val });
   }
