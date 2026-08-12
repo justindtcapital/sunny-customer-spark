@@ -1640,8 +1640,8 @@ export function ContactDetail({
                                     <SelectItem value="follow-up">Follow-up</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <Input
-                                  className="h-7 text-xs"
+                                <Textarea
+                                  className="text-xs min-h-16"
                                   value={editInteractionData.summary}
                                   onChange={(e) =>
                                     setEditInteractionData({
@@ -1650,13 +1650,44 @@ export function ContactDetail({
                                     })
                                   }
                                 />
+                                <div className="flex flex-wrap items-center gap-3">
+                                  <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                    <Checkbox
+                                      checked={editInteractionData.isFollowUp}
+                                      onCheckedChange={(c) =>
+                                        setEditInteractionData({
+                                          ...editInteractionData,
+                                          isFollowUp: c === true,
+                                          followUpComplete:
+                                            c === true ? editInteractionData.followUpComplete : false,
+                                        })
+                                      }
+                                    />
+                                    Needs follow-up
+                                  </label>
+                                  {editInteractionData.isFollowUp && (
+                                    <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                      <Checkbox
+                                        checked={editInteractionData.followUpComplete}
+                                        onCheckedChange={(c) =>
+                                          setEditInteractionData({
+                                            ...editInteractionData,
+                                            followUpComplete: c === true,
+                                          })
+                                        }
+                                      />
+                                      Resolved
+                                    </label>
+                                  )}
+                                </div>
                                 <div className="flex gap-1">
                                   <Button
                                     size="sm"
                                     className="h-6 text-[10px] px-2"
+                                    disabled={savingInteraction}
                                     onClick={saveInteractionEdit}
                                   >
-                                    Save
+                                    {savingInteraction ? "Saving…" : "Save"}
                                   </Button>
                                   <Button
                                     variant="ghost"
@@ -1666,7 +1697,16 @@ export function ContactDetail({
                                   >
                                     Cancel
                                   </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 text-[10px] px-2 ml-auto text-destructive hover:text-destructive"
+                                    onClick={() => removeInteraction(interaction)}
+                                  >
+                                    Delete
+                                  </Button>
                                 </div>
+
                               </div>
                             ) : (
                               <>
