@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { Contact, PortfolioEvent } from "@/lib/types";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,17 +43,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import {
-  buildIntelligence,
-  temperatureRiver,
-  type PulseInsight,
-  type Recommendation,
-} from "@/lib/dashboard-intelligence";
-import { PulseIsland } from "@/components/dashboard/PulseIsland";
-import { NetworkConstellation } from "@/components/dashboard/NetworkConstellation";
-import { InstrumentStrip } from "@/components/dashboard/InstrumentStrip";
-import { RecommendationsBand } from "@/components/dashboard/RecommendationsBand";
+import { buildIntelligence, temperatureRiver } from "@/lib/dashboard-intelligence";
 import { ThesisIntelligenceMap } from "@/components/dashboard/ThesisIntelligenceMap";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -299,7 +291,7 @@ function DashboardPage() {
   const [drillGroupBy, setDrillGroupBy] = useState<DrillGroupBy>("engagement");
   const [selectedInvestor, setSelectedInvestor] = useState<string | null>(null);
   const [focusContactId, setFocusContactId] = useState<string | null>(null);
-  const constellationRef = useRef<HTMLDivElement>(null);
+
 
   const filtered = useMemo(() => {
     return contacts.filter((c) => {
@@ -416,28 +408,8 @@ function DashboardPage() {
     [filtered, drillGroupBy],
   );
 
-  const handlePulseAct = (pulse: PulseInsight) => {
-    if (pulse.contactId) {
-      const c = contacts.find((x) => x.id === pulse.contactId);
-      if (c) openContact(c);
-      return;
-    }
-    if (pulse.focus) focus(pulse.focus.dim, pulse.focus.value);
-    if (pulse.id === "steady") clearAll();
-  };
 
-  const handleRecAct = (rec: Recommendation) => {
-    if (rec.contactId) {
-      const c = contacts.find((x) => x.id === rec.contactId);
-      if (c) openContact(c);
-      return;
-    }
-    if (rec.focus) focus(rec.focus.dim, rec.focus.value);
-  };
 
-  const scrollToConstellation = () => {
-    constellationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-8">
@@ -478,125 +450,8 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* 02 Pulse Island */}
-      <PulseIsland
-        pulse={intelligence.pulse}
-        onAct={handlePulseAct}
-        onFocusConstellation={scrollToConstellation}
-      />
-
-      {/* Intelligence summary */}
-      <div className="rounded-xl border border-border/80 bg-muted/20 px-4 py-3.5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
-          Situational brief
-        </p>
-        <ul className="space-y-1.5">
-          {intelligence.summaryLines.map((line, i) => (
-            <li key={i} className="text-sm text-foreground/90 leading-snug flex gap-2">
-              <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-              {line}
-            </li>
-          ))}
-        </ul>
-      </div>
-
       <DrillChips filters={crossFilters} onClear={clear} onClearAll={clearAll} />
 
-      {/* 03 Living Network */}
-      <section ref={constellationRef} className="space-y-3">
-        <SectionLabel
-          eyebrow="03 · Living network"
-          title="Constellation"
-          hint="Time morph · Diff · Explore local / Ask AI · Pulse Trace · Orbit Focus"
-        />
-        <NetworkConstellation
-          contacts={filtered}
-          portfolioPortcos={portfolioPortcos}
-          focusContactId={focusContactId}
-          onSelectContact={openContact}
-          onSelectPortco={(name) => focus("portco", name)}
-        />
-        <div className="rounded-xl border border-border/80 bg-muted/20 px-4 py-3.5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-2">
-            How Constellation works
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2 text-xs text-foreground/85 leading-relaxed">
-            <ul className="space-y-1.5">
-              <li className="flex gap-2">
-                <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                <span>
-                  <span className="font-medium text-foreground">PortCos</span> come from the
-                  Google Sheets Portfolio Companies tab (e.g.{" "}
-                  <span className="font-medium text-foreground">ibex</span> maps to{" "}
-                  <span className="font-medium text-foreground">IBEX</span>). People orbit the
-                  company they are primarily introduced to. Halos show{" "}
-                  <span className="font-medium text-foreground">Influence</span>.
-                </span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                <span>
-                  <span className="font-medium text-foreground">Click</span> a person to focus;{" "}
-                  <span className="font-medium text-foreground">double-click</span> to open their
-                  file. Click a PortCo to filter the dashboard; double-click for Orbit Focus.
-                </span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                <span>
-                  <span className="font-medium text-foreground">Pulse Trace (T)</span> — pick two
-                  nodes to light the warmest intro path. Press{" "}
-                  <span className="font-medium text-foreground">P</span> for alternate routes.
-                </span>
-              </li>
-            </ul>
-            <ul className="space-y-1.5">
-              <li className="flex gap-2">
-                <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                <span>
-                  <span className="font-medium text-foreground">Time</span> scrubber and{" "}
-                  <span className="font-medium text-foreground">Diff (D)</span> show how influence
-                  changed versus today. AI marks decay, opportunities, and under-connected
-                  PortCos.
-                </span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                <span>
-                  Press <span className="font-medium text-foreground">/</span> to ask the network
-                  (e.g. “bridges”, “cooling”, “connected to Acme”). Esc or F clears focus.
-                </span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                <span>
-                  <span className="font-medium text-foreground">Labels</span> default to{" "}
-                  <span className="font-medium text-foreground">Active</span> (PortCos with
-                  intros). Switch to All / None in the map chrome; hover always reveals a name.
-                  Double-click a PortCo for Orbit Focus when the ring is dense.
-                </span>
-              </li>
-              <li className="flex gap-2">
-                <span className="text-primary mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-                <span>
-                  The map follows your dashboard filters — change sector, temperature, or PortCo
-                  above and the constellation rebuilds live.
-                </span>
-              </li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* 04 Executive instruments */}
-      <section className="space-y-3">
-        <SectionLabel
-          eyebrow="04 · Instruments"
-          title="Executive instruments"
-          hint="Health · momentum · velocity · coverage · freshness · influence"
-        />
-        <InstrumentStrip instruments={intelligence.instruments} />
-      </section>
 
       {/* 05 Relationship Analytics */}
       <section className="space-y-3">
@@ -828,16 +683,11 @@ function DashboardPage() {
         </Card>
       </section>
 
-      {/* 08 Recommendations */}
+      {/* 08 Network progression */}
       <section className="space-y-3">
-        <SectionLabel
-          eyebrow="08 · Recommendations"
-          title="Where to act next"
-          hint="Decay · follow-ups · coverage gaps · concentration"
-        />
-        <RecommendationsBand items={intelligence.recommendations} onAct={handleRecAct} />
         <NetworkInsights contacts={filtered} transitions={transitions} />
       </section>
+
 
       {/* 09 Custom Analytics */}
       <section className="space-y-3">
