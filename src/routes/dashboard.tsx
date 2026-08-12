@@ -299,7 +299,7 @@ function DashboardPage() {
   const [drillGroupBy, setDrillGroupBy] = useState<DrillGroupBy>("engagement");
   const [selectedInvestor, setSelectedInvestor] = useState<string | null>(null);
   const [focusContactId, setFocusContactId] = useState<string | null>(null);
-  const constellationRef = useRef<HTMLDivElement>(null);
+
 
   const filtered = useMemo(() => {
     return contacts.filter((c) => {
