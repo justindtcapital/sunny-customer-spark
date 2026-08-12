@@ -319,7 +319,8 @@ export interface TargetLead {
 export interface TargetingFilters {
   search: string;
   stage: string;
-  sector: string;
+  /** Sector focus — multi-select (empty = no filter). */
+  sector: string[];
   city: string;
   origin: string;
   /** Title contains (free text). */
