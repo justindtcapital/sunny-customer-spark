@@ -2821,11 +2821,11 @@ export async function bulkUpdateTargetFields(
       }
     }
 
-    for (const [field, header] of Object.entries(TARGET_UPDATE_HEADERS)) {
+    for (const [field, aliases] of Object.entries(TARGET_UPDATE_HEADERS)) {
       let val = entry.fields[field];
       if (val === undefined) continue;
       if (field === "linkedinUrl") val = normalizeLinkedinUrl(val);
-      const idx = headers.indexOf(header);
+      const idx = headerIdxFor(headers, aliases);
       if (idx === -1) continue;
       if (opts.fillOnly && cell(idx)) continue; // don't overwrite curated data
       updates.push({ range: `${colLetters(idx)}${rowNum}`, value: val });
