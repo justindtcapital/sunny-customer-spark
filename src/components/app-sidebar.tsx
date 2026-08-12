@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Users, Target, Search, Filter, Mail, Pencil, X, Telescope, Loader2, ScrollText } from "lucide-react";
+import {
+  Users,
+  Target,
+  Search,
+  Filter,
+  Mail,
+  Pencil,
+  X,
+  Telescope,
+  Loader2,
+  ScrollText,
+} from "lucide-react";
 import {
   HomeIcon,
   NetworkIcon,
@@ -36,7 +47,12 @@ import type {
 } from "@/lib/types";
 import { CONTACT_TYPES, RECORD_SOURCES } from "@/lib/types";
 import { SENIORITY_LEVELS, DEPARTMENTS } from "@/lib/people-classify";
-import { bulkUpdateContacts, addEvent as addEventToSheet, addPortcoIntro, addNote } from "@/utils/sheets.functions";
+import {
+  bulkUpdateContacts,
+  addEvent as addEventToSheet,
+  addPortcoIntro,
+  addNote,
+} from "@/utils/sheets.functions";
 import { toast } from "sonner";
 import { useFilterOptions } from "@/lib/filter-options-context";
 import type { DashboardFilters } from "@/lib/dashboard-filter-context";

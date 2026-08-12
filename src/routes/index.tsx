@@ -193,8 +193,7 @@ const REASON_STYLE: Record<AttentionReason, { label: string; cls: string }> = {
 function DeltaLine({ delta, label }: { delta: number | null; label: string }) {
   if (delta === null)
     return <span className="text-[11px] text-muted-foreground">building baseline…</span>;
-  if (delta === 0)
-    return <span className="text-[11px] text-muted-foreground">steady {label}</span>;
+  if (delta === 0) return <span className="text-[11px] text-muted-foreground">steady {label}</span>;
   const up = delta > 0;
   return (
     <span
@@ -477,7 +476,6 @@ function HomePage() {
             )}
           </CardContent>
         </Card>
-
       </div>
 
       <DailyBriefing briefing={briefing} busy={briefingBusy} onGenerate={runBriefing} />

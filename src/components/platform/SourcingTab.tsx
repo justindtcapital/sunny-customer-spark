@@ -124,7 +124,10 @@ export function SourcingTab({
             badges={
               <>
                 <span className="text-muted-foreground/60">·</span>
-                <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900"
+                >
                   Sourcing
                 </Badge>
                 {r.segment && (
