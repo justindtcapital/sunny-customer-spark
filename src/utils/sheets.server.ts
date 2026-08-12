@@ -2632,18 +2632,29 @@ async function buildTargetStrategyMap(): Promise<Record<string, ConnectionPlan>>
 // Append one outreach attempt for a target (persisted to the Target Outreach tab).
 // Updatable TargetLead field → Targets sheet column header (lowercased).
 // "name" is handled separately (split across First/Last Name).
-const TARGET_UPDATE_HEADERS: Record<string, string> = {
-  title: "role",
-  company: "company",
-  email: "email",
-  phone: "phone",
-  location: "location",
-  linkedinUrl: "linkedin",
-  sector: "sector",
-  stage: "stage",
-  originSource: "source",
-  notes: "research purpose",
+const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
+  title: ["role"],
+  company: ["company"],
+  email: ["email"],
+  phone: ["phone"],
+  location: ["location"],
+  linkedinUrl: ["linkedin"],
+  // Accept the header aliases used across sheet versions so a sector write
+  // always lands in the real Sector column, wherever it sits.
+  sector: ["sector", "sector focus", "focus area", "focus area(s)", "industry", "industry category"],
+  stage: ["stage"],
+  originSource: ["source"],
+  notes: ["research purpose"],
 };
+
+// First matching header index for a field's alias list (-1 when absent).
+function headerIdxFor(headers: string[], aliases: string[]): number {
+  for (const a of aliases) {
+    const idx = headers.indexOf(a);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
 
 // Update a target's row in the Targets tab, located by its stable key (email, or
 // name|company). Writes only the provided fields, matched by header name so it's
