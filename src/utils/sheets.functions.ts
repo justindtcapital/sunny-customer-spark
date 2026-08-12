@@ -17,7 +17,7 @@ import {
   updateSheetCell,
   updateSheetCells,
   deleteSheetRows,
-  logOpsEvent,
+  
   TAB_NAMES,
   APP_EVENT_HEADERS,
   recalculateRatings as recalculateRatingsServer,
