@@ -83,11 +83,7 @@ export function SourcingTab({
           <Compass className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">No sourcing signals yet.</p>
           <p className="text-xs text-muted-foreground/70 mt-1">
-            This view ranks non-portfolio companies from stored signals.{" "}
-            <Link to="/signals" className="text-primary hover:underline">
-              Run a scan on Signals
-            </Link>{" "}
-            to populate it.
+            This view ranks non-portfolio companies from stored signals.
           </p>
         </div>
       </div>
@@ -128,7 +124,10 @@ export function SourcingTab({
             badges={
               <>
                 <span className="text-muted-foreground/60">·</span>
-                <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900"
+                >
                   Sourcing
                 </Badge>
                 {r.segment && (

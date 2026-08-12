@@ -96,14 +96,6 @@ function ActionRow({ a, onEmail }: { a: BriefingAction; onEmail: (a: BriefingAct
       </Link>
     );
   }
-  // Broadcast → Signals; everything else → the company brief.
-  if (a.kind === "broadcast") {
-    return (
-      <Link to="/signals" className={cls}>
-        {inner}
-      </Link>
-    );
-  }
   return (
     <Link
       to="/companies"
@@ -206,7 +198,9 @@ export function DailyBriefing({
       {/* Executive summary — editorial, not gradient theatre */}
       <Card className="ai-presence border-border">
         <CardContent className="p-5">
-          <p className="text-base leading-relaxed text-foreground font-medium">{briefing.summary}</p>
+          <p className="text-base leading-relaxed text-foreground font-medium">
+            {briefing.summary}
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-border">
             {stats.map((s) => (
               <div key={s.label} className="px-1 py-1">
