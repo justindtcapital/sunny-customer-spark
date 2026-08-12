@@ -2637,12 +2637,12 @@ async function buildTargetStrategyMap(): Promise<Record<string, ConnectionPlan>>
 // Updatable TargetLead field → Targets sheet column header (lowercased).
 // "name" is handled separately (split across First/Last Name).
 const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
-  title: ["role"],
+  title: ["role", "title"],
   company: ["company"],
   email: ["email"],
-  phone: ["phone"],
-  location: ["location"],
-  linkedinUrl: ["linkedin"],
+  phone: ["phone", "phone number"],
+  location: ["location", "city"],
+  linkedinUrl: ["linkedin", "linkedin url"],
   // Accept the header aliases used across sheet versions so a sector write
   // always lands in the real Sector column, wherever it sits.
   sector: ["sector", "sector focus", "focus area", "focus area(s)", "industry", "industry category"],
