@@ -707,22 +707,90 @@ export function ContactDetail({
 
   const startEditingInteraction = (interaction: Interaction) => {
     setEditingInteractionId(interaction.id);
-    setEditInteractionData({ type: interaction.type, summary: interaction.summary });
+    setEditInteractionData({
+      type: interaction.type,
+      summary: interaction.summary,
+      originalSummary: interaction.summary,
+      date: interaction.date,
+      isFollowUp: interaction.isFollowUp === true,
+      followUpComplete: interaction.followUpComplete === true,
+    });
   };
 
-  const saveInteractionEdit = () => {
+  const saveInteractionEdit = async () => {
     if (!editingInteractionId) return;
+    const summary = editInteractionData.summary.trim();
+    if (!summary) {
+      toast.error("The note can't be empty.");
+      return;
+    }
+    const patch = {
+      type: editInteractionData.type,
+      summary,
+      isFollowUp: editInteractionData.isFollowUp,
+      followUpComplete: editInteractionData.isFollowUp
+        ? editInteractionData.followUpComplete
+        : false,
+    };
     const updated = {
       ...contact,
       interactions: contact.interactions.map((i) =>
-        i.id === editingInteractionId
-          ? { ...i, type: editInteractionData.type, summary: editInteractionData.summary }
-          : i,
+        i.id === editingInteractionId ? { ...i, ...patch } : i,
       ),
     };
+    updated.followUpPending =
+      updated.interactions.some((i) => i.isFollowUp && !i.followUpComplete) ||
+      contact.followUpPending === true;
+    if (onContactUpdate) onContactUpdate(updated);
+
+    setSavingInteraction(true);
+    try {
+      const res = await updateInteraction({
+        data: {
+          contactEmail: contact.email,
+          originalNote: editInteractionData.originalSummary,
+          date: editInteractionData.date,
+          note: summary,
+          type: patch.type,
+          requiresFollowUp: patch.isFollowUp,
+          resolved: patch.followUpComplete,
+        },
+      });
+      if (res.success) toast.success("Interaction updated.");
+      else toast.warning("Couldn't find this note's row — change shown locally only.");
+    } catch (e) {
+      console.error("Failed to update interaction in sheet:", e);
+      toast.error("Saving the interaction failed — see console.");
+    } finally {
+      setSavingInteraction(false);
+      setEditingInteractionId(null);
+    }
+  };
+
+  const removeInteraction = async (interaction: Interaction) => {
+    const updated = {
+      ...contact,
+      interactions: contact.interactions.filter((i) => i.id !== interaction.id),
+    };
+    updated.followUpPending = updated.interactions.some((i) => i.isFollowUp && !i.followUpComplete);
     if (onContactUpdate) onContactUpdate(updated);
     setEditingInteractionId(null);
+    try {
+      const res = await deleteInteraction({
+        data: {
+          contactEmail: contact.email,
+          note: interaction.summary,
+          date: interaction.date,
+        },
+      });
+      if (res.success) toast.success("Interaction deleted.");
+      else toast.warning("Couldn't find this note's row in the sheet.");
+    } catch (e) {
+      console.error("Failed to delete interaction from sheet:", e);
+      toast.error("Deleting the interaction failed — see console.");
+    }
   };
+
 
   const toggleFollowUpComplete = async (interactionId: string) => {
     const interaction = contact.interactions.find((i) => i.id === interactionId);
