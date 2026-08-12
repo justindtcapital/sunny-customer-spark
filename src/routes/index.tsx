@@ -5,7 +5,6 @@ import {
   TargetingIcon,
   EventsIcon,
   PortCoIcon,
-  SignalsIcon,
   CompaniesIcon,
   QueryIcon,
   DashboardIcon,
@@ -215,13 +214,6 @@ const MODULES: Module[] = [
     Icon: PortCoIcon,
     description: "Companies under stewardship.",
     accent: "text-foreground",
-  },
-  {
-    title: "Signals",
-    url: "/signals",
-    Icon: SignalsIcon,
-    description: "Live intelligence mapped to your book.",
-    accent: "text-primary",
   },
   {
     title: "Companies",
