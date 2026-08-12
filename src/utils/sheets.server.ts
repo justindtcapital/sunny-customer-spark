@@ -2649,6 +2649,9 @@ const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
   stage: ["stage"],
   originSource: ["source"],
   notes: ["research purpose"],
+  reasonSurfaced: ["reason surfaced"],
+  dateAdded: ["date added"],
+  lastContacted: ["last contacted"],
 };
 
 // First matching header index for a field's alias list (-1 when absent).
