@@ -47,7 +47,7 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: "temperature", label: "Status" },
   { key: "engagement", label: "Engagement" },
   { key: "followUp", label: "Follow-up" },
-  { key: "contactType", label: "Type" },
+  
   { key: "source", label: "Source" },
   { key: "dateAdded", label: "Added" },
 ];
@@ -239,9 +239,6 @@ export function ContactTable({ contacts, onSelect }: ContactTableProps) {
                       <span className="text-xs font-medium">Done</span>
                     </div>
                   )}
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap" onClick={() => onSelect(contact)}>
-                  {contact.contactType || "—"}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground whitespace-nowrap" onClick={() => onSelect(contact)}>
                   {contact.source || "Manual Entry"}
