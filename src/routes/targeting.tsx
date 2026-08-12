@@ -104,6 +104,7 @@ import {
   bulkResearchTargets,
   bulkDeleteTargets,
   repairTargetUrids,
+  repairTargetSectors,
   addTarget,
 } from "@/utils/sheets.functions";
 import { promoteTargetsToCrm } from "@/utils/target-crm.functions";
@@ -583,6 +584,34 @@ function TargetingPage() {
       setRepairing(false);
     }
   }, [repairing, refreshTargets]);
+
+  const [cleaningSectors, setCleaningSectors] = useState(false);
+
+  // The Sector filter is built from the distinct values in the sheet's Sector
+  // column, so title text stored there ("Field CTO") showed up as a sector.
+  // This rewrites those cells to real industries (or clears them) and re-pulls.
+  const handleCleanSectors = useCallback(async () => {
+    if (cleaningSectors) return;
+    setCleaningSectors(true);
+    try {
+      const res = await repairTargetSectors();
+      if (res.cleared === 0 && res.normalized === 0) {
+        toast.success(`All ${res.total} target sectors are clean — nothing to fix.`);
+      } else {
+        const parts: string[] = [];
+        if (res.normalized) parts.push(`${res.normalized} normalized`);
+        if (res.cleared) parts.push(`${res.cleared} cleared`);
+        if (res.movedToRole) parts.push(`${res.movedToRole} moved to Role`);
+        toast.success(`Cleaned sectors — ${parts.join(", ")} (of ${res.total}).`);
+        await refreshTargets();
+      }
+    } catch (e) {
+      console.error("repairTargetSectors failed", e);
+      toast.error("Couldn't clean sectors — see console.");
+    } finally {
+      setCleaningSectors(false);
+    }
+  }, [cleaningSectors, refreshTargets]);
 
   const handleBulkTargetUpdate = useCallback((updatedTargets: TargetLead[]) => {
     setTargets((prev) => {
@@ -1292,6 +1321,17 @@ function TargetingPage() {
                     <Wrench className="h-3.5 w-3.5 mr-2" />
                   )}
                   Repair IDs
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void handleCleanSectors()}
+                  disabled={cleaningSectors}
+                >
+                  {cleaningSectors ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                  ) : (
+                    <Wrench className="h-3.5 w-3.5 mr-2" />
+                  )}
+                  Clean sectors
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

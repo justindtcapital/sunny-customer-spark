@@ -44,6 +44,7 @@ import {
   updateTargetFields as updateTargetFieldsServer,
   bulkUpdateTargetFields as bulkUpdateTargetFieldsServer,
   repairTargetUrids as repairTargetUridsServer,
+  repairTargetSectors as repairTargetSectorsServer,
   setPortcoIntroSource as setPortcoIntroSourceServer,
   appendTargetRows as appendTargetRowsServer,
   recordDailySnapshot as recordDailySnapshotServer,
@@ -518,6 +519,25 @@ export const repairTargetUrids = createServerFn({ method: "POST" }).handler(asyn
   }
   return res;
 });
+
+// Clean the Targets "Sector" column: canonical industry casing, and job-title
+// text cleared (moved into a blank Role). Idempotent; only Sector/blank Role.
+export const repairTargetSectors = createServerFn({ method: "POST" }).handler(async () => {
+  const res = await repairTargetSectorsServer();
+  if (res.cleared > 0 || res.normalized > 0) {
+    await logOpsEventServer({
+      action: "maintenance",
+      source: "targets_sector",
+      status: "ok",
+      summary: `Cleaned target sectors · ${res.normalized} normalized, ${res.cleared} cleared (of ${res.total})`,
+      records: res.cleared + res.normalized,
+      details: res,
+    });
+  }
+  return res;
+});
+
+
 
 // Batch-set fields (e.g. Stage) across many targets in one write. Overwrites by
 // default; pass fillOnly to leave non-blank cells untouched.
