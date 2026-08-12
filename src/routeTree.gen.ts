@@ -17,7 +17,6 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiPublicTmpTargetsPeekRouteImport } from './routes/api/public/tmp-targets-peek'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
 import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
 import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
@@ -63,11 +62,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicTmpTargetsPeekRoute = ApiPublicTmpTargetsPeekRouteImport.update({
-  id: '/api/public/tmp-targets-peek',
-  path: '/api/public/tmp-targets-peek',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   id: '/api/public/inngest',
   path: '/api/public/inngest',
@@ -102,7 +96,6 @@ export interface FileRoutesByFullPath {
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
-  '/api/public/tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -117,7 +110,6 @@ export interface FileRoutesByTo {
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
-  '/api/public/tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -133,7 +125,6 @@ export interface FileRoutesById {
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
-  '/api/public/tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -150,7 +141,6 @@ export interface FileRouteTypes {
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
-    | '/api/public/tmp-targets-peek'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -165,7 +155,6 @@ export interface FileRouteTypes {
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
-    | '/api/public/tmp-targets-peek'
   id:
     | '__root__'
     | '/'
@@ -180,7 +169,6 @@ export interface FileRouteTypes {
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
-    | '/api/public/tmp-targets-peek'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -196,7 +184,6 @@ export interface RootRouteChildren {
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
   ApiCronSignalsReconcileRoute: typeof ApiCronSignalsReconcileRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
-  ApiPublicTmpTargetsPeekRoute: typeof ApiPublicTmpTargetsPeekRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -257,13 +244,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/tmp-targets-peek': {
-      id: '/api/public/tmp-targets-peek'
-      path: '/api/public/tmp-targets-peek'
-      fullPath: '/api/public/tmp-targets-peek'
-      preLoaderRoute: typeof ApiPublicTmpTargetsPeekRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/inngest': {
       id: '/api/public/inngest'
       path: '/api/public/inngest'
@@ -308,7 +288,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,
   ApiCronSignalsReconcileRoute: ApiCronSignalsReconcileRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
-  ApiPublicTmpTargetsPeekRoute: ApiPublicTmpTargetsPeekRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
