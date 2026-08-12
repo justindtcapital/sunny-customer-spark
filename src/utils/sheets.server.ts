@@ -1341,6 +1341,12 @@ const TARGET_COLS: Record<string, string> = {
   phone: "phone",
   location: "location",
   sector: "sector",
+  // Header aliases seen in the live sheet / older exports — all feed `sector`.
+  "sector focus": "sector",
+  "focus area": "sector",
+  "focus area(s)": "sector",
+  industry: "sector",
+  "industry category": "sector",
   stage: "stage",
   source: "originSource",
   "research purpose": "researchPurpose",
