@@ -6,7 +6,7 @@ export const Route = createFileRoute("/api/public/tmp-targets-peek")({
     handlers: {
       GET: async () => {
         const rows = await fetchSheetTab("Targets");
-        return new Response(JSON.stringify(rows.slice(0, 12)), {
+        return new Response(JSON.stringify(rows), {
           headers: { "content-type": "application/json" },
         });
       },
