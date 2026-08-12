@@ -700,6 +700,109 @@ export const resolveFollowUp = createServerFn({ method: "POST" })
     return { success: false };
   });
 
+// ── Interaction trail editing ────────────────────────────────
+// Locate a Notes row by contact email + its current note content (optionally the
+// timestamp too, when several notes share text). Returns the 1-based sheet row.
+function findInteractionRow(
+  rows: string[][],
+  headers: string[],
+  email: string,
+  noteContent: string,
+  date?: string,
+): number {
+  const emailIdx = headers.indexOf("contact email");
+  const noteIdx = headers.indexOf("note content");
+  const dateIdx = headers.indexOf("timestamp");
+  if (emailIdx === -1 || noteIdx === -1) return -1;
+  const emailLower = email.trim().toLowerCase();
+  const note = noteContent.trim();
+  let fallback = -1;
+  for (let i = 1; i < rows.length; i++) {
+    if ((rows[i][emailIdx] || "").trim().toLowerCase() !== emailLower) continue;
+    if ((rows[i][noteIdx] || "").trim() !== note) continue;
+    if (date && dateIdx !== -1) {
+      if ((rows[i][dateIdx] || "").trim() === date.trim()) return i + 1;
+      if (fallback === -1) fallback = i + 1;
+      continue;
+    }
+    return i + 1;
+  }
+  return fallback;
+}
+
+function colLetters(idx: number): string {
+  let out = "";
+  let n = idx;
+  do {
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return out;
+}
+
+/**
+ * Edit an existing interaction (Notes row): type, note text, follow-up flag and
+ * resolved state. Matched by contact email + the note's current content.
+ */
+export const updateInteraction = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      contactEmail: string;
+      /** Current note text in the sheet (match key). */
+      originalNote: string;
+      /** Timestamp of the row, used to disambiguate duplicates. */
+      date?: string;
+      note?: string;
+      type?: string;
+      requiresFollowUp?: boolean;
+      resolved?: boolean;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const rows = await fetchSheetTab(TAB_NAMES.interactions);
+    if (rows.length < 2) return { success: false };
+    const headers = rows[0].map((h) => h.trim().toLowerCase());
+    const rowNumber = findInteractionRow(
+      rows,
+      headers,
+      data.contactEmail,
+      data.originalNote,
+      data.date,
+    );
+    if (rowNumber === -1) return { success: false };
+
+    const writes: { range: string; value: string }[] = [];
+    const push = (header: string, value: string) => {
+      const idx = headers.indexOf(header);
+      if (idx !== -1) writes.push({ range: `${colLetters(idx)}${rowNumber}`, value });
+    };
+    if (data.note !== undefined) push("note content", data.note);
+    if (data.type !== undefined) push("type", data.type);
+    if (data.requiresFollowUp !== undefined) {
+      push("requires follow up", data.requiresFollowUp ? "TRUE" : "FALSE");
+    }
+    if (data.resolved !== undefined) push("follow up resolved", data.resolved ? "TRUE" : "FALSE");
+    if (writes.length === 0) return { success: false };
+
+    await updateSheetCells(TAB_NAMES.interactions, writes);
+    return { success: true };
+  });
+
+/** Delete an interaction row from the Notes tab. */
+export const deleteInteraction = createServerFn({ method: "POST" })
+  .inputValidator((data: { contactEmail: string; note: string; date?: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await fetchSheetTab(TAB_NAMES.interactions);
+    if (rows.length < 2) return { success: false };
+    const headers = rows[0].map((h) => h.trim().toLowerCase());
+    const rowNumber = findInteractionRow(rows, headers, data.contactEmail, data.note, data.date);
+    if (rowNumber === -1) return { success: false };
+    const removed = await deleteSheetRows(TAB_NAMES.interactions, [rowNumber]);
+    return { success: removed > 0 };
+  });
+
+
+
 // Update fields on an existing contact row (matched by email). Used to persist
 // Apollo enrichment back to the sheet. Only the provided fields are written, and
 // only those that have a matching column in the Contacts tab. Email is the match
