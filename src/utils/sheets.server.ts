@@ -1024,6 +1024,8 @@ export interface AddContactInput {
    *  Used by the CRM "Add Contact" dialog so individual network adds stay on
    *  the Network page instead of disappearing into Portfolio-only. */
   skipPortfolioSector?: boolean;
+  /** When true, stamp the Contacts "Follow Up Flag" column TRUE on create. */
+  followUp?: boolean;
 }
 
 // Portfolio-company match: returns "Portfolio" when the given company (or any
@@ -1091,7 +1093,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
     "industry category": sector,
     sector: sector,
     "relationship status": data.temperature,
-    "follow up flag": "FALSE",
+    "follow up flag": data.followUp ? "TRUE" : "FALSE",
     "date added": now,
     // Canonical source — filled only when one of these columns exists.
     source: data.source ?? "",
