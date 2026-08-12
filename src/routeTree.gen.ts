@@ -17,8 +17,8 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPublicTmpTargetsPeekRouteImport } from './routes/api/public/tmp-targets-peek'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
-import { Route as ApiPublicTmpTargetsPeekRouteImport } from './routes/api/public/_tmp-targets-peek'
 import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
 import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
@@ -63,14 +63,14 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTmpTargetsPeekRoute = ApiPublicTmpTargetsPeekRouteImport.update({
+  id: '/api/public/tmp-targets-peek',
+  path: '/api/public/tmp-targets-peek',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   id: '/api/public/inngest',
   path: '/api/public/inngest',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicTmpTargetsPeekRoute = ApiPublicTmpTargetsPeekRouteImport.update({
-  id: '/api/public/_tmp-targets-peek',
-  path: '/api/public',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCronSignalsReconcileRoute = ApiCronSignalsReconcileRouteImport.update({
@@ -101,8 +101,8 @@ export interface FileRoutesByFullPath {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
-  '/api/public': typeof ApiPublicTmpTargetsPeekRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -116,8 +116,8 @@ export interface FileRoutesByTo {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
-  '/api/public': typeof ApiPublicTmpTargetsPeekRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -132,8 +132,8 @@ export interface FileRoutesById {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
-  '/api/public/_tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/tmp-targets-peek': typeof ApiPublicTmpTargetsPeekRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -149,8 +149,8 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
-    | '/api/public'
     | '/api/public/inngest'
+    | '/api/public/tmp-targets-peek'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -164,8 +164,8 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
-    | '/api/public'
     | '/api/public/inngest'
+    | '/api/public/tmp-targets-peek'
   id:
     | '__root__'
     | '/'
@@ -179,8 +179,8 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
-    | '/api/public/_tmp-targets-peek'
     | '/api/public/inngest'
+    | '/api/public/tmp-targets-peek'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -195,8 +195,8 @@ export interface RootRouteChildren {
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
   ApiCronSignalsReconcileRoute: typeof ApiCronSignalsReconcileRoute
-  ApiPublicTmpTargetsPeekRoute: typeof ApiPublicTmpTargetsPeekRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
+  ApiPublicTmpTargetsPeekRoute: typeof ApiPublicTmpTargetsPeekRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -257,18 +257,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/tmp-targets-peek': {
+      id: '/api/public/tmp-targets-peek'
+      path: '/api/public/tmp-targets-peek'
+      fullPath: '/api/public/tmp-targets-peek'
+      preLoaderRoute: typeof ApiPublicTmpTargetsPeekRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/inngest': {
       id: '/api/public/inngest'
       path: '/api/public/inngest'
       fullPath: '/api/public/inngest'
       preLoaderRoute: typeof ApiPublicInngestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/_tmp-targets-peek': {
-      id: '/api/public/_tmp-targets-peek'
-      path: '/api/public'
-      fullPath: '/api/public'
-      preLoaderRoute: typeof ApiPublicTmpTargetsPeekRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cron/signals-reconcile': {
@@ -307,8 +307,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,
   ApiCronSignalsReconcileRoute: ApiCronSignalsReconcileRoute,
-  ApiPublicTmpTargetsPeekRoute: ApiPublicTmpTargetsPeekRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
+  ApiPublicTmpTargetsPeekRoute: ApiPublicTmpTargetsPeekRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
