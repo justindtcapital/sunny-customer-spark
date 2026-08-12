@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Link } from "@tanstack/react-router";
 import type { PulseInsight } from "@/lib/dashboard-intelligence";
 import { cn } from "@/lib/utils";
 

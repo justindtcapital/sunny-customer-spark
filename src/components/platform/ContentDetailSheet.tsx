@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 import { Check, ExternalLink, FileDown, Loader2, Plus, Printer, Star } from "lucide-react";
 import { toast } from "sonner";
 import {
