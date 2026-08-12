@@ -583,24 +583,8 @@ function DashboardPage() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-
-          <Card className="border-border/80 shadow-none">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">
-                Thesis Intelligence{" "}
-                <span className="font-normal text-muted-foreground">
-                  · relationship capital by thesis
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ThesisIntelligenceMap
-                contacts={filtered}
-                onSelectThesis={(name) => focus("sector", name)}
-              />
-            </CardContent>
-          </Card>
         </div>
+
       </section>
 
       {/* 06 Investor Analytics */}
