@@ -44,6 +44,7 @@ import {
   updateTargetFields as updateTargetFieldsServer,
   bulkUpdateTargetFields as bulkUpdateTargetFieldsServer,
   repairTargetUrids as repairTargetUridsServer,
+  repairTargetSectors as repairTargetSectorsServer,
   setPortcoIntroSource as setPortcoIntroSourceServer,
   appendTargetRows as appendTargetRowsServer,
   recordDailySnapshot as recordDailySnapshotServer,
