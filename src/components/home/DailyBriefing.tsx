@@ -96,14 +96,6 @@ function ActionRow({ a, onEmail }: { a: BriefingAction; onEmail: (a: BriefingAct
       </Link>
     );
   }
-  // Broadcast → Signals; everything else → the company brief.
-  if (a.kind === "broadcast") {
-    return (
-      <Link to="/signals" className={cls}>
-        {inner}
-      </Link>
-    );
-  }
   return (
     <Link
       to="/companies"

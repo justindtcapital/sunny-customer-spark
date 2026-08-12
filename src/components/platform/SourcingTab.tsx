@@ -83,11 +83,7 @@ export function SourcingTab({
           <Compass className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">No sourcing signals yet.</p>
           <p className="text-xs text-muted-foreground/70 mt-1">
-            This view ranks non-portfolio companies from stored signals.{" "}
-            <Link to="/signals" className="text-primary hover:underline">
-              Run a scan on Signals
-            </Link>{" "}
-            to populate it.
+            This view ranks non-portfolio companies from stored signals.
           </p>
         </div>
       </div>
