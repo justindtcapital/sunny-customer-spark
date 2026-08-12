@@ -1,5 +1,5 @@
-import { createFileRoute, Link, Await, useNavigate, useRouter } from "@tanstack/react-router";
-import { Suspense, useEffect, useState } from "react";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   NetworkIcon,
   TargetingIcon,
