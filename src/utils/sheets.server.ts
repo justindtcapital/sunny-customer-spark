@@ -1644,7 +1644,13 @@ export async function buildContacts(): Promise<Contact[]> {
 
   const rawContacts = mapRows<Record<string, string>>(contactRows, CONTACT_COLS);
   const rawEvents = mapRows<Record<string, string>>(eventRows, EVENT_COLS);
-  const rawIntros = mapRows<Record<string, string>>(introRows, PORTCO_INTRO_COLS);
+  const rawIntros = mapRows<Record<string, string>>(introRows, PORTCO_INTRO_COLS).map((r) =>
+    // Self-heal a mislabeled header on the PortCos Introduced tab (the email
+    // column has shipped titled "Engagement Source" before). Without this the
+    // intro rows never join to a contact and every PortCo metric reads zero.
+    !r.email && (r.source || "").includes("@") ? { ...r, email: r.source, source: "" } : r,
+  );
+
   const rawInteractions = mapRows<Record<string, string>>(interactionRows, INTERACTION_COLS);
 
   // Children join to a contact by stable urid when present, else by email
