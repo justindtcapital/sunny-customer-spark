@@ -1336,10 +1336,14 @@ const TARGET_COLS: Record<string, string> = {
   "last name": "lastName",
   company: "company",
   role: "role",
+  title: "role",
   linkedin: "linkedinUrl",
+  "linkedin url": "linkedinUrl",
   email: "email",
   phone: "phone",
+  "phone number": "phone",
   location: "location",
+  city: "location",
   sector: "sector",
   // Header aliases seen in the live sheet / older exports — all feed `sector`.
   "sector focus": "sector",
@@ -2633,18 +2637,21 @@ async function buildTargetStrategyMap(): Promise<Record<string, ConnectionPlan>>
 // Updatable TargetLead field → Targets sheet column header (lowercased).
 // "name" is handled separately (split across First/Last Name).
 const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
-  title: ["role"],
+  title: ["role", "title"],
   company: ["company"],
   email: ["email"],
-  phone: ["phone"],
-  location: ["location"],
-  linkedinUrl: ["linkedin"],
+  phone: ["phone", "phone number"],
+  location: ["location", "city"],
+  linkedinUrl: ["linkedin", "linkedin url"],
   // Accept the header aliases used across sheet versions so a sector write
   // always lands in the real Sector column, wherever it sits.
   sector: ["sector", "sector focus", "focus area", "focus area(s)", "industry", "industry category"],
   stage: ["stage"],
   originSource: ["source"],
   notes: ["research purpose"],
+  reasonSurfaced: ["reason surfaced"],
+  dateAdded: ["date added"],
+  lastContacted: ["last contacted"],
 };
 
 // First matching header index for a field's alias list (-1 when absent).
