@@ -43,17 +43,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import {
-  buildIntelligence,
-  temperatureRiver,
-  type PulseInsight,
-  type Recommendation,
-} from "@/lib/dashboard-intelligence";
-import { PulseIsland } from "@/components/dashboard/PulseIsland";
-import { NetworkConstellation } from "@/components/dashboard/NetworkConstellation";
-import { InstrumentStrip } from "@/components/dashboard/InstrumentStrip";
-import { RecommendationsBand } from "@/components/dashboard/RecommendationsBand";
+import { buildIntelligence, temperatureRiver } from "@/lib/dashboard-intelligence";
 import { ThesisIntelligenceMap } from "@/components/dashboard/ThesisIntelligenceMap";
+
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
