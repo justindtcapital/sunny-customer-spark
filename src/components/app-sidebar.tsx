@@ -17,8 +17,6 @@ import {
   TargetingIcon,
   EventsIcon,
   PortCoIcon,
-  CompaniesIcon,
-  QueryIcon,
   DashboardIcon,
 } from "@/components/home/WorkspaceIcons";
 import dtcLogo from "@/assets/dtc-logo.jpg";
@@ -90,9 +88,7 @@ const navItems = [
   { title: "Targeting", url: "/targeting", icon: TargetingIcon },
   { title: "Events", url: "/events", icon: EventsIcon },
   { title: "PortCo", url: "/portfolio", icon: PortCoIcon },
-  { title: "Companies", url: "/companies", icon: CompaniesIcon },
   { title: "Platform", url: "/platform", icon: Telescope },
-  { title: "Query", url: "/query", icon: QueryIcon },
   { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
   { title: "Activity", url: "/activity", icon: ScrollText },
 ];

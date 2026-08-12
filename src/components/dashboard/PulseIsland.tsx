@@ -113,9 +113,6 @@ export function PulseIsland({ pulse, onAct, onFocusConstellation }: PulseIslandP
               Focus constellation
             </Button>
           )}
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" asChild>
-            <Link to="/query">Open in Query</Link>
-          </Button>
         </div>
       )}
     </div>

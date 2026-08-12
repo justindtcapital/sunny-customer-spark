@@ -5,8 +5,6 @@ import {
   TargetingIcon,
   EventsIcon,
   PortCoIcon,
-  CompaniesIcon,
-  QueryIcon,
   DashboardIcon,
 } from "@/components/home/WorkspaceIcons";
 import { useFilters, defaultFilters } from "@/lib/filter-context";
@@ -139,20 +137,6 @@ const MODULES: Module[] = [
     Icon: PortCoIcon,
     description: "Companies under stewardship.",
     accent: "text-foreground",
-  },
-  {
-    title: "Companies",
-    url: "/companies",
-    Icon: CompaniesIcon,
-    description: "One brief per company.",
-    accent: "text-muted-foreground",
-  },
-  {
-    title: "Query",
-    url: "/query",
-    Icon: QueryIcon,
-    description: "Ask the network anything.",
-    accent: "text-primary",
   },
   {
     title: "Dashboard",

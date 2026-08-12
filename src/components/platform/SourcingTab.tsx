@@ -154,11 +154,6 @@ export function SourcingTab({
                   </span>
                 )}
                 <div className="ml-auto flex items-center gap-1.5">
-                  <Button asChild size="sm" variant="ghost" className="h-7 text-xs px-2">
-                    <Link to="/companies" search={{ c: r.company }}>
-                      Brief
-                    </Link>
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"

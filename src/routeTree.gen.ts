@@ -10,13 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TargetingRouteImport } from './routes/targeting'
-import { Route as QueryRouteImport } from './routes/query'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CrmRouteImport } from './routes/crm'
-import { Route as CompaniesRouteImport } from './routes/companies'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
@@ -27,11 +25,6 @@ import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-sc
 const TargetingRoute = TargetingRouteImport.update({
   id: '/targeting',
   path: '/targeting',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const QueryRoute = QueryRouteImport.update({
-  id: '/query',
-  path: '/query',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioRoute = PortfolioRouteImport.update({
@@ -57,11 +50,6 @@ const DashboardRoute = DashboardRouteImport.update({
 const CrmRoute = CrmRouteImport.update({
   id: '/crm',
   path: '/crm',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CompaniesRoute = CompaniesRouteImport.update({
-  id: '/companies',
-  path: '/companies',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ActivityRoute = ActivityRouteImport.update({
@@ -98,13 +86,11 @@ const ApiCronIntelScanRoute = ApiCronIntelScanRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
-  '/companies': typeof CompaniesRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/platform': typeof PlatformRoute
   '/portfolio': typeof PortfolioRoute
-  '/query': typeof QueryRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -114,13 +100,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
-  '/companies': typeof CompaniesRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/platform': typeof PlatformRoute
   '/portfolio': typeof PortfolioRoute
-  '/query': typeof QueryRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -131,13 +115,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
-  '/companies': typeof CompaniesRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/platform': typeof PlatformRoute
   '/portfolio': typeof PortfolioRoute
-  '/query': typeof QueryRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -149,13 +131,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity'
-    | '/companies'
     | '/crm'
     | '/dashboard'
     | '/events'
     | '/platform'
     | '/portfolio'
-    | '/query'
     | '/targeting'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -165,13 +145,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity'
-    | '/companies'
     | '/crm'
     | '/dashboard'
     | '/events'
     | '/platform'
     | '/portfolio'
-    | '/query'
     | '/targeting'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -181,13 +159,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity'
-    | '/companies'
     | '/crm'
     | '/dashboard'
     | '/events'
     | '/platform'
     | '/portfolio'
-    | '/query'
     | '/targeting'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -198,13 +174,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRoute: typeof ActivityRoute
-  CompaniesRoute: typeof CompaniesRoute
   CrmRoute: typeof CrmRoute
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
   PlatformRoute: typeof PlatformRoute
   PortfolioRoute: typeof PortfolioRoute
-  QueryRoute: typeof QueryRoute
   TargetingRoute: typeof TargetingRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
@@ -219,13 +193,6 @@ declare module '@tanstack/react-router' {
       path: '/targeting'
       fullPath: '/targeting'
       preLoaderRoute: typeof TargetingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/query': {
-      id: '/query'
-      path: '/query'
-      fullPath: '/query'
-      preLoaderRoute: typeof QueryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
@@ -261,13 +228,6 @@ declare module '@tanstack/react-router' {
       path: '/crm'
       fullPath: '/crm'
       preLoaderRoute: typeof CrmRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/companies': {
-      id: '/companies'
-      path: '/companies'
-      fullPath: '/companies'
-      preLoaderRoute: typeof CompaniesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/activity': {
@@ -318,13 +278,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
-  CompaniesRoute: CompaniesRoute,
   CrmRoute: CrmRoute,
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
   PlatformRoute: PlatformRoute,
   PortfolioRoute: PortfolioRoute,
-  QueryRoute: QueryRoute,
   TargetingRoute: TargetingRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,

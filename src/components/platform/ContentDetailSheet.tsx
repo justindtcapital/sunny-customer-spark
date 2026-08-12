@@ -170,13 +170,7 @@ type WatchCtx = {
 function CompanyLink({ name, className = "" }: { name: string; className?: string }) {
   if (!name) return null;
   return (
-    <Link
-      to="/companies"
-      search={{ c: name }}
-      className={`font-medium text-foreground hover:text-primary hover:underline ${className}`}
-    >
-      {name}
-    </Link>
+    <span className={`font-medium text-foreground ${className}`}>{name}</span>
   );
 }
 
