@@ -17,11 +17,9 @@ import {
   fetchPortfolioCompanies,
   recordHomeSnapshot,
 } from "@/utils/sheets.functions";
-import { fetchSignals } from "@/utils/gemini.functions";
 import { getBriefing, generateBriefing } from "@/utils/briefing.functions";
 import type { BriefingData } from "@/lib/briefing";
 import { toast } from "sonner";
-import { relativeTime } from "@/lib/signal-feed";
 import type { Contact, TargetLead, PortfolioCompany } from "@/lib/types";
 import type { DailyMetrics, SnapshotResult } from "@/utils/sheets.server";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,79 +41,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   AlertTriangle,
-  ExternalLink,
   Loader2,
-  Radar,
   Telescope,
 } from "lucide-react";
-
-// ── Derivations (run server-side in the loader) ───────────────────
-type DigestBadge = "portco" | "prospect" | "chatter";
-interface DigestItem {
-  company: string;
-  headline: string;
-  sub: string;
-  badge: DigestBadge;
-  sourceUrl?: string;
-}
-interface HomeDigest {
-  items: DigestItem[];
-  total: number;
-  newCount: number;
-}
-
-function badgeFor(
-  company: string,
-  type: "recommendation" | "awareness",
-  relevance: number,
-  portco: Set<string>,
-): DigestBadge {
-  if (company && portco.has(company.trim().toLowerCase())) return "portco";
-  if (type === "recommendation" && relevance >= 6) return "prospect";
-  return "chatter";
-}
-
-async function buildHomeDigest(portco: Set<string>): Promise<HomeDigest> {
-  try {
-    const res = await fetchSignals();
-    const rows: (DigestItem & { ts: number; rel: number })[] = [];
-    for (const r of res.recommendations || []) {
-      const ts = Date.parse(r.dateFound || "") || 0;
-      rows.push({
-        company: r.company || r.person || "Signal",
-        headline: r.signal || r.category || "New signal",
-        sub: [r.company || r.category, relativeTime(ts)].filter(Boolean).join(" · "),
-        badge: badgeFor(r.company || "", "recommendation", r.relevance || 0, portco),
-        sourceUrl: r.sourceUrl,
-        ts,
-        rel: r.relevance || 0,
-      });
-    }
-    for (const a of res.otherSignals || []) {
-      const ts = Date.parse(a.dateFound || "") || 0;
-      rows.push({
-        company: a.company || "Industry",
-        headline: a.summary || a.category || "Industry update",
-        sub: [a.company || a.category, relativeTime(ts)].filter(Boolean).join(" · "),
-        badge: badgeFor(a.company || "", "awareness", 0, portco),
-        sourceUrl: a.sourceUrl,
-        ts,
-        rel: 0,
-      });
-    }
-    rows.sort((x, y) => y.ts - x.ts || y.rel - x.rel);
-    const items = rows.slice(0, 4).map((i) => ({
-      company: i.company,
-      headline: i.headline,
-      sub: i.sub,
-      badge: i.badge,
-      sourceUrl: i.sourceUrl,
-    }));
-    return { items, total: rows.length, newCount: res.newCount || 0 };
-  } catch {
-    return { items: [], total: 0, newCount: 0 };
-  }
-}
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -153,8 +81,6 @@ export const Route = createFileRoute("/")({
     };
 
     const queue = buildAttentionQueue(contacts);
-    const portcoNames = new Set(companies.map((c) => c.name.trim().toLowerCase()));
-    const digest = buildHomeDigest(portcoNames);
 
     const hotRatio = metrics.contacts ? metrics.hotLeads / metrics.contacts : 0;
     const followPressure = metrics.contacts
@@ -170,7 +96,6 @@ export const Route = createFileRoute("/")({
       added,
       attention: queue.slice(0, 4),
       attentionTotal: queue.length,
-      digest,
       briefing,
       networkHealth,
     };
@@ -265,12 +190,6 @@ const REASON_STYLE: Record<AttentionReason, { label: string; cls: string }> = {
   stale: { label: "going stale", cls: "text-decay-foreground border-decay/40 bg-decay/15" },
   cooling: { label: "cooling", cls: "text-cold-foreground border-cold/50 bg-cold/40" },
 };
-const BADGE_STYLE: Record<DigestBadge, { label: string; cls: string }> = {
-  portco: { label: "portco", cls: "text-foreground border-border bg-muted" },
-  prospect: { label: "prospect", cls: "text-primary border-primary/25 bg-primary/5" },
-  chatter: { label: "chatter", cls: "text-muted-foreground border-border bg-muted/50" },
-};
-
 function DeltaLine({ delta, label }: { delta: number | null; label: string }) {
   if (delta === null)
     return <span className="text-[11px] text-muted-foreground">building baseline…</span>;
@@ -294,7 +213,6 @@ function HomePage() {
     added,
     attention: teamAttention,
     attentionTotal: teamAttentionTotal,
-    digest,
     briefing,
     networkHealth,
   } = Route.useLoaderData();
@@ -486,7 +404,7 @@ function HomePage() {
       </div>
 
       {/* Attention + signals */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <Card className="border-border">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3">
@@ -560,13 +478,6 @@ function HomePage() {
           </CardContent>
         </Card>
 
-        <Card className="border-border">
-          <CardContent className="p-5">
-            <Suspense fallback={<DigestSkeleton />}>
-              <Await promise={digest}>{(d) => <DigestBody digest={d as HomeDigest} />}</Await>
-            </Suspense>
-          </CardContent>
-        </Card>
       </div>
 
       <DailyBriefing briefing={briefing} busy={briefingBusy} onGenerate={runBriefing} />
@@ -599,84 +510,6 @@ function WorkspaceGrid() {
               </div>
             </div>
           </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DigestBody({ digest }: { digest: HomeDigest }) {
-  return (
-    <>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold flex items-center gap-1.5">
-          <Radar className="h-3.5 w-3.5 text-primary" />
-          Today's signals
-        </h2>
-        <span className="text-[11px] text-muted-foreground">
-          {digest.newCount > 0 ? `${digest.newCount} new` : "triaged"}
-        </span>
-      </div>
-      {digest.items.length === 0 ? (
-        <p className="text-xs text-muted-foreground py-6 text-center">
-          No stored signals yet — run a scan from Signals.
-        </p>
-      ) : (
-        <div className="divide-y divide-border">
-          {digest.items.map((it, i) => {
-            const b = BADGE_STYLE[it.badge];
-            return (
-              <Link
-                key={i}
-                to="/signals"
-                search={{ q: it.headline }}
-                className="flex items-center gap-2 py-2.5 -mx-1 px-1 rounded-md hover:bg-accent transition-colors"
-              >
-                {i === 0 && digest.newCount > 0 && (
-                  <PulseRing value={72} size="xs" strokeColor="var(--primary)" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-foreground truncate">{it.headline}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{it.sub}</p>
-                </div>
-                <span
-                  className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded border ${b.cls}`}
-                >
-                  {b.label}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-      <Link
-        to="/signals"
-        className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-3"
-      >
-        Open Signals <ExternalLink className="h-3 w-3" />
-      </Link>
-    </>
-  );
-}
-
-function DigestSkeleton() {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold flex items-center gap-1.5">
-          <Radar className="h-3.5 w-3.5 text-primary" />
-          Today's signals
-        </h2>
-      </div>
-      <div className="space-y-3 animate-pulse">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="flex items-center gap-2 py-1">
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="h-3 w-3/4 rounded bg-muted" />
-              <div className="h-2.5 w-1/2 rounded bg-muted" />
-            </div>
-            <div className="h-4 w-14 rounded bg-muted" />
-          </div>
         ))}
       </div>
     </div>
