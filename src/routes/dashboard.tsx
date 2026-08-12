@@ -311,14 +311,26 @@ function DashboardPage() {
   );
 
   const introsByPrime = useMemo(() => {
-    const map: Record<string, number> = {};
+    // Prime values in the sheet are dirty: stray casing/whitespace, boolean
+    // spill-over ("FALSE"/"TRUE"), and placeholder dashes. Normalize to one
+    // canonical label per person, and drop primes with no intros.
+    const JUNK = new Set(["", "-", "—", "–", "n/a", "na", "none", "false", "true", "#n/a", "null"]);
+    const map = new Map<string, { label: string; intros: number }>();
     filtered.forEach((c) => {
-      map[c.prime] = (map[c.prime] || 0) + c.portCoIntros.length;
+      const raw = (c.prime || "").replace(/\s+/g, " ").trim();
+      const key = raw.toLowerCase();
+      const label = JUNK.has(key) ? "Unassigned" : raw;
+      const bucket = label.toLowerCase();
+      const entry = map.get(bucket) || { label, intros: 0 };
+      entry.intros += c.portCoIntros.length;
+      map.set(bucket, entry);
     });
-    return Object.entries(map)
-      .map(([name, intros]) => ({ name: name || "—", intros }))
-      .sort((a, b) => b.intros - a.intros);
+    return [...map.values()]
+      .filter((e) => e.intros > 0)
+      .map((e) => ({ name: e.label, intros: e.intros }))
+      .sort((a, b) => b.intros - a.intros || a.name.localeCompare(b.name));
   }, [filtered]);
+
 
   const velocityData = useMemo(() => {
     const now = new Date();
