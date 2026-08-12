@@ -266,7 +266,12 @@ export function ContactDetail({
   const [editInteractionData, setEditInteractionData] = useState({
     type: "" as InteractionType,
     summary: "",
+    originalSummary: "",
+    date: "",
+    isFollowUp: false,
+    followUpComplete: false,
   });
+  const [savingInteraction, setSavingInteraction] = useState(false);
   const [addPortCoOpen, setAddPortCoOpen] = useState(false);
   const [newPortCo, setNewPortCo] = useState("");
   const [newPortCoSource, setNewPortCoSource] = useState<EngagementSource>("direct introduction");
