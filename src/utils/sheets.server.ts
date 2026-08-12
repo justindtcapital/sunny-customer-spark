@@ -1491,6 +1491,64 @@ export async function repairTargetUrids(): Promise<{
   return { total: rows.length - 1, filled, deduped };
 }
 
+/**
+ * Clean the Targets tab's "Sector" column so it only holds industries.
+ *
+ * Some legacy/Apollo imports wrote a person's headline or job title into the
+ * Sector cell, which is why the Sector filter listed things like "Field CTO".
+ * For each row: a recognized industry is rewritten in canonical casing
+ * ("information technology & services" → "Technology"); a title-like value is
+ * cleared from Sector and moved into Role when Role is blank (never overwriting
+ * an existing Role). Only the Sector and (blank) Role cells are touched, so no
+ * other column can shift. Idempotent — a second run writes nothing.
+ */
+export async function repairTargetSectors(): Promise<{
+  total: number;
+  cleared: number;
+  normalized: number;
+  movedToRole: number;
+}> {
+  await ensureTab(TAB_NAMES.targets, TARGET_HEADERS);
+  const rows = await fetchSheetTab(TAB_NAMES.targets);
+  const empty = { total: 0, cleared: 0, normalized: 0, movedToRole: 0 };
+  if (rows.length < 2) return empty;
+
+  const headers = rows[0].map((h) => (h || "").trim().toLowerCase());
+  const sectorIdx = headers.findIndex((h) => TARGET_COLS[h] === "sector");
+  if (sectorIdx === -1) return empty;
+  const roleIdx = headers.findIndex((h) => h === "role" || h === "title");
+
+  const updates: { range: string; value: string }[] = [];
+  let cleared = 0;
+  let normalized = 0;
+  let movedToRole = 0;
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const raw = (row[sectorIdx] || "").trim();
+    if (!raw) continue;
+    const next = normalizeSector(raw);
+    if (next === raw) continue;
+
+    updates.push({ range: `${colLetters(sectorIdx)}${i + 1}`, value: next });
+    if (next) {
+      normalized++;
+    } else {
+      cleared++;
+      const role = roleIdx === -1 ? "x" : (row[roleIdx] || "").trim();
+      if (!role && looksLikeJobTitle(raw)) {
+        updates.push({ range: `${colLetters(roleIdx)}${i + 1}`, value: raw });
+        movedToRole++;
+      }
+    }
+  }
+
+  if (updates.length > 0) await updateSheetCells(TAB_NAMES.targets, updates);
+  return { total: rows.length - 1, cleared, normalized, movedToRole };
+}
+
+
+
 // Change the Engagement Source of an existing (contact, portco) intro in place —
 // so a partner can reclassify a portfolio engagement (e.g. "event exposure" →
 // "direct introduction") without deleting and re-adding it. Matched by portco name
