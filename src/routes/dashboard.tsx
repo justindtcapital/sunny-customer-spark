@@ -828,16 +828,11 @@ function DashboardPage() {
         </Card>
       </section>
 
-      {/* 08 Recommendations */}
+      {/* 08 Network progression */}
       <section className="space-y-3">
-        <SectionLabel
-          eyebrow="08 · Recommendations"
-          title="Where to act next"
-          hint="Decay · follow-ups · coverage gaps · concentration"
-        />
-        <RecommendationsBand items={intelligence.recommendations} onAct={handleRecAct} />
         <NetworkInsights contacts={filtered} transitions={transitions} />
       </section>
+
 
       {/* 09 Custom Analytics */}
       <section className="space-y-3">
