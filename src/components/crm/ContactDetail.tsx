@@ -5,6 +5,8 @@ import {
   addPortcoIntro,
   setPortcoIntroSource,
   resolveFollowUp,
+  updateInteraction,
+  deleteInteraction,
   mergeContactFields,
   storeApolloRaw,
   setContactRating,
