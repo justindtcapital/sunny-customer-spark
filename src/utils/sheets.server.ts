@@ -1341,6 +1341,12 @@ const TARGET_COLS: Record<string, string> = {
   phone: "phone",
   location: "location",
   sector: "sector",
+  // Header aliases seen in the live sheet / older exports — all feed `sector`.
+  "sector focus": "sector",
+  "focus area": "sector",
+  "focus area(s)": "sector",
+  industry: "sector",
+  "industry category": "sector",
   stage: "stage",
   source: "originSource",
   "research purpose": "researchPurpose",
@@ -2626,18 +2632,29 @@ async function buildTargetStrategyMap(): Promise<Record<string, ConnectionPlan>>
 // Append one outreach attempt for a target (persisted to the Target Outreach tab).
 // Updatable TargetLead field → Targets sheet column header (lowercased).
 // "name" is handled separately (split across First/Last Name).
-const TARGET_UPDATE_HEADERS: Record<string, string> = {
-  title: "role",
-  company: "company",
-  email: "email",
-  phone: "phone",
-  location: "location",
-  linkedinUrl: "linkedin",
-  sector: "sector",
-  stage: "stage",
-  originSource: "source",
-  notes: "research purpose",
+const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
+  title: ["role"],
+  company: ["company"],
+  email: ["email"],
+  phone: ["phone"],
+  location: ["location"],
+  linkedinUrl: ["linkedin"],
+  // Accept the header aliases used across sheet versions so a sector write
+  // always lands in the real Sector column, wherever it sits.
+  sector: ["sector", "sector focus", "focus area", "focus area(s)", "industry", "industry category"],
+  stage: ["stage"],
+  originSource: ["source"],
+  notes: ["research purpose"],
 };
+
+// First matching header index for a field's alias list (-1 when absent).
+function headerIdxFor(headers: string[], aliases: string[]): number {
+  for (const a of aliases) {
+    const idx = headers.indexOf(a);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
 
 // Update a target's row in the Targets tab, located by its stable key (email, or
 // name|company). Writes only the provided fields, matched by header name so it's
@@ -2706,10 +2723,10 @@ export async function updateTargetFields(
     if (lastIdx !== -1) updates.push({ range: `${colLetters(lastIdx)}${rowNum}`, value: last });
   }
 
-  for (const [field, header] of Object.entries(TARGET_UPDATE_HEADERS)) {
+  for (const [field, aliases] of Object.entries(TARGET_UPDATE_HEADERS)) {
     const val = fields[field];
     if (val === undefined) continue;
-    const idx = headers.indexOf(header);
+    const idx = headerIdxFor(headers, aliases);
     if (idx === -1) continue;
     updates.push({ range: `${colLetters(idx)}${rowNum}`, value: val });
   }
@@ -2804,11 +2821,11 @@ export async function bulkUpdateTargetFields(
       }
     }
 
-    for (const [field, header] of Object.entries(TARGET_UPDATE_HEADERS)) {
+    for (const [field, aliases] of Object.entries(TARGET_UPDATE_HEADERS)) {
       let val = entry.fields[field];
       if (val === undefined) continue;
       if (field === "linkedinUrl") val = normalizeLinkedinUrl(val);
-      const idx = headers.indexOf(header);
+      const idx = headerIdxFor(headers, aliases);
       if (idx === -1) continue;
       if (opts.fillOnly && cell(idx)) continue; // don't overwrite curated data
       updates.push({ range: `${colLetters(idx)}${rowNum}`, value: val });
