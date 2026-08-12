@@ -416,28 +416,8 @@ function DashboardPage() {
     [filtered, drillGroupBy],
   );
 
-  const handlePulseAct = (pulse: PulseInsight) => {
-    if (pulse.contactId) {
-      const c = contacts.find((x) => x.id === pulse.contactId);
-      if (c) openContact(c);
-      return;
-    }
-    if (pulse.focus) focus(pulse.focus.dim, pulse.focus.value);
-    if (pulse.id === "steady") clearAll();
-  };
 
-  const handleRecAct = (rec: Recommendation) => {
-    if (rec.contactId) {
-      const c = contacts.find((x) => x.id === rec.contactId);
-      if (c) openContact(c);
-      return;
-    }
-    if (rec.focus) focus(rec.focus.dim, rec.focus.value);
-  };
 
-  const scrollToConstellation = () => {
-    constellationRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-8">
