@@ -294,6 +294,8 @@ export async function downloadGmailAttachment(
   }
 }
 // Low-level search — needs a valid Google token with gmail.readonly, not Signals.
+// Pages through Gmail's list endpoint (100/page) until `max` ids are collected, so
+// callers can request far more than one page worth of history.
 async function searchGmailRaw(query: string, max = 25): Promise<GmailResult> {
   let token: string;
   try {
@@ -303,49 +305,72 @@ async function searchGmailRaw(query: string, max = 25): Promise<GmailResult> {
     return { ok: false, messages: [], error: "Google auth failed." };
   }
 
-  let listRes: Response;
-  try {
-    listRes = await fetch(
-      `${GMAIL_API}/messages?${new URLSearchParams({ q: query, maxResults: String(Math.min(50, Math.max(1, max))) })}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-  } catch (e) {
-    console.error("[gmail] network error:", e);
-    return { ok: false, messages: [], error: "Could not reach Gmail." };
-  }
+  const wanted = Math.max(1, max);
+  const ids: string[] = [];
+  let pageToken: string | undefined;
 
-  if (!listRes.ok) {
-    const body = await listRes.text().catch(() => "");
-    console.error(`[gmail] list ${listRes.status}: ${body.slice(0, 250)}`);
-    let error = `Gmail API error ${listRes.status}.`;
-    if (
-      listRes.status === 403 ||
-      /insufficient|scope|ACCESS_TOKEN_SCOPE|not been used|disabled/i.test(body)
-    ) {
-      error =
-        "Gmail not accessible — re-run mint-google-token.mjs (now requests gmail.readonly), update GOOGLE_REFRESH_TOKEN, and enable the Gmail API in the Google Cloud project.";
-    } else if (listRes.status === 401) {
-      error = "Google token invalid or expired — re-mint it.";
+  while (ids.length < wanted) {
+    const params = new URLSearchParams({
+      q: query,
+      maxResults: String(Math.min(100, wanted - ids.length)),
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    let listRes: Response;
+    try {
+      listRes = await fetch(`${GMAIL_API}/messages?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (e) {
+      console.error("[gmail] network error:", e);
+      if (ids.length > 0) break;
+      return { ok: false, messages: [], error: "Could not reach Gmail." };
     }
-    return { ok: false, messages: [], error };
+
+    if (!listRes.ok) {
+      const body = await listRes.text().catch(() => "");
+      console.error(`[gmail] list ${listRes.status}: ${body.slice(0, 250)}`);
+      if (ids.length > 0) break;
+      let error = `Gmail API error ${listRes.status}.`;
+      if (
+        listRes.status === 403 ||
+        /insufficient|scope|ACCESS_TOKEN_SCOPE|not been used|disabled/i.test(body)
+      ) {
+        error =
+          "Gmail not accessible — re-run mint-google-token.mjs (now requests gmail.readonly), update GOOGLE_REFRESH_TOKEN, and enable the Gmail API in the Google Cloud project.";
+      } else if (listRes.status === 401) {
+        error = "Google token invalid or expired — re-mint it.";
+      }
+      return { ok: false, messages: [], error };
+    }
+
+    let listData: { messages?: Array<{ id: string }>; nextPageToken?: string };
+    try {
+      listData = (await listRes.json()) as {
+        messages?: Array<{ id: string }>;
+        nextPageToken?: string;
+      };
+    } catch {
+      if (ids.length > 0) break;
+      return { ok: false, messages: [], error: "Gmail returned an unreadable response." };
+    }
+
+    for (const m of listData.messages || []) if (m.id) ids.push(m.id);
+    pageToken = listData.nextPageToken;
+    if (!pageToken) break;
   }
 
-  let listData: { messages?: Array<{ id: string }> };
-  try {
-    listData = (await listRes.json()) as { messages?: Array<{ id: string }> };
-  } catch {
-    return { ok: false, messages: [], error: "Gmail returned an unreadable response." };
-  }
-
-  const ids = (listData.messages || []).map((m) => m.id).filter(Boolean);
   const messages: GmailMessage[] = [];
-  for (const id of ids) {
-    const m = await getMessage(token, id);
-    if (m) messages.push(m);
+  // Hydrate in small batches so large windows don't serialize hundreds of round-trips.
+  const BATCH = 10;
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batch = await Promise.all(ids.slice(i, i + BATCH).map((id) => getMessage(token, id)));
+    for (const m of batch) if (m) messages.push(m);
   }
   messages.sort((a, b) => b.date - a.date);
   return { ok: true, messages };
 }
+
 
 // Search the mailbox with a Gmail query and return parsed messages (newest first).
 // Gated behind GMAIL_SIGNALS_ENABLED for the Signals consumer.
@@ -537,8 +562,12 @@ async function fetchTrackFromAliases(
   aliases: string[],
 ): Promise<AsanaActivity[]> {
   if (aliases.length === 0) return [];
-  const windowDays = Number(process.env.GMAIL_ACTIVITY_WINDOW_DAYS) || 90;
-  const max = Number(process.env.GMAIL_ACTIVITY_MAX) || 50;
+  // Show everything for tagged PortCos: at least a year of history and up to 500
+  // threads per track (env vars can widen this further, never narrow it).
+  const windowDays = Math.max(Number(process.env.GMAIL_ACTIVITY_WINDOW_DAYS) || 0, 365);
+  const max = Math.max(Number(process.env.GMAIL_ACTIVITY_MAX) || 0, 500);
+
+
   // Match mail sent as the alias OR received at the alias (To/Cc).
   const terms = aliases.flatMap((a) => [`from:${a}`, `to:${a}`, `cc:${a}`]).join(" OR ");
   const q = `newer_than:${windowDays}d (${terms})`;
