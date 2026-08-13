@@ -17,6 +17,7 @@ import {
 } from "./sheets.server";
 import { isGmailCrmSyncConfigured } from "./gmail.server";
 import { matchActivitiesToContact, resolvePortcosMentioned } from "@/lib/activity-match";
+import { canonicalizeActivities, dedupeAcrossSources } from "@/lib/activity-canonical";
 import type { AsanaActivity, Contact, InteractionType } from "@/lib/types";
 
 // Classify a BD/GTM activity into the CRM interaction taxonomy from its
