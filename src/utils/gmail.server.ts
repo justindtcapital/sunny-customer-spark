@@ -13,7 +13,8 @@
 // and paste the new GOOGLE_REFRESH_TOKEN. Enable the Gmail API in GCP too.
 
 import { getAccessToken } from "./sheets.server";
-import { sanitizeEmailText } from "@/lib/email-body-clean";
+import { isEmailChromeText, sanitizeEmailText } from "@/lib/email-body-clean";
+import { emailBodyExcerpt } from "@/lib/email-excerpt";
 import { extractArticleLinks } from "@/lib/link-digest";
 import { parseAddressList, parseEmailAddress, type EmailAddress } from "@/lib/email-address";
 import { extractForwardedHeaders } from "@/lib/email-forward";
