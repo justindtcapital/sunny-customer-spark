@@ -123,7 +123,15 @@ export interface AmbiguousActivity {
   subject: string;
   notes: string;
   candidates: AttributionCandidate[];
+  /**
+   * What Gemini has to decide. "person" = the counterparty is already resolved
+   * from the CRM but no portfolio company is tagged; "both" = neither is known.
+   */
+  needs: "company" | "both";
+  /** Person already resolved deterministically (when needs === "company"). */
+  knownPerson?: string;
 }
+
 
 /** Names + emails from the machine-readable "People:" line of a synced note. */
 export function peopleFromNotes(notes?: string): AttributionCandidate[] {
