@@ -64,7 +64,7 @@ import { matchActivitiesToCompany } from "@/lib/activity-match";
 import type { PortcoIntelResult, PortcoBriefResult } from "@/utils/sumble.server";
 import { CustomerDiscoveryPanel } from "./CustomerDiscoveryPanel";
 import { EditPortfolioCompanyDialog } from "./EditPortfolioCompanyDialog";
-import { PortcoKpiSection } from "@/components/platform/CompanyKpiPanel";
+import { PortcoKpiSection } from "@/components/kpi/CompanyKpiPanel";
 import { PortcoSignalsPanel } from "./PortcoSignalsPanel";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
