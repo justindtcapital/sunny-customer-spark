@@ -26,6 +26,8 @@ import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { normalizeSource, targetKeyOf, normalizeInteractionType } from "@/lib/types";
 import { buildPortCoCanonicalMap, canonicalizePortCo } from "@/lib/portco-canonical";
+import { normalizePortcoName } from "@/lib/portco-names";
+import { portcoDomainKey } from "@/lib/portco-dedupe";
 import { normalizeSector, looksLikeJobTitle } from "@/lib/sectors";
 import { getGoogleOAuthCreds, requireSpreadsheetId } from "./google.server";
 
