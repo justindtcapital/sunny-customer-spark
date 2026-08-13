@@ -42,6 +42,9 @@ export interface GmailMessage {
   fromEmail: string;
   toEmails: string[];
   ccEmails: string[];
+  /** To/Cc recipients WITH their display names (RFC 5322 parsed). */
+  toPeople: EmailAddress[];
+  ccPeople: EmailAddress[];
   /** Delivered-To header values (lowercased) — how alias-forwarded mail is
    *  recognized even when the alias never appears in From/To/Cc. */
   deliveredTo: string[];
