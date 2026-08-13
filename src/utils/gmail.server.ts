@@ -224,15 +224,16 @@ async function getMessage(token: string, id: string): Promise<GmailMessage | nul
   if (!res.ok) return null;
   const m = (await res.json()) as any;
   const headers = m.payload?.headers || [];
-  const from = parseAddr(header(headers, "From"));
-  const parseList = (raw: string) =>
-    raw
-      .split(",")
-      .map((s: string) => parseAddr(s).email)
-      .filter(Boolean);
-  const to = parseList(header(headers, "To"));
-  const cc = parseList(header(headers, "Cc"));
-  const deliveredTo = headerAll(headers, "Delivered-To").map((v) => parseAddr(v).email);
+  // RFC 5322 parsing: quoted display names such as "Jain, Vrashank" <v.j@dell.com>
+  // survive intact, and tokens without a plausible local@domain shape are dropped.
+  const from = parseEmailAddress(header(headers, "From")) || { name: "", email: "" };
+  const toPeople = parseAddressList(header(headers, "To"));
+  const ccPeople = parseAddressList(header(headers, "Cc"));
+  const to = toPeople.map((p) => p.email);
+  const cc = ccPeople.map((p) => p.email);
+  const deliveredTo = headerAll(headers, "Delivered-To")
+    .map((v) => parseEmailAddress(v)?.email || "")
+    .filter(Boolean);
   const date = Number(m.internalDate) || 0;
   const parts = extractParts(m.payload);
   const attachments: GmailAttachment[] = [];
