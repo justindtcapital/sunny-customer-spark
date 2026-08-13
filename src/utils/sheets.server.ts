@@ -3373,8 +3373,15 @@ export async function buildPortfolioCompanies(): Promise<PortfolioCompany[]> {
   const companyRows = await fetchSheetTab(TAB_NAMES.portfolio);
   const rawCompanies = mapRows<Record<string, string>>(companyRows, PORTFOLIO_COLS);
 
-  return rawCompanies.map((c, idx) => {
-    const name = c.name || "";
+  // Skip blank/junk rows (no name and nothing else usable) so they don't
+  // become empty cards on the portfolio tab.
+  const usableCompanies = rawCompanies.filter((c) => {
+    if ((c.name || "").trim()) return true;
+    return false;
+  });
+
+  return usableCompanies.map((c, idx) => {
+    const name = (c.name || "").trim();
 
     // Parse Focus Area(s) as domain — map to closest PortfolioDomain
     const rawDomain = (c.domain || "").trim();
