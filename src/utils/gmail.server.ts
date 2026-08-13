@@ -562,8 +562,11 @@ async function fetchTrackFromAliases(
   aliases: string[],
 ): Promise<AsanaActivity[]> {
   if (aliases.length === 0) return [];
-  const windowDays = Number(process.env.GMAIL_ACTIVITY_WINDOW_DAYS) || 365;
-  const max = Number(process.env.GMAIL_ACTIVITY_MAX) || 500;
+  // Show everything for tagged PortCos: at least a year of history and up to 500
+  // threads per track (env vars can widen this further, never narrow it).
+  const windowDays = Math.max(Number(process.env.GMAIL_ACTIVITY_WINDOW_DAYS) || 0, 365);
+  const max = Math.max(Number(process.env.GMAIL_ACTIVITY_MAX) || 0, 500);
+
 
   // Match mail sent as the alias OR received at the alias (To/Cc).
   const terms = aliases.flatMap((a) => [`from:${a}`, `to:${a}`, `cc:${a}`]).join(" OR ");
