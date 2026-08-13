@@ -349,6 +349,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setPortcoSource("direct introduction");
     setSource("");
     setEnrichOnImport(true);
+    setFollowUpEmails(new Set());
     setBusy(false);
   };
 
@@ -501,7 +502,6 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     onOpenChange(false);
   };
 
-  const preview = useMemo(() => rows.slice(0, 8), [rows]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
