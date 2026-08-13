@@ -267,8 +267,9 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const [source, setSource] = useState("");
   // Hands-off by default: imported contacts are auto-enriched unless unchecked.
   const [enrichOnImport, setEnrichOnImport] = useState(true);
-  // Flag every imported contact for follow-up (writes Contacts → "Follow Up Flag").
-  const [flagFollowUp, setFlagFollowUp] = useState(false);
+  // Per-person follow-up flags, keyed by lowercased email (writes Contacts →
+  // "Follow Up Flag" for just the checked people).
+  const [followUpEmails, setFollowUpEmails] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -348,8 +349,22 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setPortcoSource("direct introduction");
     setSource("");
     setEnrichOnImport(true);
+    setFollowUpEmails(new Set());
     setBusy(false);
   };
+
+  // Follow-up flags are per person, keyed by the row's primary email.
+  const followUpKey = (email: string) =>
+    email.split(";")[0]?.trim().toLowerCase() || "";
+  const isFlaggedForFollowUp = (email: string) => followUpEmails.has(followUpKey(email));
+  const toggleFollowUp = (email: string) =>
+    setFollowUpEmails((prev) => {
+      const next = new Set(prev);
+      const k = followUpKey(email);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
 
   const submit = async () => {
     if (rows.length === 0) return;
@@ -402,7 +417,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
             employmentHistory: r.employmentHistory,
             temperature: "Warm",
             source: "CSV Import",
-            followUp: flagFollowUp,
+            followUp: isFlaggedForFollowUp(r.email),
           },
         });
         added++;
@@ -432,7 +447,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
         }
         if (src) {
           try {
-            await addNote({ data: { contactEmail: r.email, noteContent: `Source: ${src}`, requiresFollowUp: flagFollowUp } });
+            await addNote({ data: { contactEmail: r.email, noteContent: `Source: ${src}`, requiresFollowUp: isFlaggedForFollowUp(r.email) } });
             taggedSource++;
           } catch (e) {
             console.error("source tag failed", r.email, e);
@@ -487,7 +502,6 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     onOpenChange(false);
   };
 
-  const preview = useMemo(() => rows.slice(0, 8), [rows]);
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
@@ -610,17 +624,12 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                     </div>
                   </div>
 
-                  <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
-                    <Checkbox
-                      checked={flagFollowUp}
-                      onCheckedChange={(v) => setFlagFollowUp(v === true)}
-                      className="mt-0.5"
-                    />
-                    <span>
-                      Flag these people for follow-up.
-                      <span className="text-muted-foreground/70"> Writes TRUE to the “Follow Up Flag” column on the Contacts sheet so they show up in the follow-up queue.</span>
-                    </span>
-                  </label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Check <span className="font-medium text-foreground">Follow up</span> next to
+                    anyone who needs a follow-up — that writes TRUE to the “Follow Up Flag” column
+                    on the Contacts sheet for just those people.
+                  </p>
+
 
                   <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
                     <Checkbox
@@ -647,13 +656,34 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                   </div>
 
                   <div>
-                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
-                      Preview · first {Math.min(rows.length, 8)} of {rows.length}
-                    </Label>
+                    <div className="flex items-center justify-between mb-1">
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground block">
+                        Preview · {rows.length} {rows.length === 1 ? "person" : "people"}
+                      </Label>
+                      <span className="text-[10px] text-muted-foreground">
+                        {followUpEmails.size} flagged for follow-up
+                      </span>
+                    </div>
                     <ScrollArea className="h-48 border border-border rounded">
                       <table className="w-full text-[11px]">
                         <thead className="bg-muted/40 sticky top-0">
                           <tr className="text-left">
+                            <th className="px-2 py-1 font-semibold whitespace-nowrap">
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <Checkbox
+                                  checked={rows.length > 0 && followUpEmails.size === rows.length}
+                                  onCheckedChange={(v) =>
+                                    setFollowUpEmails(
+                                      v === true
+                                        ? new Set(rows.map((r) => followUpKey(r.email)))
+                                        : new Set()
+                                    )
+                                  }
+                                  aria-label="Flag everyone for follow-up"
+                                />
+                                Follow up
+                              </label>
+                            </th>
                             <th className="px-2 py-1 font-semibold">Name</th>
                             <th className="px-2 py-1 font-semibold">Email</th>
                             <th className="px-2 py-1 font-semibold">Company</th>
@@ -661,21 +691,26 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                           </tr>
                         </thead>
                         <tbody>
-                          {preview.map((r, i) => (
+                          {rows.map((r, i) => (
                             <tr key={i} className="border-t border-border">
+                              <td className="px-2 py-1">
+                                <Checkbox
+                                  checked={isFlaggedForFollowUp(r.email)}
+                                  onCheckedChange={() => toggleFollowUp(r.email)}
+                                  aria-label={`Flag ${r.name} for follow-up`}
+                                />
+                              </td>
                               <td className="px-2 py-1">{r.name}</td>
                               <td className="px-2 py-1 text-muted-foreground">{r.email}</td>
                               <td className="px-2 py-1">{r.company}</td>
                               <td className="px-2 py-1 text-muted-foreground">{r.title}</td>
                             </tr>
                           ))}
-                          {rows.length > preview.length && (
-                            <tr><td colSpan={4} className="px-2 py-1 text-muted-foreground italic">…and {rows.length - preview.length} more</td></tr>
-                          )}
                         </tbody>
                       </table>
                     </ScrollArea>
                   </div>
+
                 </>
               ) : (
                 <p className="text-[11px] text-muted-foreground">
