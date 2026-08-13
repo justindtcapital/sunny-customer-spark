@@ -4,6 +4,7 @@ import {
   isGmailConfigured,
   getActivityAliases,
   getNewsAliases,
+  isActivityTrackingMail,
   downloadGmailAttachment,
   type GmailMessage,
   type GmailAttachment,
@@ -243,9 +244,10 @@ export async function gatherNetworkEmails(pre?: {
   const res = await searchGmail(q, max);
   if (!res.ok) return { configured: true, ok: false, emails: [], newsDocs: [], error: res.error };
 
-  const involvesAlias = (m: (typeof res.messages)[number]): boolean =>
-    [m.fromEmail, ...m.toEmails, ...m.ccEmails].some((e) => aliasSet.has((e || "").toLowerCase()));
-  const kept = res.messages.filter((m) => !involvesAlias(m));
+  // Post-filter: Delivered-To, DTC:/GTM Discussion subjects, Zoom/GTM meeting
+  // invites — Gmail -deliveredto: is imperfect and many threads never hit the
+  // alias header but are still Activity (not Industry News).
+  const kept = res.messages.filter((m) => !isActivityTrackingMail(m, aliasSet));
 
   // PDF attachments on NEWS@-alias messages become scan grounding documents —
   // the diagram's "scraper needs to handle PDFs" lane. Refs only; the scan

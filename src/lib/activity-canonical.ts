@@ -12,24 +12,159 @@
 // of the matched counterparty → counterparty email domain (last resort).
 
 import type { AsanaActivity, Contact } from "./types";
+import { isNameOnlyAttendeeEmail, sanitizeEmailToken } from "./email-address";
 import { resolvePortcosMentioned } from "./activity-match";
 
 const norm = (s?: string) => (s || "").trim().toLowerCase();
 
+/** One human parsed from a BD/GTM activity (People line or body scan). */
+export interface ActivityPersonRef {
+  name: string;
+  email: string;
+}
+
 /** Emails listed on the machine-readable "People:" line of a synced note. */
 export function peopleEmailsFromNotes(notes?: string): string[] {
+  return peopleEntriesFromNotes(notes).map((p) => p.email);
+}
+
+/**
+ * Name + email pairs from the "People:" line.
+ * Skips name-only calendar placeholders (`name:…@attendee.local`).
+ */
+export function peopleEntriesFromNotes(notes?: string): ActivityPersonRef[] {
   const line = (notes || "")
     .split("\n")
     .find((l) => /^people\s*:/i.test(l.trim()));
   if (!line) return [];
-  return line
-    .replace(/^\s*people\s*:/i, "")
-    .split(/[;,]/)
-    .map((chunk) => {
-      const m = chunk.match(/<([^<>]+)>/) || chunk.match(/([^\s<>]+@[^\s<>]+)/);
-      return m ? m[1].trim().toLowerCase() : "";
-    })
+  const rest = line.replace(/^\s*people\s*:/i, "");
+  const out: ActivityPersonRef[] = [];
+  const seen = new Set<string>();
+  const named = /([^;<]+?)\s*<\s*([^<>]+@[^<>]+)\s*>/g;
+  let m: RegExpExecArray | null;
+  while ((m = named.exec(rest))) {
+    const email = sanitizeEmailToken(m[2]);
+    if (!email || seen.has(email) || isNameOnlyAttendeeEmail(email)) continue;
+    seen.add(email);
+    const name = cleanPersonName(m[1]);
+    out.push({
+      name: isUsablePersonName(name, email) ? name : nameFromEmailLocal(email),
+      email,
+    });
+  }
+  // Bare addresses with no display name.
+  for (const bare of rest.match(/[^\s<>;,]+@[^\s<>;,]+/g) || []) {
+    const email = sanitizeEmailToken(bare);
+    if (!email || seen.has(email) || isNameOnlyAttendeeEmail(email)) continue;
+    seen.add(email);
+    out.push({ name: nameFromEmailLocal(email), email });
+  }
+  return out;
+}
+
+/**
+ * People to consider for contact create / join: prefer the People line, else
+ * scan subject+notes for mailbox addresses (Asana threads).
+ */
+export function peopleEntriesFromActivity(a: {
+  name?: string;
+  notes?: string;
+  person?: string;
+}): ActivityPersonRef[] {
+  const fromLine = peopleEntriesFromNotes(a.notes);
+  if (fromLine.length > 0) return fromLine;
+
+  const hay = `${a.name || ""}\n${a.notes || ""}`;
+  const out: ActivityPersonRef[] = [];
+  const seen = new Set<string>();
+  const named = /([A-Za-z][\w.,'\- ]{1,70}?)\s*[<(]\s*([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\s*[>)]/gi;
+  let m: RegExpExecArray | null;
+  while ((m = named.exec(hay))) {
+    const email = sanitizeEmailToken(m[2]);
+    if (!email || seen.has(email) || isNameOnlyAttendeeEmail(email)) continue;
+    seen.add(email);
+    const name = cleanPersonName(m[1]);
+    out.push({ name: isUsablePersonName(name, email) ? name : nameFromEmailLocal(email), email });
+  }
+  for (const bare of hay.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) || []) {
+    const email = sanitizeEmailToken(bare);
+    if (!email || seen.has(email) || isNameOnlyAttendeeEmail(email)) continue;
+    seen.add(email);
+    out.push({ name: nameFromEmailLocal(email), email });
+  }
+  // Last resort: Person field + no email on the row (can't create a contact).
+  void a.person;
+  return out;
+}
+
+function cleanPersonName(raw: string): string {
+  let s = (raw || "")
+    .trim()
+    .replace(/["']/g, "")
+    .replace(/^[\s(]+|[)\s]+$/g, "")
+    .replace(/\s+/g, " ");
+  const parts = s.split(",");
+  if (parts.length === 2 && parts[0].trim() && parts[1].trim() && !/\d/.test(s)) {
+    s = `${parts[1].trim()} ${parts[0].trim()}`;
+  }
+  return s
+    .replace(/\b[a-z]/g, (c) => c.toUpperCase())
+    .slice(0, 80);
+}
+
+/** Reject parse debris like `(prabhat` or a name that is just the email local-part junk. */
+function isUsablePersonName(name: string, email: string): boolean {
+  const n = (name || "").trim();
+  if (!n || n.length < 2) return false;
+  if (/[<>@]/.test(n)) return false;
+  if (/^[(\[{]/.test(n)) return false;
+  const local = (email.split("@")[0] || "").toLowerCase();
+  if (n.toLowerCase() === `(${local}` || n.toLowerCase() === local) return false;
+  return true;
+}
+
+function nameFromEmailLocal(email: string): string {
+  const local = (email.split("@")[0] || "").replace(/\d+/g, "").replace(/[._+-]+/g, " ").trim();
+  if (!local) return email;
+  return local
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ")
+    .slice(0, 80);
+}
+
+/**
+ * Expand a short person token (e.g. subject "Flexor (Or)") to a CRM contact name
+ * when exactly one contact at a mentioned company matches that first/given name.
+ */
+export function expandPersonViaCompany(
+  person: string | undefined,
+  company: string | undefined,
+  contacts: Contact[],
+): string | undefined {
+  const hint = (person || "").trim();
+  if (!hint || !company?.trim()) return person;
+  // Already a multi-word name — leave unless it exactly matches nothing useful.
+  const companies = company
+    .split(/\s*\/\s*/)
+    .map((c) => c.trim().toLowerCase())
     .filter(Boolean);
+  if (companies.length === 0) return person;
+  const needle = hint.toLowerCase();
+  const hits = contacts.filter((c) => {
+    const cc = (c.company || "").trim().toLowerCase();
+    if (!cc || !companies.some((co) => cc === co || cc.includes(co) || co.includes(cc))) {
+      return false;
+    }
+    const cn = (c.name || "").trim().toLowerCase();
+    if (!cn) return false;
+    if (cn === needle) return true;
+    const parts = cn.split(/\s+/);
+    return parts[0] === needle || parts.some((p) => p === needle);
+  });
+  if (hits.length === 1) return hits[0].name?.trim() || person;
+  return person;
 }
 
 /** Index contacts by every address they carry, for exact-email lookups. */
@@ -59,10 +194,21 @@ export function canonicalizeActivities(
     const emails = peopleEmailsFromNotes(a.notes);
     const match = emails.map((e) => byEmail.get(e)).find(Boolean);
 
-    const person = match?.name?.trim() || a.person;
     const mentioned = resolvePortcosMentioned(a, portfolioNames);
+    // Keep EVERY matched PortCo on the company field (slash-separated) so BD/GTM
+    // rows and PortCo Introduced tags carry multi-company meetings, not just the first.
     const company =
-      mentioned[0] || match?.company?.trim() || a.company || undefined;
+      (mentioned.length > 0 ? mentioned.join(" / ") : "") ||
+      match?.company?.trim() ||
+      a.company ||
+      undefined;
+
+    let person = match?.name?.trim() || a.person;
+    // Calendar subjects often only carry a short external name ("Or"); expand
+    // against CRM when company/PortCo is already known.
+    if (!match) {
+      person = expandPersonViaCompany(person, company, contacts) || person;
+    }
 
     if (person === a.person && company === a.company) return a;
     return { ...a, person, company };
@@ -204,6 +350,17 @@ export function normalizeSubjectKey(subject: string): string {
     .replace(/[^a-z0-9]+/gi, " ")
     .trim()
     .toLowerCase();
+}
+
+/**
+ * Per-contact subject twin key: email|normalizedSubject.
+ * Used so a Gmail Note is not logged when Asana already has the same touch.
+ */
+export function subjectTwinKey(email: string, subject: string): string {
+  const e = (email || "").trim().toLowerCase();
+  const k = normalizeSubjectKey(subject);
+  if (!e || k.length < 6) return "";
+  return `${e}|${k}`;
 }
 
 function dayNumber(date?: string): number | null {

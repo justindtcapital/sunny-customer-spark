@@ -2,6 +2,10 @@
 // process.env.GOOGLE_* reads in one module gives one place to validate, one
 // place to log safely (presence + length only — NEVER the value), and no
 // scattered fallback drift between callers. Import ONLY from server modules.
+//
+// Do NOT statically import node:* builtins here. This file is pulled into the
+// Vite client graph via createServerFn modules (sheets/gemini), and a top-level
+// `node:fs` import crashes the browser with "externalized for browser compatibility".
 
 function present(v: string | undefined): boolean {
   return Boolean(v && v.trim());
@@ -79,12 +83,42 @@ export function getVertexLocation(): string {
   return process.env.GEMINI_LOCATION || "us-central1";
 }
 
-// Inline service-account key JSON for Vertex auth (optional — ADC is the
-// fallback when this is unset).
-export function getServiceAccountJson(): string | undefined {
-  return cleanSecret(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON, [
+// Service-account key for Vertex auth. Prefers the inline JSON env var
+// (hosted / serverless), then the standard GOOGLE_APPLICATION_CREDENTIALS
+// file path used for local ADC. File I/O is lazy + server-only so the client
+// bundle can load this module without touching node:fs.
+let cachedFileJson: string | undefined;
+let fileJsonLoaded = false;
+
+export async function getServiceAccountJson(): Promise<string | undefined> {
+  const inline = cleanSecret(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON, [
     "GOOGLE_APPLICATION_CREDENTIALS_JSON",
   ]);
+  if (inline) return inline;
+
+  if (typeof window !== "undefined") return undefined;
+  if (fileJsonLoaded) return cachedFileJson;
+
+  const credPath = cleanSecret(process.env.GOOGLE_APPLICATION_CREDENTIALS, [
+    "GOOGLE_APPLICATION_CREDENTIALS",
+  ]);
+  fileJsonLoaded = true;
+  if (!credPath) return undefined;
+
+  try {
+    // Build the specifier at runtime so Vite does not rewrite this into a
+    // browser-externalized `node:fs` stub (that crash is what `/crm` just hit).
+    const spec = ["node", "fs"].join(":");
+    const { readFileSync } = (await import(/* @vite-ignore */ spec)) as typeof import("node:fs");
+    cachedFileJson = readFileSync(credPath, "utf8").trim() || undefined;
+  } catch (e) {
+    console.error(
+      `[google] Could not read GOOGLE_APPLICATION_CREDENTIALS at ${credPath}:`,
+      e instanceof Error ? e.message : e,
+    );
+    cachedFileJson = undefined;
+  }
+  return cachedFileJson;
 }
 
 // One-line, value-free config summary for diagnosing the "could not refresh
@@ -99,7 +133,8 @@ export function debugGoogleConfig(tag = "google"): void {
     refreshToken: present(oauth.refreshToken),
     refreshTokenLen: (oauth.refreshToken || "").length,
     vertexProject: present(getVertexProject()) ? getVertexProject() : false,
-    serviceAccountJson: present(getServiceAccountJson()),
+    serviceAccountJson: present(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+    serviceAccountFile: present(process.env.GOOGLE_APPLICATION_CREDENTIALS),
   };
   console.log(`[${tag}] Google config:`, JSON.stringify(summary));
 }

@@ -17,17 +17,26 @@ import { isEmailChromeText, sanitizeEmailText } from "@/lib/email-body-clean";
 import { emailBodyExcerpt } from "@/lib/email-excerpt";
 import { extractArticleLinks } from "@/lib/link-digest";
 import { parseAddressList, parseEmailAddress, type EmailAddress } from "@/lib/email-address";
-import { extractForwardedHeaders } from "@/lib/email-forward";
+import {
+  activitySubjectQuery,
+  isActivityTrackingMessage,
+} from "@/lib/email-activity";
+import {
+  ACTIVITY_NOTES_BUDGET,
+  enrichActivityFromThreadText,
+  formatActivityNotes,
+} from "@/lib/activity-thread-intel";
 import {
   buildInternalConfig,
   isBulkOrAutomatedMail,
   isInternalEmail,
   isNoiseEmail,
-  pickPrimaryCounterparty,
   type Counterparty,
   type InternalConfig,
 } from "@/lib/email-noise";
+import { TEAM_MEMBER_EMAILS } from "@/lib/user-ownership";
 import type { AsanaActivity } from "@/lib/types";
+import { msToIsoDay } from "@/lib/sheet-date";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
@@ -205,13 +214,19 @@ function parseAddr(v: string): { name: string; email: string } {
 }
 
 function toLabel(ms: number): string {
-  if (!ms) return "";
-  const d = new Date(ms);
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  const ny = msToIsoDay(ms);
+  const utc = msToIsoDay(ms, "UTC");
+  // #region agent log
+  gmailDateDbg.calls++;
+  if (ny && utc && ny !== utc) {
+    gmailDateDbg.shifted++;
+    if (gmailDateDbg.samples.length < 5) gmailDateDbg.samples.push({ ny, utc });
+  }
+  // #endregion
+  return ny;
 }
+
+const gmailDateDbg = { calls: 0, shifted: 0, samples: [] as { ny: string; utc: string }[] };
 
 async function getMessage(token: string, id: string): Promise<GmailMessage | null> {
   let res: Response;
@@ -401,16 +416,13 @@ const FREE_EMAIL = new Set([
   "msn.com",
 ]);
 
-function companyFromEmail(email: string): string {
-  const domain = (email.split("@")[1] || "").toLowerCase();
-  if (!domain || FREE_EMAIL.has(domain)) return "";
-  const sld = domain.split(".")[0] || "";
-  if (!sld) return "";
-  return sld.charAt(0).toUpperCase() + sld.slice(1);
+export function isFreeEmailDomain(domain: string): boolean {
+  return FREE_EMAIL.has((domain || "").toLowerCase());
 }
 
 function titleCaseLocal(local: string): string {
   return local
+    .replace(/^name:/, "")
     .replace(/[._+]+/g, " ")
     .replace(/\d+/g, " ")
     .trim()
@@ -421,58 +433,95 @@ function titleCaseLocal(local: string): string {
     .slice(0, 80);
 }
 
-/** Our own people: GMAIL_INTERNAL_DOMAINS (dt-capital.net) plus
- *  GMAIL_INTERNAL_ADDRESSES for individual teammates at partner domains.
- *  Never list a whole partner domain — its business units are real counterparties. */
+/** Warn once per process when internal config resolves empty (silent misconfig). */
+let warnedEmptyInternal = false;
+
+/**
+ * Our own people: GMAIL_INTERNAL_DOMAINS (dt-capital.net) plus
+ * GMAIL_INTERNAL_ADDRESSES for individual teammates at partner domains,
+ * the team roster in user-ownership.ts, and non-free domains of the tracking
+ * aliases (auto-included). Never list a whole partner domain — its business
+ * units are real counterparties.
+ */
 export function getInternalConfig(): InternalConfig {
-  return buildInternalConfig(
+  const cfg = buildInternalConfig(
     process.env.GMAIL_INTERNAL_DOMAINS,
     process.env.GMAIL_INTERNAL_ADDRESSES,
   );
+  for (const alias of getActivityAliases()) {
+    const domain = (alias.split("@")[1] || "").toLowerCase();
+    if (domain && !isFreeEmailDomain(domain)) cfg.domains.add(domain);
+  }
+  for (const e of TEAM_MEMBER_EMAILS) cfg.addresses.add(e.toLowerCase());
+
+  if (cfg.domains.size === 0 && cfg.addresses.size === 0 && !warnedEmptyInternal) {
+    warnedEmptyInternal = true;
+    console.error(
+      "[gmail] GMAIL_INTERNAL_DOMAINS / GMAIL_INTERNAL_ADDRESSES resolved empty — every teammate will be treated as external",
+    );
+    void import("./sheets.server")
+      .then(({ logOpsEvent }) =>
+        logOpsEvent({
+          action: "sync",
+          source: "gmail_internal_config",
+          status: "warning",
+          summary:
+            "GMAIL_INTERNAL_DOMAINS is unset/empty and no alias domains or team addresses were available — direction and owner attribution will be wrong until configured",
+          records: 0,
+        }),
+      )
+      .catch(() => {
+        /* never fail attribution because audit logging failed */
+      });
+  }
+  return cfg;
 }
 
-// Counterparties = real people on the thread who are NOT our BD/GTM aliases and
-// not newsletter/system mailboxes. Internal teammates are kept but flagged so the
-// picker can prefer the external contact. Emails land in notes for exact joins.
-function counterparties(
+/**
+ * True when a Gmail message is BD/GTM activity-tracking mail — not a news signal.
+ * Catches alias delivery (To/Cc/Delivered-To), DTC tracking subjects, and
+ * meeting invites that belong on the Activity pipeline.
+ */
+export function isActivityTrackingMail(
+  m: {
+    fromEmail?: string;
+    toEmails?: string[];
+    ccEmails?: string[];
+    deliveredTo?: string[];
+    subject?: string;
+    body?: string;
+    snippet?: string;
+  },
+  aliasSet?: Set<string>,
+): boolean {
+  return isActivityTrackingMessage(m, aliasSet ?? new Set(getActivityAliases()));
+}
+
+/** MIME-header counterparties only — body/appointment recovery lives in thread intel. */
+function mimeSeedPeople(
   m: GmailMessage,
   aliases: Set<string>,
-  internal: InternalConfig,
-): Counterparty[] {
-  const out = new Map<string, Counterparty>();
-  const consider = (name: string, email: string, role: Counterparty["role"]) => {
+): Array<{ name: string; email: string; role: Counterparty["role"] }> {
+  const out: Array<{ name: string; email: string; role: Counterparty["role"] }> = [];
+  const seen = new Set<string>();
+  const add = (name: string, email: string, role: Counterparty["role"]) => {
     const e = (email || "").trim().toLowerCase();
-    if (!e || aliases.has(e) || out.has(e) || isNoiseEmail(e)) return;
-    out.set(e, {
+    if (!e || aliases.has(e) || seen.has(e) || isNoiseEmail(e)) return;
+    seen.add(e);
+    out.push({
       name: name.trim() || titleCaseLocal(e.split("@")[0] || ""),
       email: e,
       role,
-      internal: isInternalEmail(e, internal),
     });
   };
-  consider(m.fromName, m.fromEmail, "from");
-  for (const p of m.toPeople) consider(p.name, p.email, "to");
-  for (const p of m.ccPeople) consider(p.name, p.email, "cc");
-
-  // Self-forward recovery: when every human in the headers is one of ours, the
-  // real contact only exists in the quoted forwarded header block at the top of
-  // the body. Conservative — first block only, and only in this case.
-  const hasExternal = [...out.values()].some((p) => !p.internal);
-  if (!hasExternal) {
-    const fwd = extractForwardedHeaders(m.body);
-    if (fwd) {
-      const add = (a?: EmailAddress) => {
-        if (a) consider(a.name, a.email, "forwarded");
-      };
-      add(fwd.from);
-      for (const a of fwd.to) add(a);
-      for (const a of fwd.cc) add(a);
-    }
-  }
-  return [...out.values()];
+  add(m.fromName, m.fromEmail, "from");
+  for (const p of m.toPeople) add(p.name, p.email, "to");
+  for (const p of m.ccPeople) add(p.name, p.email, "cc");
+  return out;
 }
 
-export const NOTES_BUDGET = 1000;
+/** @deprecated use ACTIVITY_NOTES_BUDGET — kept for existing imports. */
+export const NOTES_BUDGET = ACTIVITY_NOTES_BUDGET;
 
 /** Fetch one message by Gmail id (used by the Notes backfill repair). */
 export async function fetchGmailMessageById(id: string): Promise<GmailMessage | null> {
@@ -515,21 +564,36 @@ export function threadToActivity(
   const newestFrom = (newest.fromEmail || "").toLowerCase();
   if (newestFrom && isNoiseEmail(newestFrom) && !aliases.has(newestFrom)) return null;
 
-  const merged = new Map<string, Counterparty>();
+  const seedPeople: Array<{ name: string; email: string; role: Counterparty["role"] }> = [];
+  const seenSeed = new Set<string>();
   for (const m of ordered) {
-    for (const p of counterparties(m, aliases, internal)) {
-      if (!merged.has(p.email)) merged.set(p.email, p);
+    for (const p of mimeSeedPeople(m, aliases)) {
+      if (seenSeed.has(p.email)) continue;
+      seenSeed.add(p.email);
+      seedPeople.push(p);
     }
   }
-  const others = [...merged.values()];
 
-  // "Outbound" = one of OUR people (or the alias) sent it. With the old
-  // alias-only rule, a teammate mailing a portco with the alias CC'd was logged
-  // as inbound on the teammate; now it is an outbound touch on the contact.
-  const outbound = aliases.has(newestFrom) || isInternalEmail(newestFrom, internal);
-  const primary = pickPrimaryCounterparty(others, outbound);
-  // No human counterparty left after noise filter → do not create a Person row.
-  if (!primary) return null;
+  // Prefer newest body; fall back through the thread for appointment / forward blocks.
+  const bodyForIntel =
+    ordered.find((m) => (m.body || "").trim().length > 0)?.body || newest.body || "";
+  const outboundHint = aliases.has(newestFrom) || isInternalEmail(newestFrom, internal);
+
+  const intel = enrichActivityFromThreadText(
+    {
+      subject: newest.subject,
+      body: bodyForIntel,
+      snippet: newest.snippet,
+      seedPeople,
+      outboundHint,
+    },
+    aliases,
+    internal,
+  );
+
+  // Meetings can still land on BD with PortCos from the subject even when the
+  // only humans on the thread are internal (appointment replies).
+  if (!intel.primary && !intel.isMeeting) return null;
 
   // Owner = who did the work (the internal sender / alias). Person = who the
   // relationship is with. Two different fields, two different meanings.
@@ -538,37 +602,37 @@ export function threadToActivity(
     (newestFrom && !isNoiseEmail(newestFrom) ? newest.fromEmail : "");
   const owner = ownerSource || undefined;
 
-  const peopleOrdered = [primary, ...others.filter((p) => p.email !== primary.email)];
-  const head = outbound ? "Outbound email" : "Inbound email";
-  // The People line is machine-readable (contact join) — write it in FULL first
-  // and give the snippet only the leftover budget, so big Cc lists can never
-  // truncate the addresses away.
-  const peopleLine = `People: ${peopleOrdered.map((p) => `${p.name} <${p.email}>`).join("; ")}`;
   const audit = `Gmail: ${newest.permalink}${newest.threadId ? ` · thread ${newest.threadId}` : ""}${
     ordered.length > 1 ? ` · ${ordered.length} messages` : ""
   }`;
-  const fixed = [head, peopleLine, audit].join("\n");
-  const remaining = NOTES_BUDGET - fixed.length - 1;
-  // Real message text, not the Gmail snippet (which usually starts with the
-  // "Internal Use - Confidential" banner or a forwarded header block).
   const excerpt =
-    emailBodyExcerpt(newest.body, Math.max(remaining, 0)) ||
+    emailBodyExcerpt(newest.body, ACTIVITY_NOTES_BUDGET) ||
     (isEmailChromeText(newest.snippet) ? "" : sanitizeEmailText(newest.snippet).trim());
-  const notes = remaining > 40 && excerpt ? `${fixed}\n${excerpt.slice(0, remaining)}` : fixed;
+  const notes = formatActivityNotes({
+    headLine: intel.headLine,
+    peopleLine: intel.peopleLine,
+    channelLine: intel.channelLine,
+    auditLine: audit,
+    bodyExcerpt: excerpt,
+    budget: ACTIVITY_NOTES_BUDGET,
+  });
 
   return {
-    gid: `gmail-${newest.id}`,
+    // Stable per thread so replies update the same Notes/BD row instead of
+    // appending forever. threadId equals the first message id on single-message
+    // threads, so those keep the gid the per-message sync already wrote.
+    gid: `gmail-${newest.threadId || newest.id}`,
     track,
     name: newest.subject,
     date: newest.dateLabel || undefined,
     completed: true,
-    status: outbound ? "Sent" : "Received",
+    status: intel.status || (intel.outbound ? "Sent" : "Received"),
     owner,
-    type: "Email",
-    // Last-resort company only; canonicalizeActivities replaces this with a
-    // portfolio/target name from the content or the counterparty's CRM company.
-    company: companyFromEmail(primary.email) || undefined,
-    person: primary.name || undefined,
+    type: intel.type || (intel.isMeeting ? "Meeting" : "Email"),
+    // Last-resort company only; canonicalizeActivities replaces this with every
+    // portfolio name found in the subject/notes (slash-separated when several).
+    company: intel.company,
+    person: intel.person,
     notes,
     url: newest.permalink,
   };
@@ -577,16 +641,21 @@ async function fetchTrackFromAliases(
   track: "BD" | "GTM",
   aliases: string[],
 ): Promise<AsanaActivity[]> {
-  if (aliases.length === 0) return [];
   // Show everything for tagged PortCos: at least a year of history and up to 500
   // threads per track (env vars can widen this further, never narrow it).
   const windowDays = Math.max(Number(process.env.GMAIL_ACTIVITY_WINDOW_DAYS) || 0, 365);
   const max = Math.max(Number(process.env.GMAIL_ACTIVITY_MAX) || 0, 500);
 
-
-  // Match mail sent as the alias OR received at the alias (To/Cc).
-  const terms = aliases.flatMap((a) => [`from:${a}`, `to:${a}`, `cc:${a}`]).join(" OR ");
-  const q = `newer_than:${windowDays}d (${terms})`;
+  // Alias delivery (from/to/cc/deliveredto) OR DTC:/GTM Discussion subjects that
+  // never touched the alias inbox. deliveredto: catches auto-forwards into the
+  // alias where it never appears in visible To/Cc.
+  const aliasTerms = aliases
+    .flatMap((a) => [`from:${a}`, `to:${a}`, `cc:${a}`, `deliveredto:${a}`])
+    .join(" OR ");
+  const subjectTerms = activitySubjectQuery(track);
+  const clauses = [aliasTerms, subjectTerms].filter(Boolean).map((c) => `(${c})`);
+  if (clauses.length === 0) return [];
+  const q = `newer_than:${windowDays}d (${clauses.join(" OR ")})`;
   const res = await searchGmailRaw(q, max);
   if (!res.ok) {
     console.error(`[gmail] ${track} alias sync failed:`, res.error);
@@ -594,9 +663,11 @@ async function fetchTrackFromAliases(
   }
   const aliasSet = new Set(aliases);
   const internal = getInternalConfig();
+  // Drop subject-query false positives that aren't really activity mail.
+  const kept = res.messages.filter((m) => isActivityTrackingMessage(m, aliasSet));
   // One activity per thread, not per message.
   const threads = new Map<string, GmailMessage[]>();
-  for (const m of res.messages) {
+  for (const m of kept) {
     const key = m.threadId || m.id;
     const list = threads.get(key);
     if (list) list.push(m);
@@ -614,16 +685,52 @@ async function fetchTrackFromAliases(
 // records so they flow through the same sheet + contact-match pipeline as Asana.
 // Requires the aliases to deliver into the Google mailbox backing GOOGLE_REFRESH_TOKEN.
 export async function fetchAliasActivities(): Promise<AsanaActivity[]> {
+  gmailDateDbg.calls = 0;
+  gmailDateDbg.shifted = 0;
+  gmailDateDbg.samples = [];
   const bd = parseAliasList(process.env.GMAIL_BD_ALIAS);
   const gtm = parseAliasList(process.env.GMAIL_GTM_ALIAS);
-  if (bd.length === 0 && gtm.length === 0) return [];
+  // Still run when aliases are empty: subject classifier (DTC:/GTM Discussion)
+  // can surface tracking threads that never hit the alias inbox.
 
   const [bdActs, gtmActs] = await Promise.all([
     fetchTrackFromAliases("BD", bd),
     fetchTrackFromAliases("GTM", gtm),
   ]);
-  const out = [...bdActs, ...gtmActs];
+  // Prefer track-specific rows; if the same thread matched both subject queries,
+  // keep the first (BD then GTM) by gid.
+  const seen = new Set<string>();
+  const out: AsanaActivity[] = [];
+  for (const a of [...bdActs, ...gtmActs]) {
+    if (seen.has(a.gid)) continue;
+    seen.add(a.gid);
+    out.push(a);
+  }
   out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  // #region agent log
+  fetch("http://127.0.0.1:7724/ingest/5184a65b-0c76-4274-b203-81774fe31d23", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "3375d3" },
+    body: JSON.stringify({
+      sessionId: "3375d3",
+      hypothesisId: "C",
+      location: "gmail.server.ts:fetchAliasActivities",
+      message: "Gmail NY vs UTC calendar day",
+      data: {
+        activities: out.length,
+        dated: out.filter((a) => a.date).length,
+        toLabelCalls: gmailDateDbg.calls,
+        utcShifted: gmailDateDbg.shifted,
+        shiftSamples: gmailDateDbg.samples,
+        dateSamples: out.slice(0, 8).map((a) => a.date || ""),
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  gmailDateDbg.calls = 0;
+  gmailDateDbg.shifted = 0;
+  gmailDateDbg.samples = [];
+  // #endregion
   return out;
 }
 

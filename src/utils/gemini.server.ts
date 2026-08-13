@@ -181,10 +181,10 @@ async function getVertexToken(): Promise<string> {
     return cachedVertexToken.token;
   }
 
-  const credsJson = getServiceAccountJson();
+  const credsJson = await getServiceAccountJson();
   if (!credsJson) {
     throw new Error(
-      "Could not obtain a Google Cloud access token — set GOOGLE_APPLICATION_CREDENTIALS_JSON to a service-account key JSON",
+      "Could not obtain a Google Cloud access token — set GOOGLE_APPLICATION_CREDENTIALS_JSON to a service-account key JSON, or GOOGLE_APPLICATION_CREDENTIALS to a key file path",
     );
   }
 

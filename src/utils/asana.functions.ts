@@ -1,10 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
-import { fetchPortcoFields, fetchPortfolioEvents, discoverFields, fetchAllAsanaEvents, fetchActivities } from "./asana.server";
-import { fetchAliasActivities } from "./gmail.server";
-import { buildContacts, buildPortfolioCompanies } from "./sheets.server";
-import { canonicalizeActivities, dedupeAcrossSources } from "@/lib/activity-canonical";
-import { refineAttribution } from "./activity-attribution.server";
-import type { PortfolioEvent, AsanaEvent, AsanaActivity, Contact } from "@/lib/types";
+import { fetchPortcoFields, fetchPortfolioEvents, discoverFields, fetchAllAsanaEvents } from "./asana.server";
+import { buildActivities } from "./sheets.server";
+import { loadAttributionCorrections } from "./activity-attribution.server";
+import { applyAttributionCorrections } from "@/lib/activity-canonical";
+import type { PortfolioEvent, AsanaEvent, AsanaActivity } from "@/lib/types";
 
 export interface AsanaPortcoData {
   fieldsByCompanyName: Record<string, Record<string, string>>;
@@ -69,32 +68,18 @@ export const fetchAsanaEvents = createServerFn({ method: "GET" }).handler(
   }
 );
 
-// BD + GTM activities, matched client-side to Contacts / PortCos for display.
-// Includes emails sent to / from the configured BD + GTM Gmail aliases so the
-// Asana sync view shows email touches alongside Asana tasks.
+// BD + GTM activities for display — read from the mirrored BD / GTM sheet tabs
+// (populated by Sync activity from Asana + Gmail aliases). Attribution flags
+// overlay immediately so a correction shows before the next sync rewrites the tab.
 export const fetchAsanaActivities = createServerFn({ method: "GET" }).handler(
   async (): Promise<AsanaActivity[]> => {
-    const [asana, gmail, contacts, companies] = await Promise.all([
-      fetchActivities().catch((err) => {
-        console.error("[asana] fetchAsanaActivities failed:", err);
-        return [] as AsanaActivity[];
-      }),
-      fetchAliasActivities().catch((err) => {
-        console.error("[asana] BD/GTM alias email fetch failed:", err);
-        return [] as AsanaActivity[];
-      }),
-      buildContacts().catch(() => [] as Contact[]),
-      buildPortfolioCompanies().catch(() => [] as { name: string }[]),
-    ]);
-    // Same canonicalization the sheet sync applies, so the feed shows CRM names
-    // and content-derived companies rather than raw header/domain guesses.
-    const { activities } = dedupeAcrossSources([...asana, ...gmail]);
-    const names = companies.map((c) => c.name).filter(Boolean);
-    const canonical = canonicalizeActivities(activities, contacts, names);
-    // User corrections + Gemini fallback for the genuinely ambiguous leftovers.
-    const out = await refineAttribution(canonical, contacts, names).catch(() => canonical);
-    out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-    return out;
-
+    try {
+      const activities = await buildActivities();
+      const corrections = await loadAttributionCorrections().catch(() => []);
+      return applyAttributionCorrections(activities, corrections);
+    } catch (err) {
+      console.error("[activity] fetchAsanaActivities (sheets) failed:", err);
+      return [];
+    }
   }
 );

@@ -1,5 +1,10 @@
-import { createStart } from "@tanstack/react-start";
+import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
+
+const csrfMiddleware = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === "serverFn",
+});
 
 // TanStack Start expects this named export during client hydration.
-// Keep the options empty until global middleware or serialization adapters are needed.
-export const startInstance = createStart(() => ({}));
+export const startInstance = createStart(() => ({
+  requestMiddleware: [csrfMiddleware],
+}));

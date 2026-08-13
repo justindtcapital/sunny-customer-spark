@@ -12,6 +12,7 @@ import {
 } from "@/utils/sheets.functions";
 import { eventSynopsisDraft } from "@/utils/insights.functions";
 import type { AsanaEvent, Contact, EmailActivityRecord } from "@/lib/types";
+import { scoreContactSearch } from "@/lib/contact-search";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -1788,7 +1789,10 @@ function UploadAttendedDialog({
     let ok = 0;
     for (const c of matched) {
       try {
-        await addEventToSheet({ data: { contactEmail: c.email, eventName, type: "attended" } });
+        // Attended → Follow Up Flag on by default (post-event outreach).
+        await addEventToSheet({
+          data: { contactEmail: c.email, eventName, type: "attended", flagFollowUp: true },
+        });
         ok++;
       } catch (e) {
         console.error("Failed to tag attended for", c.email, e);
@@ -1796,7 +1800,7 @@ function UploadAttendedDialog({
     }
     setBusy(false);
     toast.success(
-      `Marked ${ok} attended for "${eventName}"${unmatched.length ? ` · ${unmatched.length} email${unmatched.length !== 1 ? "s" : ""} not in network` : ""}`,
+      `Marked ${ok} attended for "${eventName}" (flagged for follow-up)${unmatched.length ? ` · ${unmatched.length} email${unmatched.length !== 1 ? "s" : ""} not in network` : ""}`,
     );
     setText("");
     onOpenChange(false);
@@ -1877,17 +1881,14 @@ function BulkAddAttendeesDialog({
   const verb = type === "invited" ? "invitees" : "attendees";
 
   const candidates = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     return contacts
       .filter((c) => !alreadyTagged.has(c.id))
-      .filter(
-        (c) =>
-          !q ||
-          c.name.toLowerCase().includes(q) ||
-          c.company.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q),
-      )
-      .slice(0, 200);
+      .map((c) => ({ c, s: q ? scoreContactSearch(c, q) : 1 }))
+      .filter((x) => x.s > 0)
+      .sort((a, b) => b.s - a.s || a.c.name.localeCompare(b.c.name))
+      .slice(0, 200)
+      .map((x) => x.c);
   }, [contacts, query, alreadyTagged]);
 
   const toggle = (id: string) => {
@@ -1906,14 +1907,25 @@ function BulkAddAttendeesDialog({
     let ok = 0;
     for (const c of targets) {
       try {
-        await addEventToSheet({ data: { contactEmail: c.email, eventName, type } });
+        // Attended defaults to follow-up; invitees are left unflagged.
+        await addEventToSheet({
+          data: {
+            contactEmail: c.email,
+            eventName,
+            type,
+            flagFollowUp: type === "attended",
+          },
+        });
         ok++;
       } catch (e) {
         console.error("Failed to add event for", c.email, e);
       }
     }
     setBusy(false);
-    toast.success(`Tagged ${ok} contact${ok !== 1 ? "s" : ""} as ${verb} of "${eventName}"`);
+    toast.success(
+      `Tagged ${ok} contact${ok !== 1 ? "s" : ""} as ${verb} of "${eventName}"` +
+        (type === "attended" ? " (flagged for follow-up)" : ""),
+    );
     setSelected(new Set());
     onOpenChange(false);
     onChanged?.();

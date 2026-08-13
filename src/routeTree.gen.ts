@@ -16,6 +16,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as TargetingRouteImport } from './routes/targeting'
+import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activity-sync'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
 import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
 import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
@@ -56,6 +57,11 @@ const TargetingRoute = TargetingRouteImport.update({
   path: '/targeting',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronActivitySyncRoute = ApiCronActivitySyncRouteImport.update({
+  id: '/api/cron/activity-sync',
+  path: '/api/cron/activity-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronIntelScanRoute = ApiCronIntelScanRouteImport.update({
   id: '/api/cron/intel-scan',
   path: '/api/cron/intel-scan',
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/events': typeof EventsRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/events': typeof EventsRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/events': typeof EventsRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/portfolio'
     | '/targeting'
+    | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
@@ -140,6 +150,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/portfolio'
     | '/targeting'
+    | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
@@ -153,6 +164,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/portfolio'
     | '/targeting'
+    | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
@@ -167,6 +179,7 @@ export interface RootRouteChildren {
   EventsRoute: typeof EventsRoute
   PortfolioRoute: typeof PortfolioRoute
   TargetingRoute: typeof TargetingRoute
+  ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
   ApiCronSignalsReconcileRoute: typeof ApiCronSignalsReconcileRoute
@@ -224,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TargetingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/activity-sync': {
+      id: '/api/cron/activity-sync'
+      path: '/api/cron/activity-sync'
+      fullPath: '/api/cron/activity-sync'
+      preLoaderRoute: typeof ApiCronActivitySyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/intel-scan': {
       id: '/api/cron/intel-scan'
       path: '/api/cron/intel-scan'
@@ -263,6 +283,7 @@ const rootRouteChildren: RootRouteChildren = {
   EventsRoute: EventsRoute,
   PortfolioRoute: PortfolioRoute,
   TargetingRoute: TargetingRoute,
+  ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,
   ApiCronSignalsReconcileRoute: ApiCronSignalsReconcileRoute,

@@ -27,6 +27,9 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
   },
 };
 
+/** Lowercased teammate emails — always treated as internal for activity attribution. */
+export const TEAM_MEMBER_EMAILS: string[] = Object.keys(TEAM);
+
 function titleCaseLocal(local: string): string {
   return local
     .replace(/[._+]+/g, " ")

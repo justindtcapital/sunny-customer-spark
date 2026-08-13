@@ -15,7 +15,7 @@ import { syncGmailCrmTouches } from "@/utils/gmail-crm-sync.functions";
 import { syncEventExposure } from "@/utils/event-exposure.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Gauge, Loader2, Activity } from "lucide-react";
+import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Gauge, Loader2, Activity, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -107,7 +107,9 @@ function CrmPage() {
     linkedinUrl: "",
   });
   const [recalcBusy, setRecalcBusy] = useState(false);
-  const [syncBusy, setSyncBusy] = useState(false);
+  const [asanaSyncBusy, setAsanaSyncBusy] = useState(false);
+  const [gmailSyncBusy, setGmailSyncBusy] = useState(false);
+  const syncBusy = asanaSyncBusy || gmailSyncBusy;
 
   const handleAddContact = async () => {
     const name = addForm.name.trim();
@@ -160,37 +162,50 @@ function CrmPage() {
     }
   };
 
-  // Pull BD/GTM activities from Asana + Gmail aliases and log onto matched contacts
-  // (deduped, read-only). Safe to re-run — only new/newly-matched activities land.
-  const handleSyncActivity = async () => {
-    setSyncBusy(true);
+  // Pull BD/GTM activities from Asana (or Gmail aliases) and log onto matched
+  // contacts (deduped, read-only). Safe to re-run — only new rows land.
+  const handleSyncAsana = async () => {
+    setAsanaSyncBusy(true);
     try {
-      const [res, exp, tracks, gmailCrm] = await Promise.all([
-        syncAsanaActivities(),
+      const [res, exp, tracks] = await Promise.all([
+        syncAsanaActivities({ data: { source: "asana" } }),
         syncEventExposure(),
-        syncActivityTracks(),
-        syncGmailCrmTouches(),
+        syncActivityTracks({ data: { source: "asana" } }),
       ]);
       if (!res.ok) {
-        toast.error(res.error || "Activity sync failed.");
+        toast.error(
+          /fetch failed|timed out|UND_ERR|ENOTFOUND|network/i.test(res.error || "")
+            ? "Couldn't reach Asana — connection timed out. BD/GTM still displays from the sheet tabs."
+            : res.error || "Asana sync failed.",
+        );
         return;
       }
-      if (res.activities === 0) {
-        toast.info("No BD/GTM activities found (check Asana project GIDs and GMAIL_BD_ALIAS / GMAIL_GTM_ALIAS).");
-      } else if (res.logged === 0 && res.portcosLogged === 0) {
+      if (res.activities === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0) {
+        toast.info("No BD/GTM Asana activities found (check ASANA_* project GIDs).");
+      } else if (res.logged === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0 && res.contactsCreated === 0) {
         toast.success(
-          `Up to date — ${res.matched} matched activit${res.matched !== 1 ? "ies" : "y"}, nothing new to log.`,
+          `Asana up to date — ${res.matched} matched activit${res.matched !== 1 ? "ies" : "y"}, nothing new to log.`,
         );
       } else {
         const parts: string[] = [];
+        if (res.contactsCreated > 0) {
+          parts.push(
+            `+${res.contactsCreated} new contact${res.contactsCreated !== 1 ? "s" : ""}`,
+          );
+        }
         if (res.logged > 0) {
           parts.push(
-            `Logged ${res.logged} activit${res.logged !== 1 ? "ies" : "y"} across ${res.contactsTouched} contact${res.contactsTouched !== 1 ? "s" : ""}`,
+            `Logged ${res.logged} Asana activit${res.logged !== 1 ? "ies" : "y"} across ${res.contactsTouched} contact${res.contactsTouched !== 1 ? "s" : ""}`,
           );
         }
         if (res.portcosLogged > 0) {
           parts.push(
             `${res.portcosLogged} PortCo tag${res.portcosLogged !== 1 ? "s" : ""}`,
+          );
+        }
+        if (res.portcosBackfilled > 0) {
+          parts.push(
+            `${res.portcosBackfilled} PortCo backfill${res.portcosBackfilled !== 1 ? "s" : ""}`,
           );
         }
         toast.success(
@@ -208,7 +223,6 @@ function CrmPage() {
               : "."),
         );
       }
-      // Mirror raw BD/GTM activities into their own sheet tabs.
       if (!tracks.ok) {
         toast.error(tracks.error || "BD/GTM tab sync failed.");
       } else if (tracks.bdLogged > 0 || tracks.gtmLogged > 0) {
@@ -216,29 +230,7 @@ function CrmPage() {
           `BD/GTM tabs: added ${tracks.bdLogged} BD · ${tracks.gtmLogged} GTM row${tracks.gtmLogged !== 1 ? "s" : ""}.`,
         );
       }
-      if (!gmailCrm.ok) {
-        toast.error(gmailCrm.error || "Gmail CRM sync failed.");
-      } else if (!gmailCrm.skipped && (gmailCrm.logged > 0 || gmailCrm.eventsLogged > 0)) {
-        const parts: string[] = [];
-        if (gmailCrm.logged > 0) {
-          parts.push(
-            `${gmailCrm.logged} touch${gmailCrm.logged !== 1 ? "es" : ""} across ${gmailCrm.matchedContacts} contact${gmailCrm.matchedContacts !== 1 ? "s" : ""}`,
-          );
-        }
-        if (gmailCrm.eventsLogged > 0) {
-          parts.push(
-            `${gmailCrm.eventsLogged} event link${gmailCrm.eventsLogged !== 1 ? "s" : ""}`,
-          );
-        }
-        toast.success(`Gmail: ${parts.join(" · ")}.`);
-      }
-      // Refresh Interaction Trails from Notes, then re-score so temperature
-      // reflects the new activity (locked ratings are left alone).
-      const trailTouched =
-        res.logged > 0 ||
-        (!gmailCrm.skipped && (gmailCrm.logged > 0 || gmailCrm.eventsLogged > 0)) ||
-        (exp.ok && exp.engagementsLogged > 0);
-      if (trailTouched) {
+      if (res.logged > 0 || (exp.ok && exp.engagementsLogged > 0)) {
         try {
           const scores = await recalculateRatings();
           if (scores.updated > 0) {
@@ -253,10 +245,109 @@ function CrmPage() {
       await router.invalidate();
       await ownershipQuery.refetch();
     } catch (e) {
-      console.error("syncAsanaActivities failed", e);
-      toast.error("Activity sync failed — see console.");
+      console.error("sync with Asana failed", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(
+        /fetch failed|timed out|UND_ERR|ENOTFOUND|network/i.test(msg)
+          ? "Couldn't reach Asana — connection timed out. BD/GTM still displays from the sheet tabs."
+          : "Asana sync failed — see console.",
+      );
     } finally {
-      setSyncBusy(false);
+      setAsanaSyncBusy(false);
+    }
+  };
+
+  // Pull BD/GTM alias email (and subject-classified threads) into Notes + BD/GTM tabs.
+  const handleSyncGmail = async () => {
+    setGmailSyncBusy(true);
+    try {
+      const [res, tracks, gmailCrm] = await Promise.all([
+        syncAsanaActivities({ data: { source: "gmail" } }),
+        syncActivityTracks({ data: { source: "gmail" } }),
+        syncGmailCrmTouches(),
+      ]);
+      if (!res.ok) {
+        toast.error(res.error || "Gmail sync failed.");
+        return;
+      }
+      if (res.activities === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0) {
+        toast.info("No BD/GTM Gmail activities found (check GMAIL_BD_ALIAS / GMAIL_GTM_ALIAS).");
+      } else if (res.logged === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0 && res.contactsCreated === 0) {
+        toast.success(
+          `Gmail up to date — ${res.matched} matched activit${res.matched !== 1 ? "ies" : "y"}, nothing new to log.`,
+        );
+      } else {
+        const parts: string[] = [];
+        if (res.contactsCreated > 0) {
+          parts.push(
+            `+${res.contactsCreated} new contact${res.contactsCreated !== 1 ? "s" : ""}`,
+          );
+        }
+        if (res.logged > 0) {
+          parts.push(
+            `Logged ${res.logged} Gmail activit${res.logged !== 1 ? "ies" : "y"} across ${res.contactsTouched} contact${res.contactsTouched !== 1 ? "s" : ""}`,
+          );
+        }
+        if (res.portcosLogged > 0) {
+          parts.push(
+            `${res.portcosLogged} PortCo tag${res.portcosLogged !== 1 ? "s" : ""}`,
+          );
+        }
+        if (res.portcosBackfilled > 0) {
+          parts.push(
+            `${res.portcosBackfilled} PortCo backfill${res.portcosBackfilled !== 1 ? "s" : ""}`,
+          );
+        }
+        toast.success(
+          parts.join(" · ") +
+            (res.skipped > 0 && res.logged > 0 ? ` · ${res.skipped} already synced.` : "."),
+        );
+      }
+      if (!tracks.ok) {
+        toast.error(tracks.error || "BD/GTM tab sync failed.");
+      } else if (tracks.bdLogged > 0 || tracks.gtmLogged > 0) {
+        toast.success(
+          `BD/GTM tabs: added ${tracks.bdLogged} BD · ${tracks.gtmLogged} GTM row${tracks.gtmLogged !== 1 ? "s" : ""}.`,
+        );
+      }
+      if (!gmailCrm.ok) {
+        toast.error(gmailCrm.error || "Gmail CRM deepen failed.");
+      } else if (!gmailCrm.skipped && (gmailCrm.logged > 0 || gmailCrm.eventsLogged > 0)) {
+        const parts: string[] = [];
+        if (gmailCrm.logged > 0) {
+          parts.push(
+            `${gmailCrm.logged} touch${gmailCrm.logged !== 1 ? "es" : ""} across ${gmailCrm.matchedContacts} contact${gmailCrm.matchedContacts !== 1 ? "s" : ""}`,
+          );
+        }
+        if (gmailCrm.eventsLogged > 0) {
+          parts.push(
+            `${gmailCrm.eventsLogged} event link${gmailCrm.eventsLogged !== 1 ? "s" : ""}`,
+          );
+        }
+        toast.success(`Gmail CRM: ${parts.join(" · ")}.`);
+      }
+      if (
+        res.logged > 0 ||
+        (!gmailCrm.skipped && (gmailCrm.logged > 0 || gmailCrm.eventsLogged > 0))
+      ) {
+        try {
+          const scores = await recalculateRatings();
+          if (scores.updated > 0) {
+            toast.success(
+              `Updated ${scores.updated} rating${scores.updated !== 1 ? "s" : ""} from new activity.`,
+            );
+          }
+        } catch (e) {
+          console.error("post-sync recalculateRatings failed", e);
+        }
+      }
+      await router.invalidate();
+      await ownershipQuery.refetch();
+    } catch (e) {
+      console.error("sync with Gmail failed", e);
+      toast.error("Gmail sync failed — see console.");
+    } finally {
+      setGmailSyncBusy(false);
     }
   };
 
@@ -375,16 +466,32 @@ function CrmPage() {
             variant="outline"
             size="sm"
             className="text-xs"
-            onClick={handleSyncActivity}
+            onClick={handleSyncAsana}
             disabled={syncBusy}
-            title="Pull BD/GTM activities from Asana and log each onto the contacts it matches (read-only, deduped). Safe to re-run."
+            title="Pull BD/GTM activities from Asana and log each onto matched contacts (read-only, deduped). Safe to re-run."
           >
-            {syncBusy ? (
+            {asanaSyncBusy ? (
               <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
             ) : (
               <Activity className="h-3.5 w-3.5 mr-1.5" />
             )}
-            {syncBusy ? "Syncing…" : "Sync activity"}
+            {asanaSyncBusy ? "Syncing Asana…" : "Sync with Asana"}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            onClick={handleSyncGmail}
+            disabled={syncBusy}
+            title="Pull BD/GTM tracking-alias email into Notes and the BD/GTM tabs (read-only, deduped). Safe to re-run."
+          >
+            {gmailSyncBusy ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Mail className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {gmailSyncBusy ? "Syncing Gmail…" : "Sync with Gmail"}
           </Button>
 
           <Button

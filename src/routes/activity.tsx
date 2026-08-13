@@ -122,20 +122,25 @@ function ActivityPage() {
     }
   };
 
-  // One-time (re-runnable) overwrite of Gmail notes written before the
-  // body-excerpt fix — rewrites the Note Content cell in place.
+  // One-time (re-runnable): collapse duplicate thread rows, then rewrite
+  // chrome-only Note Content cells with the real message text.
   const runGmailNoteRepair = async () => {
     setRepairing(true);
-    const t = toast.loading("Rewriting Gmail notes with the real message text…");
+    const t = toast.loading("Repairing Gmail notes (thread dedupe + body backfill)…");
     try {
       const res = await repairGmailNotesFn({ data: { limit: 400 } });
       if (!res.ok) toast.error(res.error || "Gmail note repair failed", { id: t });
-      else if (res.candidates === 0)
-        toast.success(`No bad Gmail notes found (${res.scanned} checked)`, { id: t });
+      else if (res.candidates === 0 && res.deduped === 0)
+        toast.success(`Gmail notes already clean (${res.scanned} checked)`, { id: t });
       else
         toast.success(
-          `Repaired ${res.repaired} of ${res.candidates} Gmail notes` +
-            (res.unresolved ? ` · ${res.unresolved} messages unavailable` : ""),
+          [
+            res.deduped ? `Removed ${res.deduped} duplicate thread row${res.deduped === 1 ? "" : "s"}` : "",
+            res.repaired ? `Rewrote ${res.repaired} note${res.repaired === 1 ? "" : "s"}` : "",
+            res.unresolved ? `${res.unresolved} messages unavailable` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Done",
           { id: t },
         );
       await router.invalidate();
