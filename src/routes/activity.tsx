@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { fetchOpsLog } from "@/utils/sheets.functions";
+import { repairGmailNotesFn } from "@/utils/gmail-notes-repair.functions";
 import type { OpsLogEntry } from "@/utils/sheets.server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,6 +92,7 @@ function ActivityPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const [repairing, setRepairing] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -121,7 +124,7 @@ function ActivityPage() {
 
   // One-time (re-runnable) overwrite of Gmail notes written before the
   // body-excerpt fix — rewrites the Note Content cell in place.
-  const repairGmailNotes = async () => {
+  const runGmailNoteRepair = async () => {
     setRepairing(true);
     const t = toast.loading("Rewriting Gmail notes with the real message text…");
     try {
@@ -158,6 +161,17 @@ function ActivityPage() {
             written to the workbook's Ops Log tab.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={runGmailNoteRepair}
+          disabled={repairing}
+        >
+          <Wrench className={`h-3.5 w-3.5 mr-1.5 ${repairing ? "animate-pulse" : ""}`} />
+          Repair Gmail notes
+        </Button>
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={refresh} disabled={refreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
           Refresh
