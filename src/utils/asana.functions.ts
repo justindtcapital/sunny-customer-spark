@@ -1,7 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { fetchPortcoFields, fetchPortfolioEvents, discoverFields, fetchAllAsanaEvents, fetchActivities } from "./asana.server";
 import { fetchAliasActivities } from "./gmail.server";
-import type { PortfolioEvent, AsanaEvent, AsanaActivity } from "@/lib/types";
+import { buildContacts, buildPortfolioCompanies } from "./sheets.server";
+import { canonicalizeActivities, dedupeAcrossSources } from "@/lib/activity-canonical";
+import type { PortfolioEvent, AsanaEvent, AsanaActivity, Contact } from "@/lib/types";
 
 export interface AsanaPortcoData {
   fieldsByCompanyName: Record<string, Record<string, string>>;
