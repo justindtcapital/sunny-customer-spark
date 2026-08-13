@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { fetchOpsLog } from "@/utils/sheets.functions";
+import { repairGmailNotesFn } from "@/utils/gmail-notes-repair.functions";
 import type { OpsLogEntry } from "@/utils/sheets.server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,6 +92,7 @@ function ActivityPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
+  const [repairing, setRepairing] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -119,6 +122,30 @@ function ActivityPage() {
     }
   };
 
+  // One-time (re-runnable) overwrite of Gmail notes written before the
+  // body-excerpt fix — rewrites the Note Content cell in place.
+  const runGmailNoteRepair = async () => {
+    setRepairing(true);
+    const t = toast.loading("Rewriting Gmail notes with the real message text…");
+    try {
+      const res = await repairGmailNotesFn({ data: { limit: 400 } });
+      if (!res.ok) toast.error(res.error || "Gmail note repair failed", { id: t });
+      else if (res.candidates === 0)
+        toast.success(`No bad Gmail notes found (${res.scanned} checked)`, { id: t });
+      else
+        toast.success(
+          `Repaired ${res.repaired} of ${res.candidates} Gmail notes` +
+            (res.unresolved ? ` · ${res.unresolved} messages unavailable` : ""),
+          { id: t },
+        );
+      await router.invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gmail note repair failed", { id: t });
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const errorCount = entries.filter((e) => e.status === "error").length;
 
   return (
@@ -134,10 +161,22 @@ function ActivityPage() {
             written to the workbook's Ops Log tab.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={runGmailNoteRepair}
+          disabled={repairing}
+        >
+          <Wrench className={`h-3.5 w-3.5 mr-1.5 ${repairing ? "animate-pulse" : ""}`} />
+          Repair Gmail notes
+        </Button>
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={refresh} disabled={refreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
           Refresh
         </Button>
+        </div>
       </div>
 
       {/* Filters */}

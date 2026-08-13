@@ -472,7 +472,18 @@ function counterparties(
   return [...out.values()];
 }
 
-const NOTES_BUDGET = 1000;
+export const NOTES_BUDGET = 1000;
+
+/** Fetch one message by Gmail id (used by the Notes backfill repair). */
+export async function fetchGmailMessageById(id: string): Promise<GmailMessage | null> {
+  let token: string;
+  try {
+    token = await getAccessToken();
+  } catch {
+    return null;
+  }
+  return getMessage(token, id);
+}
 
 /** Convert a Gmail message into a BD/GTM activity, or null when it is noise. */
 export function messageToActivity(
