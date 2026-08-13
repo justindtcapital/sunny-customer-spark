@@ -51,7 +51,6 @@ import {
   AlertTriangle,
   UserPlus,
   Trash2,
-  TrendingUp,
 } from "lucide-react";
 import { ContactAvatar } from "@/components/crm/ContactAvatar";
 import { addContact, deletePortfolioCompany } from "@/utils/sheets.functions";
@@ -64,7 +63,6 @@ import { matchActivitiesToCompany } from "@/lib/activity-match";
 import type { PortcoIntelResult, PortcoBriefResult } from "@/utils/sumble.server";
 import { CustomerDiscoveryPanel } from "./CustomerDiscoveryPanel";
 import { EditPortfolioCompanyDialog } from "./EditPortfolioCompanyDialog";
-import { PortcoKpiSection } from "@/components/kpi/CompanyKpiPanel";
 import { PortcoSignalsPanel } from "./PortcoSignalsPanel";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
@@ -563,13 +561,6 @@ export function PortfolioDetail({
                 </div>
               </section>
 
-              {/* Portfolio KPIs — moved from /platform; scoped to this company */}
-              <section className="border-b border-border pb-6">
-                <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
-                  <TrendingUp className="h-3 w-3 text-primary" /> Portfolio KPIs
-                </h3>
-                <PortcoKpiSection company={company} />
-              </section>
 
               {/* BD / GTM activity from Asana, matched to this company */}
               {(activitiesLoading || companyActivities.length > 0) && (
