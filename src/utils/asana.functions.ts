@@ -71,7 +71,7 @@ export const fetchAsanaEvents = createServerFn({ method: "GET" }).handler(
 // Asana sync view shows email touches alongside Asana tasks.
 export const fetchAsanaActivities = createServerFn({ method: "GET" }).handler(
   async (): Promise<AsanaActivity[]> => {
-    const [asana, gmail] = await Promise.all([
+    const [asana, gmail, contacts, companies] = await Promise.all([
       fetchActivities().catch((err) => {
         console.error("[asana] fetchAsanaActivities failed:", err);
         return [] as AsanaActivity[];
@@ -80,8 +80,17 @@ export const fetchAsanaActivities = createServerFn({ method: "GET" }).handler(
         console.error("[asana] BD/GTM alias email fetch failed:", err);
         return [] as AsanaActivity[];
       }),
+      buildContacts().catch(() => [] as Contact[]),
+      buildPortfolioCompanies().catch(() => [] as { name: string }[]),
     ]);
-    const out = [...asana, ...gmail];
+    // Same canonicalization the sheet sync applies, so the feed shows CRM names
+    // and content-derived companies rather than raw header/domain guesses.
+    const { activities } = dedupeAcrossSources([...asana, ...gmail]);
+    const out = canonicalizeActivities(
+      activities,
+      contacts,
+      companies.map((c) => c.name).filter(Boolean),
+    );
     out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     return out;
   }
