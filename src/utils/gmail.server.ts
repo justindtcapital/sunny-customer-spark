@@ -537,8 +537,12 @@ export function threadToActivity(
   }`;
   const fixed = [head, peopleLine, audit].join("\n");
   const remaining = NOTES_BUDGET - fixed.length - 1;
-  const snippet = (newest.snippet || newest.body.slice(0, 400)).trim();
-  const notes = remaining > 40 && snippet ? `${fixed}\n${snippet.slice(0, remaining)}` : fixed;
+  // Real message text, not the Gmail snippet (which usually starts with the
+  // "Internal Use - Confidential" banner or a forwarded header block).
+  const excerpt =
+    emailBodyExcerpt(newest.body, Math.max(remaining, 0)) ||
+    (isEmailChromeText(newest.snippet) ? "" : sanitizeEmailText(newest.snippet).trim());
+  const notes = remaining > 40 && excerpt ? `${fixed}\n${excerpt.slice(0, remaining)}` : fixed;
 
   return {
     gid: `gmail-${newest.id}`,
