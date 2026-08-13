@@ -18,6 +18,7 @@ import {
 import { isGmailCrmSyncConfigured } from "./gmail.server";
 import { matchActivitiesToContact, resolvePortcosMentioned } from "@/lib/activity-match";
 import { canonicalizeActivities, dedupeAcrossSources } from "@/lib/activity-canonical";
+import { refineAttribution } from "./activity-attribution.server";
 import type { AsanaActivity, Contact, InteractionType } from "@/lib/types";
 
 // Classify a BD/GTM activity into the CRM interaction taxonomy from its
@@ -137,8 +138,11 @@ async function loadAllTrackActivities(
       .filter(Boolean);
   const { activities, dropped } = dedupeAcrossSources([...asana, ...gmail]);
   if (dropped > 0) console.log(`[activity] dropped ${dropped} Gmail duplicates of Asana tasks`);
-  return canonicalizeActivities(activities, crm, names);
+  const canonical = canonicalizeActivities(activities, crm, names);
+  // Replay human corrections, then let Gemini decide only the ambiguous rest.
+  return await refineAttribution(canonical, crm, names).catch(() => canonical);
 }
+
 
 // Pull every BD/GTM activity from Asana + Gmail aliases and log each one as a
 // read-only interaction on the CRM contacts it matches. When the activity
