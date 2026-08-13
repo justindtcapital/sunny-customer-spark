@@ -253,6 +253,8 @@ async function getMessage(token: string, id: string): Promise<GmailMessage | nul
     fromEmail: from.email,
     toEmails: to,
     ccEmails: cc,
+    toPeople,
+    ccPeople,
     deliveredTo,
     date,
     dateLabel: toLabel(date),
