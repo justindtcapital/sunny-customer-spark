@@ -433,7 +433,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
         }
         if (src) {
           try {
-            await addNote({ data: { contactEmail: r.email, noteContent: `Source: ${src}`, requiresFollowUp: flagFollowUp } });
+            await addNote({ data: { contactEmail: r.email, noteContent: `Source: ${src}`, requiresFollowUp: isFlaggedForFollowUp(r.email) } });
             taggedSource++;
           } catch (e) {
             console.error("source tag failed", r.email, e);
