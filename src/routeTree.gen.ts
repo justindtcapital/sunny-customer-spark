@@ -9,41 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TargetingRouteImport } from './routes/targeting'
-import { Route as PortfolioRouteImport } from './routes/portfolio'
-import { Route as EventsRouteImport } from './routes/events'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as CrmRouteImport } from './routes/crm'
-import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
-import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
-import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
+import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as CrmRouteImport } from './routes/crm'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as EventsRouteImport } from './routes/events'
+import { Route as PortfolioRouteImport } from './routes/portfolio'
+import { Route as TargetingRouteImport } from './routes/targeting'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
+import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
+import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
+import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
 
-const TargetingRoute = TargetingRouteImport.update({
-  id: '/targeting',
-  path: '/targeting',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PortfolioRoute = PortfolioRouteImport.update({
-  id: '/portfolio',
-  path: '/portfolio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EventsRoute = EventsRouteImport.update({
-  id: '/events',
-  path: '/events',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CrmRoute = CrmRouteImport.update({
-  id: '/crm',
-  path: '/crm',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ActivityRoute = ActivityRouteImport.update({
@@ -51,19 +31,34 @@ const ActivityRoute = ActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const CrmRoute = CrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
-  id: '/api/public/inngest',
-  path: '/api/public/inngest',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCronSignalsReconcileRoute = ApiCronSignalsReconcileRouteImport.update({
-  id: '/api/cron/signals-reconcile',
-  path: '/api/cron/signals-reconcile',
+const EventsRoute = EventsRouteImport.update({
+  id: '/events',
+  path: '/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortfolioRoute = PortfolioRouteImport.update({
+  id: '/portfolio',
+  path: '/portfolio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TargetingRoute = TargetingRouteImport.update({
+  id: '/targeting',
+  path: '/targeting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronIntelScanRoute = ApiCronIntelScanRouteImport.update({
+  id: '/api/cron/intel-scan',
+  path: '/api/cron/intel-scan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCronScanSignalsRoute = ApiCronScanSignalsRouteImport.update({
@@ -71,9 +66,14 @@ const ApiCronScanSignalsRoute = ApiCronScanSignalsRouteImport.update({
   path: '/api/cron/scan-signals',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCronIntelScanRoute = ApiCronIntelScanRouteImport.update({
-  id: '/api/cron/intel-scan',
-  path: '/api/cron/intel-scan',
+const ApiCronSignalsReconcileRoute = ApiCronSignalsReconcileRouteImport.update({
+  id: '/api/cron/signals-reconcile',
+  path: '/api/cron/signals-reconcile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
+  id: '/api/public/inngest',
+  path: '/api/public/inngest',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -175,39 +175,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/targeting': {
-      id: '/targeting'
-      path: '/targeting'
-      fullPath: '/targeting'
-      preLoaderRoute: typeof TargetingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/portfolio': {
-      id: '/portfolio'
-      path: '/portfolio'
-      fullPath: '/portfolio'
-      preLoaderRoute: typeof PortfolioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/events': {
-      id: '/events'
-      path: '/events'
-      fullPath: '/events'
-      preLoaderRoute: typeof EventsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/crm': {
-      id: '/crm'
-      path: '/crm'
-      fullPath: '/crm'
-      preLoaderRoute: typeof CrmRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/activity': {
@@ -217,25 +189,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/crm': {
+      id: '/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof CrmRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/inngest': {
-      id: '/api/public/inngest'
-      path: '/api/public/inngest'
-      fullPath: '/api/public/inngest'
-      preLoaderRoute: typeof ApiPublicInngestRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cron/signals-reconcile': {
-      id: '/api/cron/signals-reconcile'
-      path: '/api/cron/signals-reconcile'
-      fullPath: '/api/cron/signals-reconcile'
-      preLoaderRoute: typeof ApiCronSignalsReconcileRouteImport
+    '/events': {
+      id: '/events'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof EventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portfolio': {
+      id: '/portfolio'
+      path: '/portfolio'
+      fullPath: '/portfolio'
+      preLoaderRoute: typeof PortfolioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/targeting': {
+      id: '/targeting'
+      path: '/targeting'
+      fullPath: '/targeting'
+      preLoaderRoute: typeof TargetingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/intel-scan': {
+      id: '/api/cron/intel-scan'
+      path: '/api/cron/intel-scan'
+      fullPath: '/api/cron/intel-scan'
+      preLoaderRoute: typeof ApiCronIntelScanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cron/scan-signals': {
@@ -245,11 +238,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronScanSignalsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cron/intel-scan': {
-      id: '/api/cron/intel-scan'
-      path: '/api/cron/intel-scan'
-      fullPath: '/api/cron/intel-scan'
-      preLoaderRoute: typeof ApiCronIntelScanRouteImport
+    '/api/cron/signals-reconcile': {
+      id: '/api/cron/signals-reconcile'
+      path: '/api/cron/signals-reconcile'
+      fullPath: '/api/cron/signals-reconcile'
+      preLoaderRoute: typeof ApiCronSignalsReconcileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/inngest': {
+      id: '/api/public/inngest'
+      path: '/api/public/inngest'
+      fullPath: '/api/public/inngest'
+      preLoaderRoute: typeof ApiPublicInngestRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
