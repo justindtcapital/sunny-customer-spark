@@ -157,7 +157,7 @@ export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -179,7 +179,7 @@ export async function appendSheetRow(tabName: string, values: string[]): Promise
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -205,7 +205,7 @@ export async function appendSheetRows(tabName: string, rows: string[][]): Promis
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: rows }),
@@ -225,7 +225,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
 
   // Is the tab already present?
-  const metaRes = await fetch(`${base}?fields=sheets.properties.title`, {
+  const metaRes = await sheetsFetch(`${base}?fields=sheets.properties.title`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (metaRes.ok) {
@@ -235,7 +235,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
   }
 
   // Create the tab.
-  const addRes = await fetch(`${base}:batchUpdate`, {
+  const addRes = await sheetsFetch(`${base}:batchUpdate`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tabName } } }] }),
@@ -250,7 +250,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
 
   // Write the header row.
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await fetch(headerUrl, {
+  await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
@@ -268,7 +268,7 @@ export async function ensureHeaderWidth(tabName: string, headers: string[]): Pro
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
-  const getRes = await fetch(`${base}/values/${encodeURIComponent(`${tabName}!1:1`)}`, {
+  const getRes = await sheetsFetch(`${base}/values/${encodeURIComponent(`${tabName}!1:1`)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (getRes.ok) {
@@ -277,7 +277,7 @@ export async function ensureHeaderWidth(tabName: string, headers: string[]): Pro
     if (current.length >= headers.length) return; // already wide enough
   }
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await fetch(headerUrl, {
+  await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
@@ -290,7 +290,7 @@ export async function ensureHeaderWidth(tabName: string, headers: string[]): Pro
 async function getSheetId(tabName: string): Promise<number | null> {
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
-  const res = await fetch(
+  const res = await sheetsFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties(sheetId,title)`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
@@ -307,7 +307,7 @@ async function getSheetId(tabName: string): Promise<number | null> {
 export async function listSheetTabs(): Promise<string[]> {
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
-  const res = await fetch(
+  const res = await sheetsFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties.title`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
@@ -335,7 +335,7 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
 
   // Insert a blank row at the very top, then write the header into it.
-  const ins = await fetch(`${base}:batchUpdate`, {
+  const ins = await sheetsFetch(`${base}:batchUpdate`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -351,7 +351,7 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
   });
   if (!ins.ok) return; // best-effort
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await fetch(headerUrl, {
+  await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
@@ -385,7 +385,7 @@ export async function updateSheetCell(
   const range = `${tabName}!${cellRange}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -415,7 +415,7 @@ export async function updateSheetCells(
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -458,7 +458,7 @@ export async function writeSheetRow(
   const range = `${tabName}!A${rowNumber}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [values] }),
@@ -482,7 +482,7 @@ export async function writeSheetBlock(
   const token = await getAccessToken();
   const range = `${tabName}!A${startRow}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -3657,7 +3657,7 @@ export async function deleteSheetRows(tabName: string, rowNumbers: number[]): Pr
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`;
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
