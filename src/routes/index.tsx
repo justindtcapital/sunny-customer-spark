@@ -40,7 +40,6 @@ import {
   ArrowDownRight,
   AlertTriangle,
   Loader2,
-  Telescope,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -144,13 +143,6 @@ const MODULES: Module[] = [
     Icon: DashboardIcon,
     description: "Firm network intelligence.",
     accent: "text-muted-foreground",
-  },
-  {
-    title: "Platform",
-    url: "/platform",
-    Icon: Telescope,
-    description: "Research, sourcing, and diligence tools.",
-    accent: "text-primary",
   },
 ];
 

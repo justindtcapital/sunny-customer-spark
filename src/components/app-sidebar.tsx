@@ -88,7 +88,6 @@ const navItems = [
   { title: "Targeting", url: "/targeting", icon: TargetingIcon },
   { title: "Events", url: "/events", icon: EventsIcon },
   { title: "PortCo", url: "/portfolio", icon: PortCoIcon },
-  { title: "Platform", url: "/platform", icon: Telescope },
   { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
   { title: "Activity", url: "/activity", icon: ScrollText },
 ];

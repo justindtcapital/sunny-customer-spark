@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TargetingRouteImport } from './routes/targeting'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
-import { Route as PlatformRouteImport } from './routes/platform'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CrmRouteImport } from './routes/crm'
@@ -30,11 +29,6 @@ const TargetingRoute = TargetingRouteImport.update({
 const PortfolioRoute = PortfolioRouteImport.update({
   id: '/portfolio',
   path: '/portfolio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PlatformRoute = PlatformRouteImport.update({
-  id: '/platform',
-  path: '/platform',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsRoute = EventsRouteImport.update({
@@ -89,7 +83,6 @@ export interface FileRoutesByFullPath {
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
-  '/platform': typeof PlatformRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
@@ -103,7 +96,6 @@ export interface FileRoutesByTo {
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
-  '/platform': typeof PlatformRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
@@ -118,7 +110,6 @@ export interface FileRoutesById {
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
-  '/platform': typeof PlatformRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
@@ -134,7 +125,6 @@ export interface FileRouteTypes {
     | '/crm'
     | '/dashboard'
     | '/events'
-    | '/platform'
     | '/portfolio'
     | '/targeting'
     | '/api/cron/intel-scan'
@@ -148,7 +138,6 @@ export interface FileRouteTypes {
     | '/crm'
     | '/dashboard'
     | '/events'
-    | '/platform'
     | '/portfolio'
     | '/targeting'
     | '/api/cron/intel-scan'
@@ -162,7 +151,6 @@ export interface FileRouteTypes {
     | '/crm'
     | '/dashboard'
     | '/events'
-    | '/platform'
     | '/portfolio'
     | '/targeting'
     | '/api/cron/intel-scan'
@@ -177,7 +165,6 @@ export interface RootRouteChildren {
   CrmRoute: typeof CrmRoute
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
-  PlatformRoute: typeof PlatformRoute
   PortfolioRoute: typeof PortfolioRoute
   TargetingRoute: typeof TargetingRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
@@ -200,13 +187,6 @@ declare module '@tanstack/react-router' {
       path: '/portfolio'
       fullPath: '/portfolio'
       preLoaderRoute: typeof PortfolioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/platform': {
-      id: '/platform'
-      path: '/platform'
-      fullPath: '/platform'
-      preLoaderRoute: typeof PlatformRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events': {
@@ -281,7 +261,6 @@ const rootRouteChildren: RootRouteChildren = {
   CrmRoute: CrmRoute,
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
-  PlatformRoute: PlatformRoute,
   PortfolioRoute: PortfolioRoute,
   TargetingRoute: TargetingRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
