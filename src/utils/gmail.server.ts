@@ -562,8 +562,9 @@ async function fetchTrackFromAliases(
   aliases: string[],
 ): Promise<AsanaActivity[]> {
   if (aliases.length === 0) return [];
-  const windowDays = Number(process.env.GMAIL_ACTIVITY_WINDOW_DAYS) || 90;
-  const max = Number(process.env.GMAIL_ACTIVITY_MAX) || 50;
+  const windowDays = Number(process.env.GMAIL_ACTIVITY_WINDOW_DAYS) || 365;
+  const max = Number(process.env.GMAIL_ACTIVITY_MAX) || 500;
+
   // Match mail sent as the alias OR received at the alias (To/Cc).
   const terms = aliases.flatMap((a) => [`from:${a}`, `to:${a}`, `cc:${a}`]).join(" OR ");
   const q = `newer_than:${windowDays}d (${terms})`;
