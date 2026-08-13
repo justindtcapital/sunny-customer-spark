@@ -361,7 +361,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setMapping(emptyMapping());
     setEventName("");
     setPortcoNames([]);
-    setPortcoSource("direct introduction");
+    setPortcoSources(["direct introduction"]);
     setSource("");
     setEnrichOnImport(true);
     setFollowUpEmails(new Set());
