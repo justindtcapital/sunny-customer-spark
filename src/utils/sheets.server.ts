@@ -1724,7 +1724,7 @@ export async function upsertPortcoIntros(
       markBackfill(existing.rowNumber);
     }
     if (dateIdx !== -1 && (fill.date || "").trim() && !existing.date) {
-      const date = isoToSheetDate(fill.date) || fill.date.trim();
+      const date = isoToSheetDate(fill.date || "") || (fill.date || "").trim();
       cellUpdates.push({
         range: `${colLetters(dateIdx)}${existing.rowNumber}`,
         value: date,
