@@ -10,6 +10,7 @@ import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functi
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
 import type { PortfolioCompany, Contact, PortfolioDomain, EmailActivityRecord } from "@/lib/types";
 import { matchSheetToAsanaKeys } from "@/lib/portco-names";
+import { dedupePortfolioCompanies } from "@/lib/portco-dedupe";
 import { PortfolioCard } from "@/components/portfolio/PortfolioCard";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { AddPortfolioCompanyDialog } from "@/components/portfolio/AddPortfolioCompanyDialog";
