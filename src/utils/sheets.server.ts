@@ -3025,6 +3025,19 @@ export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<
   const name = data.name.trim();
   if (!name) throw new Error("Company name is required");
 
+  // Reject duplicates up front: same normalized name or same website domain.
+  const existing = await buildPortfolioCompanies().catch(() => [] as PortfolioCompany[]);
+  const nameKey = normalizePortcoName(name);
+  const domainKey = portcoDomainKey(data.website);
+  const clash = existing.find(
+    (c) =>
+      (nameKey && normalizePortcoName(c.name) === nameKey) ||
+      (domainKey && portcoDomainKey(c.website) === domainKey),
+  );
+  if (clash) {
+    throw new Error(`${clash.name} is already in the portfolio — edit that company instead.`);
+  }
+
   await ensureTab(TAB_NAMES.portfolio, PORTFOLIO_HEADERS);
   await ensureColumn(TAB_NAMES.portfolio, "URID");
 
