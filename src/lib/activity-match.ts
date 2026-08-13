@@ -35,12 +35,14 @@ export function matchActivitiesToContact(
     const gmailSourced = a.gid.startsWith("gmail-");
     const hay = `${a.name} ${a.notes || ""} ${a.person || ""} ${a.url || ""}`.toLowerCase();
 
-    // Gmail BD/GTM rows always carry exact counterparty emails in notes. Match by
-    // email only — fuzzy name substring was attaching noise to wrong Contacts
-    // (e.g. short names / shared first names in subject lines).
+    // Gmail BD/GTM rows always carry exact counterparty emails on the notes
+    // "People:" line. Compare WHOLE addresses (token-exact) — a raw substring
+    // check let jo@x.com match inside jjo@x.com.
     if (gmailSourced) {
-      return emails.some((e) => e && hay.includes(e));
+      const tokens = new Set(addressTokens(a.notes));
+      return emails.some((e) => e && tokens.has(e));
     }
+
 
     if (name && norm(a.person) === name) return true;
     // Person named in the task title/notes (full name or email — specific enough).
