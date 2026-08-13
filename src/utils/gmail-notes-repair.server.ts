@@ -149,7 +149,7 @@ export async function repairGmailNotes(
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       await logOpsEvent({
-        action: "repair",
+        action: "maintenance",
         source: "Gmail notes backfill",
         status: "error",
         summary: `Gmail note repair failed: ${error}`,
@@ -160,7 +160,7 @@ export async function repairGmailNotes(
   result.repaired = opts.dryRun ? 0 : updates.length;
 
   await logOpsEvent({
-    action: "repair",
+    action: "maintenance",
     source: "Gmail notes backfill",
     status: "ok",
     summary: opts.dryRun
