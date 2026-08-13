@@ -403,7 +403,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
             employmentHistory: r.employmentHistory,
             temperature: "Warm",
             source: "CSV Import",
-            followUp: flagFollowUp,
+            followUp: isFlaggedForFollowUp(r.email),
           },
         });
         added++;
