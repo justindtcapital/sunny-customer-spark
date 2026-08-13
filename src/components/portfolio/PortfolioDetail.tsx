@@ -563,13 +563,6 @@ export function PortfolioDetail({
                 </div>
               </section>
 
-              {/* Portfolio KPIs — moved from /platform; scoped to this company */}
-              <section className="border-b border-border pb-6">
-                <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
-                  <TrendingUp className="h-3 w-3 text-primary" /> Portfolio KPIs
-                </h3>
-                <PortcoKpiSection company={company} />
-              </section>
 
               {/* BD / GTM activity from Asana, matched to this company */}
               {(activitiesLoading || companyActivities.length > 0) && (
