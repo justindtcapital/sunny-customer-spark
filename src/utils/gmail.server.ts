@@ -395,72 +395,141 @@ function titleCaseLocal(local: string): string {
     .slice(0, 80);
 }
 
+/** Our own people: GMAIL_INTERNAL_DOMAINS (dt-capital.net) plus
+ *  GMAIL_INTERNAL_ADDRESSES for individual teammates at partner domains.
+ *  Never list a whole partner domain — its business units are real counterparties. */
+export function getInternalConfig(): InternalConfig {
+  return buildInternalConfig(
+    process.env.GMAIL_INTERNAL_DOMAINS,
+    process.env.GMAIL_INTERNAL_ADDRESSES,
+  );
+}
+
 // Counterparties = real people on the thread who are NOT our BD/GTM aliases and
-// not newsletter/system mailboxes. Emails land in notes for exact contact join.
+// not newsletter/system mailboxes. Internal teammates are kept but flagged so the
+// picker can prefer the external contact. Emails land in notes for exact joins.
 function counterparties(
   m: GmailMessage,
   aliases: Set<string>,
+  internal: InternalConfig,
 ): Counterparty[] {
   const out = new Map<string, Counterparty>();
   const consider = (name: string, email: string, role: Counterparty["role"]) => {
     const e = (email || "").trim().toLowerCase();
     if (!e || aliases.has(e) || out.has(e) || isNoiseEmail(e)) return;
-    out.set(e, { name: name || titleCaseLocal(e.split("@")[0] || ""), email: e, role });
+    out.set(e, {
+      name: name.trim() || titleCaseLocal(e.split("@")[0] || ""),
+      email: e,
+      role,
+      internal: isInternalEmail(e, internal),
+    });
   };
   consider(m.fromName, m.fromEmail, "from");
-  for (const e of m.toEmails) consider("", e, "to");
-  for (const e of m.ccEmails) consider("", e, "cc");
+  for (const p of m.toPeople) consider(p.name, p.email, "to");
+  for (const p of m.ccPeople) consider(p.name, p.email, "cc");
+
+  // Self-forward recovery: when every human in the headers is one of ours, the
+  // real contact only exists in the quoted forwarded header block at the top of
+  // the body. Conservative — first block only, and only in this case.
+  const hasExternal = [...out.values()].some((p) => !p.internal);
+  if (!hasExternal) {
+    const fwd = extractForwardedHeaders(m.body);
+    if (fwd) {
+      const add = (a?: EmailAddress) => {
+        if (a) consider(a.name, a.email, "forwarded");
+      };
+      add(fwd.from);
+      for (const a of fwd.to) add(a);
+      for (const a of fwd.cc) add(a);
+    }
+  }
   return [...out.values()];
 }
+
+const NOTES_BUDGET = 1000;
 
 /** Convert a Gmail message into a BD/GTM activity, or null when it is noise. */
 export function messageToActivity(
   m: GmailMessage,
   track: "BD" | "GTM",
   aliases: Set<string>,
+  internal: InternalConfig = getInternalConfig(),
 ): AsanaActivity | null {
-  if (m.isBulk) return null;
-  // Inbound blast from a noise mailbox (newsletter/noreply) — skip entirely.
-  const fromLower = (m.fromEmail || "").toLowerCase();
-  if (fromLower && isNoiseEmail(fromLower) && !aliases.has(fromLower)) return null;
+  return threadToActivity([m], track, aliases, internal);
+}
 
-  const others = counterparties(m, aliases);
-  const fromEmail = (m.fromEmail || "").toLowerCase();
-  const outbound = aliases.has(fromEmail);
+/**
+ * Collapse one Gmail THREAD into a single activity: reply chains used to emit one
+ * row per message (four rows for one conversation). Newest message supplies the
+ * date/subject/permalink; counterparties are unioned across the thread.
+ */
+export function threadToActivity(
+  messages: GmailMessage[],
+  track: "BD" | "GTM",
+  aliases: Set<string>,
+  internal: InternalConfig = getInternalConfig(),
+): AsanaActivity | null {
+  const usable = messages.filter((m) => !m.isBulk);
+  if (usable.length === 0) return null;
+  const ordered = [...usable].sort((a, b) => b.date - a.date);
+  const newest = ordered[0];
+
+  // Inbound blast from a noise mailbox (newsletter/noreply) — skip entirely.
+  const newestFrom = (newest.fromEmail || "").toLowerCase();
+  if (newestFrom && isNoiseEmail(newestFrom) && !aliases.has(newestFrom)) return null;
+
+  const merged = new Map<string, Counterparty>();
+  for (const m of ordered) {
+    for (const p of counterparties(m, aliases, internal)) {
+      if (!merged.has(p.email)) merged.set(p.email, p);
+    }
+  }
+  const others = [...merged.values()];
+
+  // "Outbound" = one of OUR people (or the alias) sent it. With the old
+  // alias-only rule, a teammate mailing a portco with the alias CC'd was logged
+  // as inbound on the teammate; now it is an outbound touch on the contact.
+  const outbound = aliases.has(newestFrom) || isInternalEmail(newestFrom, internal);
   const primary = pickPrimaryCounterparty(others, outbound);
   // No human counterparty left after noise filter → do not create a Person row.
   if (!primary) return null;
 
-  // Attribute ownership to the human on the From line when they mailed the
-  // tracking alias (the usual BD/GTM workflow). When the alias itself sends,
-  // Owner stays the alias address.
-  const owner =
-    fromEmail && !isNoiseEmail(fromEmail) ? m.fromEmail : undefined;
-  // People line lists the primary first, then other clean counterparties — email
-  // join in matchActivitiesToContact (gmail path is email-only).
-  const peopleOrdered = [
-    primary,
-    ...others.filter((p) => p.email !== primary.email),
-  ];
-  const notesParts = [
-    outbound ? "Outbound email" : "Inbound email",
-    `People: ${peopleOrdered.map((p) => `${p.name} <${p.email}>`).join("; ")}`,
-    m.snippet || m.body.slice(0, 400),
-  ].filter(Boolean);
+  // Owner = who did the work (the internal sender / alias). Person = who the
+  // relationship is with. Two different fields, two different meanings.
+  const ownerSource =
+    ordered.find((m) => isInternalEmail(m.fromEmail, internal))?.fromEmail ||
+    (newestFrom && !isNoiseEmail(newestFrom) ? newest.fromEmail : "");
+  const owner = ownerSource || undefined;
+
+  const peopleOrdered = [primary, ...others.filter((p) => p.email !== primary.email)];
+  const head = outbound ? "Outbound email" : "Inbound email";
+  // The People line is machine-readable (contact join) — write it in FULL first
+  // and give the snippet only the leftover budget, so big Cc lists can never
+  // truncate the addresses away.
+  const peopleLine = `People: ${peopleOrdered.map((p) => `${p.name} <${p.email}>`).join("; ")}`;
+  const audit = `Gmail: ${newest.permalink}${newest.threadId ? ` · thread ${newest.threadId}` : ""}${
+    ordered.length > 1 ? ` · ${ordered.length} messages` : ""
+  }`;
+  const fixed = [head, peopleLine, audit].join("\n");
+  const remaining = NOTES_BUDGET - fixed.length - 1;
+  const snippet = (newest.snippet || newest.body.slice(0, 400)).trim();
+  const notes = remaining > 40 && snippet ? `${fixed}\n${snippet.slice(0, remaining)}` : fixed;
 
   return {
-    gid: `gmail-${m.id}`,
+    gid: `gmail-${newest.id}`,
     track,
-    name: m.subject,
-    date: m.dateLabel || undefined,
+    name: newest.subject,
+    date: newest.dateLabel || undefined,
     completed: true,
     status: outbound ? "Sent" : "Received",
     owner,
     type: "Email",
+    // Last-resort company only; canonicalizeActivities replaces this with a
+    // portfolio/target name from the content or the counterparty's CRM company.
     company: companyFromEmail(primary.email) || undefined,
     person: primary.name || undefined,
-    notes: notesParts.join("\n").slice(0, 1000),
-    url: m.permalink,
+    notes,
+    url: newest.permalink,
   };
 }
 async function fetchTrackFromAliases(
@@ -479,9 +548,18 @@ async function fetchTrackFromAliases(
     return [];
   }
   const aliasSet = new Set(aliases);
-  const out: AsanaActivity[] = [];
+  const internal = getInternalConfig();
+  // One activity per thread, not per message.
+  const threads = new Map<string, GmailMessage[]>();
   for (const m of res.messages) {
-    const act = messageToActivity(m, track, aliasSet);
+    const key = m.threadId || m.id;
+    const list = threads.get(key);
+    if (list) list.push(m);
+    else threads.set(key, [m]);
+  }
+  const out: AsanaActivity[] = [];
+  for (const group of threads.values()) {
+    const act = threadToActivity(group, track, aliasSet, internal);
     if (act) out.push(act);
   }
   return out;
