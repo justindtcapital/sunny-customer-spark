@@ -6,6 +6,14 @@ import type { AsanaActivity, Contact } from "@/lib/types";
 
 const norm = (s?: string) => (s || "").trim().toLowerCase();
 
+// Every whole email address appearing in a text blob, lowercased. Used for
+// token-exact contact joins instead of substring containment.
+export function addressTokens(text?: string): string[] {
+  return ((text || "").toLowerCase().match(/[^\s<>;,"']+@[^\s<>;,"']+/g) || []).map((t) =>
+    t.replace(/[.,;:]+$/, ""),
+  );
+}
+
 // The Portfolio Company field can tag several companies ("Maven, Comcast"); split
 // it into normalized whole names so matching is exact per-name — never a substring
 // (which would wrongly match "Mave" against "Maven").
