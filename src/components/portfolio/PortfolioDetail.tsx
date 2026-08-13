@@ -51,7 +51,6 @@ import {
   AlertTriangle,
   UserPlus,
   Trash2,
-  TrendingUp,
 } from "lucide-react";
 import { ContactAvatar } from "@/components/crm/ContactAvatar";
 import { addContact, deletePortfolioCompany } from "@/utils/sheets.functions";
