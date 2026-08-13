@@ -40,7 +40,6 @@ import {
   ArrowDownRight,
   AlertTriangle,
   Loader2,
-  Telescope,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
