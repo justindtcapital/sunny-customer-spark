@@ -97,6 +97,56 @@ export async function getAccessToken(): Promise<string> {
   return access_token;
 }
 
+// ── Rate-limit-aware Sheets fetch ────────────────────────────
+// Google Sheets allows only 60 write requests per minute per user. Bulk
+// operations (imports, repairs, syncs) easily burst past that and come back as
+// 429 RESOURCE_EXHAUSTED / RATE_LIMIT_EXCEEDED. Two guards:
+//   1. Writes are serialized through a queue with a minimum spacing so we stay
+//      under ~55 writes/min.
+//   2. Any 429 / 5xx (read or write) is retried with exponential backoff +
+//      jitter instead of surfacing as an error toast.
+const WRITE_MIN_SPACING_MS = 1_100;
+const MAX_SHEETS_RETRIES = 5;
+
+let writeChain: Promise<unknown> = Promise.resolve();
+let lastWriteAt = 0;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function runSheetsRequest(url: string, init: RequestInit): Promise<Response> {
+  let attempt = 0;
+  for (;;) {
+    const res = await fetch(url, init);
+    const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
+    if (!retryable || attempt >= MAX_SHEETS_RETRIES) return res;
+    const backoff = Math.min(30_000, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 500);
+    console.warn(
+      `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${MAX_SHEETS_RETRIES})`,
+    );
+    await sleep(backoff);
+    attempt++;
+  }
+}
+
+/** Fetch a Sheets API URL with retry; write methods are additionally throttled. */
+export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const method = (init.method || "GET").toUpperCase();
+  if (method === "GET") return runSheetsRequest(url, init);
+
+  const run = writeChain.then(async () => {
+    const wait = WRITE_MIN_SPACING_MS - (Date.now() - lastWriteAt);
+    if (wait > 0) await sleep(wait);
+    try {
+      return await runSheetsRequest(url, init);
+    } finally {
+      lastWriteAt = Date.now();
+    }
+  });
+  // Keep the chain alive even if this request rejects.
+  writeChain = run.catch(() => undefined);
+  return run;
+}
+
 // ── Fetch a single sheet tab ─────────────────────────────────
 export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   const cached = getCached(tabName);
