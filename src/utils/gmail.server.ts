@@ -15,11 +15,16 @@
 import { getAccessToken } from "./sheets.server";
 import { sanitizeEmailText } from "@/lib/email-body-clean";
 import { extractArticleLinks } from "@/lib/link-digest";
+import { parseAddressList, parseEmailAddress, type EmailAddress } from "@/lib/email-address";
+import { extractForwardedHeaders } from "@/lib/email-forward";
 import {
+  buildInternalConfig,
   isBulkOrAutomatedMail,
+  isInternalEmail,
   isNoiseEmail,
   pickPrimaryCounterparty,
   type Counterparty,
+  type InternalConfig,
 } from "@/lib/email-noise";
 import type { AsanaActivity } from "@/lib/types";
 
