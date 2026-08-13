@@ -16,6 +16,7 @@ import {
   type AttributionCorrection,
   type AmbiguousActivity,
 } from "@/lib/activity-canonical";
+import { portcoNamesMatch } from "@/lib/portco-names";
 import { callGeminiJSON, isGeminiConfigured } from "./gemini.server";
 import { appendSheetRow, ensureTab, fetchSheetTab } from "./sheets.server";
 import type { AsanaActivity, Contact } from "@/lib/types";
