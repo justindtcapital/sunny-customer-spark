@@ -123,7 +123,15 @@ export interface AmbiguousActivity {
   subject: string;
   notes: string;
   candidates: AttributionCandidate[];
+  /**
+   * What Gemini has to decide. "person" = the counterparty is already resolved
+   * from the CRM but no portfolio company is tagged; "both" = neither is known.
+   */
+  needs: "company" | "both";
+  /** Person already resolved deterministically (when needs === "company"). */
+  knownPerson?: string;
 }
+
 
 /** Names + emails from the machine-readable "People:" line of a synced note. */
 export function peopleFromNotes(notes?: string): AttributionCandidate[] {
@@ -142,9 +150,12 @@ export function peopleFromNotes(notes?: string): AttributionCandidate[] {
 }
 
 /**
- * Gmail activities whose attribution is genuinely uncertain: no exact CRM email
- * match AND either several plausible counterparties or no company resolved from
- * content. Everything else is decided deterministically — the LLM never sees it.
+ * Gmail activities Gemini should look at:
+ *   - "both": no exact CRM email match AND (several plausible counterparties OR
+ *     no company resolved from content).
+ *   - "company": the counterparty IS known from the CRM, but no portfolio
+ *     company is tagged — Gemini gets a shot at inferring the portco.
+ * Everything fully resolved deterministically is never sent to the LLM.
  */
 export function findAmbiguousActivities(
   activities: AsanaActivity[],
@@ -156,19 +167,33 @@ export function findAmbiguousActivities(
   for (const a of activities) {
     if (!a.gid.startsWith("gmail-")) continue;
     const candidates = peopleFromNotes(a.notes);
-    if (candidates.some((p) => byEmail.has(p.email))) continue; // CRM decided it
+    const crmHit = candidates.find((p) => byEmail.has(p.email));
     const mentioned = resolvePortcosMentioned(a, portfolioNames);
-    const uncertain = candidates.length > 1 || mentioned.length === 0;
-    if (!uncertain || candidates.length === 0) continue;
-    out.push({
+    const base = {
       gid: a.gid,
       subject: a.name || "",
       notes: (a.notes || "").slice(0, 700),
       candidates,
-    });
+    };
+    if (crmHit) {
+      // CRM decided the person. Only the untagged portco is still open.
+      if (mentioned.length === 0 && !norm(a.company)) {
+        const known = byEmail.get(crmHit.email);
+        out.push({
+          ...base,
+          needs: "company",
+          knownPerson: crmHit.name || known?.name || a.person || "",
+        });
+      }
+      continue;
+    }
+    const uncertain = candidates.length > 1 || mentioned.length === 0;
+    if (!uncertain || candidates.length === 0) continue;
+    out.push({ ...base, needs: "both" });
   }
   return out;
 }
+
 
 
 /** Subject key for cross-source duplicate detection (RE:/FW: and noise stripped). */

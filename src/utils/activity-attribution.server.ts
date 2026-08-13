@@ -16,6 +16,7 @@ import {
   type AttributionCorrection,
   type AmbiguousActivity,
 } from "@/lib/activity-canonical";
+import { portcoNamesMatch } from "@/lib/portco-names";
 import { callGeminiJSON, isGeminiConfigured } from "./gemini.server";
 import { appendSheetRow, ensureTab, fetchSheetTab } from "./sheets.server";
 import type { AsanaActivity, Contact } from "@/lib/types";
@@ -101,24 +102,31 @@ interface LlmPick {
   confidence?: number;
 }
 
-const SYSTEM = `You resolve who a business email thread is really WITH.
+const SYSTEM = `You resolve who a business email thread is really WITH, and which
+portfolio company it is about.
 Rules:
-- Pick exactly one counterparty per item, from its candidate list only.
-- "person" must be the candidate's full name written naturally (First Last).
-- "company" is the organisation the thread is ABOUT (the deal/pursuit subject),
-  which is often NOT the sender's employer. Leave it empty if unclear.
+- Pick exactly one counterparty per item, from its candidate list only. If the
+  item already states a Known person, keep that exact name.
+- "company" MUST be copied verbatim from the PORTFOLIO COMPANIES list when the
+  thread is plausibly about one of them (customer intro, pilot, hiring, GTM help,
+  fundraise for that company). Leave "company" empty when no portfolio company
+  fits — do NOT guess and do NOT return a non-portfolio company.
 - Never invent people or companies. confidence is 0-1.
 Return JSON: {"picks":[{"gid":"","person":"","company":"","confidence":0.0}]}`;
 
-function prompt(items: AmbiguousActivity[]): string {
-  return items
+function prompt(items: AmbiguousActivity[], portfolioNames: string[]): string {
+  const list = portfolioNames.filter(Boolean).slice(0, 400).join("; ");
+  const body = items
     .map(
       (i) =>
-        `--- ${i.gid}\nSubject: ${i.subject}\nCandidates: ${i.candidates
+        `--- ${i.gid}\nSubject: ${i.subject}\n${
+          i.needs === "company" ? `Known person: ${i.knownPerson}\nNeeds: company only\n` : ""
+        }Candidates: ${i.candidates
           .map((c) => `${c.name || "(no name)"} <${c.email}>`)
           .join("; ")}\nNotes: ${i.notes.replace(/\n/g, " ")}`,
     )
     .join("\n");
+  return `PORTFOLIO COMPANIES (closed set for "company"): ${list}\n\nTHREADS:\n${body}`;
 }
 
 /**
@@ -131,25 +139,22 @@ export async function resolveAmbiguousAttribution(
   portfolioNames: string[] = [],
 ): Promise<{ activities: AsanaActivity[]; resolved: number }> {
   if (!isAttributionLlmEnabled()) return { activities, resolved: 0 };
-  const max = Number(process.env.GMAIL_ATTRIBUTION_LLM_MAX) || 12;
+  const max = Number(process.env.GMAIL_ATTRIBUTION_LLM_MAX) || 40;
   const ambiguous = findAmbiguousActivities(activities, contacts, portfolioNames).slice(0, max);
   if (ambiguous.length === 0) return { activities, resolved: 0 };
 
-  const res = await callGeminiJSON<{ picks?: LlmPick[] }>(SYSTEM, prompt(ambiguous), 1500, {
-    maxAttempts: 1,
-  });
+  const res = await callGeminiJSON<{ picks?: LlmPick[] }>(
+    SYSTEM,
+    prompt(ambiguous, portfolioNames),
+    3000,
+    { maxAttempts: 1 },
+  );
   if (!res.ok || !res.data?.picks) {
     if (!res.ok) console.error("[attribution] Gemini fallback failed:", res.error);
     return { activities, resolved: 0 };
   }
 
-  const allowedNames = new Map<string, Set<string>>();
-  for (const a of ambiguous) {
-    allowedNames.set(
-      a.gid,
-      new Set(a.candidates.map((c) => c.name.trim().toLowerCase()).filter(Boolean)),
-    );
-  }
+  const items = new Map(ambiguous.map((a) => [a.gid, a]));
   const picks = new Map<string, LlmPick>();
   for (const p of res.data.picks) {
     if (!p?.gid || (p.confidence ?? 1) < 0.6) continue;
@@ -157,26 +162,39 @@ export async function resolveAmbiguousAttribution(
   }
   if (picks.size === 0) return { activities, resolved: 0 };
 
+  // Any company the model returns must be a real portfolio company (fuzzy-matched
+  // to the canonical spelling we store), otherwise it is dropped.
+  const canonicalPortco = (value: string): string => {
+    const v = value.trim();
+    if (!v) return "";
+    const hit = portfolioNames.find((n) => portcoNamesMatch(n, v));
+    return hit || "";
+  };
+
   let resolved = 0;
   const out = activities.map((a) => {
     const p = picks.get(a.gid);
-    if (!p) return a;
+    const item = items.get(a.gid);
+    if (!p || !item) return a;
     // The person must be one of the candidates we showed it — reversed or
     // reordered spellings ("Falloon, Chris" -> "Chris Falloon") are accepted.
-    const allowed = allowedNames.get(a.gid) || new Set<string>();
+    const allowed = new Set(
+      item.candidates.map((c) => c.name.trim().toLowerCase()).filter(Boolean),
+    );
     const tokens = (s: string) => s.toLowerCase().split(/[^a-z]+/i).filter(Boolean).sort().join(" ");
     const wanted = (p.person || "").trim();
     const personOk =
-      !!wanted && [...allowed].some((n) => tokens(n) === tokens(wanted));
+      item.needs !== "company" && !!wanted && [...allowed].some((n) => tokens(n) === tokens(wanted));
     const person = personOk ? wanted : a.person;
-    const company = (p.company || "").trim() || a.company;
+    const company = canonicalPortco(p.company || "") || a.company;
     if (person === a.person && company === a.company) return a;
     resolved++;
     return { ...a, person, company };
   });
-  console.log(`[attribution] Gemini resolved ${resolved}/${ambiguous.length} ambiguous activities`);
+  console.log(`[attribution] Gemini resolved ${resolved}/${ambiguous.length} activities`);
   return { activities: out, resolved };
 }
+
 
 /** Convenience: corrections then LLM fallback, in the order they must run. */
 export async function refineAttribution(
