@@ -10,6 +10,7 @@ import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functi
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
 import type { PortfolioCompany, Contact, PortfolioDomain, EmailActivityRecord } from "@/lib/types";
 import { matchSheetToAsanaKeys } from "@/lib/portco-names";
+import { dedupePortfolioCompanies } from "@/lib/portco-dedupe";
 import { PortfolioCard } from "@/components/portfolio/PortfolioCard";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { AddPortfolioCompanyDialog } from "@/components/portfolio/AddPortfolioCompanyDialog";
@@ -88,7 +89,22 @@ export const Route = createFileRoute("/portfolio")({
       .filter((key) => !claimedAsana.has(key))
       .map((key, i) => buildCompanyFromAsana(key, asana, i));
 
-    return { companies: [...merged, ...asanaOnly], contacts: contacts as Contact[], emailActivity };
+    // Collapse duplicates (same normalized name or website domain) — sheet rows
+    // win over Asana-only cards, and the loser's Asana fields/events are kept.
+    const deduped = dedupePortfolioCompanies([...merged, ...asanaOnly], (winner, dropped) => ({
+      ...winner,
+      asanaFields: winner.asanaFields ?? dropped.asanaFields,
+      website: winner.website || dropped.website,
+      sector: winner.sector || dropped.sector,
+      location: winner.location || dropped.location,
+      description: winner.description || dropped.description,
+      events: [
+        ...winner.events,
+        ...dropped.events.filter((e) => !winner.events.some((w) => w.id === e.id)),
+      ],
+    }));
+
+    return { companies: deduped, contacts: contacts as Contact[], emailActivity };
   },
   component: PortfolioPage,
 });

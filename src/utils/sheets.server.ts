@@ -26,6 +26,8 @@ import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { normalizeSource, targetKeyOf, normalizeInteractionType } from "@/lib/types";
 import { buildPortCoCanonicalMap, canonicalizePortCo } from "@/lib/portco-canonical";
+import { normalizePortcoName } from "@/lib/portco-names";
+import { portcoDomainKey } from "@/lib/portco-dedupe";
 import { normalizeSector, looksLikeJobTitle } from "@/lib/sectors";
 import { getGoogleOAuthCreds, requireSpreadsheetId } from "./google.server";
 
@@ -3025,6 +3027,19 @@ export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<
   const name = data.name.trim();
   if (!name) throw new Error("Company name is required");
 
+  // Reject duplicates up front: same normalized name or same website domain.
+  const existing = await buildPortfolioCompanies().catch(() => [] as PortfolioCompany[]);
+  const nameKey = normalizePortcoName(name);
+  const domainKey = portcoDomainKey(data.website);
+  const clash = existing.find(
+    (c) =>
+      (nameKey && normalizePortcoName(c.name) === nameKey) ||
+      (domainKey && portcoDomainKey(c.website) === domainKey),
+  );
+  if (clash) {
+    throw new Error(`${clash.name} is already in the portfolio — edit that company instead.`);
+  }
+
   await ensureTab(TAB_NAMES.portfolio, PORTFOLIO_HEADERS);
   await ensureColumn(TAB_NAMES.portfolio, "URID");
 
@@ -3373,8 +3388,15 @@ export async function buildPortfolioCompanies(): Promise<PortfolioCompany[]> {
   const companyRows = await fetchSheetTab(TAB_NAMES.portfolio);
   const rawCompanies = mapRows<Record<string, string>>(companyRows, PORTFOLIO_COLS);
 
-  return rawCompanies.map((c, idx) => {
-    const name = c.name || "";
+  // Skip blank/junk rows (no name and nothing else usable) so they don't
+  // become empty cards on the portfolio tab.
+  const usableCompanies = rawCompanies.filter((c) => {
+    if ((c.name || "").trim()) return true;
+    return false;
+  });
+
+  return usableCompanies.map((c, idx) => {
+    const name = (c.name || "").trim();
 
     // Parse Focus Area(s) as domain — map to closest PortfolioDomain
     const rawDomain = (c.domain || "").trim();
