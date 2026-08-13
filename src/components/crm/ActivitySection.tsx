@@ -125,6 +125,14 @@ export function ActivitySection({ activities, loading, compact, enableSourcing, 
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   {a.date && <span className="text-[10px] text-muted-foreground">{a.date}</span>}
+                  <button
+                    type="button"
+                    onClick={() => setFlagTarget(a)}
+                    title="Wrong person / company? Fix the attribution"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Flag className="h-3 w-3" />
+                  </button>
                   {a.url && (
                     <a href={a.url} target="_blank" rel="noopener noreferrer" title="Open in Asana" className="text-muted-foreground hover:text-foreground">
                       <ExternalLink className="h-3 w-3" />
@@ -138,6 +146,12 @@ export function ActivitySection({ activities, loading, compact, enableSourcing, 
           );
         })}
       </div>
+      <AttributionFlagDialog
+        activity={flagTarget}
+        open={!!flagTarget}
+        onOpenChange={(open) => !open && setFlagTarget(null)}
+      />
     </div>
   );
 }
+
