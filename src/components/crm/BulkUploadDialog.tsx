@@ -267,8 +267,9 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const [source, setSource] = useState("");
   // Hands-off by default: imported contacts are auto-enriched unless unchecked.
   const [enrichOnImport, setEnrichOnImport] = useState(true);
-  // Flag every imported contact for follow-up (writes Contacts → "Follow Up Flag").
-  const [flagFollowUp, setFlagFollowUp] = useState(false);
+  // Per-person follow-up flags, keyed by lowercased email (writes Contacts →
+  // "Follow Up Flag" for just the checked people).
+  const [followUpEmails, setFollowUpEmails] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
