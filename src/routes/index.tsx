@@ -145,13 +145,6 @@ const MODULES: Module[] = [
     description: "Firm network intelligence.",
     accent: "text-muted-foreground",
   },
-  {
-    title: "Platform",
-    url: "/platform",
-    Icon: Telescope,
-    description: "Research, sourcing, and diligence tools.",
-    accent: "text-primary",
-  },
 ];
 
 function firstNameFrom(email: string | null): string {
