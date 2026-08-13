@@ -624,17 +624,12 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                     </div>
                   </div>
 
-                  <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
-                    <Checkbox
-                      checked={flagFollowUp}
-                      onCheckedChange={(v) => setFlagFollowUp(v === true)}
-                      className="mt-0.5"
-                    />
-                    <span>
-                      Flag these people for follow-up.
-                      <span className="text-muted-foreground/70"> Writes TRUE to the “Follow Up Flag” column on the Contacts sheet so they show up in the follow-up queue.</span>
-                    </span>
-                  </label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Check <span className="font-medium text-foreground">Follow up</span> next to
+                    anyone who needs a follow-up — that writes TRUE to the “Follow Up Flag” column
+                    on the Contacts sheet for just those people.
+                  </p>
+
 
                   <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
                     <Checkbox
