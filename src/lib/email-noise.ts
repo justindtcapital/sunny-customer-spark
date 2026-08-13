@@ -74,13 +74,59 @@ export function isBulkOrAutomatedMail(signals: BulkMailSignals): boolean {
 export interface Counterparty {
   name: string;
   email: string;
-  role: "from" | "to" | "cc";
+  role: "from" | "to" | "cc" | "forwarded";
+  /** True when this address is one of our own people (see InternalConfig). */
+  internal?: boolean;
+}
+
+/**
+ * Who counts as "us": whole domains (dt-capital.net) plus individual addresses
+ * for teammates at partner domains. Never blanket-exclude a partner domain —
+ * e.g. Dell business units are legitimate GTM counterparties for portcos, so
+ * only the specific Dell teammates who forward threads are listed.
+ */
+export interface InternalConfig {
+  domains: Set<string>;
+  addresses: Set<string>;
+}
+
+export const EMPTY_INTERNAL: InternalConfig = { domains: new Set(), addresses: new Set() };
+
+/** Build an InternalConfig from comma/semicolon-separated env strings. */
+export function buildInternalConfig(domainsRaw?: string, addressesRaw?: string): InternalConfig {
+  const split = (raw?: string) =>
+    (raw || "")
+      .split(/[;,\s]+/)
+      .map((s) => s.trim().toLowerCase().replace(/^@/, ""))
+      .filter(Boolean);
+  return {
+    domains: new Set(split(domainsRaw).filter((d) => !d.includes("@"))),
+    addresses: new Set(split(addressesRaw).filter((a) => a.includes("@"))),
+  };
+}
+
+/** True when the address belongs to our own team (or is a tracking alias). */
+export function isInternalEmail(email: string, cfg: InternalConfig): boolean {
+  const e = (email || "").trim().toLowerCase();
+  if (!e.includes("@")) return false;
+  if (cfg.addresses.has(e)) return true;
+  const domain = emailDomain(e);
+  if (!domain) return false;
+  if (cfg.domains.has(domain)) return true;
+  // Subdomains of an internal domain count too (mail.dt-capital.net).
+  for (const d of cfg.domains) if (domain.endsWith(`.${d}`)) return true;
+  return false;
 }
 
 /**
  * Pick the real relationship person for a BD/GTM row.
- * Inbound (to alias): prefer From.
- * Outbound (from alias): prefer first non-noise To, then Cc.
+ *
+ * External people always win over internal teammates — a thread forwarded by a
+ * teammate must be attributed to the outside contact, not the forwarder. Within
+ * each group the role preference follows direction:
+ *   inbound  → From, then To, then Cc
+ *   outbound → To, then Cc, then From
+ * Internal people are used only when the thread has no external human at all.
  */
 export function pickPrimaryCounterparty(
   people: Counterparty[],
@@ -88,8 +134,17 @@ export function pickPrimaryCounterparty(
 ): Counterparty | undefined {
   const clean = people.filter((p) => p.email && !isNoiseEmail(p.email));
   if (clean.length === 0) return undefined;
-  if (outbound) {
-    return clean.find((p) => p.role === "to") || clean.find((p) => p.role === "cc") || clean[0];
-  }
-  return clean.find((p) => p.role === "from") || clean[0];
+  const roleOrder: Counterparty["role"][] = outbound
+    ? ["to", "cc", "forwarded", "from"]
+    : ["from", "forwarded", "to", "cc"];
+  const byRank = (group: Counterparty[]) => {
+    for (const role of roleOrder) {
+      const hit = group.find((p) => p.role === role);
+      if (hit) return hit;
+    }
+    return group[0];
+  };
+  const external = clean.filter((p) => !p.internal);
+  if (external.length > 0) return byRank(external);
+  return byRank(clean);
 }

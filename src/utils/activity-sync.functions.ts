@@ -17,6 +17,7 @@ import {
 } from "./sheets.server";
 import { isGmailCrmSyncConfigured } from "./gmail.server";
 import { matchActivitiesToContact, resolvePortcosMentioned } from "@/lib/activity-match";
+import { canonicalizeActivities, dedupeAcrossSources } from "@/lib/activity-canonical";
 import type { AsanaActivity, Contact, InteractionType } from "@/lib/types";
 
 // Classify a BD/GTM activity into the CRM interaction taxonomy from its
@@ -120,9 +121,23 @@ async function existingPortcoEngagementKeys(): Promise<Set<string>> {
   return keys;
 }
 
-async function loadAllTrackActivities(): Promise<AsanaActivity[]> {
+// Pull both sources, drop Gmail twins of Asana tasks (the same touch arrives via
+// the Asana intake address and the alias), then canonicalize Person/Company
+// against the CRM so sheets and contact pages always agree on spelling.
+async function loadAllTrackActivities(
+  contacts?: Contact[],
+  portfolioNames?: string[],
+): Promise<AsanaActivity[]> {
   const [asana, gmail] = await Promise.all([fetchActivities(), fetchAliasActivities()]);
-  return [...asana, ...gmail];
+  const crm = contacts ?? (await buildContacts().catch(() => [] as Contact[]));
+  const names =
+    portfolioNames ??
+    (await buildPortfolioCompanies().catch(() => [] as { name: string }[]))
+      .map((c) => c.name)
+      .filter(Boolean);
+  const { activities, dropped } = dedupeAcrossSources([...asana, ...gmail]);
+  if (dropped > 0) console.log(`[activity] dropped ${dropped} Gmail duplicates of Asana tasks`);
+  return canonicalizeActivities(activities, crm, names);
 }
 
 // Pull every BD/GTM activity from Asana + Gmail aliases and log each one as a
@@ -132,7 +147,16 @@ async function loadAllTrackActivities(): Promise<AsanaActivity[]> {
 export const syncAsanaActivities = createServerFn({ method: "POST" }).handler(
   async (): Promise<SyncActivitiesResult> => {
     try {
-      const activities = await loadAllTrackActivities();
+      // CRM first: activities are canonicalized against Contacts + PortCo names.
+      const [contacts, already, portcoKeys, companies] = await Promise.all([
+        buildContacts(),
+        existingSyncKeys(),
+        existingPortcoEngagementKeys(),
+        buildPortfolioCompanies().catch(() => [] as { name: string }[]),
+      ]);
+      const portfolioNames = companies.map((c) => c.name).filter(Boolean);
+
+      const activities = await loadAllTrackActivities(contacts, portfolioNames);
       if (activities.length === 0) {
         await logOpsEvent({
           action: "sync",
@@ -143,14 +167,6 @@ export const syncAsanaActivities = createServerFn({ method: "POST" }).handler(
         });
         return EMPTY;
       }
-
-      const [contacts, already, portcoKeys, companies] = await Promise.all([
-        buildContacts(),
-        existingSyncKeys(),
-        existingPortcoEngagementKeys(),
-        buildPortfolioCompanies().catch(() => [] as { name: string }[]),
-      ]);
-      const portfolioNames = companies.map((c) => c.name).filter(Boolean);
 
       const today = new Date().toISOString().slice(0, 10);
       const queued = new Set<string>();
