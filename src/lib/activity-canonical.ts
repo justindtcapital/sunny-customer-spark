@@ -69,6 +69,108 @@ export function canonicalizeActivities(
   });
 }
 
+// ── K: user corrections ──────────────────────────────────────────
+// A human said "this touch is on the wrong person/company". Corrections live in
+// the Attribution Feedback tab and are replayed over every canonicalization, so
+// one fix sticks across syncs instead of being overwritten on the next run.
+
+export interface AttributionCorrection {
+  /** Activity gid (gmail-<id>) — exact target. */
+  gid?: string;
+  /** Gmail thread id — covers later replies in the same conversation. */
+  threadId?: string;
+  person?: string;
+  company?: string;
+}
+
+/** Thread id recorded on the audit line of a synced Gmail note. */
+export function threadIdFromNotes(notes?: string): string {
+  const m = (notes || "").match(/thread\s+([A-Za-z0-9_-]+)/);
+  return m ? m[1] : "";
+}
+
+export function applyAttributionCorrections(
+  activities: AsanaActivity[],
+  corrections: AttributionCorrection[],
+): AsanaActivity[] {
+  if (corrections.length === 0) return activities;
+  const byGid = new Map<string, AttributionCorrection>();
+  const byThread = new Map<string, AttributionCorrection>();
+  for (const c of corrections) {
+    if (c.gid) byGid.set(c.gid, c);
+    if (c.threadId) byThread.set(c.threadId, c);
+  }
+  return activities.map((a) => {
+    const fix = byGid.get(a.gid) || byThread.get(threadIdFromNotes(a.notes));
+    if (!fix) return a;
+    return {
+      ...a,
+      person: fix.person?.trim() || a.person,
+      company: fix.company?.trim() || a.company,
+    };
+  });
+}
+
+// ── I: ambiguity detection (input for the Gemini fallback) ───────
+
+export interface AttributionCandidate {
+  name: string;
+  email: string;
+}
+
+export interface AmbiguousActivity {
+  gid: string;
+  subject: string;
+  notes: string;
+  candidates: AttributionCandidate[];
+}
+
+/** Names + emails from the machine-readable "People:" line of a synced note. */
+export function peopleFromNotes(notes?: string): AttributionCandidate[] {
+  const line = (notes || "").split("\n").find((l) => /^people\s*:/i.test(l.trim()));
+  if (!line) return [];
+  return line
+    .replace(/^\s*people\s*:/i, "")
+    .split(";")
+    .map((chunk) => {
+      const m = chunk.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
+      if (m) return { name: m[1].trim(), email: m[2].trim().toLowerCase() };
+      const bare = chunk.match(/([^\s<>]+@[^\s<>]+)/);
+      return bare ? { name: "", email: bare[1].toLowerCase() } : { name: "", email: "" };
+    })
+    .filter((p) => p.email);
+}
+
+/**
+ * Gmail activities whose attribution is genuinely uncertain: no exact CRM email
+ * match AND either several plausible counterparties or no company resolved from
+ * content. Everything else is decided deterministically — the LLM never sees it.
+ */
+export function findAmbiguousActivities(
+  activities: AsanaActivity[],
+  contacts: Contact[],
+  portfolioNames: string[] = [],
+): AmbiguousActivity[] {
+  const byEmail = contactsByEmail(contacts);
+  const out: AmbiguousActivity[] = [];
+  for (const a of activities) {
+    if (!a.gid.startsWith("gmail-")) continue;
+    const candidates = peopleFromNotes(a.notes);
+    if (candidates.some((p) => byEmail.has(p.email))) continue; // CRM decided it
+    const mentioned = resolvePortcosMentioned(a, portfolioNames);
+    const uncertain = candidates.length > 1 || mentioned.length === 0;
+    if (!uncertain || candidates.length === 0) continue;
+    out.push({
+      gid: a.gid,
+      subject: a.name || "",
+      notes: (a.notes || "").slice(0, 700),
+      candidates,
+    });
+  }
+  return out;
+}
+
+
 /** Subject key for cross-source duplicate detection (RE:/FW: and noise stripped). */
 export function normalizeSubjectKey(subject: string): string {
   return (subject || "")

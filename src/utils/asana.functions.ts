@@ -3,6 +3,7 @@ import { fetchPortcoFields, fetchPortfolioEvents, discoverFields, fetchAllAsanaE
 import { fetchAliasActivities } from "./gmail.server";
 import { buildContacts, buildPortfolioCompanies } from "./sheets.server";
 import { canonicalizeActivities, dedupeAcrossSources } from "@/lib/activity-canonical";
+import { refineAttribution } from "./activity-attribution.server";
 import type { PortfolioEvent, AsanaEvent, AsanaActivity, Contact } from "@/lib/types";
 
 export interface AsanaPortcoData {
@@ -88,12 +89,12 @@ export const fetchAsanaActivities = createServerFn({ method: "GET" }).handler(
     // Same canonicalization the sheet sync applies, so the feed shows CRM names
     // and content-derived companies rather than raw header/domain guesses.
     const { activities } = dedupeAcrossSources([...asana, ...gmail]);
-    const out = canonicalizeActivities(
-      activities,
-      contacts,
-      companies.map((c) => c.name).filter(Boolean),
-    );
+    const names = companies.map((c) => c.name).filter(Boolean);
+    const canonical = canonicalizeActivities(activities, contacts, names);
+    // User corrections + Gemini fallback for the genuinely ambiguous leftovers.
+    const out = await refineAttribution(canonical, contacts, names).catch(() => canonical);
     out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     return out;
+
   }
 );
