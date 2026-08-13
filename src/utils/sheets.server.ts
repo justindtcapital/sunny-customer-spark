@@ -97,6 +97,56 @@ export async function getAccessToken(): Promise<string> {
   return access_token;
 }
 
+// ── Rate-limit-aware Sheets fetch ────────────────────────────
+// Google Sheets allows only 60 write requests per minute per user. Bulk
+// operations (imports, repairs, syncs) easily burst past that and come back as
+// 429 RESOURCE_EXHAUSTED / RATE_LIMIT_EXCEEDED. Two guards:
+//   1. Writes are serialized through a queue with a minimum spacing so we stay
+//      under ~55 writes/min.
+//   2. Any 429 / 5xx (read or write) is retried with exponential backoff +
+//      jitter instead of surfacing as an error toast.
+const WRITE_MIN_SPACING_MS = 1_100;
+const MAX_SHEETS_RETRIES = 5;
+
+let writeChain: Promise<unknown> = Promise.resolve();
+let lastWriteAt = 0;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function runSheetsRequest(url: string, init: RequestInit): Promise<Response> {
+  let attempt = 0;
+  for (;;) {
+    const res = await fetch(url, init);
+    const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
+    if (!retryable || attempt >= MAX_SHEETS_RETRIES) return res;
+    const backoff = Math.min(30_000, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 500);
+    console.warn(
+      `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${MAX_SHEETS_RETRIES})`,
+    );
+    await sleep(backoff);
+    attempt++;
+  }
+}
+
+/** Fetch a Sheets API URL with retry; write methods are additionally throttled. */
+export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const method = (init.method || "GET").toUpperCase();
+  if (method === "GET") return runSheetsRequest(url, init);
+
+  const run = writeChain.then(async () => {
+    const wait = WRITE_MIN_SPACING_MS - (Date.now() - lastWriteAt);
+    if (wait > 0) await sleep(wait);
+    try {
+      return await runSheetsRequest(url, init);
+    } finally {
+      lastWriteAt = Date.now();
+    }
+  });
+  // Keep the chain alive even if this request rejects.
+  writeChain = run.catch(() => undefined);
+  return run;
+}
+
 // ── Fetch a single sheet tab ─────────────────────────────────
 export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   const cached = getCached(tabName);
@@ -107,7 +157,7 @@ export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -129,7 +179,7 @@ export async function appendSheetRow(tabName: string, values: string[]): Promise
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -155,7 +205,7 @@ export async function appendSheetRows(tabName: string, rows: string[][]): Promis
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: rows }),
@@ -175,7 +225,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
 
   // Is the tab already present?
-  const metaRes = await fetch(`${base}?fields=sheets.properties.title`, {
+  const metaRes = await sheetsFetch(`${base}?fields=sheets.properties.title`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (metaRes.ok) {
@@ -185,7 +235,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
   }
 
   // Create the tab.
-  const addRes = await fetch(`${base}:batchUpdate`, {
+  const addRes = await sheetsFetch(`${base}:batchUpdate`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ requests: [{ addSheet: { properties: { title: tabName } } }] }),
@@ -200,7 +250,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
 
   // Write the header row.
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await fetch(headerUrl, {
+  await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
@@ -218,7 +268,7 @@ export async function ensureHeaderWidth(tabName: string, headers: string[]): Pro
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
-  const getRes = await fetch(`${base}/values/${encodeURIComponent(`${tabName}!1:1`)}`, {
+  const getRes = await sheetsFetch(`${base}/values/${encodeURIComponent(`${tabName}!1:1`)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (getRes.ok) {
@@ -227,7 +277,7 @@ export async function ensureHeaderWidth(tabName: string, headers: string[]): Pro
     if (current.length >= headers.length) return; // already wide enough
   }
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await fetch(headerUrl, {
+  await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
@@ -240,7 +290,7 @@ export async function ensureHeaderWidth(tabName: string, headers: string[]): Pro
 async function getSheetId(tabName: string): Promise<number | null> {
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
-  const res = await fetch(
+  const res = await sheetsFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties(sheetId,title)`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
@@ -257,7 +307,7 @@ async function getSheetId(tabName: string): Promise<number | null> {
 export async function listSheetTabs(): Promise<string[]> {
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
-  const res = await fetch(
+  const res = await sheetsFetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}?fields=sheets.properties.title`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
@@ -285,7 +335,7 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
 
   // Insert a blank row at the very top, then write the header into it.
-  const ins = await fetch(`${base}:batchUpdate`, {
+  const ins = await sheetsFetch(`${base}:batchUpdate`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -301,7 +351,7 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
   });
   if (!ins.ok) return; // best-effort
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await fetch(headerUrl, {
+  await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
@@ -335,7 +385,7 @@ export async function updateSheetCell(
   const range = `${tabName}!${cellRange}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -365,7 +415,7 @@ export async function updateSheetCells(
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -408,7 +458,7 @@ export async function writeSheetRow(
   const range = `${tabName}!A${rowNumber}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
 
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [values] }),
@@ -432,7 +482,7 @@ export async function writeSheetBlock(
   const token = await getAccessToken();
   const range = `${tabName}!A${startRow}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1674,7 +1724,7 @@ export async function upsertPortcoIntros(
       markBackfill(existing.rowNumber);
     }
     if (dateIdx !== -1 && (fill.date || "").trim() && !existing.date) {
-      const date = isoToSheetDate(fill.date) || fill.date.trim();
+      const date = isoToSheetDate(fill.date || "") || (fill.date || "").trim();
       cellUpdates.push({
         range: `${colLetters(dateIdx)}${existing.rowNumber}`,
         value: date,
@@ -3607,7 +3657,7 @@ export async function deleteSheetRows(tabName: string, rowNumbers: number[]): Pr
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`;
-  const res = await fetch(url, {
+  const res = await sheetsFetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
