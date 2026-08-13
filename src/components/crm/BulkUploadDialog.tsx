@@ -352,6 +352,19 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setBusy(false);
   };
 
+  // Follow-up flags are per person, keyed by the row's primary email.
+  const followUpKey = (email: string) =>
+    email.split(";")[0]?.trim().toLowerCase() || "";
+  const isFlaggedForFollowUp = (email: string) => followUpEmails.has(followUpKey(email));
+  const toggleFollowUp = (email: string) =>
+    setFollowUpEmails((prev) => {
+      const next = new Set(prev);
+      const k = followUpKey(email);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+
   const submit = async () => {
     if (rows.length === 0) return;
     setBusy(true);
