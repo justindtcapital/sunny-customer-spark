@@ -147,7 +147,16 @@ async function loadAllTrackActivities(
 export const syncAsanaActivities = createServerFn({ method: "POST" }).handler(
   async (): Promise<SyncActivitiesResult> => {
     try {
-      const activities = await loadAllTrackActivities();
+      // CRM first: activities are canonicalized against Contacts + PortCo names.
+      const [contacts, already, portcoKeys, companies] = await Promise.all([
+        buildContacts(),
+        existingSyncKeys(),
+        existingPortcoEngagementKeys(),
+        buildPortfolioCompanies().catch(() => [] as { name: string }[]),
+      ]);
+      const portfolioNames = companies.map((c) => c.name).filter(Boolean);
+
+      const activities = await loadAllTrackActivities(contacts, portfolioNames);
       if (activities.length === 0) {
         await logOpsEvent({
           action: "sync",
@@ -158,14 +167,6 @@ export const syncAsanaActivities = createServerFn({ method: "POST" }).handler(
         });
         return EMPTY;
       }
-
-      const [contacts, already, portcoKeys, companies] = await Promise.all([
-        buildContacts(),
-        existingSyncKeys(),
-        existingPortcoEngagementKeys(),
-        buildPortfolioCompanies().catch(() => [] as { name: string }[]),
-      ]);
-      const portfolioNames = companies.map((c) => c.name).filter(Boolean);
 
       const today = new Date().toISOString().slice(0, 10);
       const queued = new Set<string>();
