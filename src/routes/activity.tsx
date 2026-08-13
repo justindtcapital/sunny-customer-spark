@@ -119,6 +119,30 @@ function ActivityPage() {
     }
   };
 
+  // One-time (re-runnable) overwrite of Gmail notes written before the
+  // body-excerpt fix — rewrites the Note Content cell in place.
+  const repairGmailNotes = async () => {
+    setRepairing(true);
+    const t = toast.loading("Rewriting Gmail notes with the real message text…");
+    try {
+      const res = await repairGmailNotesFn({ data: { limit: 400 } });
+      if (!res.ok) toast.error(res.error || "Gmail note repair failed", { id: t });
+      else if (res.candidates === 0)
+        toast.success(`No bad Gmail notes found (${res.scanned} checked)`, { id: t });
+      else
+        toast.success(
+          `Repaired ${res.repaired} of ${res.candidates} Gmail notes` +
+            (res.unresolved ? ` · ${res.unresolved} messages unavailable` : ""),
+          { id: t },
+        );
+      await router.invalidate();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gmail note repair failed", { id: t });
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const errorCount = entries.filter((e) => e.status === "error").length;
 
   return (
