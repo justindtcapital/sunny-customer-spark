@@ -118,6 +118,16 @@ function CrmPage() {
     linkedinUrl: "",
   });
   const [addEnrich, setAddEnrich] = useState(true);
+  // Optional tagging applied right after the contact row lands (same shape as
+  // the bulk importer: event, portco engagement, interaction note, follow-up).
+  const [addEventName, setAddEventName] = useState("");
+  const [addPortcos, setAddPortcos] = useState<string[]>([]);
+  const [addPortcoSources, setAddPortcoSources] = useState<EngagementSource[]>([
+    "direct introduction",
+  ]);
+  const [addNoteText, setAddNoteText] = useState("");
+  const [addFollowUp, setAddFollowUp] = useState(false);
+
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [asanaSyncBusy, setAsanaSyncBusy] = useState(false);
   const [gmailSyncBusy, setGmailSyncBusy] = useState(false);
