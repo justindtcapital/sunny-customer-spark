@@ -485,6 +485,7 @@ function TargetingPage() {
   // New targets are manual by default; source is a constrained enum.
   const [newOrigin, setNewOrigin] = useState<string>("Manual Entry");
   const [newTargetSaving, setNewTargetSaving] = useState(false);
+  const [newEnrich, setNewEnrich] = useState(true);
 
   // Bulk import — defaults to the canonical "CSV Import" source.
   const [bulkText, setBulkText] = useState("");
@@ -793,17 +794,50 @@ function TargetingPage() {
     const firstName = parts[0] || fullName;
     const lastName = parts.slice(1).join(" ");
     try {
+      let company = "";
+      let role = "";
+      let email = "";
+      let phone = "";
+      let sector = "";
+      let linkedin = newLinkedin.trim();
+      let location = newLocation.trim();
+      let enriched = false;
+
+      if (newEnrich) {
+        try {
+          const r = await enrichContact({
+            data: {
+              firstName,
+              lastName: lastName || undefined,
+              linkedinUrl: linkedin || undefined,
+            },
+          });
+          if (r.found) {
+            company = r.company || "";
+            role = r.title || "";
+            email = r.email || "";
+            phone = r.phone || "";
+            sector = r.industry || "";
+            linkedin = linkedin || (r.linkedinUrl || "").replace(/\/+$/, "");
+            location = location || [r.city, r.state].filter(Boolean).join(", ");
+            enriched = true;
+          }
+        } catch (err) {
+          console.error("new target enrich failed", err);
+        }
+      }
+
       await addTarget({
         data: {
           firstName,
           lastName,
-          company: "",
-          role: "",
-          linkedin: newLinkedin.trim(),
-          email: "",
-          phone: "",
-          location: newLocation.trim(),
-          sector: "",
+          company,
+          role,
+          linkedin,
+          email,
+          phone,
+          location,
+          sector,
           stage: "Prospecting",
           source: newOrigin || "Manual Entry",
           researchPurpose: "",
@@ -814,7 +848,9 @@ function TargetingPage() {
       setNewLinkedin("");
       setNewLocation("");
       setNewOrigin("Manual Entry");
-      toast.success(`Saved ${fullName} to Targets.`);
+      toast.success(
+        `Saved ${fullName} to Targets.${newEnrich ? (enriched ? " Enriched with Apollo." : " No Apollo match found.") : ""}`,
+      );
       await router.invalidate();
     } catch (e) {
       console.error("addTarget failed", e);
@@ -2303,6 +2339,20 @@ function TargetingPage() {
                 </SelectContent>
               </Select>
             </div>
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox
+                checked={newEnrich}
+                onCheckedChange={(v) => setNewEnrich(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                Enrich with Apollo on add.
+                <span className="text-muted-foreground/70">
+                  {" "}
+                  Fills in title, company, email, phone, location and sector when found.
+                </span>
+              </span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewTargetOpen(false)}>
@@ -2311,7 +2361,8 @@ function TargetingPage() {
             <Button onClick={() => void handleNewTarget()} disabled={!newName.trim() || newTargetSaving}>
               {newTargetSaving ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Saving…
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />{" "}
+                  {newEnrich ? "Enriching & saving…" : "Saving…"}
                 </>
               ) : (
                 "Begin Research"
