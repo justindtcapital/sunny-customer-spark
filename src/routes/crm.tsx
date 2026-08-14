@@ -7,8 +7,17 @@ import {
   recalculateRatings,
   logOpsEvent,
   addContact,
+  addEvent as addEventToSheet,
+  addPortcoIntro,
+  addNote,
 } from "@/utils/sheets.functions";
+import { EventPicker } from "@/components/events/EventPicker";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { Textarea } from "@/components/ui/textarea";
+import { ENGAGEMENT_SOURCES, type EngagementSource } from "@/lib/types";
+import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagement-source";
 import type { Contact, PortfolioCompany } from "@/lib/types";
+
 import { ContactList } from "@/components/crm/ContactList";
 import { syncAsanaActivities, syncActivityTracks } from "@/utils/activity-sync.functions";
 import { syncGmailCrmTouches } from "@/utils/gmail-crm-sync.functions";
@@ -109,6 +118,16 @@ function CrmPage() {
     linkedinUrl: "",
   });
   const [addEnrich, setAddEnrich] = useState(true);
+  // Optional tagging applied right after the contact row lands (same shape as
+  // the bulk importer: event, portco engagement, interaction note, follow-up).
+  const [addEventName, setAddEventName] = useState("");
+  const [addPortcos, setAddPortcos] = useState<string[]>([]);
+  const [addPortcoSources, setAddPortcoSources] = useState<EngagementSource[]>([
+    "direct introduction",
+  ]);
+  const [addNoteText, setAddNoteText] = useState("");
+  const [addFollowUp, setAddFollowUp] = useState(false);
+
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [asanaSyncBusy, setAsanaSyncBusy] = useState(false);
   const [gmailSyncBusy, setGmailSyncBusy] = useState(false);
@@ -166,6 +185,12 @@ function CrmPage() {
         }
       }
 
+      const evt = addEventName.trim();
+      const portcos = addPortcos.map((p) => p.trim()).filter(Boolean);
+      const noteText = addNoteText.trim();
+      // Event-tagged people always get a follow-up flag, like the bulk importer.
+      const followUp = addFollowUp || Boolean(evt);
+
       await addContact({
         data: {
           name,
@@ -180,13 +205,58 @@ function CrmPage() {
           temperature: "Warm",
           source: "Manual Entry",
           skipPortfolioSector: true,
+          followUp,
         },
       });
+
+      // Each tag is best-effort and independent — a failure doesn't lose the contact.
+      const tagged: string[] = [];
+      if (evt) {
+        try {
+          await addEventToSheet({
+            data: { contactEmail: emailAddr, eventName: evt, type: "attended", flagFollowUp: true },
+          });
+          tagged.push(`event "${evt}"`);
+        } catch (err) {
+          console.error("event tag failed", err);
+        }
+      }
+      for (const portco of portcos) {
+        try {
+          await addPortcoIntro({
+            data: {
+              contactEmail: emailAddr,
+              portcoName: portco,
+              sources: mergeEngagementSources([], addPortcoSources),
+            },
+          });
+        } catch (err) {
+          console.error("portco tag failed", portco, err);
+        }
+      }
+      if (portcos.length > 0) tagged.push(`${portcos.length} portco${portcos.length > 1 ? "s" : ""}`);
+      if (noteText) {
+        try {
+          await addNote({
+            data: { contactEmail: emailAddr, noteContent: noteText, requiresFollowUp: followUp },
+          });
+          tagged.push("interaction note");
+        } catch (err) {
+          console.error("note failed", err);
+        }
+      }
+
       toast.success(
-        `Added ${name} to your network.${addEnrich ? (enriched ? " Enriched with Apollo." : " No Apollo match found.") : ""}`,
+        `Added ${name} to your network.${addEnrich ? (enriched ? " Enriched with Apollo." : " No Apollo match found.") : ""}${tagged.length ? ` Tagged: ${tagged.join(", ")}.` : ""}${followUp ? " Flagged for follow-up." : ""}`,
       );
       setAddContactOpen(false);
       setAddForm({ name: "", email: "", company: "", title: "", linkedinUrl: "" });
+      setAddEventName("");
+      setAddPortcos([]);
+      setAddPortcoSources(["direct introduction"]);
+      setAddNoteText("");
+      setAddFollowUp(false);
+
       await router.invalidate();
       await navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, contact: emailAddr }) });
     } catch (e) {
@@ -611,7 +681,7 @@ function CrmPage() {
       />
 
       <Dialog open={addContactOpen} onOpenChange={setAddContactOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Contact</DialogTitle>
             <DialogDescription>
@@ -684,6 +754,74 @@ function CrmPage() {
                 className="h-9 text-sm"
               />
             </div>
+
+            <div className="pt-1 border-t border-border" />
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Tie to event
+              </label>
+              <EventPicker
+                value={addEventName}
+                onChange={setAddEventName}
+                placeholder="Pick an Asana event…"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Portfolio interactions
+              </label>
+              <MultiSelect
+                options={portcoOptions}
+                value={addPortcos}
+                onChange={setAddPortcos}
+                placeholder="Portfolio companies…"
+                className="h-9"
+              />
+              {addPortcos.length > 0 && (
+                <MultiSelect
+                  options={[...ENGAGEMENT_SOURCES]}
+                  value={addPortcoSources}
+                  onChange={(v) =>
+                    setAddPortcoSources(
+                      mergeEngagementSources([], (v as EngagementSource[]) || []),
+                    )
+                  }
+                  searchable={false}
+                  placeholder="Engagement sources…"
+                  formatLabel={(v) => formatEngagementSources(v as EngagementSource[])}
+                  className="h-8 text-xs mt-1.5 capitalize"
+                />
+              )}
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Interaction trail
+              </label>
+              <Textarea
+                value={addNoteText}
+                onChange={(e) => setAddNoteText(e.target.value)}
+                placeholder="What happened? e.g. “Met at RSA booth, wants intro to PortCo X”"
+                className="text-sm min-h-[64px]"
+              />
+            </div>
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox
+                checked={addFollowUp || Boolean(addEventName.trim())}
+                onCheckedChange={(v) => setAddFollowUp(v === true)}
+                disabled={Boolean(addEventName.trim())}
+                className="mt-0.5"
+              />
+              <span>
+                Flag for follow-up.
+                <span className="text-muted-foreground/70">
+                  {" "}
+                  Writes TRUE to “Follow Up Flag” on the Contacts sheet
+                  {addEventName.trim() ? " — always on for event-tagged people." : "."}
+                </span>
+              </span>
+            </label>
+
             <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
               <Checkbox
                 checked={addEnrich}
