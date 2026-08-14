@@ -754,6 +754,74 @@ function CrmPage() {
                 className="h-9 text-sm"
               />
             </div>
+
+            <div className="pt-1 border-t border-border" />
+
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Tie to event
+              </label>
+              <EventPicker
+                value={addEventName}
+                onChange={setAddEventName}
+                placeholder="Pick an Asana event…"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Portfolio interactions
+              </label>
+              <MultiSelect
+                options={portcoOptions}
+                value={addPortcos}
+                onChange={setAddPortcos}
+                placeholder="Portfolio companies…"
+                className="h-9"
+              />
+              {addPortcos.length > 0 && (
+                <MultiSelect
+                  options={[...ENGAGEMENT_SOURCES]}
+                  value={addPortcoSources}
+                  onChange={(v) =>
+                    setAddPortcoSources(
+                      mergeEngagementSources([], (v as EngagementSource[]) || []),
+                    )
+                  }
+                  searchable={false}
+                  placeholder="Engagement sources…"
+                  formatLabel={(v) => formatEngagementSources(v as EngagementSource[])}
+                  className="h-8 text-xs mt-1.5 capitalize"
+                />
+              )}
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Interaction trail
+              </label>
+              <Textarea
+                value={addNoteText}
+                onChange={(e) => setAddNoteText(e.target.value)}
+                placeholder="What happened? e.g. “Met at RSA booth, wants intro to PortCo X”"
+                className="text-sm min-h-[64px]"
+              />
+            </div>
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox
+                checked={addFollowUp || Boolean(addEventName.trim())}
+                onCheckedChange={(v) => setAddFollowUp(v === true)}
+                disabled={Boolean(addEventName.trim())}
+                className="mt-0.5"
+              />
+              <span>
+                Flag for follow-up.
+                <span className="text-muted-foreground/70">
+                  {" "}
+                  Writes TRUE to “Follow Up Flag” on the Contacts sheet
+                  {addEventName.trim() ? " — always on for event-tagged people." : "."}
+                </span>
+              </span>
+            </label>
+
             <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
               <Checkbox
                 checked={addEnrich}
