@@ -108,6 +108,7 @@ function CrmPage() {
     title: "",
     linkedinUrl: "",
   });
+  const [addEnrich, setAddEnrich] = useState(true);
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [asanaSyncBusy, setAsanaSyncBusy] = useState(false);
   const [gmailSyncBusy, setGmailSyncBusy] = useState(false);
