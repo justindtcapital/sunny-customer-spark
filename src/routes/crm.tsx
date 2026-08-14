@@ -38,6 +38,8 @@ import { teamProfile } from "@/lib/user-ownership";
 import { BulkUploadDialog } from "@/components/crm/BulkUploadDialog";
 import { SmartPasteDialog } from "@/components/crm/SmartPasteDialog";
 import { canonicalLocations } from "@/lib/location-utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { enrichContact } from "@/utils/apollo.functions";
 import { contactsToCsv, downloadCsv } from "@/lib/csv-export";
 import { contactsToXlsx, downloadXlsx } from "@/lib/xlsx-export";
 import { FileSpreadsheet, FileText } from "lucide-react";
@@ -106,6 +108,7 @@ function CrmPage() {
     title: "",
     linkedinUrl: "",
   });
+  const [addEnrich, setAddEnrich] = useState(true);
   const [recalcBusy, setRecalcBusy] = useState(false);
   const [asanaSyncBusy, setAsanaSyncBusy] = useState(false);
   const [gmailSyncBusy, setGmailSyncBusy] = useState(false);
@@ -128,23 +131,60 @@ function CrmPage() {
       // Stamp the signed-in teammate as Relationship Prime so the contact shows
       // under the default "Mine" ownership filter (not just Everyone).
       const prime = profile?.displayName || email || "";
+
+      let role = addForm.title.trim();
+      let company = addForm.company.trim();
+      let linkedinUrl = addForm.linkedinUrl.trim();
+      let phone = "";
+      let location = "";
+      let sector = "";
+      let enriched = false;
+
+      if (addEnrich) {
+        try {
+          const parts = name.split(/\s+/).filter(Boolean);
+          const r = await enrichContact({
+            data: {
+              email: emailAddr,
+              firstName: parts[0] || undefined,
+              lastName: parts.slice(1).join(" ") || undefined,
+              company: company || undefined,
+              linkedinUrl: linkedinUrl || undefined,
+            },
+          });
+          if (r.found) {
+            role = role || r.title || "";
+            company = company || r.company || "";
+            linkedinUrl = linkedinUrl || (r.linkedinUrl || "").replace(/\/+$/, "");
+            phone = r.phone || "";
+            location = [r.city, r.state].filter(Boolean).join(", ");
+            sector = r.industry || "";
+            enriched = true;
+          }
+        } catch (err) {
+          console.error("add contact enrich failed", err);
+        }
+      }
+
       await addContact({
         data: {
           name,
-          role: addForm.title.trim(),
-          company: addForm.company.trim(),
+          role,
+          company,
           email: emailAddr,
-          phone: "",
-          location: "",
-          linkedinUrl: addForm.linkedinUrl.trim(),
+          phone,
+          location,
+          linkedinUrl,
           prime,
-          sector: "",
+          sector,
           temperature: "Warm",
           source: "Manual Entry",
           skipPortfolioSector: true,
         },
       });
-      toast.success(`Added ${name} to your network.`);
+      toast.success(
+        `Added ${name} to your network.${addEnrich ? (enriched ? " Enriched with Apollo." : " No Apollo match found.") : ""}`,
+      );
       setAddContactOpen(false);
       setAddForm({ name: "", email: "", company: "", title: "", linkedinUrl: "" });
       await router.invalidate();
@@ -644,6 +684,20 @@ function CrmPage() {
                 className="h-9 text-sm"
               />
             </div>
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox
+                checked={addEnrich}
+                onCheckedChange={(v) => setAddEnrich(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                Enrich with Apollo on add.
+                <span className="text-muted-foreground/70">
+                  {" "}
+                  Fills in title, company, phone, location and sector when found.
+                </span>
+              </span>
+            </label>
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setAddContactOpen(false)}>
                 Cancel
@@ -656,7 +710,8 @@ function CrmPage() {
               >
                 {addBusy ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Saving…
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />{" "}
+                    {addEnrich ? "Enriching & saving…" : "Saving…"}
                   </>
                 ) : (
                   "Add contact"
