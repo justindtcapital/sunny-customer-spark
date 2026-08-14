@@ -744,25 +744,20 @@ export function AppSidebar({
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <span className="text-[10px] text-muted-foreground mb-0.5 block">From</span>
-                        <Input
-                          type="date"
+                        <DateTextField
                           value={filters.dateFrom}
-                          max={filters.dateTo || undefined}
-                          onChange={(e) => update({ dateFrom: e.target.value })}
-                          className="h-8 text-xs"
+                          onChange={(iso) => update({ dateFrom: iso })}
                         />
                       </div>
                       <div>
                         <span className="text-[10px] text-muted-foreground mb-0.5 block">To</span>
-                        <Input
-                          type="date"
+                        <DateTextField
                           value={filters.dateTo}
-                          min={filters.dateFrom || undefined}
-                          onChange={(e) => update({ dateTo: e.target.value })}
-                          className="h-8 text-xs"
+                          onChange={(iso) => update({ dateTo: iso })}
                         />
                       </div>
                     </div>
+
                   </div>
 
                   <div className="flex items-center gap-2 pt-1">
