@@ -185,6 +185,12 @@ function CrmPage() {
         }
       }
 
+      const evt = addEventName.trim();
+      const portcos = addPortcos.map((p) => p.trim()).filter(Boolean);
+      const noteText = addNoteText.trim();
+      // Event-tagged people always get a follow-up flag, like the bulk importer.
+      const followUp = addFollowUp || Boolean(evt);
+
       await addContact({
         data: {
           name,
@@ -199,13 +205,58 @@ function CrmPage() {
           temperature: "Warm",
           source: "Manual Entry",
           skipPortfolioSector: true,
+          followUp,
         },
       });
+
+      // Each tag is best-effort and independent — a failure doesn't lose the contact.
+      const tagged: string[] = [];
+      if (evt) {
+        try {
+          await addEventToSheet({
+            data: { contactEmail: emailAddr, eventName: evt, type: "attended", flagFollowUp: true },
+          });
+          tagged.push(`event "${evt}"`);
+        } catch (err) {
+          console.error("event tag failed", err);
+        }
+      }
+      for (const portco of portcos) {
+        try {
+          await addPortcoIntro({
+            data: {
+              contactEmail: emailAddr,
+              portcoName: portco,
+              sources: mergeEngagementSources([], addPortcoSources),
+            },
+          });
+        } catch (err) {
+          console.error("portco tag failed", portco, err);
+        }
+      }
+      if (portcos.length > 0) tagged.push(`${portcos.length} portco${portcos.length > 1 ? "s" : ""}`);
+      if (noteText) {
+        try {
+          await addNote({
+            data: { contactEmail: emailAddr, noteContent: noteText, requiresFollowUp: followUp },
+          });
+          tagged.push("interaction note");
+        } catch (err) {
+          console.error("note failed", err);
+        }
+      }
+
       toast.success(
-        `Added ${name} to your network.${addEnrich ? (enriched ? " Enriched with Apollo." : " No Apollo match found.") : ""}`,
+        `Added ${name} to your network.${addEnrich ? (enriched ? " Enriched with Apollo." : " No Apollo match found.") : ""}${tagged.length ? ` Tagged: ${tagged.join(", ")}.` : ""}${followUp ? " Flagged for follow-up." : ""}`,
       );
       setAddContactOpen(false);
       setAddForm({ name: "", email: "", company: "", title: "", linkedinUrl: "" });
+      setAddEventName("");
+      setAddPortcos([]);
+      setAddPortcoSources(["direct introduction"]);
+      setAddNoteText("");
+      setAddFollowUp(false);
+
       await router.invalidate();
       await navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, contact: emailAddr }) });
     } catch (e) {
