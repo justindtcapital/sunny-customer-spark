@@ -131,23 +131,60 @@ function CrmPage() {
       // Stamp the signed-in teammate as Relationship Prime so the contact shows
       // under the default "Mine" ownership filter (not just Everyone).
       const prime = profile?.displayName || email || "";
+
+      let role = addForm.title.trim();
+      let company = addForm.company.trim();
+      let linkedinUrl = addForm.linkedinUrl.trim();
+      let phone = "";
+      let location = "";
+      let sector = "";
+      let enriched = false;
+
+      if (addEnrich) {
+        try {
+          const parts = name.split(/\s+/).filter(Boolean);
+          const r = await enrichContact({
+            data: {
+              email: emailAddr,
+              firstName: parts[0] || undefined,
+              lastName: parts.slice(1).join(" ") || undefined,
+              company: company || undefined,
+              linkedinUrl: linkedinUrl || undefined,
+            },
+          });
+          if (r.found) {
+            role = role || r.title || "";
+            company = company || r.company || "";
+            linkedinUrl = linkedinUrl || (r.linkedinUrl || "").replace(/\/+$/, "");
+            phone = r.phone || "";
+            location = [r.city, r.state].filter(Boolean).join(", ");
+            sector = r.industry || "";
+            enriched = true;
+          }
+        } catch (err) {
+          console.error("add contact enrich failed", err);
+        }
+      }
+
       await addContact({
         data: {
           name,
-          role: addForm.title.trim(),
-          company: addForm.company.trim(),
+          role,
+          company,
           email: emailAddr,
-          phone: "",
-          location: "",
-          linkedinUrl: addForm.linkedinUrl.trim(),
+          phone,
+          location,
+          linkedinUrl,
           prime,
-          sector: "",
+          sector,
           temperature: "Warm",
           source: "Manual Entry",
           skipPortfolioSector: true,
         },
       });
-      toast.success(`Added ${name} to your network.`);
+      toast.success(
+        `Added ${name} to your network.${addEnrich ? (enriched ? " Enriched with Apollo." : " No Apollo match found.") : ""}`,
+      );
       setAddContactOpen(false);
       setAddForm({ name: "", email: "", company: "", title: "", linkedinUrl: "" });
       await router.invalidate();
