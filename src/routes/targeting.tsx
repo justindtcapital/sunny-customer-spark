@@ -2339,6 +2339,20 @@ function TargetingPage() {
                 </SelectContent>
               </Select>
             </div>
+            <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+              <Checkbox
+                checked={newEnrich}
+                onCheckedChange={(v) => setNewEnrich(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                Enrich with Apollo on add.
+                <span className="text-muted-foreground/70">
+                  {" "}
+                  Fills in title, company, email, phone, location and sector when found.
+                </span>
+              </span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewTargetOpen(false)}>
@@ -2347,7 +2361,8 @@ function TargetingPage() {
             <Button onClick={() => void handleNewTarget()} disabled={!newName.trim() || newTargetSaving}>
               {newTargetSaving ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Saving…
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />{" "}
+                  {newEnrich ? "Enriching & saving…" : "Saving…"}
                 </>
               ) : (
                 "Begin Research"
