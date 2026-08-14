@@ -485,6 +485,7 @@ function TargetingPage() {
   // New targets are manual by default; source is a constrained enum.
   const [newOrigin, setNewOrigin] = useState<string>("Manual Entry");
   const [newTargetSaving, setNewTargetSaving] = useState(false);
+  const [newEnrich, setNewEnrich] = useState(true);
 
   // Bulk import — defaults to the canonical "CSV Import" source.
   const [bulkText, setBulkText] = useState("");
