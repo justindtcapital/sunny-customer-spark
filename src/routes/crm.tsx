@@ -38,6 +38,8 @@ import { teamProfile } from "@/lib/user-ownership";
 import { BulkUploadDialog } from "@/components/crm/BulkUploadDialog";
 import { SmartPasteDialog } from "@/components/crm/SmartPasteDialog";
 import { canonicalLocations } from "@/lib/location-utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { enrichContact } from "@/utils/apollo.functions";
 import { contactsToCsv, downloadCsv } from "@/lib/csv-export";
 import { contactsToXlsx, downloadXlsx } from "@/lib/xlsx-export";
 import { FileSpreadsheet, FileText } from "lucide-react";
