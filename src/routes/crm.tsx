@@ -7,8 +7,17 @@ import {
   recalculateRatings,
   logOpsEvent,
   addContact,
+  addEvent as addEventToSheet,
+  addPortcoIntro,
+  addNote,
 } from "@/utils/sheets.functions";
+import { EventPicker } from "@/components/events/EventPicker";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { Textarea } from "@/components/ui/textarea";
+import { ENGAGEMENT_SOURCES, type EngagementSource } from "@/lib/types";
+import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagement-source";
 import type { Contact, PortfolioCompany } from "@/lib/types";
+
 import { ContactList } from "@/components/crm/ContactList";
 import { syncAsanaActivities, syncActivityTracks } from "@/utils/activity-sync.functions";
 import { syncGmailCrmTouches } from "@/utils/gmail-crm-sync.functions";
