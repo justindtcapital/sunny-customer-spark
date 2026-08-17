@@ -303,6 +303,16 @@ function EventsPage() {
         onClose={() => setSelected(null)}
         onChanged={() => router.invalidate()}
         synopsis={selected ? synopses[selected.name.trim().toLowerCase()] || "" : ""}
+        onSelectContact={setSelectedContact}
+      />
+
+      <ContactDetail
+        contact={selectedContact}
+        open={!!selectedContact}
+        onOpenChange={(open) => {
+          if (!open) setSelectedContact(null);
+        }}
+        onContactUpdate={() => router.invalidate()}
       />
 
     </div>
