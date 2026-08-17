@@ -70,6 +70,7 @@ import { toast } from "sonner";
 import { colorForLead, colorForSector } from "@/lib/event-colors";
 import { useChartDrill, matchesFilters, parseCfParam, type Dimension } from "@/lib/use-chart-drill";
 import { DrillSheet, DrillChips } from "@/components/charts/DrillSheet";
+import { ContactDetail } from "@/components/crm/ContactDetail";
 import { ChartBuilder } from "@/components/charts/ChartBuilder";
 import type { Metric } from "@/lib/chart-spec";
 import {
@@ -168,6 +169,7 @@ function EventsPage() {
   const router = useRouter();
   const [view, setView] = useState<"list" | "calendar" | "analytics">("list");
   const [selected, setSelected] = useState<AsanaEvent | null>(null);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [filters, setFilters] = useState<Filters>({ lead: "", format: "", sector: "" });
 
   const leads = useMemo(
@@ -301,6 +303,16 @@ function EventsPage() {
         onClose={() => setSelected(null)}
         onChanged={() => router.invalidate()}
         synopsis={selected ? synopses[selected.name.trim().toLowerCase()] || "" : ""}
+        onSelectContact={setSelectedContact}
+      />
+
+      <ContactDetail
+        contact={selectedContact}
+        open={!!selectedContact}
+        onOpenChange={(open) => {
+          if (!open) setSelectedContact(null);
+        }}
+        onContactUpdate={() => router.invalidate()}
       />
 
     </div>
@@ -1141,6 +1153,7 @@ function EventDetailSheet({
   onClose,
   onChanged,
   synopsis = "",
+  onSelectContact,
 }: {
   event: AsanaEvent | null;
   contacts: Contact[];
@@ -1148,6 +1161,7 @@ function EventDetailSheet({
   onClose: () => void;
   onChanged?: () => void;
   synopsis?: string;
+  onSelectContact?: (c: Contact) => void;
 }) {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkType, setBulkType] = useState<"attended" | "invited">("attended");
@@ -1369,7 +1383,7 @@ function EventDetailSheet({
               ) : (
                 <div className="space-y-1.5">
                   {attended.map((c) => (
-                    <AttendeeRow key={c.id} contact={c} />
+                    <AttendeeRow key={c.id} contact={c} onSelect={onSelectContact} />
                   ))}
                 </div>
               )}
@@ -1400,7 +1414,7 @@ function EventDetailSheet({
               ) : (
                 <div className="space-y-1.5">
                   {invited.map((c) => (
-                    <AttendeeRow key={c.id} contact={c} />
+                    <AttendeeRow key={c.id} contact={c} onSelect={onSelectContact} />
                   ))}
                 </div>
               )}
@@ -1457,11 +1471,27 @@ function EventDetailSheet({
   );
 }
 
-function AttendeeRow({ contact }: { contact: Contact }) {
+function AttendeeRow({
+  contact,
+  onSelect,
+}: {
+  contact: Contact;
+  onSelect?: (c: Contact) => void;
+}) {
   return (
     <div className="flex items-center justify-between border border-border rounded px-2 py-1.5">
       <div className="min-w-0">
-        <div className="text-xs font-medium truncate">{contact.name}</div>
+        {onSelect ? (
+          <button
+            type="button"
+            onClick={() => onSelect(contact)}
+            className="text-xs font-medium truncate text-left hover:text-primary hover:underline"
+          >
+            {contact.name}
+          </button>
+        ) : (
+          <div className="text-xs font-medium truncate">{contact.name}</div>
+        )}
         <div className="text-[10px] text-muted-foreground truncate">
           {contact.title}
           {contact.company ? ` · ${contact.company}` : ""}
