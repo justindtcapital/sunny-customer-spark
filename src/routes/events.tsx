@@ -500,19 +500,8 @@ function EventTable({
             return (
               <TableRow key={e.gid} className="cursor-pointer" onClick={() => onSelect(e)}>
                 <TableCell className="text-xs whitespace-nowrap">{e.date}</TableCell>
-                <TableCell className="text-xs font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    {e.name}
-                    {isAppEvent(e) && (
-                      <Badge
-                        variant="outline"
-                        className="text-[9px] px-1 py-0 border-primary/40 text-primary"
-                      >
-                        App
-                      </Badge>
-                    )}
-                  </span>
-                </TableCell>
+                <TableCell className="text-xs font-medium">{e.name}</TableCell>
+
                 <TableCell className="text-xs">
                   {e.lead ? (
                     <span
