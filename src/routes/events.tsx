@@ -1471,11 +1471,27 @@ function EventDetailSheet({
   );
 }
 
-function AttendeeRow({ contact }: { contact: Contact }) {
+function AttendeeRow({
+  contact,
+  onSelect,
+}: {
+  contact: Contact;
+  onSelect?: (c: Contact) => void;
+}) {
   return (
     <div className="flex items-center justify-between border border-border rounded px-2 py-1.5">
       <div className="min-w-0">
-        <div className="text-xs font-medium truncate">{contact.name}</div>
+        {onSelect ? (
+          <button
+            type="button"
+            onClick={() => onSelect(contact)}
+            className="text-xs font-medium truncate text-left hover:text-primary hover:underline"
+          >
+            {contact.name}
+          </button>
+        ) : (
+          <div className="text-xs font-medium truncate">{contact.name}</div>
+        )}
         <div className="text-[10px] text-muted-foreground truncate">
           {contact.title}
           {contact.company ? ` · ${contact.company}` : ""}
