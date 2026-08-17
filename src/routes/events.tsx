@@ -94,23 +94,46 @@ export const Route = createFileRoute("/events")({
   }),
   validateSearch: (search: Record<string, unknown>) => ({ cf: parseCfParam(search.cf) }),
   loader: async () => {
-    const [asanaEvents, appEvents, contacts, emailActivity, synopses] = await Promise.all([
+    const [asanaEvents, contacts, emailActivity, synopses] = await Promise.all([
       fetchAsanaEvents().catch((): AsanaEvent[] => []),
-      fetchAppEvents().catch((): AsanaEvent[] => []),
       fetchContacts().catch((): Contact[] => []),
       fetchEmailActivity().catch((): EmailActivityRecord[] => []),
       fetchEventSynopses().catch((): Record<string, string> => ({})),
     ]);
-    // App-added events first so newest local additions are easy to spot.
-    const events = [...(appEvents as AsanaEvent[]), ...(asanaEvents as AsanaEvent[])];
+    // This page is Asana-sourced only: no app-added events, no meetings, and
+    // one card per real event (same name + date collapses to a single row).
+    const events = dedupeEvents(
+      (asanaEvents as AsanaEvent[]).filter((e) => !isAppEvent(e) && !isMeeting(e)),
+    );
     return { events, contacts: contacts as Contact[], emailActivity, synopses };
   },
   component: EventsPage,
 });
 
-// App-added events get an "app-" gid prefix so we can mark them in the UI.
+// App-added events carry an "app-" gid prefix; they belong to the CRM flows,
+// not this Asana-sourced page.
 function isAppEvent(e: AsanaEvent): boolean {
   return e.gid.startsWith("app-");
+}
+
+// 1:1s / briefing calls are meetings, not events.
+function isMeeting(e: AsanaEvent): boolean {
+  return (e.type || "").trim().toLowerCase() === "meeting";
+}
+
+// Collapse duplicates that come from Asana having the same event listed twice
+// (or an event repeated across sections). Key on name + date; richer row wins.
+function dedupeEvents(events: AsanaEvent[]): AsanaEvent[] {
+  const filled = (e: AsanaEvent) =>
+    [e.lead, e.format, e.role, e.type, e.date].filter(Boolean).length +
+    (e.portcos?.length ? 1 : 0);
+  const byKey = new Map<string, AsanaEvent>();
+  for (const e of events) {
+    const key = `${e.name.trim().toLowerCase()}|${(e.date || "").trim()}`;
+    const prev = byKey.get(key);
+    if (!prev || filled(e) > filled(prev)) byKey.set(key, e);
+  }
+  return Array.from(byKey.values());
 }
 
 const EVENT_TYPES = ["conference", "dinner", "webinar", "meeting"] as const;
