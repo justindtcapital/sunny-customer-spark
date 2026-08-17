@@ -106,6 +106,7 @@ import {
   repairTargetUrids,
   repairTargetSectors,
   addTarget,
+  logOpsEvent,
 } from "@/utils/sheets.functions";
 import { promoteTargetsToCrm } from "@/utils/target-crm.functions";
 import { NetworkBuilderDialog } from "@/components/crm/NetworkBuilderDialog";
@@ -316,6 +317,24 @@ function downloadFile(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+// Audit trail for exports — lands in the Ops Log tab shown on /activity.
+function logTargetExport(format: "csv" | "xlsx", filename: string, targets: TargetLead[]) {
+  void logOpsEvent({
+    data: {
+      action: "export",
+      source: format === "xlsx" ? "targets_xlsx" : "targets_csv",
+      status: "ok",
+      summary: `Exported ${targets.length} target${targets.length !== 1 ? "s" : ""} to ${filename}`,
+      records: targets.length,
+      details: { format, filename, selection: "filtered_view" },
+      items: targets.slice(0, 80).map((t) => {
+        const email = (t.email || "").split(";")[0]?.trim() || "";
+        return `${t.name || "(no name)"}${email ? ` <${email}>` : ""}${t.company ? ` · ${t.company}` : ""}`;
+      }),
+    },
+  }).catch((e) => console.error("logOpsEvent target export failed", e));
+}
+
 function exportTargetsCsv(targets: TargetLead[]) {
   const rows = buildTargetExportRows(targets);
   const headers = EXPORT_COLUMNS.map((c) => escapeCsvCell(c.label)).join(",");
@@ -323,7 +342,9 @@ function exportTargetsCsv(targets: TargetLead[]) {
   const csv = [headers, ...lines].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const date = new Date().toISOString().split("T")[0];
-  downloadFile(blob, `targets-${date}.csv`);
+  const filename = `targets-${date}.csv`;
+  downloadFile(blob, filename);
+  logTargetExport("csv", filename, targets);
 }
 
 function exportTargetsXlsx(targets: TargetLead[]) {
@@ -332,7 +353,9 @@ function exportTargetsXlsx(targets: TargetLead[]) {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Targets");
   const date = new Date().toISOString().split("T")[0];
-  XLSX.writeFile(workbook, `targets-${date}.xlsx`);
+  const filename = `targets-${date}.xlsx`;
+  XLSX.writeFile(workbook, filename);
+  logTargetExport("xlsx", filename, targets);
 }
 
 // Target card — mirrors the Network ContactCard layout (avatar + identity, an
