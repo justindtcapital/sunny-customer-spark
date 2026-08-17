@@ -534,6 +534,16 @@ export const importTargets = createServerFn({ method: "POST" })
           [`${t.firstName} ${t.lastName}`.trim(), t.company].filter(Boolean).join(" · "),
         ),
       });
+    } else if (duplicates > 0) {
+      // Nothing added — still record the attempt so the Ops Log has no gaps.
+      await logOpsEventServer({
+        action: "import",
+        source: "targets",
+        status: "warning",
+        summary: `Target import skipped · all ${duplicates} row${duplicates !== 1 ? "s" : ""} already in Targets`,
+        records: 0,
+        details: { duplicates },
+      });
     }
     return { added: toAdd.length, duplicates };
   });
