@@ -168,9 +168,7 @@ function EventsPage() {
   const router = useRouter();
   const [view, setView] = useState<"list" | "calendar" | "analytics">("list");
   const [selected, setSelected] = useState<AsanaEvent | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({ lead: "", format: "", sector: "" });
-  const appEventCount = useMemo(() => events.filter(isAppEvent).length, [events]);
 
   const leads = useMemo(
     () => Array.from(new Set(events.map((e) => e.lead).filter((v): v is string => !!v))).sort(),
