@@ -1383,7 +1383,7 @@ function EventDetailSheet({
               ) : (
                 <div className="space-y-1.5">
                   {attended.map((c) => (
-                    <AttendeeRow key={c.id} contact={c} />
+                    <AttendeeRow key={c.id} contact={c} onSelect={onSelectContact} />
                   ))}
                 </div>
               )}
