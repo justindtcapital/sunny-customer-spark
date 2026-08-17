@@ -215,10 +215,10 @@ function EventsPage() {
         <div>
           <h1 className="text-lg font-bold text-foreground">Events</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Asana + app-added · {filtered.length} of {events.length} event
+            Asana-sourced · {filtered.length} of {events.length} event
             {events.length !== 1 ? "s" : ""}
-            {appEventCount > 0 && <span> · {appEventCount} added here</span>}
           </p>
+
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
@@ -247,9 +247,6 @@ function EventsPage() {
               <BarChart3 className="h-3.5 w-3.5 mr-1.5" /> Analytics
             </Button>
           </div>
-          <Button size="sm" className="h-8 text-xs" onClick={() => setAddOpen(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add event
-          </Button>
         </div>
       </div>
 
@@ -268,10 +265,8 @@ function EventsPage() {
               <p className="text-sm text-muted-foreground">
                 No events found in the Asana Events project.
               </p>
-              <Button size="sm" className="h-8 text-xs mt-3" onClick={() => setAddOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add an event
-              </Button>
             </div>
+
           ) : view === "list" ? (
             <ListView
               upcoming={upcoming}
@@ -308,14 +303,6 @@ function EventsPage() {
         synopsis={selected ? synopses[selected.name.trim().toLowerCase()] || "" : ""}
       />
 
-      <AddEventDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        leadOptions={leads}
-        portcoOptions={Array.from(new Set(events.flatMap((e) => e.portcos))).sort()}
-        sectorOptions={sectors}
-        onAdded={() => router.invalidate()}
-      />
     </div>
   );
 }
