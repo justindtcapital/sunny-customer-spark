@@ -70,6 +70,7 @@ import { toast } from "sonner";
 import { colorForLead, colorForSector } from "@/lib/event-colors";
 import { useChartDrill, matchesFilters, parseCfParam, type Dimension } from "@/lib/use-chart-drill";
 import { DrillSheet, DrillChips } from "@/components/charts/DrillSheet";
+import { ContactDetail } from "@/components/crm/ContactDetail";
 import { ChartBuilder } from "@/components/charts/ChartBuilder";
 import type { Metric } from "@/lib/chart-spec";
 import {
