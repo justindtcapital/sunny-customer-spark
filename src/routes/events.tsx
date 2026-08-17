@@ -94,23 +94,46 @@ export const Route = createFileRoute("/events")({
   }),
   validateSearch: (search: Record<string, unknown>) => ({ cf: parseCfParam(search.cf) }),
   loader: async () => {
-    const [asanaEvents, appEvents, contacts, emailActivity, synopses] = await Promise.all([
+    const [asanaEvents, contacts, emailActivity, synopses] = await Promise.all([
       fetchAsanaEvents().catch((): AsanaEvent[] => []),
-      fetchAppEvents().catch((): AsanaEvent[] => []),
       fetchContacts().catch((): Contact[] => []),
       fetchEmailActivity().catch((): EmailActivityRecord[] => []),
       fetchEventSynopses().catch((): Record<string, string> => ({})),
     ]);
-    // App-added events first so newest local additions are easy to spot.
-    const events = [...(appEvents as AsanaEvent[]), ...(asanaEvents as AsanaEvent[])];
+    // This page is Asana-sourced only: no app-added events, no meetings, and
+    // one card per real event (same name + date collapses to a single row).
+    const events = dedupeEvents(
+      (asanaEvents as AsanaEvent[]).filter((e) => !isAppEvent(e) && !isMeeting(e)),
+    );
     return { events, contacts: contacts as Contact[], emailActivity, synopses };
   },
   component: EventsPage,
 });
 
-// App-added events get an "app-" gid prefix so we can mark them in the UI.
+// App-added events carry an "app-" gid prefix; they belong to the CRM flows,
+// not this Asana-sourced page.
 function isAppEvent(e: AsanaEvent): boolean {
   return e.gid.startsWith("app-");
+}
+
+// 1:1s / briefing calls are meetings, not events.
+function isMeeting(e: AsanaEvent): boolean {
+  return (e.type || "").trim().toLowerCase() === "meeting";
+}
+
+// Collapse duplicates that come from Asana having the same event listed twice
+// (or an event repeated across sections). Key on name + date; richer row wins.
+function dedupeEvents(events: AsanaEvent[]): AsanaEvent[] {
+  const filled = (e: AsanaEvent) =>
+    [e.lead, e.format, e.role, e.type, e.date].filter(Boolean).length +
+    (e.portcos?.length ? 1 : 0);
+  const byKey = new Map<string, AsanaEvent>();
+  for (const e of events) {
+    const key = `${e.name.trim().toLowerCase()}|${(e.date || "").trim()}`;
+    const prev = byKey.get(key);
+    if (!prev || filled(e) > filled(prev)) byKey.set(key, e);
+  }
+  return Array.from(byKey.values());
 }
 
 const EVENT_TYPES = ["conference", "dinner", "webinar", "meeting"] as const;
@@ -145,9 +168,7 @@ function EventsPage() {
   const router = useRouter();
   const [view, setView] = useState<"list" | "calendar" | "analytics">("list");
   const [selected, setSelected] = useState<AsanaEvent | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({ lead: "", format: "", sector: "" });
-  const appEventCount = useMemo(() => events.filter(isAppEvent).length, [events]);
 
   const leads = useMemo(
     () => Array.from(new Set(events.map((e) => e.lead).filter((v): v is string => !!v))).sort(),
@@ -194,10 +215,10 @@ function EventsPage() {
         <div>
           <h1 className="text-lg font-bold text-foreground">Events</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Asana + app-added · {filtered.length} of {events.length} event
+            Asana-sourced · {filtered.length} of {events.length} event
             {events.length !== 1 ? "s" : ""}
-            {appEventCount > 0 && <span> · {appEventCount} added here</span>}
           </p>
+
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
@@ -226,9 +247,6 @@ function EventsPage() {
               <BarChart3 className="h-3.5 w-3.5 mr-1.5" /> Analytics
             </Button>
           </div>
-          <Button size="sm" className="h-8 text-xs" onClick={() => setAddOpen(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add event
-          </Button>
         </div>
       </div>
 
@@ -247,10 +265,8 @@ function EventsPage() {
               <p className="text-sm text-muted-foreground">
                 No events found in the Asana Events project.
               </p>
-              <Button size="sm" className="h-8 text-xs mt-3" onClick={() => setAddOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1.5" /> Add an event
-              </Button>
             </div>
+
           ) : view === "list" ? (
             <ListView
               upcoming={upcoming}
@@ -287,14 +303,6 @@ function EventsPage() {
         synopsis={selected ? synopses[selected.name.trim().toLowerCase()] || "" : ""}
       />
 
-      <AddEventDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        leadOptions={leads}
-        portcoOptions={Array.from(new Set(events.flatMap((e) => e.portcos))).sort()}
-        sectorOptions={sectors}
-        onAdded={() => router.invalidate()}
-      />
     </div>
   );
 }
@@ -492,19 +500,8 @@ function EventTable({
             return (
               <TableRow key={e.gid} className="cursor-pointer" onClick={() => onSelect(e)}>
                 <TableCell className="text-xs whitespace-nowrap">{e.date}</TableCell>
-                <TableCell className="text-xs font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    {e.name}
-                    {isAppEvent(e) && (
-                      <Badge
-                        variant="outline"
-                        className="text-[9px] px-1 py-0 border-primary/40 text-primary"
-                      >
-                        App
-                      </Badge>
-                    )}
-                  </span>
-                </TableCell>
+                <TableCell className="text-xs font-medium">{e.name}</TableCell>
+
                 <TableCell className="text-xs">
                   {e.lead ? (
                     <span
