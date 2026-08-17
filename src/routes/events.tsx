@@ -1153,6 +1153,7 @@ function EventDetailSheet({
   onClose,
   onChanged,
   synopsis = "",
+  onSelectContact,
 }: {
   event: AsanaEvent | null;
   contacts: Contact[];
@@ -1160,6 +1161,7 @@ function EventDetailSheet({
   onClose: () => void;
   onChanged?: () => void;
   synopsis?: string;
+  onSelectContact?: (c: Contact) => void;
 }) {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkType, setBulkType] = useState<"attended" | "invited">("attended");
