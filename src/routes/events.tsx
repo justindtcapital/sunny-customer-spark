@@ -169,6 +169,7 @@ function EventsPage() {
   const router = useRouter();
   const [view, setView] = useState<"list" | "calendar" | "analytics">("list");
   const [selected, setSelected] = useState<AsanaEvent | null>(null);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [filters, setFilters] = useState<Filters>({ lead: "", format: "", sector: "" });
 
   const leads = useMemo(
