@@ -539,7 +539,7 @@ export const importTargets = createServerFn({ method: "POST" })
       await logOpsEventServer({
         action: "import",
         source: "targets",
-        status: "skipped",
+        status: "warning",
         summary: `Target import skipped · all ${duplicates} row${duplicates !== 1 ? "s" : ""} already in Targets`,
         records: 0,
         details: { duplicates },
