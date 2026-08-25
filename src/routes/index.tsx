@@ -50,11 +50,18 @@ export const Route = createFileRoute("/")({
     ],
   }),
   loader: async () => {
+    // Never let a slow/failing Sheets call hang the initial render (blank screen).
+    const withTimeout = <T,>(p: Promise<T>, fallback: T, ms = 8000): Promise<T> =>
+      Promise.race([
+        p.catch(() => fallback),
+        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+      ]);
+
     const [contactsAll, targets, companies, briefing] = await Promise.all([
-      fetchContacts().catch((): Contact[] => []),
-      fetchTargets().catch((): TargetLead[] => []),
-      fetchPortfolioCompanies().catch((): PortfolioCompany[] => []),
-      getBriefing().catch((): BriefingData | null => null),
+      withTimeout<Contact[]>(fetchContacts(), []),
+      withTimeout<TargetLead[]>(fetchTargets(), []),
+      withTimeout<PortfolioCompany[]>(fetchPortfolioCompanies(), []),
+      withTimeout<BriefingData | null>(getBriefing(), null),
     ]);
     const contacts = networkContacts(contactsAll);
     const metrics: DailyMetrics = {
@@ -64,9 +71,11 @@ export const Route = createFileRoute("/")({
       targets: targets.length,
       portfolio: companies.length,
     };
-    const snapshot = await recordHomeSnapshot({ data: metrics }).catch(
-      (): SnapshotResult => ({ today: metrics, baseline: null, baselineDate: null }),
+    const snapshot = await withTimeout<SnapshotResult>(
+      recordHomeSnapshot({ data: metrics }),
+      { today: metrics, baseline: null, baselineDate: null },
     );
+
 
     const within7 = (d?: string) => {
       const t = Date.parse(d || "");
