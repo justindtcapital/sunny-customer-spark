@@ -1754,6 +1754,18 @@ function TargetingPage() {
                     <span className="text-xs text-muted-foreground">
                       {t.outreach.length} attempt{t.outreach.length !== 1 ? "s" : ""}
                     </span>
+                    {t.followUp && (
+                      <span
+                        className={`ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                          isOverdue(t.followUpDue)
+                            ? "border-destructive/40 bg-destructive/10 text-destructive"
+                            : "border-amber-500/40 bg-amber-500/10 text-amber-600"
+                        }`}
+                        title={t.followUpDue ? `Due ${t.followUpDue}` : "Needs follow-up"}
+                      >
+                        {isOverdue(t.followUpDue) ? "Overdue" : "Follow up"}
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
