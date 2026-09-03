@@ -98,6 +98,7 @@ import {
   fetchTargets,
   fetchPortfolioCompanies,
   logTargetOutreach,
+  setTargetFollowUp,
   saveTargetConnectionStrategy,
   updateTargetFields,
   bulkUpdateTargetFields,
@@ -509,6 +510,7 @@ function TargetingPage() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [logAttemptOpen, setLogAttemptOpen] = useState(false);
+  const [trackActivityOpen, setTrackActivityOpen] = useState(false);
   const [emailDraftOpen, setEmailDraftOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<TargetLead>>({});
@@ -560,6 +562,7 @@ function TargetingPage() {
       if (filters.campaign.length && !filters.campaign.includes((t.campaign || "").trim()))
         return false;
       if (filters.event.length && !filters.event.includes((t.event || "").trim())) return false;
+      if (filters.followUpOnly && !t.followUp) return false;
       if (filters.title && !t.title.toLowerCase().includes(filters.title.toLowerCase()))
         return false;
       if (filters.seniority.length && !filters.seniority.includes(seniorityOf(t.title)))
@@ -1206,6 +1209,7 @@ function TargetingPage() {
     campaign: t.campaign,
     event: t.event,
     portcoTags: t.portcoTags,
+    followUp: t.followUp,
   });
 
   // Promote selection into Network CRM contacts (+ Ready to Promote stage + note).
