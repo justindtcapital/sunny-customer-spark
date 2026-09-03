@@ -21,27 +21,38 @@ Result: emailing a target from your BD/GTM alias shows up on their card automati
 
 Add a follow-up flag and due date to the Targets tab, exposed as:
 
+- **A "Flag this upload for follow-up" toggle on the target CSV upload dialog** — one switch that turns the follow-up flag on for every person ingested in that upload. Ideal for event rosters.
 - A "Flag for follow-up" toggle on the target detail card, with an optional date.
-- Automatic flagging when a target is imported with the follow-up option on (already supported for contacts) or when an event-source list is uploaded.
-- Resolving a follow-up from the card, which logs a "Follow-up resolved" entry to the Outreach Trail rather than deleting anything.
+- Resolving a follow-up from the card logs a "Follow-up resolved" entry to the Outreach Trail rather than deleting anything.
 
-### 3. Make follow-ups visible
+### 3. Track-activity popup on the target's email
+
+Clicking a target's email address opens a small **Track activity** dialog instead of only launching a mail client:
+
+- Activity type: **Cold outreach** or **Follow-up** (one or the other).
+- Optional multi-select of **portfolio companies mentioned**.
+- Optional short note and a date defaulting to today.
+
+On save it appends one Outreach Trail entry with that type, note, and the PortCos mentioned; when PortCos are selected it also writes the matching PortCo exposure rows so the mention shows up on those company views.
+
+### 4. Make follow-ups visible
 
 - A "Needs follow-up" filter in the targeting sidebar and a small badge on rows/cards that are flagged or overdue.
 - Carry the flag through promotion to CRM so a pending follow-up survives the move into the Network.
 
-### 4. Keep provenance in the trail
+### 5. Keep provenance in the trail
 
 When a target arrives from a campaign or event, seed one Outreach Trail entry ("Added via campaign X / event Y") so the trail reads as a full history from first touch rather than starting at the first email.
 
 ## Technical notes
 
 - `src/utils/activity-sync.functions.ts`: add a targets pass after the contacts loop, reusing `loadAllTrackActivities` output and the email excerpt helper in `src/lib/email-excerpt.ts`; write via `appendTargetOutreach` in `src/utils/sheets.server.ts`, keyed on the target URID with the activity GID stored for idempotency.
-- `Target Outreach` headers gain a `Source GID` column (`ensureColumn`, non-destructive) so dedupe survives re-sync.
+- `Target Outreach` headers gain `Source GID` and `PortCos Mentioned` columns (`ensureColumn`, non-destructive) so dedupe survives re-sync and mentions persist.
 - Targets tab gains `Follow Up Flag` and `Follow Up Due` columns, added header-aware; `buildTargets` reads them into `TargetLead`, and a new server function toggles them.
+- Upload dialog: one boolean passed through `importTargets` into `appendTargetRows`, stamping `Follow Up Flag` = TRUE for every row in that import. No other change to the upload flow.
+- New `TrackActivityDialog` component opened from the email link on the target card; saves through `logTargetOutreach` plus the existing PortCo exposure upsert.
 - `TargetingFilters` gains a `followUp` filter; sidebar control sits with the other target filters.
 - `promoteTargetsToCrm` passes the flag into `addContactRow`'s existing `followUp` input.
-- No changes to the CSV upload flow or the contacts sync path.
 
 ## Out of scope
 
