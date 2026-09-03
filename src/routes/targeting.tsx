@@ -1372,6 +1372,49 @@ function TargetingPage() {
     }
   };
 
+  // Bulk campaign assignment: stamp campaign / event / portco tags (and an
+  // optional follow-up flag) onto every selected target in one sheet write.
+  const addSelectedToCampaign = async (result: AddToCampaignResult) => {
+    const chosen = selectedTargets;
+    if (chosen.length === 0) return;
+    const fields: Record<string, string> = { campaign: result.campaign };
+    if (result.event) fields.event = result.event;
+    if (result.portcos.length) fields.portcoTags = result.portcos.join(", ");
+    if (result.followUp) {
+      fields.followUpFlag = "TRUE";
+      fields.followUpDue = "";
+    }
+    const chosenIds = new Set(chosen.map((t) => t.id));
+    // Optimistic local mirror so the Campaign column and provenance block update
+    // immediately.
+    const patch = (t: TargetLead): TargetLead => ({
+      ...t,
+      campaign: result.campaign,
+      event: result.event || t.event,
+      portcoTags: result.portcos.length ? result.portcos : t.portcoTags,
+      followUp: result.followUp ? true : t.followUp,
+    });
+    setTargets((prev) => prev.map((t) => (chosenIds.has(t.id) ? patch(t) : t)));
+    if (activeTarget && chosenIds.has(activeTarget.id)) {
+      setActiveTarget((prev) => (prev ? patch(prev) : prev));
+    }
+    try {
+      const entries = chosen.map((t) => ({ urid: t.urid, key: targetKeyOf(t), fields }));
+      const res = await bulkUpdateTargetFields({ data: { entries } });
+      invalidateCampaignCache();
+      clearSelection();
+      const missed = chosen.length - res.updated;
+      toast.success(
+        `${res.updated} target${res.updated !== 1 ? "s" : ""} added to ${result.campaign}` +
+          (missed > 0 ? ` · ${missed} row${missed !== 1 ? "s" : ""} not found` : ""),
+      );
+      await refreshTargets();
+    } catch (e) {
+      console.error("addSelectedToCampaign failed", e);
+      toast.error("Adding to the campaign failed — see console.");
+    }
+  };
+
   // Hard-delete the selected targets from the Targets sheet (confirmed first),
   // matched by stable URID with a target-key fallback, then drop them locally.
   const deleteSelected = async () => {
