@@ -97,6 +97,7 @@ export const Route = createFileRoute("/dashboard")({
       portfolioCompanies: (portfolio || []) as PortfolioCompany[],
       investorByPortco,
       portcoNames: asana.namesByCompanyName,
+      asanaFieldsByPortco: asana.fieldsByCompanyName,
       eventsByPortco: asana.eventsByCompanyName,
       portfolioPortcos,
     };
@@ -456,6 +457,7 @@ function DashboardPage() {
           portcos={investorView.portcos.map((p) => ({ key: p.key, name: p.name, events: p.events }))}
           contacts={contacts}
           portfolioCompanies={portfolioCompanies}
+          asanaFieldsByPortco={asanaFieldsByPortco}
           onBack={() => setFilters({ ...filters, investor: "" })}
           onContactClick={openContact}
         />
