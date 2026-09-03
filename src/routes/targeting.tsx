@@ -224,6 +224,7 @@ type TSortKey =
   | "location"
   | "sector"
   | "source"
+  | "campaign"
   | "dateAdded"
   | "intel";
 const STAGE_RANK: Record<PipelineStage, number> = {
