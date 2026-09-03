@@ -1197,6 +1197,12 @@ export interface AddContactInput {
   source?: string;
   /** V2: supporting "why surfaced" reasoning, written to "Source Context". */
   sourceContext?: string;
+  /** Campaign this contact came in under (Targeting provenance). */
+  campaign?: string;
+  /** Event roster this contact came from (Targeting provenance). */
+  campaignEvent?: string;
+  /** Portfolio companies the sourcing campaign was for. Stored comma-separated. */
+  portcoTags?: string[];
   /** Apollo professional headline (written to the "Headline" column). */
   headline?: string;
   /** Pre-formatted employment history (written to "Employment History"). */
@@ -1292,6 +1298,10 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
     origin: data.source ?? "",
     // V2 supporting reasoning.
     "source context": data.sourceContext ?? "",
+    // Targeting provenance — persists campaign/event/portco tags into the CRM.
+    campaign: data.campaign ?? "",
+    event: data.campaignEvent ?? "",
+    "portco tags": (data.portcoTags || []).map((t) => t.trim()).filter(Boolean).join(", "),
     // Apollo enrichment extras (written only if the columns exist).
     headline: data.headline ?? "",
     "employment history": data.employmentHistory ?? "",
@@ -1418,6 +1428,9 @@ const CONTACT_COLS: Record<string, string> = {
   "lead source": "source",
   origin: "source",
   "source context": "sourceContext",
+  campaign: "campaign",
+  event: "campaignEvent",
+  "portco tags": "portcoTags",
   "tech stack": "techStack",
   "apollo enriched": "apolloEnriched",
   "apollo enriched date": "apolloEnrichedDate",
@@ -2582,6 +2595,12 @@ export async function buildContacts(): Promise<Contact[]> {
       // Canonical origin — blank/legacy values backfill to "Manual Entry".
       source: normalizeSource(c.source),
       sourceContext: c.sourceContext || "",
+      campaign: (c.campaign || "").trim(),
+      campaignEvent: (c.campaignEvent || "").trim(),
+      portcoTags: (c.portcoTags || "")
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean),
       techStack: c.techStack || "",
       apolloEnriched: /^(true|yes|1)$/i.test((c.apolloEnriched || "").trim()),
       apolloEnrichedDate: (c.apolloEnrichedDate || "").trim() || undefined,
