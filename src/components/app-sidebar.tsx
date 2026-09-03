@@ -979,6 +979,16 @@ export function AppSidebar({
                     />
                   </div>
 
+                  {/* Work the follow-up queue: flagged uploads + reminders. */}
+                  <label className="flex items-center gap-2 cursor-pointer rounded-md border border-border bg-muted/30 px-2.5 py-2">
+                    <Checkbox
+                      checked={targetingFilters.followUpOnly}
+                      onCheckedChange={(v) => updateTarget({ followUpOnly: v === true })}
+                      aria-label="Needs follow-up only"
+                    />
+                    <span className="text-xs font-medium text-foreground">Needs follow-up</span>
+                  </label>
+
                   <div>
                     <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
                       City / Location

@@ -63,6 +63,29 @@ export function matchActivitiesToContact(
   });
 }
 
+// Targets are pre-CRM prospects: match only on the person (whole email address,
+// or full name in the task text). No company fan-out — a target should never
+// inherit every activity tagged to their employer.
+export function matchActivitiesToTarget(
+  activities: AsanaActivity[],
+  target: { name?: string; email?: string },
+): AsanaActivity[] {
+  const name = norm(target.name);
+  const emails = (target.email || "")
+    .split(/[;,]/)
+    .map((e) => norm(e))
+    .filter((e) => e.includes("@"));
+  if (!name && emails.length === 0) return [];
+  return activities.filter((a) => {
+    const tokens = new Set(addressTokens(`${a.notes || ""} ${a.name} ${a.person || ""}`));
+    if (emails.some((e) => tokens.has(e))) return true;
+    if (a.gid.startsWith("gmail-")) return false; // email is the only safe join
+    if (name && norm(a.person) === name) return true;
+    const hay = `${a.name} ${a.notes || ""} ${a.person || ""}`.toLowerCase();
+    return Boolean(name && name.length > 3 && hay.includes(name));
+  });
+}
+
 // An activity belongs to a company/PortCo when its company field matches, or the
 // task text mentions the company name.
 export function matchActivitiesToCompany(

@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -235,6 +236,7 @@ export function TargetUploadDialog({
   const [eventName, setEventName] = useState("");
   const [campaign, setCampaign] = useState("");
   const [portcoTags, setPortcoTags] = useState<string[]>([]);
+  const [flagFollowUp, setFlagFollowUp] = useState(false);
   const [enrichOnImport, setEnrichOnImport] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -349,6 +351,7 @@ export function TargetUploadDialog({
           campaign: campaign.trim(),
           event: source === "Event" ? eventName.trim() : "",
           portcoTags,
+          followUp: flagFollowUp,
         },
       });
       // A brand-new write-in campaign should appear in the suggestion list next time.
@@ -515,6 +518,19 @@ export function TargetUploadDialog({
                     </div>
                   </div>
 
+                  {/* One switch flags every ingested row, so an event roster can be
+                      worked as a follow-up list straight after import. */}
+                  <div className="flex items-start justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2">
+                    <div>
+                      <Label className="text-[11px] font-semibold text-foreground">
+                        Flag this upload for follow-up
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Every imported person gets a pending follow-up on their target card.
+                      </p>
+                    </div>
+                    <Switch checked={flagFollowUp} onCheckedChange={setFlagFollowUp} />
+                  </div>
 
                   <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px]">
                     <div className="font-semibold text-foreground mb-1">Validation report</div>

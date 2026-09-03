@@ -280,6 +280,8 @@ export interface OutreachAttempt {
   date: string;
   method: string;
   summary: string;
+  /** Portfolio companies mentioned during this touch. */
+  portcos?: string[];
 }
 
 // A saved AI "how to connect" recommendation for a target (persisted + reloaded).
@@ -328,6 +330,10 @@ export interface TargetLead {
   portcoTags?: string[];
   /** Date the lead was added to the pipeline (from the Targets "Date Added" column). */
   dateAdded?: string;
+  /** Pending follow-up flag (Targets "Follow Up Flag" column). */
+  followUp?: boolean;
+  /** Follow-up due date (YYYY-MM-DD); "" = flagged with no date. */
+  followUpDue?: string;
   outreach: OutreachAttempt[];
   notes: string;
   /** Latest saved AI connection plan (persisted to the Target Strategy tab). */
@@ -343,6 +349,8 @@ export interface TargetingFilters {
   origin: string;
   /** Campaign the target came in under — multi-select (empty = no filter). */
   campaign: string[];
+  /** Only targets with a pending follow-up flag. */
+  followUpOnly: boolean;
   /** Event the target roster came from — multi-select (empty = no filter). */
   event: string[];
   /** Title contains (free text). */

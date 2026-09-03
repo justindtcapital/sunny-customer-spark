@@ -98,6 +98,7 @@ import {
   fetchTargets,
   fetchPortfolioCompanies,
   logTargetOutreach,
+  setTargetFollowUp,
   saveTargetConnectionStrategy,
   updateTargetFields,
   bulkUpdateTargetFields,
@@ -109,6 +110,10 @@ import {
   logOpsEvent,
 } from "@/utils/sheets.functions";
 import { promoteTargetsToCrm } from "@/utils/target-crm.functions";
+import {
+  TrackActivityDialog,
+  type TrackActivityResult,
+} from "@/components/crm/TrackActivityDialog";
 import { NetworkBuilderDialog } from "@/components/crm/NetworkBuilderDialog";
 import { NetworkFinderDialog } from "@/components/crm/NetworkFinderDialog";
 import { TargetAccountsDialog } from "@/components/crm/TargetAccountsDialog";
@@ -130,6 +135,12 @@ import { useTargetingFilters } from "@/lib/targeting-filter-context";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { useTargetSelection } from "@/lib/target-selection-context";
 import { connectionStrategy, type ConnectionStrategy } from "@/utils/insights.functions";
+
+/** A flagged follow-up whose due date has passed (blank date is never overdue). */
+function isOverdue(due?: string): boolean {
+  if (!due?.trim()) return false;
+  return due.trim() < new Date().toISOString().split("T")[0];
+}
 
 export const Route = createFileRoute("/targeting")({
   head: () => ({
@@ -509,6 +520,7 @@ function TargetingPage() {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [logAttemptOpen, setLogAttemptOpen] = useState(false);
+  const [trackActivityOpen, setTrackActivityOpen] = useState(false);
   const [emailDraftOpen, setEmailDraftOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<TargetLead>>({});
@@ -560,6 +572,7 @@ function TargetingPage() {
       if (filters.campaign.length && !filters.campaign.includes((t.campaign || "").trim()))
         return false;
       if (filters.event.length && !filters.event.includes((t.event || "").trim())) return false;
+      if (filters.followUpOnly && !t.followUp) return false;
       if (filters.title && !t.title.toLowerCase().includes(filters.title.toLowerCase()))
         return false;
       if (filters.seniority.length && !filters.seniority.includes(seniorityOf(t.title)))
@@ -989,6 +1002,91 @@ function TargetingPage() {
     setAttemptSummary("");
   };
 
+  // Track activity — logs the touch on the trail, records PortCos mentioned, and
+  // optionally re-flags the target for a future follow-up.
+  const handleTrackActivity = (res: TrackActivityResult) => {
+    if (!activeTarget) return;
+    const target = activeTarget;
+    const summary = [
+      res.kind,
+      res.note,
+      res.portcos.length ? `PortCos mentioned: ${res.portcos.join(", ")}` : "",
+      res.reminderDue ? `Follow-up set for ${res.reminderDue}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const attempt: OutreachAttempt = {
+      id: `o-${Date.now()}`,
+      date: res.date,
+      method: "Email",
+      summary,
+      portcos: res.portcos,
+    };
+    updateTarget({
+      ...target,
+      outreach: [attempt, ...target.outreach],
+      followUp: res.reminderDue ? true : target.followUp,
+      followUpDue: res.reminderDue ?? target.followUpDue,
+    });
+    void logTargetOutreach({
+      data: {
+        targetKey: targetKeyOf(target),
+        id: attempt.id,
+        date: attempt.date,
+        method: attempt.method,
+        summary: attempt.summary,
+        urid: target.urid,
+        portcos: res.portcos,
+      },
+    }).catch((e) => console.error("logTargetOutreach failed", e));
+    if (res.reminderDue) {
+      void setTargetFollowUp({
+        data: {
+          targetKey: targetKeyOf(target),
+          urid: target.urid,
+          followUp: true,
+          due: res.reminderDue,
+        },
+      }).catch((e) => console.error("setTargetFollowUp failed", e));
+    }
+    toast.success(
+      res.reminderDue ? `Activity logged · follow-up ${res.reminderDue}` : "Activity logged.",
+    );
+  };
+
+  // Resolving a follow-up clears the flag AND leaves a trail entry, so the history
+  // shows that the loop was actually closed.
+  const resolveFollowUp = () => {
+    if (!activeTarget) return;
+    const target = activeTarget;
+    const attempt: OutreachAttempt = {
+      id: `o-${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      method: "Note",
+      summary: `Follow-up resolved${target.followUpDue ? ` (was due ${target.followUpDue})` : ""}`,
+    };
+    updateTarget({
+      ...target,
+      followUp: false,
+      followUpDue: "",
+      outreach: [attempt, ...target.outreach],
+    });
+    void logTargetOutreach({
+      data: {
+        targetKey: targetKeyOf(target),
+        id: attempt.id,
+        date: attempt.date,
+        method: attempt.method,
+        summary: attempt.summary,
+        urid: target.urid,
+      },
+    }).catch((e) => console.error("logTargetOutreach failed", e));
+    void setTargetFollowUp({
+      data: { targetKey: targetKeyOf(target), urid: target.urid, followUp: false },
+    }).catch((e) => console.error("setTargetFollowUp failed", e));
+    toast.success("Follow-up resolved.");
+  };
+
   // --- Apollo enrichment for targeting ---
   const getTargetEnrichmentFields = (result: ApolloEnrichmentResult) => {
     if (!activeTarget) return [];
@@ -1206,6 +1304,7 @@ function TargetingPage() {
     campaign: t.campaign,
     event: t.event,
     portcoTags: t.portcoTags,
+    followUp: t.followUp,
   });
 
   // Promote selection into Network CRM contacts (+ Ready to Promote stage + note).
@@ -1655,6 +1754,18 @@ function TargetingPage() {
                     <span className="text-xs text-muted-foreground">
                       {t.outreach.length} attempt{t.outreach.length !== 1 ? "s" : ""}
                     </span>
+                    {t.followUp && (
+                      <span
+                        className={`ml-2 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                          isOverdue(t.followUpDue)
+                            ? "border-destructive/40 bg-destructive/10 text-destructive"
+                            : "border-amber-500/40 bg-amber-500/10 text-amber-600"
+                        }`}
+                        title={t.followUpDue ? `Due ${t.followUpDue}` : "Needs follow-up"}
+                      >
+                        {isOverdue(t.followUpDue) ? "Overdue" : "Follow up"}
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -1902,6 +2013,13 @@ function TargetingPage() {
                             <a
                               href={`mailto:${activeTarget.email}`}
                               className="text-primary hover:underline"
+                              onClick={(e) => {
+                                // Clicking the address opens Track activity so the
+                                // touch gets logged; ⌘/ctrl-click still opens mail.
+                                if (e.metaKey || e.ctrlKey) return;
+                                e.preventDefault();
+                                setTrackActivityOpen(true);
+                              }}
                             >
                               {activeTarget.email}
                             </a>
@@ -2156,15 +2274,42 @@ function TargetingPage() {
                       <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
                         Outreach Trail · {activeTarget.outreach.length} entries
                       </h3>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className={actionBtnClass}
-                        onClick={() => setLogAttemptOpen(true)}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Log Activity
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {activeTarget.followUp && (
+                          <>
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                isOverdue(activeTarget.followUpDue)
+                                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                  : "border-amber-500/40 bg-amber-500/10 text-amber-600"
+                              }`}
+                            >
+                              {isOverdue(activeTarget.followUpDue)
+                                ? `Overdue · ${activeTarget.followUpDue}`
+                                : activeTarget.followUpDue
+                                  ? `Follow up by ${activeTarget.followUpDue}`
+                                  : "Needs follow-up"}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className={actionBtnClass}
+                              onClick={resolveFollowUp}
+                            >
+                              Resolve
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={actionBtnClass}
+                          onClick={() => setLogAttemptOpen(true)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Log Activity
+                        </Button>
+                      </div>
                     </div>
 
                     {sortedOutreach.length === 0 ? (
@@ -2294,6 +2439,16 @@ function TargetingPage() {
         existingKeys={targets.map((t) => targetKeyOf(t))}
         portcoNames={companies.map((c) => c.name).filter(Boolean)}
         onImported={refreshTargets}
+      />
+
+      {/* Track activity from the target's email address */}
+      <TrackActivityDialog
+        open={trackActivityOpen}
+        onOpenChange={setTrackActivityOpen}
+        personName={activeTarget?.name || ""}
+        email={activeTarget?.email || ""}
+        portcoNames={companies.map((c) => c.name).filter(Boolean)}
+        onSave={handleTrackActivity}
       />
 
       {/* Draft an email to the active target; logs to the outreach trail on send */}

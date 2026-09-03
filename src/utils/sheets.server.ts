@@ -934,6 +934,11 @@ export const TARGET_OUTREACH_HEADERS = [
   "Summary",
   "ID",
   "Target URID",
+  // Activity GID of the Gmail/Asana row this entry mirrors — dedupe key so
+  // re-running the sync never doubles an auto-logged email.
+  "Source GID",
+  // Portfolio companies mentioned in the touch (comma-separated names).
+  "PortCos Mentioned",
 ];
 
 // Persisted AI connection plan per target (append-only; latest row per key wins).
@@ -1961,6 +1966,8 @@ const TARGET_COLS: Record<string, string> = {
   "portco tag": "portcoTags",
   "date added": "dateAdded",
   "last contacted": "lastContacted",
+  "follow up flag": "followUpFlag",
+  "follow up due": "followUpDue",
 };
 
 // Canonical Targets tab header order. Reading is header-name based (robust to
@@ -1986,6 +1993,8 @@ export const TARGET_HEADERS = [
   "Campaign",
   "Event",
   "PortCo Tags",
+  "Follow Up Flag",
+  "Follow Up Due",
 ];
 
 // One row to add to the Targets tab. Written header-aware (see appendTargetRows)
@@ -2012,6 +2021,10 @@ export interface TargetRowInput {
   event?: string;
   /** Portfolio companies this row is tagged to. Stored comma-separated. */
   portcoTags?: string[];
+  /** Flag every row of this import for follow-up (event rosters). */
+  followUp?: boolean;
+  /** Optional follow-up due date (YYYY-MM-DD). */
+  followUpDue?: string;
 }
 
 // Header-aware Targets append: stamps a stable URID on every new row and places
@@ -2026,6 +2039,8 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
   await ensureColumn(TAB_NAMES.targets, "Campaign");
   await ensureColumn(TAB_NAMES.targets, "Event");
   await ensureColumn(TAB_NAMES.targets, "PortCo Tags");
+  await ensureColumn(TAB_NAMES.targets, "Follow Up Flag");
+  await ensureColumn(TAB_NAMES.targets, "Follow Up Due");
 
   const rows = await fetchSheetTab(TAB_NAMES.targets);
   const headers = (rows[0] || []).map((h) => h.trim().toLowerCase());
@@ -2055,6 +2070,8 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
         .map((p) => p.trim())
         .filter(Boolean)
         .join(", "),
+      "follow up flag": t.followUp ? "TRUE" : "FALSE",
+      "follow up due": (t.followUpDue || "").trim(),
     };
     return headers.map((h) => valueByHeader[h] ?? "");
   });
@@ -3426,6 +3443,7 @@ async function buildTargetOutreachMap(): Promise<Record<string, OutreachAttempt[
   const methodIdx = headers.indexOf("method");
   const summaryIdx = headers.indexOf("summary");
   const idIdx = headers.indexOf("id");
+  const portcoIdx = headers.indexOf("portcos mentioned");
   if (keyIdx === -1 && uridIdx === -1) return out;
   for (let i = 1; i < rows.length; i++) {
     // Prefer the stable target urid; fall back to the legacy target key.
@@ -3437,6 +3455,10 @@ async function buildTargetOutreachMap(): Promise<Record<string, OutreachAttempt[
       date: (dateIdx !== -1 ? rows[i][dateIdx] : "") || "",
       method: (methodIdx !== -1 ? rows[i][methodIdx] : "") || "Note",
       summary: (summaryIdx !== -1 ? rows[i][summaryIdx] : "") || "",
+      portcos: (portcoIdx !== -1 ? rows[i][portcoIdx] || "" : "")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean),
     };
     (out[key] ||= []).push(attempt);
   }
@@ -3496,6 +3518,8 @@ const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
   portcoTags: ["portco tags", "portfolio tags"],
   dateAdded: ["date added"],
   lastContacted: ["last contacted"],
+  followUpFlag: ["follow up flag"],
+  followUpDue: ["follow up due"],
 };
 
 // First matching header index for a field's alias list (-1 when absent).
@@ -3526,6 +3550,8 @@ export async function updateTargetFields(
 
   // Ensure columns that may not exist on older sheets (e.g. "Phone").
   if (fields.phone !== undefined) await ensureColumn(TAB_NAMES.targets, "Phone");
+  if (fields.followUpFlag !== undefined) await ensureColumn(TAB_NAMES.targets, "Follow Up Flag");
+  if (fields.followUpDue !== undefined) await ensureColumn(TAB_NAMES.targets, "Follow Up Due");
 
   const rows = await fetchSheetTab(TAB_NAMES.targets);
   if (rows.length < 2) return { success: false };
@@ -4010,20 +4036,71 @@ export async function bulkDeletePortfolioCompanies(
 
 export async function appendTargetOutreach(
   targetKey: string,
-  attempt: { date: string; method: string; summary: string; id: string },
+  attempt: {
+    date: string;
+    method: string;
+    summary: string;
+    id: string;
+    sourceGid?: string;
+    portcos?: string[];
+  },
   urid?: string,
 ): Promise<void> {
+  await appendTargetOutreachRows([{ targetKey, urid, ...attempt }]);
+}
+
+/** Batch, header-aware append to the Target Outreach tab. */
+export async function appendTargetOutreachRows(
+  entries: Array<{
+    targetKey: string;
+    urid?: string;
+    date: string;
+    method: string;
+    summary: string;
+    id: string;
+    sourceGid?: string;
+    portcos?: string[];
+  }>,
+): Promise<void> {
+  if (entries.length === 0) return;
   await ensureTab(TAB_NAMES.targetOutreach, TARGET_OUTREACH_HEADERS);
   await ensureColumn(TAB_NAMES.targetOutreach, "Target URID");
-  // Row: ["Target Key", "Date", "Method", "Summary", "ID", "Target URID"].
-  await appendSheetRow(TAB_NAMES.targetOutreach, [
-    targetKey.trim().toLowerCase(),
-    attempt.date,
-    attempt.method,
-    attempt.summary,
-    attempt.id,
-    (urid || "").trim().toLowerCase(),
-  ]);
+  await ensureColumn(TAB_NAMES.targetOutreach, "Source GID");
+  await ensureColumn(TAB_NAMES.targetOutreach, "PortCos Mentioned");
+  const rows = await fetchSheetTab(TAB_NAMES.targetOutreach);
+  const headers = (rows[0] || []).map((h) => h.trim().toLowerCase());
+  const built = entries.map((e) => {
+    const valueByHeader: Record<string, string> = {
+      "target key": (e.targetKey || "").trim().toLowerCase(),
+      date: e.date,
+      method: e.method,
+      summary: e.summary,
+      id: e.id,
+      "target urid": (e.urid || "").trim().toLowerCase(),
+      "source gid": (e.sourceGid || "").trim(),
+      "portcos mentioned": (e.portcos || [])
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .join(", "),
+    };
+    return headers.map((h) => valueByHeader[h] ?? "");
+  });
+  await appendSheetRows(TAB_NAMES.targetOutreach, built);
+}
+
+/** Activity GIDs already mirrored into the Target Outreach tab (sync dedupe). */
+export async function fetchTargetOutreachGids(): Promise<Set<string>> {
+  const rows = await fetchSheetTab(TAB_NAMES.targetOutreach).catch(() => [] as string[][]);
+  const out = new Set<string>();
+  if (rows.length < 2) return out;
+  const headers = rows[0].map((h) => h.trim().toLowerCase());
+  const gidIdx = headers.indexOf("source gid");
+  if (gidIdx === -1) return out;
+  for (let i = 1; i < rows.length; i++) {
+    const gid = (rows[i][gidIdx] || "").trim();
+    if (gid) out.add(gid);
+  }
+  return out;
 }
 
 // Save (append, last-wins) the latest AI connection plan for a target.
@@ -4104,6 +4181,8 @@ export async function buildTargets(): Promise<TargetLead[]> {
         .map((p) => p.trim())
         .filter(Boolean),
       dateAdded: t.dateAdded || "",
+      followUp: (t.followUpFlag || "").trim().toLowerCase() === "true",
+      followUpDue: (t.followUpDue || "").trim(),
       outreach,
       notes: t.researchPurpose || "",
       connectionPlan,

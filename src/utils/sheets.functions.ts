@@ -47,6 +47,7 @@ import {
   appendTargetOutreach as appendTargetOutreachServer,
   saveTargetStrategy as saveTargetStrategyServer,
   updateTargetFields as updateTargetFieldsServer,
+  upsertPortcoIntros as upsertPortcoIntrosServer,
   bulkUpdateTargetFields as bulkUpdateTargetFieldsServer,
   repairTargetUrids as repairTargetUridsServer,
   repairTargetSectors as repairTargetSectorsServer,
@@ -490,6 +491,8 @@ export const importTargets = createServerFn({ method: "POST" })
       campaign?: string;
       event?: string;
       portcoTags?: string[];
+      /** Flag every imported row for follow-up (event rosters). */
+      followUp?: boolean;
     }) => data,
   )
   .handler(async ({ data }): Promise<{ added: number; duplicates: number }> => {
@@ -541,6 +544,7 @@ export const importTargets = createServerFn({ method: "POST" })
           campaign: (data.campaign || "").trim(),
           event: (data.event || "").trim(),
           portcoTags: data.portcoTags || [],
+          followUp: data.followUp === true,
         })),
       );
       await logOpsEventServer({
@@ -586,16 +590,57 @@ export const logTargetOutreach = createServerFn({ method: "POST" })
       method: string;
       summary: string;
       urid?: string;
+      /** Portfolio companies mentioned during the touch. */
+      portcos?: string[];
+      /** Activity GID when the entry mirrors a synced email. */
+      sourceGid?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
     if (!data.targetKey?.trim() && !data.urid?.trim()) return { success: false };
     await appendTargetOutreachServer(
       data.targetKey,
-      { id: data.id, date: data.date, method: data.method, summary: data.summary },
+      {
+        id: data.id,
+        date: data.date,
+        method: data.method,
+        summary: data.summary,
+        portcos: data.portcos || [],
+        sourceGid: data.sourceGid || "",
+      },
       data.urid,
     );
+    // PortCo mentions surface on the portfolio views too, keyed by the target's
+    // email (same shape the contact-side sync writes).
+    const email = (data.targetKey || "").includes("@") ? data.targetKey.trim() : "";
+    if (email && (data.portcos || []).length > 0) {
+      await upsertPortcoIntrosServer(
+        (data.portcos || []).map((portcoName) => ({
+          email,
+          portcoName,
+          date: data.date,
+          source: "Direct Introduction",
+        })),
+      ).catch((e) => console.error("logTargetOutreach: portco upsert failed", e));
+    }
     return { success: true };
+  });
+
+// Toggle / clear a target's follow-up flag and due date (Targets tab columns).
+export const setTargetFollowUp = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { targetKey: string; urid?: string; followUp: boolean; due?: string }) => data,
+  )
+  .handler(async ({ data }) => {
+    if (!data.targetKey?.trim() && !data.urid?.trim()) return { success: false };
+    return await updateTargetFieldsServer(
+      data.targetKey,
+      {
+        followUpFlag: data.followUp ? "TRUE" : "FALSE",
+        followUpDue: data.followUp ? (data.due || "").trim() : "",
+      },
+      data.urid,
+    );
   });
 
 // Persist edited / Apollo-enriched target fields back to the Targets tab.
