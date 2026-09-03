@@ -136,6 +136,12 @@ import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { useTargetSelection } from "@/lib/target-selection-context";
 import { connectionStrategy, type ConnectionStrategy } from "@/utils/insights.functions";
 
+/** A flagged follow-up whose due date has passed (blank date is never overdue). */
+function isOverdue(due?: string): boolean {
+  if (!due?.trim()) return false;
+  return due.trim() < new Date().toISOString().split("T")[0];
+}
+
 export const Route = createFileRoute("/targeting")({
   head: () => ({
     meta: [
@@ -2256,15 +2262,42 @@ function TargetingPage() {
                       <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
                         Outreach Trail · {activeTarget.outreach.length} entries
                       </h3>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className={actionBtnClass}
-                        onClick={() => setLogAttemptOpen(true)}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Log Activity
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {activeTarget.followUp && (
+                          <>
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${
+                                isOverdue(activeTarget.followUpDue)
+                                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                  : "border-amber-500/40 bg-amber-500/10 text-amber-600"
+                              }`}
+                            >
+                              {isOverdue(activeTarget.followUpDue)
+                                ? `Overdue · ${activeTarget.followUpDue}`
+                                : activeTarget.followUpDue
+                                  ? `Follow up by ${activeTarget.followUpDue}`
+                                  : "Needs follow-up"}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className={actionBtnClass}
+                              onClick={resolveFollowUp}
+                            >
+                              Resolve
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={actionBtnClass}
+                          onClick={() => setLogAttemptOpen(true)}
+                        >
+                          <Plus className="h-3 w-3 mr-1" />
+                          Log Activity
+                        </Button>
+                      </div>
                     </div>
 
                     {sortedOutreach.length === 0 ? (
