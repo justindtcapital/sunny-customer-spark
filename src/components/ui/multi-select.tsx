@@ -106,6 +106,12 @@ export function MultiSelect({
                       {checked && <Check className="h-3 w-3" />}
                     </div>
                     <span className="truncate">{option}</span>
+                    {counts && (
+                      <span className="ml-auto pl-2 shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                        {counts[option] ?? 0}
+                      </span>
+                    )}
+
                   </CommandItem>
                 );
               })}
