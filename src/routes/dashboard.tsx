@@ -282,7 +282,9 @@ function DashboardPage() {
     transitions,
     investorByPortco,
     portcoNames,
+    asanaFieldsByPortco,
     eventsByPortco,
+
     portfolioPortcos,
     portfolioCompanies,
   } =
