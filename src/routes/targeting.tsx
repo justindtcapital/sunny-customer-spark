@@ -224,6 +224,7 @@ type TSortKey =
   | "location"
   | "sector"
   | "source"
+  | "campaign"
   | "dateAdded"
   | "intel";
 const STAGE_RANK: Record<PipelineStage, number> = {
@@ -240,6 +241,7 @@ const TARGET_COLUMNS: { key: TSortKey; label: string }[] = [
   { key: "location", label: "Location" },
   { key: "sector", label: "Sector" },
   { key: "source", label: "Source" },
+  { key: "campaign", label: "Campaign" },
   { key: "dateAdded", label: "Date Added" },
   { key: "intel", label: "Intel" },
 ];
@@ -259,6 +261,8 @@ function targetSortValue(t: TargetLead, key: TSortKey): string | number {
       return (t.sector || "").toLowerCase();
     case "source":
       return (t.originSource || "").toLowerCase();
+    case "campaign":
+      return (t.campaign || "").toLowerCase();
     case "dateAdded":
       return Date.parse(t.dateAdded || "") || 0;
     case "intel":
@@ -276,6 +280,9 @@ const EXPORT_COLUMNS: { key: keyof TargetLead | "outreachCount"; label: string }
   { key: "sector", label: "Sector" },
   { key: "stage", label: "Stage" },
   { key: "originSource", label: "Source" },
+  { key: "campaign", label: "Campaign" },
+  { key: "event", label: "Event" },
+  { key: "portcoTags", label: "PortCo Tags" },
   { key: "dateAdded", label: "Date Added" },
   { key: "linkedinUrl", label: "LinkedIn URL" },
   { key: "reasonSurfaced", label: "Reason Surfaced" },
@@ -483,7 +490,13 @@ function TargetingPage() {
     const targetSectors = [...new Set(targets.map((t) => t.sector).filter(Boolean))].sort();
     const targetCities = [...new Set(targets.map((t) => t.location).filter(Boolean))].sort();
     const targetOrigins = [...new Set(targets.map((t) => t.originSource).filter(Boolean))].sort();
-    updateOptions({ targetSectors, targetCities, targetOrigins });
+    const targetCampaigns = [
+      ...new Set(targets.map((t) => (t.campaign || "").trim()).filter(Boolean)),
+    ].sort();
+    const targetEvents = [
+      ...new Set(targets.map((t) => (t.event || "").trim()).filter(Boolean)),
+    ].sort();
+    updateOptions({ targetSectors, targetCities, targetOrigins, targetCampaigns, targetEvents });
   }, [targets, updateOptions]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTarget, setActiveTarget] = useState<TargetLead | null>(null);
@@ -544,6 +557,9 @@ function TargetingPage() {
       if (filters.sector.length && !filters.sector.includes(t.sector)) return false;
       if (filters.city !== "all" && t.location !== filters.city) return false;
       if (filters.origin !== "all" && t.originSource !== filters.origin) return false;
+      if (filters.campaign.length && !filters.campaign.includes((t.campaign || "").trim()))
+        return false;
+      if (filters.event.length && !filters.event.includes((t.event || "").trim())) return false;
       if (filters.title && !t.title.toLowerCase().includes(filters.title.toLowerCase()))
         return false;
       if (filters.seniority.length && !filters.seniority.includes(seniorityOf(t.title)))
@@ -1186,6 +1202,10 @@ function TargetingPage() {
     reasonSurfaced: t.reasonSurfaced,
     notes: t.notes,
     outreach: t.outreach,
+    // Provenance travels with the person into the CRM.
+    campaign: t.campaign,
+    event: t.event,
+    portcoTags: t.portcoTags,
   });
 
   // Promote selection into Network CRM contacts (+ Ready to Promote stage + note).
@@ -1623,6 +1643,11 @@ function TargetingPage() {
                   <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                     {t.originSource || "—"}
                   </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    <div className="max-w-[170px] truncate" title={t.campaign || t.event || ""}>
+                      {t.campaign || t.event || "—"}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                     {t.dateAdded || "—"}
                   </TableCell>
@@ -1636,7 +1661,7 @@ function TargetingPage() {
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={10}
+                    colSpan={11}
                     className="text-center py-12 text-muted-foreground text-sm"
                   >
                     No targets match your filters.
@@ -1937,6 +1962,43 @@ function TargetingPage() {
                             </span>
                           </span>
                         </div>
+                        {/* Where this prospect came from: campaign, event roster and
+                            the portfolio companies the sourcing was run for. */}
+                        {(activeTarget.campaign ||
+                          activeTarget.event ||
+                          (activeTarget.portcoTags || []).length > 0) && (
+                          <div className="mt-2 rounded-md border border-border bg-muted/40 p-2 space-y-1">
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                              Provenance
+                            </div>
+                            {activeTarget.campaign && (
+                              <div className="text-xs text-muted-foreground">
+                                Campaign:{" "}
+                                <span className="font-medium text-foreground">
+                                  {activeTarget.campaign}
+                                </span>
+                              </div>
+                            )}
+                            {activeTarget.event && (
+                              <div className="text-xs text-muted-foreground">
+                                Event:{" "}
+                                <span className="font-medium text-foreground">
+                                  {activeTarget.event}
+                                </span>
+                              </div>
+                            )}
+                            {(activeTarget.portcoTags || []).length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                                <span className="text-xs text-muted-foreground">PortCos:</span>
+                                {(activeTarget.portcoTags || []).map((tag) => (
+                                  <Badge key={tag} variant="secondary" className="text-[10px]">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {activeTarget.reasonSurfaced && (
                           <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 p-2">
                             <div className="text-[10px] uppercase tracking-wider font-semibold text-primary mb-0.5">

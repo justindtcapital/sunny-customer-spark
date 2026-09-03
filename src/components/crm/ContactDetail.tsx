@@ -1359,6 +1359,40 @@ export function ContactDetail({
                         </span>
                       </span>
                     </div>
+                    {/* Targeting provenance carried over on promote to CRM. */}
+                    {(contact.campaign ||
+                      contact.campaignEvent ||
+                      (contact.portcoTags || []).length > 0) && (
+                      <div className="mt-2 rounded-md border border-border bg-muted/40 p-2 space-y-1">
+                        <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                          Provenance
+                        </div>
+                        {contact.campaign && (
+                          <div className="text-xs text-muted-foreground">
+                            Campaign:{" "}
+                            <span className="font-medium text-foreground">{contact.campaign}</span>
+                          </div>
+                        )}
+                        {contact.campaignEvent && (
+                          <div className="text-xs text-muted-foreground">
+                            Event:{" "}
+                            <span className="font-medium text-foreground">
+                              {contact.campaignEvent}
+                            </span>
+                          </div>
+                        )}
+                        {(contact.portcoTags || []).length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            <span className="text-xs text-muted-foreground">PortCos:</span>
+                            {(contact.portcoTags || []).map((tag) => (
+                              <Badge key={tag} variant="secondary" className="text-[10px]">
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {/* V2: supporting reasoning behind why this contact was surfaced. */}
                     {contact.sourceContext && (
                       <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 p-2">

@@ -28,6 +28,12 @@ export interface PromoteTargetInput {
   reasonSurfaced?: string;
   notes?: string;
   outreach?: OutreachAttempt[];
+  /** Campaign the target was imported under — persisted onto the Contact. */
+  campaign?: string;
+  /** Event roster the target came from — persisted onto the Contact. */
+  event?: string;
+  /** Portfolio companies the sourcing campaign was for. */
+  portcoTags?: string[];
 }
 
 export interface PromoteTargetsResult {
@@ -97,6 +103,10 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
 
       await ensureColumn(TAB_NAMES.contacts, "Source");
       await ensureColumn(TAB_NAMES.contacts, "Source Context");
+      // Provenance columns so campaign/event history survives the promote.
+      await ensureColumn(TAB_NAMES.contacts, "Campaign");
+      await ensureColumn(TAB_NAMES.contacts, "Event");
+      await ensureColumn(TAB_NAMES.contacts, "PortCo Tags");
 
       const noteRows: InteractionRowInput[] = [];
       const seen = new Set<string>();
@@ -121,6 +131,8 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
 
         const source = recordSourceFromOrigin(t.originSource);
         const sourceContext = [
+          t.campaign?.trim() ? `Campaign: ${t.campaign.trim()}` : "",
+          t.event?.trim() ? `Event: ${t.event.trim()}` : "",
           t.reasonSurfaced?.trim(),
           t.notes?.trim(),
           "Promoted from Targeting",
@@ -143,6 +155,9 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
             linkedin,
             source,
             sourceContext,
+            campaign: t.campaign?.trim() || "",
+            campaignEvent: t.event?.trim() || "",
+            portcoTags: t.portcoTags || [],
           });
           keys.forEach((k) => {
             seen.add(k);
@@ -157,8 +172,15 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
             const outreachBits = (t.outreach || [])
               .slice(0, 8)
               .map((o) => `${o.date || "?"} ${o.method || "touch"}: ${(o.summary || "").slice(0, 120)}`);
+            const provenanceBits = [
+              t.campaign?.trim() ? `Campaign: ${t.campaign.trim()}` : "",
+              t.event?.trim() ? `Event: ${t.event.trim()}` : "",
+              (t.portcoTags || []).length ? `PortCos: ${(t.portcoTags || []).join(", ")}` : "",
+              t.originSource ? `Source: ${t.originSource}` : "",
+            ].filter(Boolean);
             const summary = [
               `Promoted from Targeting${t.reasonSurfaced ? ` · ${t.reasonSurfaced}` : ""}`,
+              provenanceBits.length ? provenanceBits.join(" · ") : "",
               outreachBits.length ? `Outreach history:\n${outreachBits.join("\n")}` : "",
             ]
               .filter(Boolean)

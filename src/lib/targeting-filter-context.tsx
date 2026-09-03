@@ -7,6 +7,8 @@ const defaultFilters: TargetingFilters = {
   sector: [],
   city: "all",
   origin: "all",
+  campaign: [],
+  event: [],
   title: "",
   seniority: [],
   department: [],

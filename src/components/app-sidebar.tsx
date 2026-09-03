@@ -153,6 +153,8 @@ export function AppSidebar({
   const targetSectors = filterOpts.targetSectors;
   const targetCities = filterOpts.targetCities;
   const targetOrigins = filterOpts.targetOrigins;
+  const targetCampaigns = filterOpts.targetCampaigns;
+  const targetEvents = filterOpts.targetEvents;
 
   const update = (partial: Partial<ContactFilters>) => {
     if (filters && onFiltersChange) onFiltersChange({ ...filters, ...partial });
@@ -948,6 +950,32 @@ export function AppSidebar({
                       value={targetingFilters.sector}
                       onChange={(v) => updateTarget({ sector: v })}
                       placeholder="All Sectors"
+                    />
+                  </div>
+
+                  {/* Campaign / Event provenance — sits above location so list
+                      provenance is the second thing you filter on after sector. */}
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                      Campaign
+                    </label>
+                    <MultiSelect
+                      options={targetCampaigns}
+                      value={targetingFilters.campaign}
+                      onChange={(v) => updateTarget({ campaign: v })}
+                      placeholder="All Campaigns"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                      Event
+                    </label>
+                    <MultiSelect
+                      options={targetEvents}
+                      value={targetingFilters.event}
+                      onChange={(v) => updateTarget({ event: v })}
+                      placeholder="All Events"
                     />
                   </div>
 
