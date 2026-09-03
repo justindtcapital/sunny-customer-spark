@@ -4092,6 +4092,26 @@ export async function buildTargets(): Promise<TargetLead[]> {
   });
 }
 
+// Distinct non-blank values already present in the Targets "Campaign" column.
+// The Campaign column IS the vocabulary — no separate catalog tab to keep in
+// sync. Returns names sorted A→Z, deduped case-insensitively (first spelling wins).
+export async function buildTargetCampaigns(): Promise<string[]> {
+  const rows = await fetchSheetTab(TAB_NAMES.targets).catch(() => [] as string[][]);
+  if (rows.length < 2) return [];
+  const headers = (rows[0] || []).map((h) => (h || "").trim().toLowerCase());
+  const idx = headers.indexOf("campaign");
+  if (idx === -1) return [];
+  const byKey = new Map<string, string>();
+  for (let i = 1; i < rows.length; i++) {
+    const value = (rows[i][idx] || "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, value);
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+}
+
+
 /**
  * Fill blank Portfolio Companies cells for a named company. Never overwrites
  * existing sheet values. Keys map to sheet columns: website, hq (location),
