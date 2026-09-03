@@ -1962,6 +1962,43 @@ function TargetingPage() {
                             </span>
                           </span>
                         </div>
+                        {/* Where this prospect came from: campaign, event roster and
+                            the portfolio companies the sourcing was run for. */}
+                        {(activeTarget.campaign ||
+                          activeTarget.event ||
+                          (activeTarget.portcoTags || []).length > 0) && (
+                          <div className="mt-2 rounded-md border border-border bg-muted/40 p-2 space-y-1">
+                            <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                              Provenance
+                            </div>
+                            {activeTarget.campaign && (
+                              <div className="text-xs text-muted-foreground">
+                                Campaign:{" "}
+                                <span className="font-medium text-foreground">
+                                  {activeTarget.campaign}
+                                </span>
+                              </div>
+                            )}
+                            {activeTarget.event && (
+                              <div className="text-xs text-muted-foreground">
+                                Event:{" "}
+                                <span className="font-medium text-foreground">
+                                  {activeTarget.event}
+                                </span>
+                              </div>
+                            )}
+                            {(activeTarget.portcoTags || []).length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                                <span className="text-xs text-muted-foreground">PortCos:</span>
+                                {(activeTarget.portcoTags || []).map((tag) => (
+                                  <Badge key={tag} variant="secondary" className="text-[10px]">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {activeTarget.reasonSurfaced && (
                           <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 p-2">
                             <div className="text-[10px] uppercase tracking-wider font-semibold text-primary mb-0.5">
