@@ -67,3 +67,25 @@ export function parseWorkstreamName(raw: string, companyHint = ""): ParsedWorkst
     name: rest.join(" · ") || parts[parts.length - 1]!,
   };
 }
+
+export interface Workstream {
+  gid: string;
+  /** Lowercased portco key, matching fieldsByCompanyName. */
+  companyKey: string;
+  company: string;
+  segment: WorkstreamSegment;
+  name: string;
+  rawName: string;
+  status: string;
+  category: string;
+  sellInStatus: string;
+  maturity: string;
+  dellTargets: string;
+  dellStakeholders: string;
+  nextSteps: string;
+  traction: string;
+  owner: string;
+  completed: boolean;
+  lastActivity: string;
+  url?: string;
+}

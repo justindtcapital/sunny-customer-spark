@@ -14,7 +14,7 @@ import { peopleEntriesFromActivity } from "@/lib/activity-canonical";
 import { isNameOnlyAttendeeEmail } from "@/lib/email-address";
 import { fetchAliasActivities, getActivityAliases, getInternalConfig } from "./gmail.server";
 import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
-import { parseWorkstreamName, type WorkstreamSegment } from "@/lib/workstream-parse";
+import { parseWorkstreamName, type Workstream } from "@/lib/workstream-parse";
 
 const ASANA_BASE = "https://app.asana.com/api/1.0";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -673,27 +673,6 @@ export async function parseActivityThreads(
 // "Company -> BD|GTM -> Workstream" convention. Fields are read verbatim so
 // uneven coverage surfaces as "Not set" in the UI rather than being guessed.
 
-export interface Workstream {
-  gid: string;
-  /** Lowercased portco key, matching fetchPortcoFields()/fieldsByCompanyName. */
-  companyKey: string;
-  company: string;
-  segment: WorkstreamSegment;
-  name: string;
-  rawName: string;
-  status: string;
-  category: string;
-  sellInStatus: string;
-  maturity: string;
-  dellTargets: string;
-  dellStakeholders: string;
-  nextSteps: string;
-  traction: string;
-  owner: string;
-  completed: boolean;
-  lastActivity: string;
-  url?: string;
-}
 
 const SUBTASK_FIELDS =
   "name,completed,completed_at,due_on,modified_at,notes,permalink_url,assignee.name,custom_fields.name,custom_fields.display_value,custom_fields.enum_value,custom_fields.multi_enum_values,custom_fields.text_value,custom_fields.number_value";

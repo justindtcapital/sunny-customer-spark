@@ -5,8 +5,8 @@ import {
   discoverFields,
   fetchAllAsanaEvents,
   fetchPortcoWorkstreams,
-  type Workstream,
 } from "./asana.server";
+import type { Workstream } from "@/lib/workstream-parse";
 import { buildActivities } from "./sheets.server";
 import { loadAttributionCorrections } from "./activity-attribution.server";
 import { applyAttributionCorrections } from "@/lib/activity-canonical";
