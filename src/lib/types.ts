@@ -238,10 +238,6 @@ export interface Contact {
   campaignEvent?: string;
   /** Portfolio companies the sourcing campaign was run for. */
   portcoTags?: string[];
-  /** Pending follow-up on this target. */
-  followUp?: boolean;
-  /** Follow-up due date (YYYY-MM-DD); "" = flagged with no date. */
-  followUpDue?: string;
   /** Company tech stack from Sumble — JSON (v1) or legacy comma-separated names. */
   techStack?: string;
 }
