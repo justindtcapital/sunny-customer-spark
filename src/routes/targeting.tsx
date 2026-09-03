@@ -2489,6 +2489,15 @@ function TargetingPage() {
         onImported={refreshTargets}
       />
 
+      {/* Bulk-assign the current selection to a campaign */}
+      <AddToCampaignDialog
+        open={addCampaignOpen}
+        onOpenChange={setAddCampaignOpen}
+        count={selectedIds.size}
+        portcoNames={companies.map((c) => c.name).filter(Boolean)}
+        onSave={addSelectedToCampaign}
+      />
+
       {/* Track activity from the target's email address */}
       <TrackActivityDialog
         open={trackActivityOpen}
