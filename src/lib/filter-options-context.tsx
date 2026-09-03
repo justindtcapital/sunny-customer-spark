@@ -11,6 +11,9 @@ export interface FilterOptions {
   targetOrigins: string[];
   targetCampaigns: string[];
   targetEvents: string[];
+  /** How many targets sit under each event name (0 for unused catalog events). */
+  targetEventCounts: Record<string, number>;
+
   // Portfolio
   portfolioDomains: string[];
   portfolioSectors: string[];
