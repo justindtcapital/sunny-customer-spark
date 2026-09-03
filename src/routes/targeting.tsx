@@ -110,6 +110,10 @@ import {
   logOpsEvent,
 } from "@/utils/sheets.functions";
 import { promoteTargetsToCrm } from "@/utils/target-crm.functions";
+import {
+  TrackActivityDialog,
+  type TrackActivityResult,
+} from "@/components/crm/TrackActivityDialog";
 import { NetworkBuilderDialog } from "@/components/crm/NetworkBuilderDialog";
 import { NetworkFinderDialog } from "@/components/crm/NetworkFinderDialog";
 import { TargetAccountsDialog } from "@/components/crm/TargetAccountsDialog";
@@ -990,6 +994,91 @@ function TargetingPage() {
     }).catch((e) => console.error("logTargetOutreach failed", e));
     setLogAttemptOpen(false);
     setAttemptSummary("");
+  };
+
+  // Track activity — logs the touch on the trail, records PortCos mentioned, and
+  // optionally re-flags the target for a future follow-up.
+  const handleTrackActivity = (res: TrackActivityResult) => {
+    if (!activeTarget) return;
+    const target = activeTarget;
+    const summary = [
+      res.kind,
+      res.note,
+      res.portcos.length ? `PortCos mentioned: ${res.portcos.join(", ")}` : "",
+      res.reminderDue ? `Follow-up set for ${res.reminderDue}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const attempt: OutreachAttempt = {
+      id: `o-${Date.now()}`,
+      date: res.date,
+      method: "Email",
+      summary,
+      portcos: res.portcos,
+    };
+    updateTarget({
+      ...target,
+      outreach: [attempt, ...target.outreach],
+      followUp: res.reminderDue ? true : target.followUp,
+      followUpDue: res.reminderDue ?? target.followUpDue,
+    });
+    void logTargetOutreach({
+      data: {
+        targetKey: targetKeyOf(target),
+        id: attempt.id,
+        date: attempt.date,
+        method: attempt.method,
+        summary: attempt.summary,
+        urid: target.urid,
+        portcos: res.portcos,
+      },
+    }).catch((e) => console.error("logTargetOutreach failed", e));
+    if (res.reminderDue) {
+      void setTargetFollowUp({
+        data: {
+          targetKey: targetKeyOf(target),
+          urid: target.urid,
+          followUp: true,
+          due: res.reminderDue,
+        },
+      }).catch((e) => console.error("setTargetFollowUp failed", e));
+    }
+    toast.success(
+      res.reminderDue ? `Activity logged · follow-up ${res.reminderDue}` : "Activity logged.",
+    );
+  };
+
+  // Resolving a follow-up clears the flag AND leaves a trail entry, so the history
+  // shows that the loop was actually closed.
+  const resolveFollowUp = () => {
+    if (!activeTarget) return;
+    const target = activeTarget;
+    const attempt: OutreachAttempt = {
+      id: `o-${Date.now()}`,
+      date: new Date().toISOString().split("T")[0],
+      method: "Note",
+      summary: `Follow-up resolved${target.followUpDue ? ` (was due ${target.followUpDue})` : ""}`,
+    };
+    updateTarget({
+      ...target,
+      followUp: false,
+      followUpDue: "",
+      outreach: [attempt, ...target.outreach],
+    });
+    void logTargetOutreach({
+      data: {
+        targetKey: targetKeyOf(target),
+        id: attempt.id,
+        date: attempt.date,
+        method: attempt.method,
+        summary: attempt.summary,
+        urid: target.urid,
+      },
+    }).catch((e) => console.error("logTargetOutreach failed", e));
+    void setTargetFollowUp({
+      data: { targetKey: targetKeyOf(target), urid: target.urid, followUp: false },
+    }).catch((e) => console.error("setTargetFollowUp failed", e));
+    toast.success("Follow-up resolved.");
   };
 
   // --- Apollo enrichment for targeting ---
@@ -1906,6 +1995,13 @@ function TargetingPage() {
                             <a
                               href={`mailto:${activeTarget.email}`}
                               className="text-primary hover:underline"
+                              onClick={(e) => {
+                                // Clicking the address opens Track activity so the
+                                // touch gets logged; ⌘/ctrl-click still opens mail.
+                                if (e.metaKey || e.ctrlKey) return;
+                                e.preventDefault();
+                                setTrackActivityOpen(true);
+                              }}
                             >
                               {activeTarget.email}
                             </a>
@@ -2298,6 +2394,16 @@ function TargetingPage() {
         existingKeys={targets.map((t) => targetKeyOf(t))}
         portcoNames={companies.map((c) => c.name).filter(Boolean)}
         onImported={refreshTargets}
+      />
+
+      {/* Track activity from the target's email address */}
+      <TrackActivityDialog
+        open={trackActivityOpen}
+        onOpenChange={setTrackActivityOpen}
+        personName={activeTarget?.name || ""}
+        email={activeTarget?.email || ""}
+        portcoNames={companies.map((c) => c.name).filter(Boolean)}
+        onSave={handleTrackActivity}
       />
 
       {/* Draft an email to the active target; logs to the outreach trail on send */}
