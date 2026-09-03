@@ -314,6 +314,12 @@ export interface TargetLead {
   originSource: string;
   /** Why this lead was surfaced (e.g. "Uses Salesforce", "Hiring security engineers"). */
   reasonSurfaced?: string;
+  /** Why this list exists — free text from the Targets "Campaign" column. */
+  campaign?: string;
+  /** Event this lead came from (Targets "Event" column; set when source = Event). */
+  event?: string;
+  /** Portfolio companies this lead is tagged to (Targets "PortCo Tags" column). */
+  portcoTags?: string[];
   /** Date the lead was added to the pipeline (from the Targets "Date Added" column). */
   dateAdded?: string;
   outreach: OutreachAttempt[];
