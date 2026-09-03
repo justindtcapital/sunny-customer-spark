@@ -238,6 +238,10 @@ export interface Contact {
   campaignEvent?: string;
   /** Portfolio companies the sourcing campaign was run for. */
   portcoTags?: string[];
+  /** Pending follow-up on this target. */
+  followUp?: boolean;
+  /** Follow-up due date (YYYY-MM-DD); "" = flagged with no date. */
+  followUpDue?: string;
   /** Company tech stack from Sumble — JSON (v1) or legacy comma-separated names. */
   techStack?: string;
 }
@@ -280,6 +284,8 @@ export interface OutreachAttempt {
   date: string;
   method: string;
   summary: string;
+  /** Portfolio companies mentioned during this touch. */
+  portcos?: string[];
 }
 
 // A saved AI "how to connect" recommendation for a target (persisted + reloaded).
@@ -343,6 +349,8 @@ export interface TargetingFilters {
   origin: string;
   /** Campaign the target came in under — multi-select (empty = no filter). */
   campaign: string[];
+  /** Only targets with a pending follow-up flag. */
+  followUpOnly: boolean;
   /** Event the target roster came from — multi-select (empty = no filter). */
   event: string[];
   /** Title contains (free text). */

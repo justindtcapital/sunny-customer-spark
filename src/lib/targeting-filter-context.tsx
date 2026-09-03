@@ -8,6 +8,7 @@ const defaultFilters: TargetingFilters = {
   city: "all",
   origin: "all",
   campaign: [],
+  followUpOnly: false,
   event: [],
   title: "",
   seniority: [],
