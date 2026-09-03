@@ -14,6 +14,7 @@ import { peopleEntriesFromActivity } from "@/lib/activity-canonical";
 import { isNameOnlyAttendeeEmail } from "@/lib/email-address";
 import { fetchAliasActivities, getActivityAliases, getInternalConfig } from "./gmail.server";
 import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
+import { parseWorkstreamName, type WorkstreamSegment } from "@/lib/workstream-parse";
 
 const ASANA_BASE = "https://app.asana.com/api/1.0";
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -665,4 +666,114 @@ export async function parseActivityThreads(
   }
 
   return out;
+}
+
+// ─── Workstreams (Asana subtasks under each portfolio-company task) ─────
+// Each portco parent task carries subtasks whose names follow the
+// "Company -> BD|GTM -> Workstream" convention. Fields are read verbatim so
+// uneven coverage surfaces as "Not set" in the UI rather than being guessed.
+
+export interface Workstream {
+  gid: string;
+  /** Lowercased portco key, matching fetchPortcoFields()/fieldsByCompanyName. */
+  companyKey: string;
+  company: string;
+  segment: WorkstreamSegment;
+  name: string;
+  rawName: string;
+  status: string;
+  category: string;
+  sellInStatus: string;
+  maturity: string;
+  dellTargets: string;
+  dellStakeholders: string;
+  nextSteps: string;
+  traction: string;
+  owner: string;
+  completed: boolean;
+  lastActivity: string;
+  url?: string;
+}
+
+const SUBTASK_FIELDS =
+  "name,completed,completed_at,due_on,modified_at,notes,permalink_url,assignee.name,custom_fields.name,custom_fields.display_value,custom_fields.enum_value,custom_fields.multi_enum_values,custom_fields.text_value,custom_fields.number_value";
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      out[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+function pickField(fields: Record<string, string>, re: RegExp): string {
+  for (const [k, v] of Object.entries(fields)) {
+    if (re.test(k.trim())) return v;
+  }
+  return "";
+}
+
+export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
+  const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
+  if (!projectGid) return [];
+
+  const cacheKey = `workstreams:${projectGid}`;
+  const cached = getCached<Workstream[]>(cacheKey);
+  if (cached) return cached;
+
+  const parents = await fetchProjectTasks(projectGid);
+  const results = await mapWithConcurrency(parents, 6, async (parent) => {
+    try {
+      const json: { data: AsanaTask[] } = await asanaFetch(
+        `/tasks/${parent.gid}/subtasks?opt_fields=${SUBTASK_FIELDS}&limit=100`,
+      );
+      const company = (parent.name || "").trim();
+      const companyKey = company.toLowerCase();
+      return (json.data || []).map((sub): Workstream => {
+        const fields: Record<string, string> = {};
+        for (const f of sub.custom_fields || []) {
+          const v = fieldStringValue(f);
+          if (v) fields[f.name] = v;
+        }
+        const parsed = parseWorkstreamName(sub.name || "", company);
+        const modified = (sub as AsanaTask & { modified_at?: string | null }).modified_at || "";
+        return {
+          gid: sub.gid,
+          companyKey,
+          company,
+          segment: parsed.segment,
+          name: parsed.name,
+          rawName: (sub.name || "").trim(),
+          status: pickField(fields, /strategy\s*workstream\s*status/i),
+          category: pickField(fields, /gtm\s*strategy\s*category/i),
+          sellInStatus: pickField(fields, /sell[\s-]*in\s*status/i),
+          maturity: pickField(fields, /maturity/i),
+          dellTargets: pickField(fields, /dell\s*targets?/i),
+          dellStakeholders: pickField(fields, /dell\s*stakeholders?/i),
+          nextSteps: pickField(fields, /next\s*steps?/i),
+          traction: pickField(fields, /traction/i),
+          owner: sub.assignee?.name?.trim() || "",
+          completed: sub.completed === true,
+          lastActivity: modified ? modified.split("T")[0]! : "",
+          url: sub.permalink_url,
+        };
+      });
+    } catch (err) {
+      console.error(`[asana] subtasks failed for ${parent.gid}:`, err);
+      return [] as Workstream[];
+    }
+  });
+
+  const flat = results.flat();
+  setCached(cacheKey, flat);
+  return flat;
 }

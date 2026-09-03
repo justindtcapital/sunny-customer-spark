@@ -1,5 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
-import { fetchPortcoFields, fetchPortfolioEvents, discoverFields, fetchAllAsanaEvents } from "./asana.server";
+import {
+  fetchPortcoFields,
+  fetchPortfolioEvents,
+  discoverFields,
+  fetchAllAsanaEvents,
+  fetchPortcoWorkstreams,
+  type Workstream,
+} from "./asana.server";
 import { buildActivities } from "./sheets.server";
 import { loadAttributionCorrections } from "./activity-attribution.server";
 import { applyAttributionCorrections } from "@/lib/activity-canonical";
@@ -82,4 +89,17 @@ export const fetchAsanaActivities = createServerFn({ method: "GET" }).handler(
       return [];
     }
   }
+);
+
+// Flat workstream list (Asana subtasks under each portco task) for the
+// portfolio-company Workstreams panel and the investor dashboards.
+export const fetchPortcoWorkstreamsFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Workstream[]> => {
+    try {
+      return await fetchPortcoWorkstreams();
+    } catch (err) {
+      console.error("[asana] fetchPortcoWorkstreamsFn failed:", err);
+      return [];
+    }
+  },
 );
