@@ -1940,6 +1940,12 @@ const TARGET_COLS: Record<string, string> = {
   source: "originSource",
   "research purpose": "researchPurpose",
   "reason surfaced": "reasonSurfaced",
+  campaign: "campaign",
+  event: "event",
+  "event name": "event",
+  "portco tags": "portcoTags",
+  "portfolio tags": "portcoTags",
+  "portco tag": "portcoTags",
   "date added": "dateAdded",
   "last contacted": "lastContacted",
 };
