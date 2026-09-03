@@ -60,6 +60,8 @@ import { getPortcoIntel, getPortcoBrief } from "@/utils/sumble.functions";
 import { TechStackSection } from "@/components/crm/TechStackSection";
 import { ActivitySection } from "@/components/crm/ActivitySection";
 import { useAsanaActivities } from "@/lib/use-activities";
+import { useWorkstreams } from "@/lib/use-workstreams";
+import { WorkstreamsPanel } from "@/components/portfolio/WorkstreamsPanel";
 import { matchActivitiesToCompany } from "@/lib/activity-match";
 import type { PortcoIntelResult, PortcoBriefResult } from "@/utils/sumble.server";
 import { CustomerDiscoveryPanel } from "./CustomerDiscoveryPanel";
@@ -131,6 +133,11 @@ export function PortfolioDetail({
   const [deleting, setDeleting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const { activities, loading: activitiesLoading } = useAsanaActivities();
+  const {
+    workstreams: allWorkstreams,
+    loading: workstreamsLoading,
+    refresh: refreshWorkstreams,
+  } = useWorkstreams();
 
   if (!company) return null;
 
@@ -165,6 +172,10 @@ export function PortfolioDetail({
   const companyDomain = extractDomain(company.website) || "";
 
   const companyActivities = matchActivitiesToCompany(activities, company.name);
+
+  const companyWorkstreams = allWorkstreams.filter(
+    (w) => w.companyKey === company.name.trim().toLowerCase(),
+  );
 
   // #5 — AI commonality narrative. Sends ONLY Sheets-native network data
   // (titles/sectors/types/engagement source) — never Asana intro records.
@@ -578,6 +589,15 @@ export function PortfolioDetail({
                   />
                 </section>
               )}
+
+              {/* Workstreams — Asana subtasks under this company's portfolio task */}
+              <section className="border-b border-border pb-6">
+                <WorkstreamsPanel
+                  workstreams={companyWorkstreams}
+                  loading={workstreamsLoading}
+                  onRefresh={refreshWorkstreams}
+                />
+              </section>
 
               {/* Signals — recent news/activity for this PortCo (scoped scan) */}
               <section className="border-b border-border pb-6">

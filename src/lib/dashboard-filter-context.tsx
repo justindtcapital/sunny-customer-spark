@@ -6,6 +6,8 @@ export interface DashboardFilters {
   temperature: string;
   city: string;
   portfolioCompany: string;
+  /** Selected lead investor for the investor dashboard ("" = none). */
+  investor: string;
 }
 
 const defaultFilters: DashboardFilters = {
@@ -14,6 +16,7 @@ const defaultFilters: DashboardFilters = {
   temperature: "all",
   city: "all",
   portfolioCompany: "all",
+  investor: "",
 };
 
 interface DashboardFilterContextType {
