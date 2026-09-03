@@ -22,7 +22,10 @@ interface MultiSelectProps {
   className?: string;
   /** Custom trigger label; defaults to single value / "N selected". */
   formatLabel?: (value: string[]) => string;
+  /** Optional per-option match counts rendered as a muted number on the right. */
+  counts?: Record<string, number>;
 }
+
 
 // Searchable multi-select: a popover checkbox list whose trigger summarizes the
 // selection. Empty selection reads as "no filter" — mirrors the OR-within-a-field
