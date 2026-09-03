@@ -489,6 +489,7 @@ function TargetingPage() {
     setResearching,
   } = useTargetSelection();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [deletingTargets, setDeletingTargets] = useState(false);
   const [promotingCrm, setPromotingCrm] = useState(false);
   const { updateOptions } = useFilterOptions();
