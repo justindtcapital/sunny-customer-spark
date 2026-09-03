@@ -44,6 +44,7 @@ export type RecordSource =
   | "Apollo"
   | "Customer Discovery"
   | "CSV Import"
+  | "Event"
   | "Manual Entry";
 
 export const RECORD_SOURCES: RecordSource[] = [
@@ -51,6 +52,7 @@ export const RECORD_SOURCES: RecordSource[] = [
   "Apollo",
   "Customer Discovery",
   "CSV Import",
+  "Event",
   "Manual Entry",
 ];
 
@@ -64,6 +66,9 @@ export function normalizeSource(raw?: string): RecordSource {
   if (s.includes("sumble") || s.includes("network finder") || s.includes("network search"))
     return "Sumble";
   if (s.includes("apollo")) return "Apollo";
+  // Event lists (conference attendee rosters etc.) — checked before the CSV
+  // branch so "Event list CSV" still attributes to the event entry point.
+  if (s.includes("event")) return "Event";
   if (s.includes("csv") || s.includes("import") || s.includes("paste") || s.includes("bulk"))
     return "CSV Import";
   if (s.includes("manual")) return "Manual Entry";
@@ -309,6 +314,12 @@ export interface TargetLead {
   originSource: string;
   /** Why this lead was surfaced (e.g. "Uses Salesforce", "Hiring security engineers"). */
   reasonSurfaced?: string;
+  /** Why this list exists — free text from the Targets "Campaign" column. */
+  campaign?: string;
+  /** Event this lead came from (Targets "Event" column; set when source = Event). */
+  event?: string;
+  /** Portfolio companies this lead is tagged to (Targets "PortCo Tags" column). */
+  portcoTags?: string[];
   /** Date the lead was added to the pipeline (from the Targets "Date Added" column). */
   dateAdded?: string;
   outreach: OutreachAttempt[];

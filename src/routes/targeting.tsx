@@ -2230,6 +2230,7 @@ function TargetingPage() {
         open={uploadOpen}
         onOpenChange={setUploadOpen}
         existingKeys={targets.map((t) => targetKeyOf(t))}
+        portcoNames={companies.map((c) => c.name).filter(Boolean)}
         onImported={refreshTargets}
       />
 

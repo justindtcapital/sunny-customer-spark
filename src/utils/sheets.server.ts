@@ -1940,6 +1940,12 @@ const TARGET_COLS: Record<string, string> = {
   source: "originSource",
   "research purpose": "researchPurpose",
   "reason surfaced": "reasonSurfaced",
+  campaign: "campaign",
+  event: "event",
+  "event name": "event",
+  "portco tags": "portcoTags",
+  "portfolio tags": "portcoTags",
+  "portco tag": "portcoTags",
   "date added": "dateAdded",
   "last contacted": "lastContacted",
 };
@@ -1964,6 +1970,9 @@ export const TARGET_HEADERS = [
   "Date Added",
   "Last Contacted",
   "Reason Surfaced",
+  "Campaign",
+  "Event",
+  "PortCo Tags",
 ];
 
 // One row to add to the Targets tab. Written header-aware (see appendTargetRows)
@@ -1984,6 +1993,12 @@ export interface TargetRowInput {
   dateAdded?: string;
   lastContacted?: string;
   reasonSurfaced?: string;
+  /** Why this list exists (free text, e.g. "Follow-up — Data Summit 2026"). */
+  campaign?: string;
+  /** Event name when the list came from an event roster. */
+  event?: string;
+  /** Portfolio companies this row is tagged to. Stored comma-separated. */
+  portcoTags?: string[];
 }
 
 // Header-aware Targets append: stamps a stable URID on every new row and places
@@ -1995,6 +2010,9 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
   await ensureColumn(TAB_NAMES.targets, "URID");
   await ensureColumn(TAB_NAMES.targets, "Reason Surfaced");
   await ensureColumn(TAB_NAMES.targets, "Phone");
+  await ensureColumn(TAB_NAMES.targets, "Campaign");
+  await ensureColumn(TAB_NAMES.targets, "Event");
+  await ensureColumn(TAB_NAMES.targets, "PortCo Tags");
 
   const rows = await fetchSheetTab(TAB_NAMES.targets);
   const headers = (rows[0] || []).map((h) => h.trim().toLowerCase());
@@ -2018,6 +2036,12 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
       "date added": t.dateAdded || today,
       "last contacted": t.lastContacted || "",
       "reason surfaced": t.reasonSurfaced || "",
+      campaign: (t.campaign || "").trim(),
+      event: (t.event || "").trim(),
+      "portco tags": (t.portcoTags || [])
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .join(", "),
     };
     return headers.map((h) => valueByHeader[h] ?? "");
   });
@@ -3448,6 +3472,9 @@ const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
   originSource: ["source"],
   notes: ["research purpose"],
   reasonSurfaced: ["reason surfaced"],
+  campaign: ["campaign"],
+  event: ["event", "event name"],
+  portcoTags: ["portco tags", "portfolio tags"],
   dateAdded: ["date added"],
   lastContacted: ["last contacted"],
 };
@@ -4051,6 +4078,12 @@ export async function buildTargets(): Promise<TargetLead[]> {
       // (legacy values like "Customer Discovery — Acme" → "Customer Discovery").
       originSource: normalizeSource(t.originSource),
       reasonSurfaced: t.reasonSurfaced || "",
+      campaign: (t.campaign || "").trim(),
+      event: (t.event || "").trim(),
+      portcoTags: (t.portcoTags || "")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean),
       dateAdded: t.dateAdded || "",
       outreach,
       notes: t.researchPurpose || "",
@@ -4058,6 +4091,26 @@ export async function buildTargets(): Promise<TargetLead[]> {
     };
   });
 }
+
+// Distinct non-blank values already present in the Targets "Campaign" column.
+// The Campaign column IS the vocabulary — no separate catalog tab to keep in
+// sync. Returns names sorted A→Z, deduped case-insensitively (first spelling wins).
+export async function buildTargetCampaigns(): Promise<string[]> {
+  const rows = await fetchSheetTab(TAB_NAMES.targets).catch(() => [] as string[][]);
+  if (rows.length < 2) return [];
+  const headers = (rows[0] || []).map((h) => (h || "").trim().toLowerCase());
+  const idx = headers.indexOf("campaign");
+  if (idx === -1) return [];
+  const byKey = new Map<string, string>();
+  for (let i = 1; i < rows.length; i++) {
+    const value = (rows[i][idx] || "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, value);
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+}
+
 
 /**
  * Fill blank Portfolio Companies cells for a named company. Never overwrites
