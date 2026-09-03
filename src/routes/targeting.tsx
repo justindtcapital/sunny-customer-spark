@@ -120,6 +120,11 @@ import { TargetAccountsDialog } from "@/components/crm/TargetAccountsDialog";
 import { FindCompaniesDialog } from "@/components/crm/FindCompaniesDialog";
 import { TargetPasteDialog } from "@/components/crm/TargetPasteDialog";
 import { TargetUploadDialog } from "@/components/crm/TargetUploadDialog";
+import {
+  AddToCampaignDialog,
+  type AddToCampaignResult,
+} from "@/components/crm/AddToCampaignDialog";
+import { invalidateCampaignCache } from "@/components/crm/CampaignCombobox";
 import { EmailDraftDialog } from "@/components/crm/EmailDraftDialog";
 import {
   type TargetLead,
