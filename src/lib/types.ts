@@ -330,6 +330,10 @@ export interface TargetLead {
   portcoTags?: string[];
   /** Date the lead was added to the pipeline (from the Targets "Date Added" column). */
   dateAdded?: string;
+  /** Pending follow-up flag (Targets "Follow Up Flag" column). */
+  followUp?: boolean;
+  /** Follow-up due date (YYYY-MM-DD); "" = flagged with no date. */
+  followUpDue?: string;
   outreach: OutreachAttempt[];
   notes: string;
   /** Latest saved AI connection plan (persisted to the Target Strategy tab). */
