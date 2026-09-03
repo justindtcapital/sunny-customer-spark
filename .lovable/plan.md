@@ -66,4 +66,9 @@ a manual refresh action. No writes back to Asana.
   leading company token, classify BD / GTM / Other) so it is unit-testable.
 - Charts reuse `ConfiguredChart` / `DrillSheet` so drill-down behaves like the existing
   portfolio charts.
+- Investor list derived from the existing `Lead Investor` values on portfolio companies
+  (already surfaced as `portfolioLeadInvestors` in the filter-options context); the
+  investor view is a selected-investor state inside `src/routes/dashboard.tsx`, and the
+  activity log reuses the existing activity data plus a portfolio-company filter.
 - No schema or Sheets changes; Asana stays the source of truth for workstreams.
+
