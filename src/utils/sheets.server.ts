@@ -3472,6 +3472,9 @@ const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
   originSource: ["source"],
   notes: ["research purpose"],
   reasonSurfaced: ["reason surfaced"],
+  campaign: ["campaign"],
+  event: ["event", "event name"],
+  portcoTags: ["portco tags", "portfolio tags"],
   dateAdded: ["date added"],
   lastContacted: ["last contacted"],
 };
