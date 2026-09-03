@@ -1970,6 +1970,9 @@ export const TARGET_HEADERS = [
   "Date Added",
   "Last Contacted",
   "Reason Surfaced",
+  "Campaign",
+  "Event",
+  "PortCo Tags",
 ];
 
 // One row to add to the Targets tab. Written header-aware (see appendTargetRows)
@@ -1990,6 +1993,12 @@ export interface TargetRowInput {
   dateAdded?: string;
   lastContacted?: string;
   reasonSurfaced?: string;
+  /** Why this list exists (free text, e.g. "Follow-up — Data Summit 2026"). */
+  campaign?: string;
+  /** Event name when the list came from an event roster. */
+  event?: string;
+  /** Portfolio companies this row is tagged to. Stored comma-separated. */
+  portcoTags?: string[];
 }
 
 // Header-aware Targets append: stamps a stable URID on every new row and places
@@ -2001,6 +2010,9 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
   await ensureColumn(TAB_NAMES.targets, "URID");
   await ensureColumn(TAB_NAMES.targets, "Reason Surfaced");
   await ensureColumn(TAB_NAMES.targets, "Phone");
+  await ensureColumn(TAB_NAMES.targets, "Campaign");
+  await ensureColumn(TAB_NAMES.targets, "Event");
+  await ensureColumn(TAB_NAMES.targets, "PortCo Tags");
 
   const rows = await fetchSheetTab(TAB_NAMES.targets);
   const headers = (rows[0] || []).map((h) => h.trim().toLowerCase());
@@ -2024,6 +2036,12 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
       "date added": t.dateAdded || today,
       "last contacted": t.lastContacted || "",
       "reason surfaced": t.reasonSurfaced || "",
+      campaign: (t.campaign || "").trim(),
+      event: (t.event || "").trim(),
+      "portco tags": (t.portcoTags || [])
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .join(", "),
     };
     return headers.map((h) => valueByHeader[h] ?? "");
   });
