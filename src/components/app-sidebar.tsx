@@ -896,8 +896,63 @@ export function AppSidebar({
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Investor dashboards — one summary page per lead investor */}
+                  <div className="pt-1 border-t border-border">
+                    <button
+                      type="button"
+                      onClick={() => setInvestorsOpen((o) => !o)}
+                      className="w-full flex items-center gap-1.5 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {investorsOpen ? (
+                        <ChevronDown className="h-3 w-3" />
+                      ) : (
+                        <ChevronRight className="h-3 w-3" />
+                      )}
+                      Investor Dashboards
+                      <span className="ml-auto rounded-full bg-muted px-1.5 text-[10px] font-medium">
+                        {filterOpts.dashboardInvestors.length}
+                      </span>
+                    </button>
+                    {investorsOpen && (
+                      <div className="mt-1 space-y-0.5 max-h-64 overflow-y-auto pr-1">
+                        {filterOpts.dashboardInvestors.length === 0 ? (
+                          <p className="text-[11px] text-muted-foreground px-1 py-1">
+                            No lead investors yet.
+                          </p>
+                        ) : (
+                          <>
+                            {dashboardFilters.investor && (
+                              <button
+                                type="button"
+                                onClick={() => updateDash({ investor: "" })}
+                                className="w-full text-left text-[11px] rounded-md px-2 py-1 text-muted-foreground hover:bg-accent"
+                              >
+                                ← Back to all dashboards
+                              </button>
+                            )}
+                            {filterOpts.dashboardInvestors.map((inv) => (
+                              <button
+                                key={inv}
+                                type="button"
+                                onClick={() => updateDash({ investor: inv })}
+                                className={`w-full text-left text-xs rounded-md px-2 py-1 truncate transition-colors ${
+                                  dashboardFilters.investor === inv
+                                    ? "bg-primary/10 text-primary font-medium"
+                                    : "hover:bg-accent text-foreground"
+                                }`}
+                              >
+                                {inv}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </SidebarGroupContent>
               </SidebarGroup>
+
             </>
           )}
 
