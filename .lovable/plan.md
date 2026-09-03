@@ -32,8 +32,9 @@ Clicking a target's email address opens a small **Track activity** dialog instea
 - Activity type: **Cold outreach** or **Follow-up** (one or the other).
 - Optional multi-select of **portfolio companies mentioned**.
 - Optional short note and a date defaulting to today.
+- **Set a future follow-up / reminder**: a checkbox plus a date (with quick "in 1 week / 2 weeks / 1 month" presets). Checking it flags the target for follow-up and sets the due date, so the target shows up under the "Needs follow-up" filter and gets an overdue badge once the date passes.
 
-On save it appends one Outreach Trail entry with that type, note, and the PortCos mentioned; when PortCos are selected it also writes the matching PortCo exposure rows so the mention shows up on those company views.
+On save it appends one Outreach Trail entry with that type, note, and the PortCos mentioned; when PortCos are selected it also writes the matching PortCo exposure rows so the mention shows up on those company views. Logging a Follow-up activity without setting a new reminder resolves any pending follow-up on that target.
 
 ### 4. Make follow-ups visible
 
