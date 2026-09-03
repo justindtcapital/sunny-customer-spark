@@ -94,6 +94,18 @@ export const fetchTargets = createServerFn({ method: "GET" }).handler(async () =
   }
 });
 
+// Campaign vocabulary for the import dialogs: the distinct values already in the
+// Targets "Campaign" column. Free text is still allowed — this is only the
+// suggestion list, so a Sheets hiccup degrades to "type your own".
+export const fetchTargetCampaigns = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    return await buildTargetCampaigns();
+  } catch (error) {
+    console.error("Failed to fetch target campaigns:", error);
+    return [] as string[];
+  }
+});
+
 export const fetchPortfolioCompanies = createServerFn({ method: "GET" }).handler(async () => {
   try {
     return await buildPortfolioCompanies();
