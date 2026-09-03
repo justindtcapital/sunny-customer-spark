@@ -9,6 +9,8 @@ export interface FilterOptions {
   targetSectors: string[];
   targetCities: string[];
   targetOrigins: string[];
+  targetCampaigns: string[];
+  targetEvents: string[];
   // Portfolio
   portfolioDomains: string[];
   portfolioSectors: string[];
@@ -28,6 +30,8 @@ const defaultOptions: FilterOptions = {
   targetSectors: [],
   targetCities: [],
   targetOrigins: [],
+  targetCampaigns: [],
+  targetEvents: [],
   portfolioDomains: [],
   portfolioSectors: [],
   portfolioCities: [],

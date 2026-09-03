@@ -232,6 +232,12 @@ export interface Contact {
   source?: RecordSource;
   /** V2: supporting "why surfaced" reasoning (Sumble technographic context). */
   sourceContext?: string;
+  /** Campaign this person came in under (persists from Targeting on promote). */
+  campaign?: string;
+  /** Event roster this person came from (persists from Targeting on promote). */
+  campaignEvent?: string;
+  /** Portfolio companies the sourcing campaign was run for. */
+  portcoTags?: string[];
   /** Company tech stack from Sumble — JSON (v1) or legacy comma-separated names. */
   techStack?: string;
 }
@@ -335,6 +341,10 @@ export interface TargetingFilters {
   sector: string[];
   city: string;
   origin: string;
+  /** Campaign the target came in under — multi-select (empty = no filter). */
+  campaign: string[];
+  /** Event the target roster came from — multi-select (empty = no filter). */
+  event: string[];
   /** Title contains (free text). */
   title: string;
   /** Seniority levels derived from title (empty = no filter). */
