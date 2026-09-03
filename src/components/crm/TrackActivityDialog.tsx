@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PortcoTagPicker } from "@/components/crm/PortcoTagPicker";
-import { DateTextField } from "@/components/crm/DateTextField";
+import { DateTextField } from "@/components/ui/date-text-field";
 import { todayIso } from "@/lib/sheet-date";
 
 export type TrackActivityKind = "Cold outreach" | "Follow-up";
