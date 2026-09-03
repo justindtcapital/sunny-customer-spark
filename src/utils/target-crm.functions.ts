@@ -34,6 +34,8 @@ export interface PromoteTargetInput {
   event?: string;
   /** Portfolio companies the sourcing campaign was for. */
   portcoTags?: string[];
+  /** Pending follow-up carries into the CRM contact. */
+  followUp?: boolean;
 }
 
 export interface PromoteTargetsResult {
@@ -158,6 +160,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
             campaign: t.campaign?.trim() || "",
             campaignEvent: t.event?.trim() || "",
             portcoTags: t.portcoTags || [],
+            followUp: t.followUp === true,
           });
           keys.forEach((k) => {
             seen.add(k);
