@@ -74,6 +74,7 @@ export function InvestorDashboard({
   portcos,
   contacts,
   portfolioCompanies,
+  asanaFieldsByPortco,
   onBack,
   onContactClick,
 }: {
@@ -81,6 +82,8 @@ export function InvestorDashboard({
   portcos: InvestorPortcoInput[];
   contacts: Contact[];
   portfolioCompanies: PortfolioCompany[];
+  /** Asana custom fields keyed by canonical portfolio-company key. */
+  asanaFieldsByPortco?: Record<string, Record<string, string>>;
   onBack: () => void;
   onContactClick?: (c: Contact) => void;
 }) {
@@ -256,7 +259,7 @@ export function InvestorDashboard({
         <CardContent className="space-y-2">
           {portcos.map((p) => {
             const sheet = sheetByKey.get(p.key);
-            const fields = sheet?.asanaFields;
+            const fields = asanaFieldsByPortco?.[p.key] || sheet?.asanaFields;
             const details = DETAIL_FIELDS.map((label) => ({
               label,
               value: fieldValue(fields, label),
