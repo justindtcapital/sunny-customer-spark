@@ -30,16 +30,28 @@ On the PortCo detail page, a Workstreams section listing that company's workstre
 grouped by BD / GTM, each row showing name, status pill, owner, next steps and last
 activity. Completed ones collapse under a "Completed" group.
 
-**3. Portfolio-wide workstream report**
-A new report view (Portfolio tab) with:
-- Counts by status (Complete / Working to Complete / Not set) and by segment.
-- Counts by GTM Strategy Category and by Dell Target.
-- Companies with zero workstreams (coverage gap) and stale workstreams (no change in 90+ days).
-- Click-through from any bar to the underlying workstream list, then to the company.
+**3. Investor dashboards (inside the Dashboard tab)**
+No workstream reporting on the main dashboard. Instead, at the bottom of the
+dashboard filter pane, a collapsible "Investor Dashboards" section lists the lead
+investor names drawn from the portfolio companies. Clicking one opens that investor's
+portfolio page inside the Dashboard tab, containing:
+
+- Header summary: number of portfolio companies, total DTC investment and ownership,
+  introductions made, activity count, events touched.
+- Introductions: who was introduced, to which portfolio company, when.
+- Activity: counts and trend for BD / GTM activity tied to that investor's companies.
+- Events: events those companies were exposed to, with dates.
+- Companies table: each portfolio company for that investor with stage, DTC priority,
+  ownership, investment, and the investor detail fields already shown on the PortCo page.
+- Major workstreams: the Asana workstreams for those companies, grouped by company and
+  BD / GTM, with status, owner and next steps.
+- Activity log (bottom): the full underlying activity rows, with a portfolio-company
+  filter so the log can be narrowed to one company.
 
 **4. Freshness**
 Same pattern as the existing Asana reads: cached server fetch, refreshed on load, with
 a manual refresh action. No writes back to Asana.
+
 
 ## Technical notes
 
@@ -54,4 +66,9 @@ a manual refresh action. No writes back to Asana.
   leading company token, classify BD / GTM / Other) so it is unit-testable.
 - Charts reuse `ConfiguredChart` / `DrillSheet` so drill-down behaves like the existing
   portfolio charts.
+- Investor list derived from the existing `Lead Investor` values on portfolio companies
+  (already surfaced as `portfolioLeadInvestors` in the filter-options context); the
+  investor view is a selected-investor state inside `src/routes/dashboard.tsx`, and the
+  activity log reuses the existing activity data plus a portfolio-company filter.
 - No schema or Sheets changes; Asana stays the source of truth for workstreams.
+
