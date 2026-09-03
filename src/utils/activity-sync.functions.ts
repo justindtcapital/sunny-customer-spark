@@ -7,6 +7,9 @@ import {
   buildPortfolioCompanies,
   buildActivities,
   appendInteractionRows,
+  appendTargetOutreachRows,
+  buildTargets,
+  fetchTargetOutreachGids,
   upsertPortcoIntros,
   fetchSheetTab,
   syncActivityTracks as syncActivityTracksToSheets,
@@ -19,7 +22,11 @@ import {
 } from "./sheets.server";
 import { isGmailCrmSyncConfigured } from "./gmail.server";
 import { parseToIsoDate, todayIso } from "@/lib/sheet-date";
-import { matchActivitiesToContact, resolvePortcosMentioned } from "@/lib/activity-match";
+import {
+  matchActivitiesToContact,
+  matchActivitiesToTarget,
+  resolvePortcosMentioned,
+} from "@/lib/activity-match";
 import {
   applyAttributionCorrections,
   canonicalizeActivities,
@@ -29,7 +36,65 @@ import {
 import { inferEngagementSource } from "@/lib/engagement-source";
 import { loadAttributionCorrections, refineAttribution } from "./activity-attribution.server";
 import { sourceMissingContactsFromActivities } from "./activity-sync-source.server";
+import { emailBodyExcerpt } from "@/lib/email-excerpt";
+import { targetKeyOf } from "@/lib/types";
 import type { AsanaActivity, Contact, InteractionType } from "@/lib/types";
+
+/** Longest excerpt written into a Target Outreach summary cell. */
+const TARGET_SUMMARY_BUDGET = 900;
+
+// Mirror BD/GTM activity onto the Outreach Trail of matching *targets* (people
+// not yet promoted to the CRM). Deduped on the activity GID already present in
+// the Target Outreach tab, so re-syncing is a no-op. Never throws — target
+// logging must not fail the contact sync.
+async function logActivitiesToTargets(
+  activities: AsanaActivity[],
+  portfolioNames: string[],
+  today: string,
+): Promise<{ logged: number; targetsTouched: number }> {
+  if (activities.length === 0) return { logged: 0, targetsTouched: 0 };
+  const [targets, seenGids] = await Promise.all([buildTargets(), fetchTargetOutreachGids()]);
+  const entries: Array<{
+    targetKey: string;
+    urid?: string;
+    date: string;
+    method: string;
+    summary: string;
+    id: string;
+    sourceGid: string;
+    portcos: string[];
+  }> = [];
+  const touched = new Set<string>();
+  for (const t of targets) {
+    const key = targetKeyOf(t);
+    if (!key) continue;
+    for (const a of matchActivitiesToTarget(activities, t)) {
+      const dedupeKey = `${key}|${a.gid}`;
+      if (seenGids.has(dedupeKey)) continue;
+      seenGids.add(dedupeKey);
+      const portcos = resolvePortcosMentioned(a, portfolioNames);
+      const excerpt = emailBodyExcerpt(a.notes || "", TARGET_SUMMARY_BUDGET) || "";
+      const summary = [a.name, excerpt && excerpt !== a.name ? excerpt : ""]
+        .filter(Boolean)
+        .join("\n")
+        .slice(0, TARGET_SUMMARY_BUDGET);
+      entries.push({
+        targetKey: key,
+        urid: t.urid,
+        date: parseToIsoDate(a.date) || today,
+        method: "Email",
+        summary,
+        id: `sync-${a.gid}`,
+        sourceGid: dedupeKey,
+        portcos,
+      });
+      touched.add(key);
+    }
+  }
+  if (entries.length === 0) return { logged: 0, targetsTouched: 0 };
+  await appendTargetOutreachRows(entries);
+  return { logged: entries.length, targetsTouched: touched.size };
+}
 
 /** Which mailbox/tracker to pull BD/GTM activities from. */
 export type ActivitySyncSource = "all" | "asana" | "gmail";
@@ -389,6 +454,19 @@ export const syncAsanaActivities = createServerFn({ method: "POST" })
       }
 
       if (rows.length > 0) await appendInteractionRows(rows);
+
+      // Pre-CRM prospects get the same attribution on their Outreach Trail.
+      const targetLog = await logActivitiesToTargets(activities, portfolioNames, today).catch(
+        (e) => {
+          console.error("[activity] target outreach logging failed:", e);
+          return { logged: 0, targetsTouched: 0 };
+        },
+      );
+      if (targetLog.logged > 0) {
+        console.log(
+          `[activity] logged ${targetLog.logged} outreach entries across ${targetLog.targetsTouched} targets`,
+        );
+      }
       // #region agent log
       fetch("http://127.0.0.1:7724/ingest/5184a65b-0c76-4274-b203-81774fe31d23", {
         method: "POST",
