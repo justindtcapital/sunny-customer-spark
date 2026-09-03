@@ -4078,6 +4078,12 @@ export async function buildTargets(): Promise<TargetLead[]> {
       // (legacy values like "Customer Discovery — Acme" → "Customer Discovery").
       originSource: normalizeSource(t.originSource),
       reasonSurfaced: t.reasonSurfaced || "",
+      campaign: (t.campaign || "").trim(),
+      event: (t.event || "").trim(),
+      portcoTags: (t.portcoTags || "")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean),
       dateAdded: t.dateAdded || "",
       outreach,
       notes: t.researchPurpose || "",
