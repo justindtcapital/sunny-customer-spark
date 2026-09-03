@@ -472,6 +472,50 @@ export function TargetUploadDialog({
                     </label>
                   </div>
 
+                  {/* Event source pulls the roster's event name from the Events list
+                      and pre-fills the campaign with a follow-up label. */}
+                  {source === "Event" && (
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                        Event
+                      </Label>
+                      <EventPicker
+                        value={eventName}
+                        onChange={(v) => {
+                          setEventName(v);
+                          if (v && !campaign.trim()) setCampaign(`Follow-up — ${v}`);
+                        }}
+                        placeholder="Select the event this list came from"
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                        Campaign
+                      </Label>
+                      <CampaignCombobox value={campaign} onChange={setCampaign} />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Why this list exists. Pick a prior campaign or write in a new one.
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                        PortCo tags
+                      </Label>
+                      <PortcoTagPicker
+                        value={portcoTags}
+                        onChange={setPortcoTags}
+                        options={portcoNames}
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Optional — who this targeting is on behalf of.
+                      </p>
+                    </div>
+                  </div>
+
+
                   <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px]">
                     <div className="font-semibold text-foreground mb-1">Validation report</div>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-muted-foreground">
