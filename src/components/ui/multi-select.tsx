@@ -38,7 +38,9 @@ export function MultiSelect({
   searchable = true,
   className,
   formatLabel,
+  counts,
 }: MultiSelectProps) {
+
   const toggle = (option: string) => {
     onChange(value.includes(option) ? value.filter((v) => v !== option) : [...value, option]);
   };
