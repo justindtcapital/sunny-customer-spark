@@ -99,7 +99,6 @@ export const Route = createFileRoute("/dashboard")({
       portcoNames: asana.namesByCompanyName,
       asanaFieldsByPortco: asana.fieldsByCompanyName,
 
-      asanaFieldsByPortco: asana.fieldsByCompanyName,
       eventsByPortco: asana.eventsByCompanyName,
       portfolioPortcos,
     };
