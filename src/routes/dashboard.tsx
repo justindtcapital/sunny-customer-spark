@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { Contact, PortfolioEvent } from "@/lib/types";
+import type { Contact, PortfolioCompany, PortfolioEvent } from "@/lib/types";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -92,6 +92,7 @@ export const Route = createFileRoute("/dashboard")({
     return {
       contacts,
       transitions,
+      portfolioCompanies: (portfolio || []) as PortfolioCompany[],
       investorByPortco,
       portcoNames: asana.namesByCompanyName,
       eventsByPortco: asana.eventsByCompanyName,
@@ -273,10 +274,19 @@ function SectionLabel({
 }
 
 function DashboardPage() {
-  const { contacts, transitions, investorByPortco, portcoNames, eventsByPortco, portfolioPortcos } =
+  const {
+    contacts,
+    transitions,
+    investorByPortco,
+    portcoNames,
+    eventsByPortco,
+    portfolioPortcos,
+    portfolioCompanies,
+  } =
     Route.useLoaderData() as {
       contacts: Contact[];
       transitions: Transition[];
+      portfolioCompanies: PortfolioCompany[];
       investorByPortco: Record<string, string>;
       portcoNames: Record<string, string>;
       eventsByPortco: Record<string, PortfolioEvent[]>;
