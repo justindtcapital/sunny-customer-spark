@@ -295,7 +295,9 @@ function DashboardPage() {
       portfolioCompanies: PortfolioCompany[];
       investorByPortco: Record<string, string>;
       portcoNames: Record<string, string>;
+      asanaFieldsByPortco: Record<string, Record<string, string>>;
       eventsByPortco: Record<string, PortfolioEvent[]>;
+
       portfolioPortcos: string[];
     };
   const { filters, setFilters } = useDashboardFilters();
