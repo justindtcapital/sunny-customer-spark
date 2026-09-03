@@ -3,6 +3,7 @@ import { parseToIsoDate, todayIso } from "@/lib/sheet-date";
 import {
   buildContacts,
   buildTargets,
+  buildTargetCampaigns,
   buildPortfolioCompanies,
   buildAppEvents,
   addPortfolioCompany as addPortfolioCompanyServer,
@@ -473,6 +474,10 @@ export const importTargets = createServerFn({ method: "POST" })
         researchPurpose: string;
         reasonSurfaced?: string;
       }>;
+      /** Applied to every row in the batch (list-level tagging). */
+      campaign?: string;
+      event?: string;
+      portcoTags?: string[];
     }) => data,
   )
   .handler(async ({ data }): Promise<{ added: number; duplicates: number }> => {
@@ -521,6 +526,9 @@ export const importTargets = createServerFn({ method: "POST" })
           source: t.source,
           researchPurpose: t.researchPurpose,
           reasonSurfaced: t.reasonSurfaced || "",
+          campaign: (data.campaign || "").trim(),
+          event: (data.event || "").trim(),
+          portcoTags: data.portcoTags || [],
         })),
       );
       await logOpsEventServer({
@@ -529,7 +537,15 @@ export const importTargets = createServerFn({ method: "POST" })
         status: "ok",
         summary: `Imported ${toAdd.length} target${toAdd.length !== 1 ? "s" : ""}${duplicates ? ` · ${duplicates} duplicate${duplicates !== 1 ? "s" : ""} skipped` : ""}`,
         records: toAdd.length,
-        details: { duplicates, source: toAdd[0]?.source },
+        details: {
+          duplicates,
+          source: toAdd[0]?.source,
+          campaign: (data.campaign || "").trim() || undefined,
+          event: (data.event || "").trim() || undefined,
+          portcoTags: (data.portcoTags || []).length
+            ? (data.portcoTags || []).join(", ")
+            : undefined,
+        },
         items: toAdd.map((t) =>
           [`${t.firstName} ${t.lastName}`.trim(), t.company].filter(Boolean).join(" · "),
         ),
