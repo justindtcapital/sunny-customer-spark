@@ -20,6 +20,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { importTargets } from "@/utils/sheets.functions";
+import { CampaignCombobox, invalidateCampaignCache } from "@/components/crm/CampaignCombobox";
+import { PortcoTagPicker } from "@/components/crm/PortcoTagPicker";
+import { EventPicker } from "@/components/events/EventPicker";
 import { enrichContact } from "@/utils/apollo.functions";
 import { normalizeEmails } from "@/lib/email";
 import { targetKeyOf, RECORD_SOURCES } from "@/lib/types";
@@ -30,6 +33,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** targetKeyOf() for existing targets — used to preview duplicate skips. */
   existingKeys?: string[];
+  /** Portfolio company names offered as PortCo tags. */
+  portcoNames?: string[];
   onImported?: () => void | Promise<void>;
 }
 
@@ -216,11 +221,20 @@ async function enrichRow(r: ParsedRow): Promise<{ row: ParsedRow; enriched: bool
   }
 }
 
-export function TargetUploadDialog({ open, onOpenChange, existingKeys = [], onImported }: Props) {
+export function TargetUploadDialog({
+  open,
+  onOpenChange,
+  existingKeys = [],
+  portcoNames = [],
+  onImported,
+}: Props) {
   const [grid, setGrid] = useState<string[][] | null>(null);
   const [fileName, setFileName] = useState("");
   const [mapping, setMapping] = useState<Mapping>(emptyMapping());
   const [source, setSource] = useState<string>("CSV Import");
+  const [eventName, setEventName] = useState("");
+  const [campaign, setCampaign] = useState("");
+  const [portcoTags, setPortcoTags] = useState<string[]>([]);
   const [enrichOnImport, setEnrichOnImport] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -290,6 +304,9 @@ export function TargetUploadDialog({ open, onOpenChange, existingKeys = [], onIm
     setFileName("");
     setMapping(emptyMapping());
     setSource("CSV Import");
+    setEventName("");
+    setCampaign("");
+    setPortcoTags([]);
     setEnrichOnImport(true);
     setBusy(false);
   };
@@ -326,7 +343,16 @@ export function TargetUploadDialog({ open, onOpenChange, existingKeys = [], onIm
     }
 
     try {
-      const res = await importTargets({ data: { targets: built } });
+      const res = await importTargets({
+        data: {
+          targets: built,
+          campaign: campaign.trim(),
+          event: source === "Event" ? eventName.trim() : "",
+          portcoTags,
+        },
+      });
+      // A brand-new write-in campaign should appear in the suggestion list next time.
+      if (campaign.trim()) invalidateCampaignCache();
       const parts = [`Imported ${res.added} target${res.added !== 1 ? "s" : ""}`];
       if (enrichOnImport) parts.push(`${enrichedCount} enriched`);
       if (res.duplicates) parts.push(`${res.duplicates} duplicate${res.duplicates !== 1 ? "s" : ""} skipped`);
