@@ -10,6 +10,8 @@ import {
   Telescope,
   Loader2,
   ScrollText,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   HomeIcon,
@@ -138,6 +140,7 @@ export function AppSidebar({
   const [bulkBusy, setBulkBusy] = useState(false);
   const [targetBulkEditOpen, setTargetBulkEditOpen] = useState(false);
   const [targetBulkNote, setTargetBulkNote] = useState("");
+  const [investorsOpen, setInvestorsOpen] = useState(false);
 
   const sectors = filterOpts.sectors;
   const primes = filterOpts.primes;
