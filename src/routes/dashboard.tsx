@@ -418,6 +418,20 @@ function DashboardPage() {
     [investorReport, selectedInvestor],
   );
 
+  // Publish investor names to the sidebar's "Investor Dashboards" section.
+  const { updateOptions } = useFilterOptions();
+  const investorNamesKey = investorReport.map((r) => r.investor).join("|");
+  useEffect(() => {
+    updateOptions({ dashboardInvestors: investorReport.map((r) => r.investor) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [investorNamesKey, updateOptions]);
+
+  const investorView = useMemo(
+    () => (filters.investor ? investorReport.find((r) => r.investor === filters.investor) : null),
+    [filters.investor, investorReport],
+  );
+
+
   const openContact = (c: Contact) => {
     setSelectedContact(c);
     setDetailOpen(true);
