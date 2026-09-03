@@ -141,6 +141,8 @@ import { useTargetingFilters } from "@/lib/targeting-filter-context";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { useTargetSelection } from "@/lib/target-selection-context";
 import { connectionStrategy, type ConnectionStrategy } from "@/utils/insights.functions";
+import { loadEvents } from "@/components/events/EventPicker";
+
 
 /** A flagged follow-up whose due date has passed (blank date is never overdue). */
 function isOverdue(due?: string): boolean {
@@ -504,6 +506,21 @@ function TargetingPage() {
     setTargets(loaderData.targets);
   }, [loaderData.targets]);
 
+  // Full event catalog (Asana + in-app) so the Event filter lists every event,
+  // even ones with no targets yet.
+  const [catalogEventNames, setCatalogEventNames] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    loadEvents()
+      .then((events) => {
+        if (alive) setCatalogEventNames(events.map((e) => e.name.trim()).filter(Boolean));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => {
     const targetSectors = [...new Set(targets.map((t) => t.sector).filter(Boolean))].sort();
     const targetCities = [...new Set(targets.map((t) => t.location).filter(Boolean))].sort();
@@ -511,11 +528,31 @@ function TargetingPage() {
     const targetCampaigns = [
       ...new Set(targets.map((t) => (t.campaign || "").trim()).filter(Boolean)),
     ].sort();
-    const targetEvents = [
-      ...new Set(targets.map((t) => (t.event || "").trim()).filter(Boolean)),
-    ].sort();
-    updateOptions({ targetSectors, targetCities, targetOrigins, targetCampaigns, targetEvents });
-  }, [targets, updateOptions]);
+    // Count targets per event, then union with the catalog so unused events show 0.
+    const targetEventCounts: Record<string, number> = {};
+    for (const t of targets) {
+      const name = (t.event || "").trim();
+      if (name) targetEventCounts[name] = (targetEventCounts[name] ?? 0) + 1;
+    }
+    const seen = new Map<string, string>();
+    for (const name of [...Object.keys(targetEventCounts), ...catalogEventNames]) {
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, name);
+    }
+    const targetEvents = [...seen.values()].sort((a, b) => {
+      const diff = (targetEventCounts[b] ?? 0) - (targetEventCounts[a] ?? 0);
+      return diff !== 0 ? diff : a.localeCompare(b);
+    });
+    updateOptions({
+      targetSectors,
+      targetCities,
+      targetOrigins,
+      targetCampaigns,
+      targetEvents,
+      targetEventCounts,
+    });
+  }, [targets, catalogEventNames, updateOptions]);
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTarget, setActiveTarget] = useState<TargetLead | null>(null);
   const [newTargetOpen, setNewTargetOpen] = useState(false);

@@ -47,7 +47,9 @@ function mergeEventCatalogs(asana: AsanaEvent[], app: AsanaEvent[]): AsanaEvent[
   return [...byName.values()];
 }
 
-async function loadEvents(): Promise<AsanaEvent[]> {
+/** Shared Asana + in-app event catalog (cached per session). */
+export async function loadEvents(): Promise<AsanaEvent[]> {
+
   if (cachedEvents) return cachedEvents;
   if (inflight) return inflight;
   inflight = Promise.all([

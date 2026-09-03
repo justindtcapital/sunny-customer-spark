@@ -22,7 +22,10 @@ interface MultiSelectProps {
   className?: string;
   /** Custom trigger label; defaults to single value / "N selected". */
   formatLabel?: (value: string[]) => string;
+  /** Optional per-option match counts rendered as a muted number on the right. */
+  counts?: Record<string, number>;
 }
+
 
 // Searchable multi-select: a popover checkbox list whose trigger summarizes the
 // selection. Empty selection reads as "no filter" — mirrors the OR-within-a-field
@@ -35,7 +38,9 @@ export function MultiSelect({
   searchable = true,
   className,
   formatLabel,
+  counts,
 }: MultiSelectProps) {
+
   const toggle = (option: string) => {
     onChange(value.includes(option) ? value.filter((v) => v !== option) : [...value, option]);
   };
@@ -101,6 +106,12 @@ export function MultiSelect({
                       {checked && <Check className="h-3 w-3" />}
                     </div>
                     <span className="truncate">{option}</span>
+                    {counts && (
+                      <span className="ml-auto pl-2 shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                        {counts[option] ?? 0}
+                      </span>
+                    )}
+
                   </CommandItem>
                 );
               })}
