@@ -1637,6 +1637,16 @@ function TargetingPage() {
               <Button
                 variant="outline"
                 size="sm"
+                className={actionBtnClass}
+                onClick={() => setAddCampaignOpen(true)}
+                disabled={researching || deletingTargets || promotingCrm}
+              >
+                <Megaphone className="h-3 w-3 mr-1" />
+                Add to Campaign
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 className={`${actionBtnClass} text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive`}
                 onClick={() => setConfirmDeleteOpen(true)}
                 disabled={deletingTargets}
