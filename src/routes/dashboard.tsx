@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { Contact, PortfolioCompany, PortfolioEvent } from "@/lib/types";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,8 @@ import { toast } from "sonner";
 
 type Transition = { from: string; to: string; ts: string };
 import { useDashboardFilters } from "@/lib/dashboard-filter-context";
+import { useFilterOptions } from "@/lib/filter-options-context";
+import { InvestorDashboard } from "@/components/dashboard/InvestorDashboard";
 import { normalizeLocation } from "@/lib/location-utils";
 import { useChartDrill, matchesFilters, parseCfParam, type Dimension } from "@/lib/use-chart-drill";
 import { DrillSheet, DrillChips } from "@/components/charts/DrillSheet";
@@ -292,7 +294,7 @@ function DashboardPage() {
       eventsByPortco: Record<string, PortfolioEvent[]>;
       portfolioPortcos: string[];
     };
-  const { filters } = useDashboardFilters();
+  const { filters, setFilters } = useDashboardFilters();
   const { crossFilters, focus, clear, clearAll, drill, drillOpen, setDrillOpen } =
     useChartDrill(CONTACT_DIMS);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -445,6 +447,27 @@ function DashboardPage() {
 
 
 
+
+  if (investorView) {
+    return (
+      <div className="p-6 max-w-[1400px] mx-auto">
+        <InvestorDashboard
+          investor={investorView.investor}
+          portcos={investorView.portcos.map((p) => ({ key: p.key, name: p.name, events: p.events }))}
+          contacts={contacts}
+          portfolioCompanies={portfolioCompanies}
+          onBack={() => setFilters({ ...filters, investor: "" })}
+          onContactClick={openContact}
+        />
+        <ContactDetail
+          contact={selectedContact}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          onContactUpdate={(u) => setSelectedContact(u)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto space-y-8">
