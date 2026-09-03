@@ -141,6 +141,8 @@ import { useTargetingFilters } from "@/lib/targeting-filter-context";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { useTargetSelection } from "@/lib/target-selection-context";
 import { connectionStrategy, type ConnectionStrategy } from "@/utils/insights.functions";
+import { loadEvents } from "@/components/events/EventPicker";
+
 
 /** A flagged follow-up whose due date has passed (blank date is never overdue). */
 function isOverdue(due?: string): boolean {
