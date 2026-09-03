@@ -976,7 +976,9 @@ export function AppSidebar({
                       value={targetingFilters.event}
                       onChange={(v) => updateTarget({ event: v })}
                       placeholder="All Events"
+                      counts={filterOpts.targetEventCounts}
                     />
+
                   </div>
 
                   {/* Work the follow-up queue: flagged uploads + reminders. */}
