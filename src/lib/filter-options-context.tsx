@@ -35,6 +35,8 @@ const defaultOptions: FilterOptions = {
   targetOrigins: [],
   targetCampaigns: [],
   targetEvents: [],
+  targetEventCounts: {},
+
   portfolioDomains: [],
   portfolioSectors: [],
   portfolioCities: [],
