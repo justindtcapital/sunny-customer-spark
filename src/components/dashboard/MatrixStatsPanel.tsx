@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { Contact, PortfolioEvent } from "@/lib/types";
 import type { MatrixPoint } from "@/lib/portco-matrix";
-import { portCoKey } from "@/lib/portco-canonical";
+import { computeScopeActivity, type Windowed } from "@/lib/dashboard-activity";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
   contacts: Contact[];
   eventsByPortco: Record<string, PortfolioEvent[]>;
 }
+
 
 function money(m: number): string {
   if (m >= 1000) return `$${(m / 1000).toFixed(1)}B`;
