@@ -382,32 +382,42 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
             </text>
           </g>
         )}
-        {zone && (
-          <g pointerEvents="none" transform={`translate(${PAD.left + 20} ${PAD.top + 16})`}>
-            <rect
-              width={430}
-              height={34 + zone.bullets.length * 18}
-              rx={10}
-              fill="var(--popover)"
-              fillOpacity={0.98}
-              stroke={zone.color}
-            />
-            <text x={14} y={22} fontSize={12} fontWeight={600} fill={zone.color}>
-              {zone.label}
-            </text>
-            {zone.bullets.map((b, i) => (
-              <text
-                key={b}
-                x={18}
-                y={42 + i * 18}
-                fontSize={11}
-                className="fill-foreground"
-              >
-                {`• ${b}`}
-              </text>
-            ))}
-          </g>
-        )}
+        {zone &&
+          (() => {
+            const zx = x(zone.x0);
+            const zy = y(zone.y1);
+            const zw = Math.max(x(zone.x1) - zx, 260);
+            const zh = y(zone.y0) - zy;
+            const lines = zone.bullets.flatMap((b) => wrapLine(b, zw - 34));
+            const boxH = Math.max(34 + lines.length * 16 + 10, zh);
+            return (
+              <g pointerEvents="none" transform={`translate(${zx} ${zy})`}>
+                <rect
+                  width={zw}
+                  height={boxH}
+                  rx={18}
+                  fill="var(--popover)"
+                  fillOpacity={0.985}
+                  stroke={zone.color}
+                  strokeWidth={1.5}
+                />
+                <text x={16} y={24} fontSize={12} fontWeight={600} fill={zone.color}>
+                  {zone.label}
+                </text>
+                {lines.map((l, i) => (
+                  <text
+                    key={`${l}-${i}`}
+                    x={l.startsWith("• ") ? 16 : 26}
+                    y={44 + i * 16}
+                    fontSize={10.5}
+                    className="fill-foreground"
+                  >
+                    {l}
+                  </text>
+                ))}
+              </g>
+            );
+          })()}
       </svg>
 
       {unscored.length > 0 && (
