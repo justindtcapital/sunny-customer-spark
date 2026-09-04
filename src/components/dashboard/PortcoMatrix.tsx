@@ -11,6 +11,8 @@ interface Props {
   points: MatrixPoint[];
   /** Selected investor ("" = all). Non-matching companies are hidden. */
   investor: string;
+  /** Selected sector ("" = all). Non-matching companies are hidden. */
+  sector: string;
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
 }
@@ -129,7 +131,7 @@ function Bubble({
   );
 }
 
-export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props) {
+export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }: Props) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
 
   const { plotted, unscored } = useMemo(() => {
@@ -158,7 +160,8 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
   }, [points]);
 
   const isDim = (p: MatrixPoint) => !!selectedKey && p.key !== selectedKey;
-  const hiddenByInvestor = (p: MatrixPoint) => !!investor && p.investor !== investor;
+  const hiddenByInvestor = (p: MatrixPoint) =>
+    (!!investor && p.investor !== investor) || (!!sector && !p.sectors.includes(sector));
 
 
   return (
