@@ -356,23 +356,25 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
       {unscored.length > 0 && (
         <div className="rounded-lg border border-dashed border-border px-3 py-2">
           <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1.5">
-            Not scored yet in Asana ({unscored.length})
+            Not scored yet in Asana ({unscored.filter((p) => !hiddenByInvestor(p)).length})
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {unscored.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => onSelect(selectedKey === p.key ? null : p.key)}
-                className={`text-[11px] rounded-full border px-2 py-0.5 transition-colors ${
-                  selectedKey === p.key
-                    ? "border-primary text-primary bg-primary/10"
-                    : "border-border text-muted-foreground hover:bg-accent"
-                } ${investor && p.investor !== investor ? "opacity-40" : ""}`}
-              >
-                {p.name}
-              </button>
-            ))}
+            {unscored
+              .filter((p) => !hiddenByInvestor(p))
+              .map((p) => (
+                <button
+                  key={p.key}
+                  type="button"
+                  onClick={() => onSelect(selectedKey === p.key ? null : p.key)}
+                  className={`text-[11px] rounded-full border px-2 py-0.5 transition-colors ${
+                    selectedKey === p.key
+                      ? "border-primary text-primary bg-primary/10"
+                      : "border-border text-muted-foreground hover:bg-accent"
+                  }`}
+                >
+                  {p.name}
+                </button>
+              ))}
           </div>
         </div>
       )}
