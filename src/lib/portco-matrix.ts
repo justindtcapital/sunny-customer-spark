@@ -29,6 +29,8 @@ export interface MatrixPoint {
   stage: string;
   priority: string;
   website: string;
+  /** Sector / domain values from Asana (multi-select, comma-joined upstream). */
+  sectors: string[];
 }
 
 /** Find a field by fuzzy label match (labels carry stray whitespace/casing). */
@@ -105,6 +107,10 @@ export function buildMatrixPoints(
       stage: field(fields, /^company\s+stage$/i),
       priority: field(fields, /^dtc\s+priority$/i),
       website: websiteByPortco[key] || "",
+      sectors: (field(fields, /industry|vertical|sector|domain|theme/i) || "")
+        .split(/[,;/]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
     });
   }
   return points.sort((a, b) => a.name.localeCompare(b.name));
@@ -115,6 +121,11 @@ export function matrixInvestors(points: MatrixPoint[]): string[] {
   return [...new Set(points.map((p) => p.investor).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b),
   );
+}
+
+/** Distinct sectors across the matrix, alphabetical. */
+export function matrixSectors(points: MatrixPoint[]): string[] {
+  return [...new Set(points.flatMap((p) => p.sectors))].sort((a, b) => a.localeCompare(b));
 }
 
 /** Bubble radius in px from investment ($M). */
