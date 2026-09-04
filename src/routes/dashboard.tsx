@@ -3,7 +3,13 @@ import { useMemo, useState } from "react";
 import type { Contact, PortfolioCompany, PortfolioEvent } from "@/lib/types";
 import { fetchContacts, fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functions";
-import { buildMatrixPoints, matrixInvestors, matrixPriorities, matrixSectors } from "@/lib/portco-matrix";
+import {
+  buildMatrixPoints,
+  cleanPriority,
+  matrixInvestors,
+  matrixPriorities,
+  matrixSectors,
+} from "@/lib/portco-matrix";
 import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
 import { MatrixStatsPanel } from "@/components/dashboard/MatrixStatsPanel";
 import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
@@ -176,7 +182,7 @@ function DashboardPage() {
                     setSelectedKey(null);
                   }}
                 >
-                  <SelectTrigger className="h-8 w-44 text-xs bg-card">
+                  <SelectTrigger className="h-8 w-36 text-xs bg-card">
                     <SelectValue placeholder="All investors" />
                   </SelectTrigger>
                   <SelectContent>
@@ -195,7 +201,7 @@ function DashboardPage() {
                     setSelectedKey(null);
                   }}
                 >
-                  <SelectTrigger className="h-8 w-44 text-xs bg-card">
+                  <SelectTrigger className="h-8 w-36 text-xs bg-card">
                     <SelectValue placeholder="All domains" />
                   </SelectTrigger>
                   <SelectContent>
@@ -203,6 +209,25 @@ function DashboardPage() {
                     {sectors.map((sc) => (
                       <SelectItem key={sc} value={sc}>
                         {sc}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={priority || "all"}
+                  onValueChange={(v) => {
+                    setPriority(v === "all" ? "" : v);
+                    setSelectedKey(null);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-36 text-xs bg-card">
+                    <SelectValue placeholder="All priorities" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All priorities</SelectItem>
+                    {priorities.map((pr) => (
+                      <SelectItem key={pr} value={pr}>
+                        {pr}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -218,6 +243,7 @@ function DashboardPage() {
                 points={points}
                 investor={investor}
                 sector={sector}
+                priority={priority}
                 selectedKey={selectedKey}
                 onSelect={setSelectedKey}
               />
