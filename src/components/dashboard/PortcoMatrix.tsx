@@ -291,10 +291,24 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
           ))}
 
         {/* investment legend — sits inside the plot, bottom-right */}
-        <g transform={`translate(${PAD.left + PLOT_W - 132} ${PAD.top + PLOT_H - 112})`}>
-          <text fontSize={10} className="fill-muted-foreground" y={-10}>
+        <g
+          transform={`translate(${PAD.left + PLOT_W - 128} ${PAD.top + PLOT_H - 108})`}
+          pointerEvents="none"
+        >
+          <rect
+            x={-12}
+            y={-24}
+            width={140}
+            height={122}
+            rx={10}
+            fill="var(--card)"
+            fillOpacity={0.92}
+            stroke="var(--border)"
+          />
+          <text fontSize={10} className="fill-muted-foreground" y={-9}>
             Invested
           </text>
+
           {[
             { label: "Under $5M", v: 3 },
             { label: "$5–15M", v: 10 },
