@@ -11,7 +11,6 @@ import {
   Loader2,
   ScrollText,
   ChevronDown,
-  ChevronRight,
 } from "lucide-react";
 import {
   HomeIcon,
@@ -140,7 +139,6 @@ export function AppSidebar({
   const [bulkBusy, setBulkBusy] = useState(false);
   const [targetBulkEditOpen, setTargetBulkEditOpen] = useState(false);
   const [targetBulkNote, setTargetBulkNote] = useState("");
-  const [investorsOpen, setInvestorsOpen] = useState(false);
 
   const sectors = filterOpts.sectors;
   const primes = filterOpts.primes;
@@ -179,10 +177,6 @@ export function AppSidebar({
     { label: "30d", days: 30 },
     { label: "90d", days: 90 },
   ];
-  const updateDash = (partial: Partial<DashboardFilters>) => {
-    if (dashboardFilters && onDashboardFiltersChange)
-      onDashboardFiltersChange({ ...dashboardFilters, ...partial });
-  };
   const updateTarget = (partial: Partial<TargetingFilters>) => {
     if (targetingFilters && onTargetingFiltersChange)
       onTargetingFiltersChange({ ...targetingFilters, ...partial });
@@ -194,8 +188,6 @@ export function AppSidebar({
 
   const showNetworkSearch = currentPath === "/crm" && !collapsed;
   const showCrmFilters = currentPath === "/crm" && filters && onFiltersChange && !collapsed;
-  const showDashboardFilters =
-    currentPath === "/dashboard" && dashboardFilters && onDashboardFiltersChange && !collapsed;
   const showTargetingFilters =
     currentPath === "/targeting" && targetingFilters && onTargetingFiltersChange && !collapsed;
   const showPortfolioFilters =
