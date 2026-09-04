@@ -33,17 +33,22 @@ export const Route = createFileRoute("/dashboard")({
     ],
   }),
   loader: async () => {
+    const withTimeout = <T,>(p: Promise<T>, fallback: T, ms = 8000): Promise<T> =>
+      Promise.race([
+        p.catch(() => fallback),
+        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+      ]);
+
     const [contacts, asana, portfolio] = await Promise.all([
-      fetchContacts().catch((): Contact[] => []),
-      fetchAsanaPortcoData().catch(
-        (): AsanaPortcoData => ({
-          fieldsByCompanyName: {},
-          namesByCompanyName: {},
-          eventsByCompanyName: {},
-        }),
-      ),
-      fetchPortfolioCompanies().catch((): PortfolioCompany[] => []),
+      withTimeout<Contact[]>(fetchContacts(), []),
+      withTimeout<AsanaPortcoData>(fetchAsanaPortcoData(), {
+        fieldsByCompanyName: {},
+        namesByCompanyName: {},
+        eventsByCompanyName: {},
+      }),
+      withTimeout<PortfolioCompany[]>(fetchPortfolioCompanies(), []),
     ]);
+
 
     const websiteByPortco: Record<string, string> = {};
     for (const p of portfolio || []) {
