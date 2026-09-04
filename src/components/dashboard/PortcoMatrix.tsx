@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   bubbleRadius,
+  cleanPriority,
   GTM_LABELS,
   SALES_LABELS,
   type MatrixPoint,
@@ -11,8 +12,10 @@ interface Props {
   points: MatrixPoint[];
   /** Selected investor ("" = all). Non-matching companies are hidden. */
   investor: string;
-  /** Selected sector ("" = all). Non-matching companies are hidden. */
+  /** Selected domain ("" = all). Non-matching companies are hidden. */
   sector: string;
+  /** Selected priority ("" = all). Non-matching companies are hidden. */
+  priority: string;
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
 }
@@ -187,7 +190,7 @@ function bucketOf(investment: number | null): BucketId {
   return "large";
 }
 
-export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }: Props) {
+export function PortcoMatrix({ points, investor, sector, priority, selectedKey, onSelect }: Props) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
   const [zone, setZone] = useState<(typeof ZONES)[number] | null>(null);
   const [buckets, setBuckets] = useState<BucketId[]>(["small", "mid", "large"]);
@@ -223,6 +226,7 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
   const hiddenByInvestor = (p: MatrixPoint) =>
     (!!investor && p.investor !== investor) ||
     (!!sector && !p.sectors.includes(sector)) ||
+    (!!priority && cleanPriority(p.priority) !== priority) ||
     !buckets.includes(bucketOf(p.investment));
 
 
