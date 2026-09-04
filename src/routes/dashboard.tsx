@@ -6,6 +6,10 @@ import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functi
 import { buildMatrixPoints, matrixInvestors } from "@/lib/portco-matrix";
 import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
 import { MatrixStatsPanel } from "@/components/dashboard/MatrixStatsPanel";
+import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
+import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
+import { computeScopeActivity } from "@/lib/dashboard-activity";
+
 import { portCoKey } from "@/lib/portco-canonical";
 import {
   Select,
