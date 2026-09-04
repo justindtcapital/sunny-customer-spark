@@ -109,8 +109,8 @@ export function buildMatrixPoints(
       priority: field(fields, /^dtc\s+priority$/i),
       website: websiteByPortco[key] || "",
       sectors: (
-        field(fields, /industry|vertical|sector|domain|theme/i) ||
         sectorByPortco[key] ||
+        field(fields, /industry|vertical|sector|domain|theme/i) ||
         ""
       )
         .split(/[,;/]+/)

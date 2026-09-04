@@ -14,6 +14,7 @@ import { computeScopeActivity } from "@/lib/dashboard-activity";
 import { portCoKey } from "@/lib/portco-canonical";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { extractDomain } from "@/lib/domain-utils";
+import { normalizeFocusArea } from "@/lib/focus-area-utils";
 import {
   Select,
   SelectContent,
@@ -59,7 +60,8 @@ export const Route = createFileRoute("/dashboard")({
       const key = portCoKey(p.name || "");
       if (!key) continue;
       if (p.website) websiteByPortco[key] = p.website;
-      if (p.sector) sectorByPortco[key] = p.sector;
+      const dom = p.domain || normalizeFocusArea(p.sector);
+      if (dom) sectorByPortco[key] = dom;
     }
 
     return {
@@ -178,10 +180,10 @@ function DashboardPage() {
                   }}
                 >
                   <SelectTrigger className="h-8 w-44 text-xs bg-card">
-                    <SelectValue placeholder="All sectors" />
+                    <SelectValue placeholder="All domains" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All sectors</SelectItem>
+                    <SelectItem value="all">All domains</SelectItem>
                     {sectors.map((sc) => (
                       <SelectItem key={sc} value={sc}>
                         {sc}
