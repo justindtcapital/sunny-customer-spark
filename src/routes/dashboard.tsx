@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import type { Contact, PortfolioCompany, PortfolioEvent } from "@/lib/types";
 import { fetchContacts, fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functions";
-import { buildMatrixPoints, matrixInvestors, matrixSectors } from "@/lib/portco-matrix";
+import { buildMatrixPoints, matrixInvestors, matrixPriorities, matrixSectors } from "@/lib/portco-matrix";
 import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
 import { MatrixStatsPanel } from "@/components/dashboard/MatrixStatsPanel";
 import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
@@ -101,6 +101,7 @@ function DashboardPage() {
   } = Route.useLoaderData();
   const [investor, setInvestor] = useState("");
   const [sector, setSector] = useState("");
+  const [priority, setPriority] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
 
@@ -128,16 +129,19 @@ function DashboardPage() {
   );
   const investors = useMemo(() => matrixInvestors(points), [points]);
   const sectors = useMemo(() => matrixSectors(points), [points]);
+  const priorities = useMemo(() => matrixPriorities(points), [points]);
   const inFilter = (p: (typeof points)[number]) =>
-    (!investor || p.investor === investor) && (!sector || p.sectors.includes(sector));
+    (!investor || p.investor === investor) &&
+    (!sector || p.sectors.includes(sector)) &&
+    (!priority || cleanPriority(p.priority) === priority);
 
   const selected = selectedKey ? points.find((p) => p.key === selectedKey) : undefined;
   const filtered = points.filter(inFilter);
   const scope = selected ? [selected] : filtered;
-  const scopeKind = selected ? "company" : investor || sector ? "investor" : "all";
+  const scopeKind = selected ? "company" : investor || sector || priority ? "investor" : "all";
   const scopeLabel = selected
     ? selected.name
-    : [investor, sector].filter(Boolean).join(" · ") || "Entire portfolio";
+    : [investor, sector, priority].filter(Boolean).join(" · ") || "Entire portfolio";
 
   const activity = useMemo(
     () => computeScopeActivity(new Set(scope.map((p) => p.key)), contacts, eventsByPortco),

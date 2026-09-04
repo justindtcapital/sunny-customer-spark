@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   bubbleRadius,
+  cleanPriority,
   GTM_LABELS,
   SALES_LABELS,
   type MatrixPoint,
