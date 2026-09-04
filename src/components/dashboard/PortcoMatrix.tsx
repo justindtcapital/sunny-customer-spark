@@ -145,7 +145,14 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
       const idx = cellCount.get(cell) ?? 0;
       cellCount.set(cell, idx + 1);
       const { dx, dy } = offsetFor(idx);
-      plotted.push({ p, cx: x(p.gtm) + dx, cy: y(p.sales) + dy });
+      const r = bubbleRadius(p.investment);
+      const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+      plotted.push({
+        p,
+        cx: clamp(x(p.gtm) + dx, PAD.left + r, PAD.left + PLOT_W - r),
+        cy: clamp(y(p.sales) + dy, PAD.top + r, PAD.top + PLOT_H - r),
+      });
+
     }
     return { plotted, unscored };
   }, [points]);
