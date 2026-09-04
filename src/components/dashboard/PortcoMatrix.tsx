@@ -285,6 +285,7 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
 
         {/* bubbles — larger first so small ones stay clickable on top */}
         {[...plotted]
+          .filter(({ p }) => !hiddenByInvestor(p))
           .sort((a, b) => (b.p.investment ?? 0) - (a.p.investment ?? 0))
           .map(({ p, cx, cy }) => (
             <Bubble
