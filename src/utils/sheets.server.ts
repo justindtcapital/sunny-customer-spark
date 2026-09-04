@@ -191,7 +191,10 @@ export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   return run;
 }
 
+// ── Append a row to a sheet tab ──────────────────────────────
+export async function appendSheetRow(tabName: string, values: string[]): Promise<void> {
   const spreadsheetId = requireSpreadsheetId();
+
 
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
