@@ -89,6 +89,7 @@ export function buildMatrixPoints(
   asanaFieldsByPortco: Record<string, Record<string, string>>,
   namesByPortco: Record<string, string>,
   websiteByPortco: Record<string, string> = {},
+  sectorByPortco: Record<string, string> = {},
 ): MatrixPoint[] {
   const points: MatrixPoint[] = [];
   for (const [key, fields] of Object.entries(asanaFieldsByPortco || {})) {
@@ -107,7 +108,11 @@ export function buildMatrixPoints(
       stage: field(fields, /^company\s+stage$/i),
       priority: field(fields, /^dtc\s+priority$/i),
       website: websiteByPortco[key] || "",
-      sectors: (field(fields, /industry|vertical|sector|domain|theme/i) || "")
+      sectors: (
+        field(fields, /industry|vertical|sector|domain|theme/i) ||
+        sectorByPortco[key] ||
+        ""
+      )
         .split(/[,;/]+/)
         .map((s) => s.trim())
         .filter(Boolean),

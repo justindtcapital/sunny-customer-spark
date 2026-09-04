@@ -29,6 +29,13 @@ const y = (v: number) => PAD.top + PLOT_H - ((v - 0.6) / 4.8) * PLOT_H;
 const ZONES = [
   {
     label: "GTM Assist",
+    bullets: [
+      "Advisory on pitch materials / messaging",
+      "Formal PMF feedback (Sagetap)",
+      "Customer network feedback (advisory)",
+      "Includes new offerings from more mature PortCos",
+      "Must 'graduate' from GTM Assist before we invest in BD / exposure / events",
+    ],
     x0: 0.8,
     x1: 3.2,
     y0: 0.8,
@@ -37,6 +44,14 @@ const ZONES = [
   },
   {
     label: "BD & Exposure Assist",
+    bullets: [
+      "Network introductions",
+      "Inclusion in curated events",
+      "Inclusion in Executive Innovation Days / briefings",
+      "Dell leverage strategy and planning",
+      "Sales and pursuit coaching",
+      "Deal shaping / negotiation",
+    ],
     x0: 2.6,
     x1: 4.3,
     y0: 1.75,
@@ -45,6 +60,11 @@ const ZONES = [
   },
   {
     label: "Power of Association",
+    bullets: [
+      "Key successful PortCos which provide value back to DTC and their PortCo peers",
+      "Include where appropriate in events and exposure",
+      "Drive attendance or visibility to events where they have market-relevant 'pull'",
+    ],
     x0: 3.75,
     x1: 5.25,
     y0: 3.7,
@@ -133,6 +153,7 @@ function Bubble({
 
 export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }: Props) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
+  const [zone, setZone] = useState<(typeof ZONES)[number] | null>(null);
 
   const { plotted, unscored } = useMemo(() => {
     const plotted: { p: MatrixPoint; cx: number; cy: number }[] = [];
@@ -207,6 +228,9 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
               fontSize={12}
               fontWeight={600}
               fill={z.color}
+              className="cursor-help"
+              onMouseEnter={() => setZone(z)}
+              onMouseLeave={() => setZone(null)}
             >
               {z.label}
             </text>
@@ -356,6 +380,32 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
               {hover.investment !== null ? ` · $${hover.investment}M` : ""}
               {hover.investor ? ` · ${hover.investor}` : ""}
             </text>
+          </g>
+        )}
+        {zone && (
+          <g pointerEvents="none" transform={`translate(${PAD.left + 20} ${PAD.top + 16})`}>
+            <rect
+              width={430}
+              height={34 + zone.bullets.length * 18}
+              rx={10}
+              fill="var(--popover)"
+              fillOpacity={0.98}
+              stroke={zone.color}
+            />
+            <text x={14} y={22} fontSize={12} fontWeight={600} fill={zone.color}>
+              {zone.label}
+            </text>
+            {zone.bullets.map((b, i) => (
+              <text
+                key={b}
+                x={18}
+                y={42 + i * 18}
+                fontSize={11}
+                className="fill-foreground"
+              >
+                {`• ${b}`}
+              </text>
+            ))}
           </g>
         )}
       </svg>

@@ -12,6 +12,8 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { computeScopeActivity } from "@/lib/dashboard-activity";
 
 import { portCoKey } from "@/lib/portco-canonical";
+import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
+import { extractDomain } from "@/lib/domain-utils";
 import {
   Select,
   SelectContent,
@@ -52,9 +54,12 @@ export const Route = createFileRoute("/dashboard")({
 
 
     const websiteByPortco: Record<string, string> = {};
+    const sectorByPortco: Record<string, string> = {};
     for (const p of portfolio || []) {
       const key = portCoKey(p.name || "");
-      if (key && p.website) websiteByPortco[key] = p.website;
+      if (!key) continue;
+      if (p.website) websiteByPortco[key] = p.website;
+      if (p.sector) sectorByPortco[key] = p.sector;
     }
 
     return {
@@ -63,21 +68,49 @@ export const Route = createFileRoute("/dashboard")({
       portcoNames: asana.namesByCompanyName,
       eventsByPortco: asana.eventsByCompanyName as Record<string, PortfolioEvent[]>,
       websiteByPortco,
+      sectorByPortco,
+      companies: portfolio || [],
     };
   },
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  const { contacts, asanaFieldsByPortco, portcoNames, eventsByPortco, websiteByPortco } =
-    Route.useLoaderData();
+  const {
+    contacts,
+    asanaFieldsByPortco,
+    portcoNames,
+    eventsByPortco,
+    websiteByPortco,
+    sectorByPortco,
+    companies,
+  } = Route.useLoaderData();
   const [investor, setInvestor] = useState("");
   const [sector, setSector] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [detailKey, setDetailKey] = useState<string | null>(null);
+
+  const detailCompany = useMemo(
+    () => (detailKey ? companies.find((c) => portCoKey(c.name || "") === detailKey) : undefined),
+    [detailKey, companies],
+  );
+  const detailContacts = useMemo(() => {
+    const d = detailCompany ? extractDomain(detailCompany.website) : "";
+    if (!d) return [];
+    return contacts.filter((c) => extractDomain(c.email) === d);
+  }, [detailCompany, contacts]);
+  const detailIntros = useMemo(() => {
+    const name = (detailCompany?.name || "").trim().toLowerCase();
+    if (!name) return [];
+    return contacts.filter((c) =>
+      (c.portCoIntros || []).some((p) => p.trim().toLowerCase() === name),
+    );
+  }, [detailCompany, contacts]);
 
   const points = useMemo(
-    () => buildMatrixPoints(asanaFieldsByPortco, portcoNames, websiteByPortco),
-    [asanaFieldsByPortco, portcoNames, websiteByPortco],
+    () =>
+      buildMatrixPoints(asanaFieldsByPortco, portcoNames, websiteByPortco, sectorByPortco),
+    [asanaFieldsByPortco, portcoNames, websiteByPortco, sectorByPortco],
   );
   const investors = useMemo(() => matrixInvestors(points), [points]);
   const sectors = useMemo(() => matrixSectors(points), [points]);
@@ -180,6 +213,7 @@ function DashboardPage() {
           scopeKind={scopeKind}
           contacts={contacts}
           eventsByPortco={eventsByPortco}
+          onOpenCompany={setDetailKey}
         />
       </div>
 
@@ -198,6 +232,16 @@ function DashboardPage() {
         scopeLabel={scopeLabel}
         showCompany={scopeKind !== "company"}
         allScope={scopeKind === "all"}
+      />
+
+      <PortfolioDetail
+        company={detailCompany ?? null}
+        open={!!detailCompany}
+        onOpenChange={(o) => {
+          if (!o) setDetailKey(null);
+        }}
+        crmContacts={detailContacts}
+        crmIntros={detailIntros}
       />
     </div>
   );
