@@ -154,32 +154,43 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
 }
 
 // ── Fetch a single sheet tab ─────────────────────────────────
+// Several loaders ask for the same tab at once; one in-flight request is shared
+// so a page load can't burst past the Sheets read quota.
+const inflightTabs = new Map<string, Promise<string[][]>>();
+
 export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   const cached = getCached(tabName);
   if (cached) return cached;
 
-  const spreadsheetId = requireSpreadsheetId();
+  const existing = inflightTabs.get(tabName);
+  if (existing) return existing;
 
-  const token = await getAccessToken();
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
+  const run = (async () => {
+    const spreadsheetId = requireSpreadsheetId();
+    const token = await getAccessToken();
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
 
-  const res = await sheetsFetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    const res = await sheetsFetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Sheets API error for tab "${tabName}" [${res.status}]: ${body}`);
+    }
+
+    const json = (await res.json()) as { values?: string[][] };
+    const rows = json.values || [];
+    setCache(tabName, rows);
+    return rows;
+  })().finally(() => {
+    inflightTabs.delete(tabName);
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Sheets API error for tab "${tabName}" [${res.status}]: ${body}`);
-  }
-
-  const json = (await res.json()) as { values?: string[][] };
-  const rows = json.values || [];
-  setCache(tabName, rows);
-  return rows;
+  inflightTabs.set(tabName, run);
+  return run;
 }
 
-// ── Append a row to a sheet tab ──────────────────────────────
-export async function appendSheetRow(tabName: string, values: string[]): Promise<void> {
   const spreadsheetId = requireSpreadsheetId();
 
   const token = await getAccessToken();
