@@ -114,19 +114,25 @@ let lastWriteAt = 0;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function runSheetsRequest(url: string, init: RequestInit): Promise<Response> {
+  const isRead = (init.method || "GET").toUpperCase() === "GET";
+  // Reads happen while a page is waiting to render, so they get a short, capped
+  // retry budget; writes can afford to wait out a long rate-limit window.
+  const maxRetries = isRead ? 2 : MAX_SHEETS_RETRIES;
+  const capMs = isRead ? 1_200 : 30_000;
   let attempt = 0;
   for (;;) {
     const res = await fetch(url, init);
     const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
-    if (!retryable || attempt >= MAX_SHEETS_RETRIES) return res;
-    const backoff = Math.min(30_000, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 500);
+    if (!retryable || attempt >= maxRetries) return res;
+    const backoff = Math.min(capMs, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 300);
     console.warn(
-      `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${MAX_SHEETS_RETRIES})`,
+      `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${maxRetries})`,
     );
     await sleep(backoff);
     attempt++;
   }
 }
+
 
 /** Fetch a Sheets API URL with retry; write methods are additionally throttled. */
 export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<Response> {
