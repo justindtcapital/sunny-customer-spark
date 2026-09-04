@@ -3,11 +3,12 @@ import { useMemo, useState } from "react";
 import type { Contact, PortfolioCompany, PortfolioEvent } from "@/lib/types";
 import { fetchContacts, fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functions";
-import { buildMatrixPoints, matrixInvestors } from "@/lib/portco-matrix";
+import { buildMatrixPoints, matrixInvestors, matrixSectors } from "@/lib/portco-matrix";
 import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
 import { MatrixStatsPanel } from "@/components/dashboard/MatrixStatsPanel";
 import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
 import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { computeScopeActivity } from "@/lib/dashboard-activity";
 
 import { portCoKey } from "@/lib/portco-canonical";
@@ -71,6 +72,7 @@ function DashboardPage() {
   const { contacts, asanaFieldsByPortco, portcoNames, eventsByPortco, websiteByPortco } =
     Route.useLoaderData();
   const [investor, setInvestor] = useState("");
+  const [sector, setSector] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const points = useMemo(
@@ -78,15 +80,17 @@ function DashboardPage() {
     [asanaFieldsByPortco, portcoNames, websiteByPortco],
   );
   const investors = useMemo(() => matrixInvestors(points), [points]);
+  const sectors = useMemo(() => matrixSectors(points), [points]);
+  const inFilter = (p: (typeof points)[number]) =>
+    (!investor || p.investor === investor) && (!sector || p.sectors.includes(sector));
 
   const selected = selectedKey ? points.find((p) => p.key === selectedKey) : undefined;
-  const scope = selected
-    ? [selected]
-    : investor
-      ? points.filter((p) => p.investor === investor)
-      : points;
-  const scopeKind = selected ? "company" : investor ? "investor" : "all";
-  const scopeLabel = selected ? selected.name : investor || "Entire portfolio";
+  const filtered = points.filter(inFilter);
+  const scope = selected ? [selected] : filtered;
+  const scopeKind = selected ? "company" : investor || sector ? "investor" : "all";
+  const scopeLabel = selected
+    ? selected.name
+    : [investor, sector].filter(Boolean).join(" · ") || "Entire portfolio";
 
   const activity = useMemo(
     () => computeScopeActivity(new Set(scope.map((p) => p.key)), contacts, eventsByPortco),
@@ -108,27 +112,51 @@ function DashboardPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
         <Card className="border-border">
-          <CardContent className="p-4 relative">
-            <div className="absolute right-4 top-4 z-10 w-52">
-              <Select
-                value={investor || "all"}
-                onValueChange={(v) => {
-                  setInvestor(v === "all" ? "" : v);
-                  setSelectedKey(null);
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs bg-card">
-                  <SelectValue placeholder="All investors" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All investors</SelectItem>
-                  {investors.map((i) => (
-                    <SelectItem key={i} value={i}>
-                      {i}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h2 className="font-display text-sm font-semibold text-foreground">
+                PortCo Prioritization: Sales Maturity / GTM Maturity / Investment
+              </h2>
+              <div className="flex items-center gap-2 shrink-0">
+                <Select
+                  value={investor || "all"}
+                  onValueChange={(v) => {
+                    setInvestor(v === "all" ? "" : v);
+                    setSelectedKey(null);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-44 text-xs bg-card">
+                    <SelectValue placeholder="All investors" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All investors</SelectItem>
+                    {investors.map((i) => (
+                      <SelectItem key={i} value={i}>
+                        {i}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={sector || "all"}
+                  onValueChange={(v) => {
+                    setSector(v === "all" ? "" : v);
+                    setSelectedKey(null);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-44 text-xs bg-card">
+                    <SelectValue placeholder="All sectors" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All sectors</SelectItem>
+                    {sectors.map((sc) => (
+                      <SelectItem key={sc} value={sc}>
+                        {sc}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             {points.length === 0 ? (
               <p className="text-sm text-muted-foreground py-16 text-center">
@@ -138,6 +166,7 @@ function DashboardPage() {
               <PortcoMatrix
                 points={points}
                 investor={investor}
+                sector={sector}
                 selectedKey={selectedKey}
                 onSelect={setSelectedKey}
               />
@@ -163,6 +192,13 @@ function DashboardPage() {
           showCompany={scopeKind === "investor"}
         />
       )}
+
+      <ActivityFeed
+        keys={scopeKeys}
+        scopeLabel={scopeLabel}
+        showCompany={scopeKind !== "company"}
+        allScope={scopeKind === "all"}
+      />
     </div>
   );
 }
