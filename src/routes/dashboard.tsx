@@ -233,20 +233,17 @@ function DashboardPage() {
 
       <ActivityCharts monthly={activity.monthly} scopeLabel={scopeLabel} />
 
-      {scopeKind !== "all" && (
-        <WorkstreamSummary
-          keys={scopeKeys}
-          scopeLabel={scopeLabel}
-          showCompany={scopeKind === "investor"}
-        />
+      {scopeKind === "company" && (
+        <>
+          <WorkstreamSummary keys={scopeKeys} scopeLabel={scopeLabel} showCompany={false} />
+          <ActivityFeed
+            keys={scopeKeys}
+            scopeLabel={scopeLabel}
+            showCompany={false}
+            allScope={false}
+          />
+        </>
       )}
-
-      <ActivityFeed
-        keys={scopeKeys}
-        scopeLabel={scopeLabel}
-        showCompany={scopeKind !== "company"}
-        allScope={scopeKind === "all"}
-      />
 
       <PortfolioDetail
         company={detailCompany ?? null}
