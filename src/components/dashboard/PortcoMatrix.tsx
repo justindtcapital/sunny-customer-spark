@@ -172,9 +172,27 @@ function Bubble({
   );
 }
 
+const SIZE_BUCKETS = [
+  { id: "small", label: "Under $5M", v: 3 },
+  { id: "mid", label: "$5–15M", v: 10 },
+  { id: "large", label: "$15M+", v: 25 },
+] as const;
+
+type BucketId = (typeof SIZE_BUCKETS)[number]["id"];
+
+function bucketOf(investment: number | null): BucketId {
+  const v = investment ?? 0;
+  if (v < 5) return "small";
+  if (v <= 15) return "mid";
+  return "large";
+}
+
 export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }: Props) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
   const [zone, setZone] = useState<(typeof ZONES)[number] | null>(null);
+  const [buckets, setBuckets] = useState<BucketId[]>(["small", "mid", "large"]);
+  const toggleBucket = (id: BucketId) =>
+    setBuckets((prev) => (prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]));
 
   const { plotted, unscored } = useMemo(() => {
     const plotted: { p: MatrixPoint; cx: number; cy: number }[] = [];
@@ -203,7 +221,9 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
 
   const isDim = (p: MatrixPoint) => !!selectedKey && p.key !== selectedKey;
   const hiddenByInvestor = (p: MatrixPoint) =>
-    (!!investor && p.investor !== investor) || (!!sector && !p.sectors.includes(sector));
+    (!!investor && p.investor !== investor) ||
+    (!!sector && !p.sectors.includes(sector)) ||
+    !buckets.includes(bucketOf(p.investment));
 
 
   return (
