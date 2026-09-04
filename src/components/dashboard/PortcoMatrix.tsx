@@ -15,9 +15,9 @@ interface Props {
   onSelect: (key: string | null) => void;
 }
 
-const W = 980;
-const H = 560;
-const PAD = { top: 34, right: 150, bottom: 62, left: 118 };
+const W = 1100;
+const H = 660;
+const PAD = { top: 40, right: 160, bottom: 66, left: 150 };
 const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
 
@@ -55,7 +55,7 @@ const ZONES = [
 function offsetFor(index: number): { dx: number; dy: number } {
   const golden = 2.399963;
   const a = index * golden;
-  const r = 13 * Math.sqrt(index);
+  const r = 25 * Math.sqrt(index);
   return { dx: Math.cos(a) * r, dy: Math.sin(a) * r };
 }
 
@@ -265,12 +265,12 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
           GTM Maturity (PMF) Score
         </text>
         <text
-          x={16}
+          x={22}
           y={PAD.top + PLOT_H / 2}
           textAnchor="middle"
           fontSize={12}
           className="fill-foreground"
-          transform={`rotate(-90 16 ${PAD.top + PLOT_H / 2})`}
+          transform={`rotate(-90 22 ${PAD.top + PLOT_H / 2})`}
         >
           Sales Maturity Score
         </text>
