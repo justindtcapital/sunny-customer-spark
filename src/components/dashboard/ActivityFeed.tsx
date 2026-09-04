@@ -1,5 +1,12 @@
-import { useMemo } from "react";
-import { Loader2, Megaphone, Handshake, ExternalLink } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  Loader2,
+  Megaphone,
+  Handshake,
+  ExternalLink,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAsanaActivities } from "@/lib/use-activities";
 import { portCoKey } from "@/lib/portco-canonical";
@@ -16,12 +23,48 @@ interface Props {
 }
 
 function Row({ a, showCompany }: { a: AsanaActivity; showCompany: boolean }) {
+  const [open, setOpen] = useState(false);
+  const details: [string, string][] = (
+    [
+      ["Date", a.date],
+      ["Company", a.company],
+      ["Person", a.person],
+      ["Type", a.type],
+      ["Owner", a.owner],
+      ["Status", a.status],
+    ] as [string, string | undefined][]
+  ).filter((d): d is [string, string] => Boolean(d[1]));
+  const notes = (a.notes || "").trim();
+
   return (
-    <div className="rounded-md border border-border px-2.5 py-2 hover:bg-accent/40 transition-colors">
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">
-          {a.name || "Untitled activity"}
-        </p>
+    <div className="rounded-md border border-border hover:bg-accent/40 transition-colors">
+      <div className="flex items-start justify-between gap-2 px-2.5 py-2">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="min-w-0 flex-1 text-left"
+        >
+          <div className="flex items-start gap-1.5">
+            {open ? (
+              <ChevronDown className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
+            )}
+            <div className="min-w-0">
+              <p
+                className={`text-xs font-medium text-foreground leading-snug ${open ? "" : "line-clamp-2"}`}
+              >
+                {a.name || "Untitled activity"}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1 tabular-nums">
+                {[a.date, showCompany ? a.company : null, a.person, a.type, a.owner, a.status]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          </div>
+        </button>
         {a.url && (
           <a
             href={a.url}
@@ -34,18 +77,37 @@ function Row({ a, showCompany }: { a: AsanaActivity; showCompany: boolean }) {
           </a>
         )}
       </div>
-      <p className="text-[10px] text-muted-foreground mt-1 tabular-nums">
-        {[
-          a.date,
-          showCompany ? a.company : null,
-          a.person,
-          a.type,
-          a.owner,
-          a.status,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      </p>
+      {open && (
+        <div className="border-t border-border px-2.5 py-2 space-y-2">
+          {notes ? (
+            <p className="text-[11px] text-foreground/90 whitespace-pre-wrap leading-relaxed">
+              {notes}
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">No additional detail recorded.</p>
+          )}
+          {details.length > 0 && (
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {details.map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                  <dt className="text-[9px] uppercase tracking-wider text-muted-foreground">{k}</dt>
+                  <dd className="text-[11px] text-foreground truncate">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {a.url && (
+            <a
+              href={a.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+            >
+              Open in Asana <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
