@@ -44,6 +44,23 @@ function Stat({
   );
 }
 
+function TrailingRow({ label, w }: { label: string; w: Windowed }) {
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-baseline">
+      <span className="text-xs text-muted-foreground truncate">{label}</span>
+      <span className="text-sm font-semibold tabular-nums text-foreground w-10 text-right">
+        {w.t90}
+      </span>
+      <span className="text-sm font-semibold tabular-nums text-foreground w-10 text-right">
+        {w.ttm}
+      </span>
+      <span className="text-sm tabular-nums text-muted-foreground w-10 text-right">
+        {w.all}
+      </span>
+    </div>
+  );
+}
+
 export function MatrixStatsPanel({
   scope,
   scopeLabel,
@@ -62,38 +79,20 @@ export function MatrixStatsPanel({
     const gtmScores = scope.map((p) => p.gtm).filter((v): v is number => v !== null);
     const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
 
-    let introductions = 0;
-    let connected = 0;
-    let interactions = 0;
-    const eventNames = new Set<string>();
-
-    for (const c of contacts) {
-      const intros = (c.portCoIntros || []).map(portCoKey).filter((k) => keys.has(k));
-      if (intros.length > 0) {
-        connected += 1;
-        introductions += intros.length;
-        interactions += (c.interactions || []).length;
-      }
-    }
-
-    for (const key of keys) {
-      for (const e of eventsByPortco[key] || []) eventNames.add(e.name);
-    }
+    const activity = computeScopeActivity(keys, contacts, eventsByPortco);
 
     return {
       companies: scope.length,
       invested,
       avgOwn,
-      introductions,
-      connected,
-      interactions,
-      events: eventNames.size,
+      activity,
       avgSales: avg(salesScores),
       avgGtm: avg(gtmScores),
     };
   }, [scope, contacts, eventsByPortco]);
 
   const single = scopeKind === "company" ? scope[0] : undefined;
+  const a = stats.activity;
 
   return (
     <Card className="border-border h-full">
@@ -132,12 +131,25 @@ export function MatrixStatsPanel({
           />
         </div>
 
-        {/* Relationship block */}
-        <div className="grid grid-cols-2 gap-4">
-          <Stat label="Introductions" value={String(stats.introductions)} />
-          <Stat label="Contacts connected" value={String(stats.connected)} />
-          <Stat label="Events touched" value={String(stats.events)} />
-          <Stat label="Interactions" value={String(stats.interactions)} />
+        {/* Relationship block — trailing windows */}
+        <div className="space-y-2">
+          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+              Activity
+            </span>
+            {["90d", "12mo", "All"].map((h) => (
+              <span
+                key={h}
+                className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground w-10 text-right"
+              >
+                {h}
+              </span>
+            ))}
+          </div>
+          <TrailingRow label="Introductions" w={a.introductions} />
+          <TrailingRow label="Connections" w={a.connections} />
+          <TrailingRow label="Interactions" w={a.interactions} />
+          <TrailingRow label="Events" w={a.events} />
         </div>
 
         {single && (
@@ -160,3 +172,4 @@ export function MatrixStatsPanel({
     </Card>
   );
 }
+
