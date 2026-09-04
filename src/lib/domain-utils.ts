@@ -215,6 +215,9 @@ export function companyLogoSources(
   // DuckDuckGo usually 404s when missing — better than Google's silent default globe.
   sources.push(`https://icons.duckduckgo.com/ip3/${d}.ico`);
 
+  // unavatar aggregates several logo providers and 404s cleanly with fallback=false.
+  sources.push(`https://unavatar.io/${encodeURIComponent(d)}?fallback=false`);
+
   // High-confidence domains: also try Google at a usable size.
   // Low-confidence guesses: skip Google when Logo.dev is configured.
   if (confidence === "high" || !token) {
@@ -222,6 +225,7 @@ export function companyLogoSources(
       `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d)}&sz=128`,
     );
   }
+
 
   return sources;
 }
