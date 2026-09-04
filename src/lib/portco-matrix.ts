@@ -133,6 +133,18 @@ export function matrixSectors(points: MatrixPoint[]): string[] {
   return [...new Set(points.flatMap((p) => p.sectors))].sort((a, b) => a.localeCompare(b));
 }
 
+/** "1 - Needle Mover" → "Needle Mover". */
+export function cleanPriority(raw: string): string {
+  return (raw || "").replace(/^\d+\s*[-.]\s*/, "").trim();
+}
+
+/** Distinct DTC priorities across the matrix, cleaned and alphabetical. */
+export function matrixPriorities(points: MatrixPoint[]): string[] {
+  return [...new Set(points.map((p) => cleanPriority(p.priority)).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
 /** Bubble radius in px from investment ($M). */
 export function bubbleRadius(investment: number | null): number {
   const v = investment ?? 0;
