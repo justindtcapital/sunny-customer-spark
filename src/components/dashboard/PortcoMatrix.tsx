@@ -11,13 +11,15 @@ interface Props {
   points: MatrixPoint[];
   /** Selected investor ("" = all). Non-matching companies are hidden. */
   investor: string;
+  /** Selected sector ("" = all). Non-matching companies are hidden. */
+  sector: string;
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
 }
 
 const W = 1100;
 const H = 660;
-const PAD = { top: 40, right: 160, bottom: 66, left: 150 };
+const PAD = { top: 22, right: 28, bottom: 66, left: 150 };
 const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
 
@@ -129,7 +131,7 @@ function Bubble({
   );
 }
 
-export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props) {
+export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }: Props) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
 
   const { plotted, unscored } = useMemo(() => {
@@ -158,7 +160,8 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
   }, [points]);
 
   const isDim = (p: MatrixPoint) => !!selectedKey && p.key !== selectedKey;
-  const hiddenByInvestor = (p: MatrixPoint) => !!investor && p.investor !== investor;
+  const hiddenByInvestor = (p: MatrixPoint) =>
+    (!!investor && p.investor !== investor) || (!!sector && !p.sectors.includes(sector));
 
 
   return (
@@ -170,16 +173,6 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
         aria-label="PortCo prioritization by sales maturity, GTM maturity and investment"
         onClick={() => onSelect(null)}
       >
-        <text
-          x={W / 2}
-          y={20}
-          textAnchor="middle"
-          className="fill-foreground font-medium"
-          fontSize={14}
-        >
-          PortCo Prioritization: Sales Maturity / GTM Maturity / Investment
-        </text>
-
         {/* horizontal gridlines at each sales level */}
         {[1, 2, 3, 4, 5].map((v) => (
           <line
@@ -300,11 +293,25 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
             />
           ))}
 
-        {/* investment legend */}
-        <g transform={`translate(${PAD.left + PLOT_W + 18} ${PAD.top + PLOT_H - 96})`}>
-          <text fontSize={10} className="fill-muted-foreground" y={-10}>
+        {/* investment legend — sits inside the plot, bottom-right */}
+        <g
+          transform={`translate(${PAD.left + PLOT_W - 128} ${PAD.top + PLOT_H - 108})`}
+          pointerEvents="none"
+        >
+          <rect
+            x={-12}
+            y={-24}
+            width={140}
+            height={122}
+            rx={10}
+            fill="var(--card)"
+            fillOpacity={0.92}
+            stroke="var(--border)"
+          />
+          <text fontSize={10} className="fill-muted-foreground" y={-9}>
             Invested
           </text>
+
           {[
             { label: "Under $5M", v: 3 },
             { label: "$5–15M", v: 10 },
