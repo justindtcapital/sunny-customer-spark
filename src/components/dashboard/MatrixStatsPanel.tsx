@@ -3,6 +3,8 @@ import type { Contact, PortfolioEvent } from "@/lib/types";
 import type { MatrixPoint } from "@/lib/portco-matrix";
 import { computeScopeActivity, type Windowed } from "@/lib/dashboard-activity";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ExternalLink } from "lucide-react";
 
 interface Props {
   /** Companies in the current scope (all / investor / one company). */
@@ -11,6 +13,8 @@ interface Props {
   scopeKind: "all" | "investor" | "company";
   contacts: Contact[];
   eventsByPortco: Record<string, PortfolioEvent[]>;
+  /** Opens the full portfolio-company page for the selected company. */
+  onOpenCompany?: (key: string) => void;
 }
 
 
@@ -67,6 +71,7 @@ export function MatrixStatsPanel({
   scopeKind,
   contacts,
   eventsByPortco,
+  onOpenCompany,
 }: Props) {
   const stats = useMemo(() => {
     const keys = new Set(scope.map((p) => p.key));
@@ -121,13 +126,12 @@ export function MatrixStatsPanel({
             <Stat label="Companies" value={String(stats.companies)} />
           )}
           <Stat
-            label="Avg maturity"
-            value={
-              stats.avgSales === null && stats.avgGtm === null
-                ? "—"
-                : `${stats.avgSales?.toFixed(1) ?? "—"} / ${stats.avgGtm?.toFixed(1) ?? "—"}`
-            }
-            sub="sales / GTM"
+            label={scopeKind === "company" ? "Sales maturity" : "Avg sales maturity"}
+            value={stats.avgSales === null ? "—" : stats.avgSales.toFixed(1)}
+          />
+          <Stat
+            label={scopeKind === "company" ? "GTM maturity" : "Avg GTM maturity"}
+            value={stats.avgGtm === null ? "—" : stats.avgGtm.toFixed(1)}
           />
         </div>
 
@@ -166,6 +170,18 @@ export function MatrixStatsPanel({
                 <span className="text-foreground text-right font-medium">{value || "—"}</span>
               </div>
             ))}
+            {onOpenCompany && (
+              <div className="flex justify-end pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => onOpenCompany(single.key)}
+                >
+                  Open portfolio page <ExternalLink className="h-3 w-3 ml-1.5" />
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
