@@ -157,8 +157,9 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
     return { plotted, unscored };
   }, [points]);
 
-  const isDim = (p: MatrixPoint) =>
-    (!!investor && p.investor !== investor) || (!!selectedKey && p.key !== selectedKey);
+  const isDim = (p: MatrixPoint) => !!selectedKey && p.key !== selectedKey;
+  const hiddenByInvestor = (p: MatrixPoint) => !!investor && p.investor !== investor;
+
 
   return (
     <div className="space-y-3">
