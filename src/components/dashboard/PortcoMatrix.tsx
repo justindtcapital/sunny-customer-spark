@@ -9,7 +9,7 @@ import { companyLogoSources, resolveCompanyLogoDomain } from "@/lib/domain-utils
 
 interface Props {
   points: MatrixPoint[];
-  /** Selected investor ("" = all). Non-matching companies are dimmed. */
+  /** Selected investor ("" = all). Non-matching companies are hidden. */
   investor: string;
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
