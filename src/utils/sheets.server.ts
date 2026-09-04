@@ -114,19 +114,25 @@ let lastWriteAt = 0;
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function runSheetsRequest(url: string, init: RequestInit): Promise<Response> {
+  const isRead = (init.method || "GET").toUpperCase() === "GET";
+  // Reads happen while a page is waiting to render, so they get a short, capped
+  // retry budget; writes can afford to wait out a long rate-limit window.
+  const maxRetries = isRead ? 2 : MAX_SHEETS_RETRIES;
+  const capMs = isRead ? 1_200 : 30_000;
   let attempt = 0;
   for (;;) {
     const res = await fetch(url, init);
     const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
-    if (!retryable || attempt >= MAX_SHEETS_RETRIES) return res;
-    const backoff = Math.min(30_000, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 500);
+    if (!retryable || attempt >= maxRetries) return res;
+    const backoff = Math.min(capMs, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 300);
     console.warn(
-      `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${MAX_SHEETS_RETRIES})`,
+      `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${maxRetries})`,
     );
     await sleep(backoff);
     attempt++;
   }
 }
+
 
 /** Fetch a Sheets API URL with retry; write methods are additionally throttled. */
 export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<Response> {
@@ -148,33 +154,47 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
 }
 
 // ── Fetch a single sheet tab ─────────────────────────────────
+// Several loaders ask for the same tab at once; one in-flight request is shared
+// so a page load can't burst past the Sheets read quota.
+const inflightTabs = new Map<string, Promise<string[][]>>();
+
 export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   const cached = getCached(tabName);
   if (cached) return cached;
 
-  const spreadsheetId = requireSpreadsheetId();
+  const existing = inflightTabs.get(tabName);
+  if (existing) return existing;
 
-  const token = await getAccessToken();
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
+  const run = (async () => {
+    const spreadsheetId = requireSpreadsheetId();
+    const token = await getAccessToken();
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
 
-  const res = await sheetsFetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
+    const res = await sheetsFetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Sheets API error for tab "${tabName}" [${res.status}]: ${body}`);
+    }
+
+    const json = (await res.json()) as { values?: string[][] };
+    const rows = json.values || [];
+    setCache(tabName, rows);
+    return rows;
+  })().finally(() => {
+    inflightTabs.delete(tabName);
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Sheets API error for tab "${tabName}" [${res.status}]: ${body}`);
-  }
-
-  const json = (await res.json()) as { values?: string[][] };
-  const rows = json.values || [];
-  setCache(tabName, rows);
-  return rows;
+  inflightTabs.set(tabName, run);
+  return run;
 }
 
 // ── Append a row to a sheet tab ──────────────────────────────
 export async function appendSheetRow(tabName: string, values: string[]): Promise<void> {
   const spreadsheetId = requireSpreadsheetId();
+
 
   const token = await getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
