@@ -172,9 +172,27 @@ function Bubble({
   );
 }
 
+const SIZE_BUCKETS = [
+  { id: "small", label: "Under $5M", v: 3 },
+  { id: "mid", label: "$5–15M", v: 10 },
+  { id: "large", label: "$15M+", v: 25 },
+] as const;
+
+type BucketId = (typeof SIZE_BUCKETS)[number]["id"];
+
+function bucketOf(investment: number | null): BucketId {
+  const v = investment ?? 0;
+  if (v < 5) return "small";
+  if (v <= 15) return "mid";
+  return "large";
+}
+
 export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }: Props) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
   const [zone, setZone] = useState<(typeof ZONES)[number] | null>(null);
+  const [buckets, setBuckets] = useState<BucketId[]>(["small", "mid", "large"]);
+  const toggleBucket = (id: BucketId) =>
+    setBuckets((prev) => (prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]));
 
   const { plotted, unscored } = useMemo(() => {
     const plotted: { p: MatrixPoint; cx: number; cy: number }[] = [];
@@ -203,7 +221,9 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
 
   const isDim = (p: MatrixPoint) => !!selectedKey && p.key !== selectedKey;
   const hiddenByInvestor = (p: MatrixPoint) =>
-    (!!investor && p.investor !== investor) || (!!sector && !p.sectors.includes(sector));
+    (!!investor && p.investor !== investor) ||
+    (!!sector && !p.sectors.includes(sector)) ||
+    !buckets.includes(bucketOf(p.investment));
 
 
   return (
@@ -339,10 +359,7 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
           ))}
 
         {/* investment legend — sits inside the plot, bottom-right */}
-        <g
-          transform={`translate(${PAD.left + PLOT_W - 128} ${PAD.top + PLOT_H - 108})`}
-          pointerEvents="none"
-        >
+        <g transform={`translate(${PAD.left + PLOT_W - 128} ${PAD.top + PLOT_H - 108})`}>
           <rect
             x={-12}
             y={-24}
@@ -353,28 +370,46 @@ export function PortcoMatrix({ points, investor, sector, selectedKey, onSelect }
             fillOpacity={0.92}
             stroke="var(--border)"
           />
-          <text fontSize={10} className="fill-muted-foreground" y={-9}>
+          <text fontSize={10} className="fill-muted-foreground" y={-9} pointerEvents="none">
             Invested
           </text>
 
-          {[
-            { label: "Under $5M", v: 3 },
-            { label: "$5–15M", v: 10 },
-            { label: "$15M+", v: 25 },
-          ].map((s, i) => (
-            <g key={s.label} transform={`translate(0 ${i * 32})`}>
-              <circle
-                cx={bubbleRadius(s.v) / 2 + 4}
-                cy={12}
-                r={bubbleRadius(s.v) / 2}
-                fill="none"
-                stroke="var(--border)"
-              />
-              <text x={44} y={16} fontSize={10} className="fill-muted-foreground">
-                {s.label}
-              </text>
-            </g>
-          ))}
+          {SIZE_BUCKETS.map((s, i) => {
+            const on = buckets.includes(s.id);
+            return (
+              <g
+                key={s.label}
+                transform={`translate(0 ${i * 32})`}
+                className="cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleBucket(s.id);
+                }}
+              >
+                <rect x={-8} y={0} width={132} height={26} rx={6} fill="transparent" />
+                <circle
+                  cx={bubbleRadius(s.v) / 2 + 4}
+                  cy={12}
+                  r={bubbleRadius(s.v) / 2}
+                  fill={on ? "var(--primary)" : "none"}
+                  fillOpacity={on ? 0.18 : 1}
+                  stroke={on ? "var(--primary)" : "var(--border)"}
+                  strokeWidth={on ? 2 : 1}
+                  opacity={on ? 1 : 0.5}
+                />
+                <text
+                  x={44}
+                  y={16}
+                  fontSize={10}
+                  className={on ? "fill-foreground" : "fill-muted-foreground"}
+                  opacity={on ? 1 : 0.55}
+                  pointerEvents="none"
+                >
+                  {s.label}
+                </text>
+              </g>
+            );
+          })}
         </g>
 
         {hover && (
