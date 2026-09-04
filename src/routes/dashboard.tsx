@@ -15,6 +15,7 @@ import { portCoKey } from "@/lib/portco-canonical";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { extractDomain } from "@/lib/domain-utils";
 import { normalizeFocusArea } from "@/lib/focus-area-utils";
+import { matchSheetToAsanaKeys } from "@/lib/portco-names";
 import {
   Select,
   SelectContent,
@@ -54,14 +55,25 @@ export const Route = createFileRoute("/dashboard")({
     ]);
 
 
+    // Asana keys and sheet names disagree ("VAST" vs "VAST Data"), so match fuzzily
+    // before attaching websites / domains — otherwise logos fall back to a guess.
+    const sheetList = (portfolio || []).filter((p) => (p.name || "").trim());
+    const asanaKeys = Object.keys(asana.fieldsByCompanyName || {});
+    const sheetToAsana = matchSheetToAsanaKeys(
+      sheetList.map((p) => p.name),
+      asanaKeys,
+      (k) => asana.namesByCompanyName[k] || k,
+    );
+
     const websiteByPortco: Record<string, string> = {};
     const sectorByPortco: Record<string, string> = {};
-    for (const p of portfolio || []) {
-      const key = portCoKey(p.name || "");
-      if (!key) continue;
-      if (p.website) websiteByPortco[key] = p.website;
+    for (const p of sheetList) {
       const dom = p.domain || normalizeFocusArea(p.sector);
-      if (dom) sectorByPortco[key] = dom;
+      for (const key of [portCoKey(p.name || ""), sheetToAsana.get(p.name) || ""]) {
+        if (!key) continue;
+        if (p.website && !websiteByPortco[key]) websiteByPortco[key] = p.website;
+        if (dom && !sectorByPortco[key]) sectorByPortco[key] = dom;
+      }
     }
 
     return {

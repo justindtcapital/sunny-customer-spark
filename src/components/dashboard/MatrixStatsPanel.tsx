@@ -101,7 +101,7 @@ export function MatrixStatsPanel({
 
   return (
     <Card className="border-border h-full">
-      <CardContent className="p-5 space-y-5">
+      <CardContent className="p-4 space-y-4">
         <div>
           <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
             {scopeKind === "all"
@@ -116,7 +116,7 @@ export function MatrixStatsPanel({
         </div>
 
         {/* Investment block */}
-        <div className="grid grid-cols-2 gap-4 pb-4 border-b border-border">
+        <div className="grid grid-cols-2 gap-3 pb-3 border-b border-border">
           <Stat label="Invested" value={money(stats.invested)} />
           <Stat
             label={scopeKind === "company" ? "Ownership" : "Avg ownership"}
@@ -157,7 +157,7 @@ export function MatrixStatsPanel({
         </div>
 
         {single && (
-          <div className="pt-4 border-t border-border space-y-2">
+          <div className="pt-3 border-t border-border space-y-1.5">
             {[
               ["Lead investor", single.investor],
               ["Stage", single.stage],

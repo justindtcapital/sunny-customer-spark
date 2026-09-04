@@ -18,8 +18,8 @@ interface Props {
 }
 
 const W = 1100;
-const H = 660;
-const PAD = { top: 22, right: 28, bottom: 66, left: 150 };
+const H = 594;
+const PAD = { top: 20, right: 28, bottom: 58, left: 150 };
 const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
 
@@ -115,8 +115,13 @@ function Bubble({
   onHover: (v: MatrixPoint | null) => void;
 }) {
   const [srcIdx, setSrcIdx] = useState(0);
-  const resolved = resolveCompanyLogoDomain({ website: p.website, company: p.name });
-  const sources = resolved ? companyLogoSources(resolved.domain, resolved.confidence) : [];
+  // Only trust a real website: a domain guessed from the company name pulls the
+  // wrong company's logo, so those bubbles show initials instead.
+  const resolved = resolveCompanyLogoDomain({ website: p.website });
+  const sources =
+    resolved && resolved.confidence === "high"
+      ? companyLogoSources(resolved.domain, resolved.confidence)
+      : [];
   const src = sources[srcIdx];
   const r = bubbleRadius(p.investment);
   const id = `logo-${p.key.replace(/[^a-z0-9]/gi, "")}`;
