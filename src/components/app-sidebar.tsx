@@ -10,7 +10,6 @@ import {
   Telescope,
   Loader2,
   ScrollText,
-  ChevronDown,
 } from "lucide-react";
 import {
   HomeIcon,

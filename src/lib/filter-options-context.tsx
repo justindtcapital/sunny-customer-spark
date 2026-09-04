@@ -25,7 +25,6 @@ export interface FilterOptions {
   allCities: string[];
   portfolioCompanies: string[];
   /** Lead investor names for the dashboard investor drill-downs. */
-  dashboardInvestors: string[];
 }
 
 const defaultOptions: FilterOptions = {
@@ -47,7 +46,6 @@ const defaultOptions: FilterOptions = {
   portfolioLeadInvestors: [],
   allCities: [],
   portfolioCompanies: [],
-  dashboardInvestors: [],
 };
 
 interface FilterOptionsContextType {
