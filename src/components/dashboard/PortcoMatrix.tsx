@@ -17,7 +17,7 @@ interface Props {
 
 const W = 1100;
 const H = 660;
-const PAD = { top: 40, right: 160, bottom: 66, left: 150 };
+const PAD = { top: 22, right: 28, bottom: 66, left: 150 };
 const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
 
@@ -170,16 +170,6 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
         aria-label="PortCo prioritization by sales maturity, GTM maturity and investment"
         onClick={() => onSelect(null)}
       >
-        <text
-          x={W / 2}
-          y={20}
-          textAnchor="middle"
-          className="fill-foreground font-medium"
-          fontSize={14}
-        >
-          PortCo Prioritization: Sales Maturity / GTM Maturity / Investment
-        </text>
-
         {/* horizontal gridlines at each sales level */}
         {[1, 2, 3, 4, 5].map((v) => (
           <line
@@ -300,8 +290,8 @@ export function PortcoMatrix({ points, investor, selectedKey, onSelect }: Props)
             />
           ))}
 
-        {/* investment legend */}
-        <g transform={`translate(${PAD.left + PLOT_W + 18} ${PAD.top + PLOT_H - 96})`}>
+        {/* investment legend — sits inside the plot, bottom-right */}
+        <g transform={`translate(${PAD.left + PLOT_W - 132} ${PAD.top + PLOT_H - 112})`}>
           <text fontSize={10} className="fill-muted-foreground" y={-10}>
             Invested
           </text>
