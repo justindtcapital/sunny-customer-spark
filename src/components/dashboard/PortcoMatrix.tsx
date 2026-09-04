@@ -73,6 +73,22 @@ const ZONES = [
   },
 ];
 
+/** Wrap a bullet to the given pixel width (approx 5.1px per char at 10.5px). */
+function wrapLine(text: string, maxWidth: number): string[] {
+  const max = Math.max(Math.floor(maxWidth / 5.1), 16);
+  const out: string[] = [];
+  let cur = "";
+  for (const word of text.split(/\s+/)) {
+    const next = cur ? `${cur} ${word}` : word;
+    if (next.length > max && cur) {
+      out.push(cur);
+      cur = word;
+    } else cur = next;
+  }
+  if (cur) out.push(cur);
+  return out.map((l, i) => (i === 0 ? `• ${l}` : l));
+}
+
 /** Deterministic spread so companies sharing a cell don't stack exactly. */
 function offsetFor(index: number): { dx: number; dy: number } {
   const golden = 2.399963;
