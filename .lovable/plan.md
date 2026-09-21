@@ -16,8 +16,8 @@
    - **GTM:** Strategy work status, SageTap status, Last pitch reviewed, GTM maturity, Sales maturity, GTM category, Next steps
    - Blank values still show as "Not set" so the layout is stable while you fill fields in Asana.
 
-3. **Remove the "Other fields" section entirely.**
-   The expanded row no longer dumps every remaining Asana field. Expanded view is: field grid, Detail (notes/email body if present), owner/updated line, Asana link. Nothing else.
+4. **Remove the "Other fields" section entirely.**
+   The expanded row no longer dumps every remaining Asana field. Expanded view is: field grid, Detail (notes/email body if present), updated date, Asana link. Nothing else.
 
 ## Technical notes
 
