@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Contact, PortfolioCompany, PortfolioEvent } from "@/lib/types";
@@ -38,6 +39,10 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 
+const EMPTY_FIELDS: Record<string, Record<string, string>> = {};
+const EMPTY_NAMES: Record<string, string> = {};
+const EMPTY_EVENTS: Record<string, PortfolioEvent[]> = {};
+
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
@@ -51,67 +56,61 @@ export const Route = createFileRoute("/dashboard")({
     ],
   }),
   loader: async () => {
-    const withTimeout = <T,>(p: Promise<T>, fallback: T, ms = 8000): Promise<T> =>
+    const withTimeout = <T,>(p: Promise<T>, fallback: T, ms = 5000): Promise<T> =>
       Promise.race([
         p.catch(() => fallback),
         new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
       ]);
 
-    const [contacts, asana, portfolio] = await Promise.all([
+    // Asana is fetched on the client (see useQuery below) so a slow Asana call
+    // can never hang the server render and abort the request.
+    const [contacts, portfolio] = await Promise.all([
       withTimeout<Contact[]>(fetchContacts(), []),
-      withTimeout<AsanaPortcoData>(fetchAsanaPortcoData(), {
-        fieldsByCompanyName: {},
-        namesByCompanyName: {},
-        eventsByCompanyName: {},
-      }),
       withTimeout<PortfolioCompany[]>(fetchPortfolioCompanies(), []),
     ]);
 
-
-    // Asana keys and sheet names disagree ("VAST" vs "VAST Data"), so match fuzzily
-    // before attaching websites / domains — otherwise logos fall back to a guess.
-    const sheetList = (portfolio || []).filter((p) => (p.name || "").trim());
-    const asanaKeys = Object.keys(asana.fieldsByCompanyName || {});
-    const sheetToAsana = matchSheetToAsanaKeys(
-      sheetList.map((p) => p.name),
-      asanaKeys,
-      (k) => asana.namesByCompanyName[k] || k,
-    );
-
-    const websiteByPortco: Record<string, string> = {};
-    const sectorByPortco: Record<string, string> = {};
-    for (const p of sheetList) {
-      const dom = p.domain || normalizeFocusArea(p.sector);
-      for (const key of [portCoKey(p.name || ""), sheetToAsana.get(p.name) || ""]) {
-        if (!key) continue;
-        if (p.website && !websiteByPortco[key]) websiteByPortco[key] = p.website;
-        if (dom && !sectorByPortco[key]) sectorByPortco[key] = dom;
-      }
-    }
-
-    return {
-      contacts,
-      asanaFieldsByPortco: asana.fieldsByCompanyName,
-      portcoNames: asana.namesByCompanyName,
-      eventsByPortco: asana.eventsByCompanyName as Record<string, PortfolioEvent[]>,
-      websiteByPortco,
-      sectorByPortco,
-      companies: portfolio || [],
-    };
+    return { contacts, companies: portfolio || [] };
   },
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  const {
-    contacts,
-    asanaFieldsByPortco,
-    portcoNames,
-    eventsByPortco,
-    websiteByPortco,
-    sectorByPortco,
-    companies,
-  } = Route.useLoaderData();
+  const { contacts, companies } = Route.useLoaderData();
+  const fetchAsana = useServerFn(fetchAsanaPortcoData);
+  const { data: asana } = useQuery({
+    queryKey: ["asana-portco-data"],
+    queryFn: () => fetchAsana(),
+    staleTime: 60_000,
+  });
+
+  const asanaFieldsByPortco = asana?.fieldsByCompanyName ?? EMPTY_FIELDS;
+  const portcoNames = asana?.namesByCompanyName ?? EMPTY_NAMES;
+  const eventsByPortco = (asana?.eventsByCompanyName ?? EMPTY_EVENTS) as Record<
+    string,
+    PortfolioEvent[]
+  >;
+
+  // Asana keys and sheet names disagree ("VAST" vs "VAST Data"), so match fuzzily
+  // before attaching websites / domains — otherwise logos fall back to a guess.
+  const { websiteByPortco, sectorByPortco } = useMemo(() => {
+    const sheetList = (companies || []).filter((p) => (p.name || "").trim());
+    const sheetToAsana = matchSheetToAsanaKeys(
+      sheetList.map((p) => p.name),
+      Object.keys(asanaFieldsByPortco),
+      (k) => portcoNames[k] || k,
+    );
+    const websites: Record<string, string> = {};
+    const sectors: Record<string, string> = {};
+    for (const p of sheetList) {
+      const dom = p.domain || normalizeFocusArea(p.sector);
+      for (const key of [portCoKey(p.name || ""), sheetToAsana.get(p.name) || ""]) {
+        if (!key) continue;
+        if (p.website && !websites[key]) websites[key] = p.website;
+        if (dom && !sectors[key]) sectors[key] = dom;
+      }
+    }
+    return { websiteByPortco: websites, sectorByPortco: sectors };
+  }, [companies, asanaFieldsByPortco, portcoNames]);
   const [investor, setInvestor] = useState("");
   const [sector, setSector] = useState("");
   const [priority, setPriority] = useState("");
@@ -119,6 +118,7 @@ function DashboardPage() {
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
   const refreshAsana = useServerFn(refreshAsanaCacheFn);
 
   const detailCompany = useMemo(
@@ -186,6 +186,7 @@ function DashboardPage() {
             setRefreshing(true);
             try {
               await refreshAsana();
+              await queryClient.invalidateQueries({ queryKey: ["asana-portco-data"] });
               await router.invalidate();
             } finally {
               setRefreshing(false);
