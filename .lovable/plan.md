@@ -3,7 +3,7 @@
 ## What changes
 
 1. **Remove the "last updated" date from the collapsed row.**
-   In `WorkstreamsPanel.tsx` (`WorkstreamRow`), delete the date shown next to the status badge and owner badge on the unexpanded row. The date stays in the expanded footer line ("owner · updated …") so the info is still there one click in.
+   In `WorkstreamsPanel.tsx` (`WorkstreamRow`), delete the date shown next to the status badge on the unexpanded row. The date stays in the expanded footer line so the info is still there one click in.
 
 2. **Remove the owner name text that duplicates the owner badge.**
    The initials circle in the corner already shows the owner. Remove the owner name from:
