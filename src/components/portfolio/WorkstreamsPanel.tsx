@@ -103,14 +103,6 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
       {open && (
         <div className="mt-2 space-y-2.5 border-t border-border pt-2">
           <FieldGrid items={program} />
-          {extras.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                Other fields
-              </p>
-              <FieldGrid items={extras} />
-            </div>
-          )}
           {w.notes && (
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
@@ -120,9 +112,7 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
             </div>
           )}
           <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-            <span>
-              {(w.owner || "Unassigned") + (w.lastActivity ? ` · updated ${w.lastActivity}` : "")}
-            </span>
+            <span>{w.lastActivity ? `Updated ${w.lastActivity}` : ""}</span>
             {w.url && (
               <a
                 href={w.url}
