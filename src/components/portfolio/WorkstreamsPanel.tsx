@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Workstream } from "@/lib/workstream-parse";
-import {
-  PROGRAM_FIELDS,
-  otherFields,
-  summaryChips,
-  initialsOf,
-} from "@/lib/workstream-parse";
+import { PROGRAM_FIELDS, summaryChips, initialsOf } from "@/lib/workstream-parse";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,7 +55,6 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
   const program = PROGRAM_FIELDS[w.segment].map(
     ([label, key]) => [label, String(w[key] ?? "")] as [string, string],
   );
-  const extras = otherFields(w);
   const chips = summaryChips(w);
 
   return (
@@ -85,20 +79,15 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
                 )}
                 {w.name || w.rawName}
               </div>
-              <div className="text-[11px] text-muted-foreground truncate">
-                {(chips.length > 0 ? chips : [w.owner || "Unassigned"]).join(" · ")}
-              </div>
+              {chips.length > 0 && (
+                <div className="text-[11px] text-muted-foreground truncate">{chips.join(" · ")}</div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <Badge variant="outline" className={`text-[10px] ${statusTone(w.status)}`}>
               {w.status || "Not set"}
             </Badge>
-            {w.lastActivity && (
-              <span className="text-[10px] tabular-nums text-muted-foreground">
-                {w.lastActivity}
-              </span>
-            )}
             <OwnerBadge owner={w.owner} />
           </div>
         </div>
@@ -114,14 +103,6 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
       {open && (
         <div className="mt-2 space-y-2.5 border-t border-border pt-2">
           <FieldGrid items={program} />
-          {extras.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                Other fields
-              </p>
-              <FieldGrid items={extras} />
-            </div>
-          )}
           {w.notes && (
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
@@ -131,9 +112,7 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
             </div>
           )}
           <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-            <span>
-              {(w.owner || "Unassigned") + (w.lastActivity ? ` · updated ${w.lastActivity}` : "")}
-            </span>
+            <span>{w.lastActivity ? `Updated ${w.lastActivity}` : ""}</span>
             {w.url && (
               <a
                 href={w.url}

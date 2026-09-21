@@ -130,16 +130,6 @@ export const PROGRAM_FIELDS: Record<WorkstreamSegment, Array<[string, keyof Work
   ],
 };
 
-/** Field names already surfaced through PROGRAM_FIELDS; the rest go to "Other fields". */
-const KNOWN_FIELD_RE =
-  /(strategy\s*workstream\s*status|gtm\s*strategy\s*category|sell[\s-]*in\s*status|maturity|dell\s*targets?|dell\s*stakeholders?|next\s*steps?|traction|momentum|channel|^targets?$|sage\s*tap|last\s*pitch)/i;
-
-export function otherFields(w: Workstream): Array<[string, string]> {
-  return Object.entries(w.fields || {})
-    .filter(([k]) => !KNOWN_FIELD_RE.test(k.trim()))
-    .sort((a, b) => a[0].localeCompare(b[0]));
-}
-
 /** Two or three most telling values for a collapsed row. */
 export function summaryChips(w: Workstream): string[] {
   const vals =
