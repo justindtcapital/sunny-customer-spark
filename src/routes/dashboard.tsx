@@ -9,7 +9,6 @@ import { fetchContacts, fetchPortfolioCompanies } from "@/utils/sheets.functions
 import {
   fetchAsanaPortcoData,
   refreshAsanaCacheFn,
-  type AsanaPortcoData,
 } from "@/utils/asana.functions";
 import {
   buildMatrixPoints,
