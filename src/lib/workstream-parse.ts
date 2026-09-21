@@ -84,8 +84,74 @@ export interface Workstream {
   dellStakeholders: string;
   nextSteps: string;
   traction: string;
+  /** BD program fields. */
+  momentum: string;
+  channel: string;
+  targets: string;
+  /** GTM program fields. */
+  sageTapStatus: string;
+  lastPitchReviewed: string;
+  gtmMaturity: string;
+  salesMaturity: string;
+  notes: string;
+  /** Every Asana custom field on the subtask, verbatim by field name. */
+  fields: Record<string, string>;
   owner: string;
   completed: boolean;
   lastActivity: string;
   url?: string;
+}
+
+/** Ordered program-view fields per segment: [label, key on Workstream]. */
+export const PROGRAM_FIELDS: Record<WorkstreamSegment, Array<[string, keyof Workstream]>> = {
+  BD: [
+    ["Status", "status"],
+    ["Momentum", "momentum"],
+    ["Channel", "channel"],
+    ["Targets", "targets"],
+    ["Stakeholders", "dellStakeholders"],
+    ["Sell-in status", "sellInStatus"],
+    ["Traction", "traction"],
+    ["Next steps", "nextSteps"],
+  ],
+  GTM: [
+    ["Strategy work status", "status"],
+    ["SageTap status", "sageTapStatus"],
+    ["Last pitch reviewed", "lastPitchReviewed"],
+    ["GTM maturity", "gtmMaturity"],
+    ["Sales maturity", "salesMaturity"],
+    ["GTM category", "category"],
+    ["Next steps", "nextSteps"],
+  ],
+  Other: [
+    ["Status", "status"],
+    ["Category", "category"],
+    ["Next steps", "nextSteps"],
+  ],
+};
+
+/** Field names already surfaced through PROGRAM_FIELDS; the rest go to "Other fields". */
+const KNOWN_FIELD_RE =
+  /(strategy\s*workstream\s*status|gtm\s*strategy\s*category|sell[\s-]*in\s*status|maturity|dell\s*targets?|dell\s*stakeholders?|next\s*steps?|traction|momentum|channel|^targets?$|sage\s*tap|last\s*pitch)/i;
+
+export function otherFields(w: Workstream): Array<[string, string]> {
+  return Object.entries(w.fields || {})
+    .filter(([k]) => !KNOWN_FIELD_RE.test(k.trim()))
+    .sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+/** Two or three most telling values for a collapsed row. */
+export function summaryChips(w: Workstream): string[] {
+  const vals =
+    w.segment === "GTM"
+      ? [w.sageTapStatus, w.gtmMaturity, w.salesMaturity]
+      : [w.status, w.momentum, w.targets || w.dellTargets];
+  return vals.map((v) => (v || "").trim()).filter(Boolean);
+}
+
+export function initialsOf(name: string): string {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
 }
