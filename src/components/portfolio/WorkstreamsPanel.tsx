@@ -55,7 +55,6 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
   const program = PROGRAM_FIELDS[w.segment].map(
     ([label, key]) => [label, String(w[key] ?? "")] as [string, string],
   );
-  const extras = otherFields(w);
   const chips = summaryChips(w);
 
   return (
