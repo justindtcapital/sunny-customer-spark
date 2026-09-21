@@ -157,14 +157,34 @@ function DashboardPage() {
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-foreground tracking-tight">
-          Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Where each portfolio company sits on sales and go-to-market maturity, sized by
-          investment. Click a company for its own numbers.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-foreground tracking-tight">
+            Dashboard
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Where each portfolio company sits on sales and go-to-market maturity, sized by
+            investment. Click a company for its own numbers.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          disabled={refreshing}
+          onClick={async () => {
+            setRefreshing(true);
+            try {
+              await refreshAsana({ data: {} });
+              await router.invalidate();
+            } finally {
+              setRefreshing(false);
+            }
+          }}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Refreshing…" : "Refresh Asana data"}
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
