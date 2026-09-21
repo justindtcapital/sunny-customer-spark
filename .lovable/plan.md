@@ -21,6 +21,9 @@ When a single portfolio company is selected, the workstream boxes at the bottom 
 4. Compact summary line
    - Collapsed rows show the two or three most telling values for their type (BD: status, momentum, targets; GTM: SageTap status, GTM/sales maturity) so the boxes stay scannable.
 
+5. Owner marker
+   - Each workstream row carries a small owner badge in its corner: the owner's initials in a circle, with the full name on hover. Unassigned workstreams show a neutral person icon.
+
 ## Technical notes
 
 - `src/lib/workstream-parse.ts`: extend `Workstream` with `fields: Record<string, string>` plus `momentum`, `channel`, `targets`, `sageTapStatus`, `lastPitchReviewed`, `gtmMaturity`, `salesMaturity`.
