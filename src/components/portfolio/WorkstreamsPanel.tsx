@@ -79,20 +79,15 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
                 )}
                 {w.name || w.rawName}
               </div>
-              <div className="text-[11px] text-muted-foreground truncate">
-                {(chips.length > 0 ? chips : [w.owner || "Unassigned"]).join(" · ")}
-              </div>
+              {chips.length > 0 && (
+                <div className="text-[11px] text-muted-foreground truncate">{chips.join(" · ")}</div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <Badge variant="outline" className={`text-[10px] ${statusTone(w.status)}`}>
               {w.status || "Not set"}
             </Badge>
-            {w.lastActivity && (
-              <span className="text-[10px] tabular-nums text-muted-foreground">
-                {w.lastActivity}
-              </span>
-            )}
             <OwnerBadge owner={w.owner} />
           </div>
         </div>
