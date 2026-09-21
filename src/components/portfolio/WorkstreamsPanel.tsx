@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Workstream } from "@/lib/workstream-parse";
-import {
-  PROGRAM_FIELDS,
-  otherFields,
-  summaryChips,
-  initialsOf,
-} from "@/lib/workstream-parse";
+import { PROGRAM_FIELDS, summaryChips, initialsOf } from "@/lib/workstream-parse";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
