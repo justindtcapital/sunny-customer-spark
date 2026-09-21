@@ -21,6 +21,6 @@
 
 ## Technical notes
 
-- `src/components/portfolio/WorkstreamsPanel.tsx`: remove the `lastActivity` span from the collapsed row header; remove the `extras` / "Other fields" block from the expanded view.
+- `src/components/portfolio/WorkstreamsPanel.tsx`: remove the `lastActivity` span from the collapsed row header; drop the owner name from the collapsed fallback line and the expanded footer; remove the `extras` / "Other fields" block from the expanded view.
 - `src/lib/workstream-parse.ts`: `otherFields()` and `KNOWN_FIELD_RE` become unused — remove them (the verbatim `fields` map stays on the data, so adding a field later is a one-line change to `PROGRAM_FIELDS`).
 - No Asana API changes; typecheck with `bunx tsgo --noEmit`.
