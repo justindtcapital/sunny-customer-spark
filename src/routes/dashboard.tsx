@@ -185,7 +185,7 @@ function DashboardPage() {
           onClick={async () => {
             setRefreshing(true);
             try {
-              await refreshAsana({ data: {} });
+              await refreshAsana();
               await router.invalidate();
             } finally {
               setRefreshing(false);
