@@ -5,7 +5,12 @@
 1. **Remove the "last updated" date from the collapsed row.**
    In `WorkstreamsPanel.tsx` (`WorkstreamRow`), delete the date shown next to the status badge and owner badge on the unexpanded row. The date stays in the expanded footer line ("owner · updated …") so the info is still there one click in.
 
-2. **Expanded rows show only the chosen fields per type.**
+2. **Remove the owner name text that duplicates the owner badge.**
+   The initials circle in the corner already shows the owner. Remove the owner name from:
+   - The collapsed row's second line when there are no field chips (currently falls back to the owner name — show nothing instead).
+   - The expanded footer line (currently "owner · updated …" — drop the owner name, keep the updated date there).
+
+3. **Expanded rows show only the chosen fields per type.**
    Field lists stay as you confirmed:
    - **BD:** Status, Momentum, Channel, Targets, Stakeholders, Sell-in status, Traction, Next steps
    - **GTM:** Strategy work status, SageTap status, Last pitch reviewed, GTM maturity, Sales maturity, GTM category, Next steps
