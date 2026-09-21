@@ -17,7 +17,7 @@ import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
 import { parseWorkstreamName, type Workstream } from "@/lib/workstream-parse";
 
 const ASANA_BASE = "https://app.asana.com/api/1.0";
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 60 * 1000; // 1 minute — Asana edits should show up quickly
 
 interface AsanaCustomField {
   gid: string;
@@ -61,6 +61,10 @@ function getCached<T>(key: string): T | undefined {
 }
 function setCached<T>(key: string, value: T) {
   cache.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
+}
+/** Drop every cached Asana response so the next read hits the API. */
+export function clearAsanaCache() {
+  cache.clear();
 }
 
 function asanaNetworkError(err: unknown): Error {
