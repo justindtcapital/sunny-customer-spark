@@ -117,6 +117,9 @@ function DashboardPage() {
   const [priority, setPriority] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
+  const refreshAsana = useServerFn(refreshAsanaCacheFn);
 
   const detailCompany = useMemo(
     () => (detailKey ? companies.find((c) => portCoKey(c.name || "") === detailKey) : undefined),
