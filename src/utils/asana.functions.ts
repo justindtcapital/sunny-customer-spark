@@ -103,3 +103,11 @@ export const fetchPortcoWorkstreamsFn = createServerFn({ method: "GET" }).handle
     }
   },
 );
+
+// Clears the server-side Asana response cache so the next load reflects
+// edits just made in Asana.
+export const refreshAsanaCacheFn = createServerFn({ method: "POST" }).handler(async () => {
+  const { clearAsanaCache } = await import("./asana.server");
+  clearAsanaCache();
+  return { ok: true };
+});
