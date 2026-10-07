@@ -168,7 +168,70 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <FilterSelect value={company} onChange={setCompany} allLabel="All PortCos" options={companyOpts} />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-40 justify-between text-xs font-normal bg-card"
+              >
+                <span className="truncate">
+                  {companies.length === 0
+                    ? "All PortCos"
+                    : companies.length === 1
+                      ? companies[0]
+                      : `${companies.length} PortCos`}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-1">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+                onClick={() => setCompanies([])}
+              >
+                <Check className={cn("h-3.5 w-3.5", companies.length === 0 ? "opacity-100" : "opacity-0")} />
+                All PortCos
+              </button>
+              {priorityGroups.map(([pr, names]) => {
+                const active =
+                  names.length > 0 &&
+                  companies.length === names.length &&
+                  names.every((n) => companies.includes(n));
+                return (
+                  <button
+                    key={pr}
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+                    onClick={() => setCompanies(active ? [] : names)}
+                  >
+                    <Check className={cn("h-3.5 w-3.5", active ? "opacity-100" : "opacity-0")} />
+                    {pr}
+                  </button>
+                );
+              })}
+              <div className="my-1 h-px bg-border" />
+              <div className="max-h-56 overflow-y-auto">
+                {companyOpts.map((name) => {
+                  const on = companies.includes(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+                      onClick={() =>
+                        setCompanies(on ? companies.filter((c) => c !== name) : [...companies, name])
+                      }
+                    >
+                      <Check className={cn("h-3.5 w-3.5", on ? "opacity-100" : "opacity-0")} />
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
           <FilterSelect value={status} onChange={setStatus} allLabel="All statuses" options={statusOpts} />
           <FilterSelect value={priority} onChange={setPriority} allLabel="All priorities" options={priorityOpts} />
         </div>
