@@ -3,6 +3,14 @@ import type { Workstream } from "@/lib/workstream-parse";
 import { PROGRAM_FIELDS, workstreamBarStatus, initialsOf } from "@/lib/workstream-parse";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
+import { updateWorkstreamFn } from "@/utils/asana.functions";
+import { patchWorkstreamCache } from "@/lib/use-workstreams";
+import { sameValue, type FieldChange } from "@/lib/asana-field-payload";
+import { WorkstreamFieldEditor } from "./WorkstreamFieldEditor";
 import {
   ChevronDown,
   ChevronRight,
@@ -60,8 +68,85 @@ function FieldGrid({ items }: { items: Array<[string, string]> }) {
   );
 }
 
+type EditKey = keyof Workstream;
+
+function EditView({ w, onSaved, onCancel }: { w: Workstream; onSaved: (w: Workstream) => void; onCancel: () => void }) {
+  const save = useServerFn(updateWorkstreamFn);
+  const keys: Array<[string, EditKey]> = [
+    ["Work stream status", "workstreamStatus"],
+    ["Work stream priority", "workstreamPriority"],
+    ...PROGRAM_FIELDS[w.segment],
+  ];
+  const [draft, setDraft] = useState<Record<string, string | string[]>>({});
+  const [completed, setCompleted] = useState(w.completed);
+  const [saving, setSaving] = useState(false);
+
+  const onSave = async () => {
+    const changes: FieldChange[] = [];
+    for (const [, key] of keys) {
+      const m = w.editable?.[key];
+      if (!m || !(key in draft)) continue;
+      if (!sameValue(draft[key]!, m.value))
+        changes.push({ gid: m.gid, type: m.type, original: m.value, value: draft[key]! });
+    }
+    const completedChanged = completed !== w.completed;
+    if (!changes.length && !completedChanged) return onCancel();
+    setSaving(true);
+    const res = await save({
+      data: { gid: w.gid, changes, completed: completedChanged ? completed : undefined },
+    }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    patchWorkstreamCache(res.workstream);
+    toast.success("Saved to Asana");
+    onSaved(res.workstream);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+        {keys.map(([label, key]) => {
+          const m = w.editable?.[key];
+          return (
+            <div key={label} className={key === "nextSteps" ? "sm:col-span-2 space-y-0.5" : "space-y-0.5"}>
+              <p className="text-[10px] text-muted-foreground">{label}</p>
+              {m && m.editable ? (
+                <WorkstreamFieldEditor
+                  meta={m}
+                  value={key in draft ? draft[key]! : m.value}
+                  multiline={key === "nextSteps" || key === "dellStakeholders"}
+                  onChange={(v) => setDraft((d) => ({ ...d, [key]: v }))}
+                />
+              ) : (
+                <p className="text-[11px] italic text-muted-foreground/70">
+                  {m ? `${String(w[key] || "Not set")} (read-only)` : "Not in Asana"}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <label className="flex items-center gap-1.5 text-[11px]">
+        <Checkbox checked={completed} onCheckedChange={(c) => setCompleted(c === true)} />
+        Mark subtask complete in Asana
+      </label>
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+        <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving}>
+          {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function WorkstreamRow({
-  w,
+  w: initial,
   showCompany = false,
   showSegment = false,
 }: {
@@ -70,6 +155,9 @@ export function WorkstreamRow({
   showSegment?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState<Workstream | null>(null);
+  const w = saved && saved.gid === initial.gid ? saved : initial;
   const program = PROGRAM_FIELDS[w.segment].map(
     ([label, key]) => [label, String(w[key] ?? "")] as [string, string],
   );
@@ -119,7 +207,24 @@ export function WorkstreamRow({
 
       {open && (
         <div className="mt-2 space-y-2.5 border-t border-border pt-2">
-          <FieldGrid items={program} />
+          <div className="flex justify-end">
+            <label className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+              Edit
+              <Switch checked={editing} onCheckedChange={setEditing} aria-label="Edit workstream" />
+            </label>
+          </div>
+          {editing ? (
+            <EditView
+              w={w}
+              onCancel={() => setEditing(false)}
+              onSaved={(nw) => {
+                setSaved(nw);
+                setEditing(false);
+              }}
+            />
+          ) : (
+            <FieldGrid items={program} />
+          )}
           {w.notes && (
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">

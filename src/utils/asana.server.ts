@@ -15,6 +15,13 @@ import { isNameOnlyAttendeeEmail } from "@/lib/email-address";
 import { fetchAliasActivities, getActivityAliases, getInternalConfig } from "./gmail.server";
 import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
 import { parseWorkstreamName, type Workstream } from "@/lib/workstream-parse";
+import {
+  buildCustomFieldsPayload,
+  sameValue,
+  type AsanaFieldType,
+  type FieldChange,
+  type WorkstreamFieldMeta,
+} from "@/lib/asana-field-payload";
 
 const ASANA_BASE = "https://app.asana.com/api/1.0";
 const CACHE_TTL_MS = 60 * 1000; // 1 minute — Asana edits should show up quickly
@@ -679,7 +686,180 @@ export async function parseActivityThreads(
 
 
 const SUBTASK_FIELDS =
-  "name,completed,completed_at,due_on,modified_at,notes,permalink_url,assignee.name,custom_fields.name,custom_fields.display_value,custom_fields.enum_value,custom_fields.multi_enum_values,custom_fields.text_value,custom_fields.number_value";
+  "name,completed,completed_at,due_on,modified_at,notes,permalink_url,assignee.name,custom_fields.gid,custom_fields.name,custom_fields.type,custom_fields.resource_subtype,custom_fields.is_formula_field,custom_fields.display_value,custom_fields.enum_value,custom_fields.multi_enum_values,custom_fields.text_value,custom_fields.number_value,custom_fields.date_value,custom_fields.enum_options.name,custom_fields.enum_options.enabled";
+
+// One mapping table drives both display values and edit metadata.
+const WORKSTREAM_FIELD_PATTERNS: Array<[keyof Workstream, RegExp[]]> = [
+  ["status", [/strategy\s*workstream\s*status/i]],
+  ["workstreamStatus", [/^work[\s-]*stream\s*status$/i]],
+  ["workstreamPriority", [/^work[\s-]*stream\s*priority$/i]],
+  ["category", [/gtm\s*strategy\s*category/i]],
+  ["sellInStatus", [/sell[\s-]*in\s*status/i]],
+  ["maturity", [/maturity/i]],
+  ["dellTargets", [/dell\s*targets?/i]],
+  ["dellStakeholders", [/dell\s*stakeholders?/i]],
+  ["nextSteps", [/next\s*steps?/i]],
+  ["traction", [/traction/i]],
+  ["momentum", [/momentum/i]],
+  ["channel", [/channel/i]],
+  ["targets", [/^targets?$/i, /dell\s*targets?/i]],
+  ["sageTapStatus", [/sage\s*tap/i]],
+  ["lastPitchReviewed", [/last\s*pitch/i]],
+  ["gtmMaturity", [/(gtm|go[\s-]*to[\s-]*market).*maturity/i]],
+  ["salesMaturity", [/sales.*maturity/i]],
+];
+
+type RichField = AsanaCustomField & {
+  resource_subtype?: string;
+  is_formula_field?: boolean;
+  enum_options?: { gid: string; name: string; enabled?: boolean }[];
+};
+
+function fieldMeta(f: RichField): WorkstreamFieldMeta {
+  const t = (f.resource_subtype || f.type || "").toLowerCase();
+  const type: AsanaFieldType =
+    t === "text" || t === "number" || t === "enum" || t === "multi_enum" || t === "date" ? t : "other";
+  const value: string | string[] =
+    type === "enum"
+      ? f.enum_value?.gid || ""
+      : type === "multi_enum"
+        ? (f.multi_enum_values || []).map((v) => v.gid)
+        : type === "number"
+          ? f.number_value != null ? String(f.number_value) : ""
+          : type === "date"
+            ? f.date_value?.date || ""
+            : f.text_value || "";
+  const opts = (f.enum_options || []).filter((o) => o.enabled !== false).map((o) => ({ gid: o.gid, name: o.name }));
+  // Keep a currently-selected but disabled choice visible so it isn't silently dropped.
+  for (const sel of [f.enum_value, ...(f.multi_enum_values || [])]) {
+    if (sel && !opts.some((o) => o.gid === sel.gid)) opts.push({ gid: sel.gid, name: sel.name });
+  }
+  return {
+    gid: f.gid,
+    name: f.name,
+    type,
+    options: type === "enum" || type === "multi_enum" ? opts : undefined,
+    value,
+    editable: type !== "other" && !f.is_formula_field,
+  };
+}
+
+function findByPatterns<T>(byName: Record<string, T>, res: RegExp[]): T | undefined {
+  for (const re of res) {
+    for (const [k, v] of Object.entries(byName)) if (re.test(k.trim())) return v;
+  }
+  return undefined;
+}
+
+function mapSubtask(sub: AsanaTask, company: string): Workstream {
+  const fields: Record<string, string> = {};
+  const metas: Record<string, WorkstreamFieldMeta> = {};
+  for (const f of (sub.custom_fields || []) as RichField[]) {
+    const v = fieldStringValue(f);
+    if (v) fields[f.name] = v;
+    if (f.gid) metas[f.name] = fieldMeta(f);
+  }
+  const values: Partial<Record<keyof Workstream, string>> = {};
+  const editable: Partial<Record<keyof Workstream, WorkstreamFieldMeta>> = {};
+  for (const [key, res] of WORKSTREAM_FIELD_PATTERNS) {
+    values[key] = findByPatterns(fields, res) || "";
+    const m = findByPatterns(metas, res);
+    if (m) editable[key] = m;
+  }
+  const parsed = parseWorkstreamName(sub.name || "", company);
+  const modified = (sub as AsanaTask & { modified_at?: string | null }).modified_at || "";
+  const v = (k: keyof Workstream) => values[k] || "";
+  return {
+    gid: sub.gid,
+    companyKey: company.toLowerCase(),
+    company,
+    segment: parsed.segment,
+    name: parsed.name,
+    rawName: (sub.name || "").trim(),
+    status: v("status"),
+    workstreamStatus: v("workstreamStatus"),
+    workstreamPriority: v("workstreamPriority"),
+    category: v("category"),
+    sellInStatus: v("sellInStatus"),
+    maturity: v("maturity"),
+    dellTargets: v("dellTargets"),
+    dellStakeholders: v("dellStakeholders"),
+    nextSteps: v("nextSteps"),
+    traction: v("traction"),
+    momentum: v("momentum"),
+    channel: v("channel"),
+    targets: v("targets"),
+    sageTapStatus: v("sageTapStatus"),
+    lastPitchReviewed: v("lastPitchReviewed"),
+    gtmMaturity: v("gtmMaturity"),
+    salesMaturity: v("salesMaturity"),
+    notes: (sub.notes || "").trim(),
+    fields,
+    editable,
+    owner: sub.assignee?.name?.trim() || "",
+    completed: sub.completed === true || /^(complete|completed)$/i.test(v("workstreamStatus").trim()),
+    lastActivity: modified ? modified.split("T")[0]! : "",
+    url: sub.permalink_url,
+  };
+}
+
+async function asanaWrite<T = unknown>(path: string, method: "PUT", body: unknown): Promise<T> {
+  const token = process.env.ASANA_ACCESS_TOKEN;
+  if (!token) throw new Error("ASANA_ACCESS_TOKEN is not configured");
+  const res = await fetch(`${ASANA_BASE}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch((e) => {
+    throw asanaNetworkError(e);
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    let msg = text.slice(0, 300);
+    try {
+      const j = JSON.parse(text) as { errors?: { message?: string }[] };
+      if (j.errors?.length) msg = j.errors.map((e) => e.message).filter(Boolean).join("; ");
+    } catch {
+      /* keep raw */
+    }
+    console.error(`[asana] write failed [${res.status}]: ${text}`);
+    throw new Error(`Asana rejected the change (${res.status}): ${msg}`);
+  }
+  return (await res.json()) as T;
+}
+
+/** Re-read, check for conflicts, write only changed fields, return the fresh workstream. */
+export async function updateWorkstream(input: {
+  gid: string;
+  changes: FieldChange[];
+  completed?: boolean;
+}): Promise<Workstream> {
+  const before: { data: AsanaTask & { parent?: { name?: string } | null } } = await asanaFetch(
+    `/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS},parent.name`,
+  );
+  const current = new Map(((before.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
+  for (const c of input.changes) {
+    const m = current.get(c.gid);
+    if (!m) throw new Error("A field no longer exists on this Asana task — refresh and try again.");
+    if (!m.editable) throw new Error(`"${m.name}" can't be edited.`);
+    if (!sameValue(m.value, c.original)) {
+      throw new Error(`"${m.name}" was changed in Asana since you opened it — refresh and try again.`);
+    }
+    if (m.type === "enum" || m.type === "multi_enum") {
+      const ids = Array.isArray(c.value) ? c.value : c.value ? [c.value] : [];
+      for (const id of ids) {
+        if (!m.options?.some((o) => o.gid === id)) throw new Error(`Invalid choice for "${m.name}".`);
+      }
+    }
+  }
+  const data: Record<string, unknown> = {};
+  if (input.changes.length) data.custom_fields = buildCustomFieldsPayload(input.changes);
+  if (typeof input.completed === "boolean") data.completed = input.completed;
+  if (Object.keys(data).length) await asanaWrite(`/tasks/${input.gid}`, "PUT", { data });
+  clearAsanaCache();
+  const after: { data: AsanaTask } = await asanaFetch(`/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS}`);
+  return mapSubtask(after.data, (before.data.parent?.name || "").trim());
+}
 
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -698,18 +878,12 @@ async function mapWithConcurrency<T, R>(
   return out;
 }
 
-function pickField(fields: Record<string, string>, re: RegExp): string {
-  for (const [k, v] of Object.entries(fields)) {
-    if (re.test(k.trim())) return v;
-  }
-  return "";
-}
 
 export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
   if (!projectGid) return [];
 
-  const cacheKey = `workstreams:v2:${projectGid}`;
+  const cacheKey = `workstreams:v3:${projectGid}`;
   const cached = getCached<Workstream[]>(cacheKey);
   if (cached) return cached;
 
@@ -720,47 +894,7 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
         `/tasks/${parent.gid}/subtasks?opt_fields=${SUBTASK_FIELDS}&limit=100`,
       );
       const company = (parent.name || "").trim();
-      const companyKey = company.toLowerCase();
-      return (json.data || []).map((sub): Workstream => {
-        const fields: Record<string, string> = {};
-        for (const f of sub.custom_fields || []) {
-          const v = fieldStringValue(f);
-          if (v) fields[f.name] = v;
-        }
-        const parsed = parseWorkstreamName(sub.name || "", company);
-        const modified = (sub as AsanaTask & { modified_at?: string | null }).modified_at || "";
-        return {
-          gid: sub.gid,
-          companyKey,
-          company,
-          segment: parsed.segment,
-          name: parsed.name,
-          rawName: (sub.name || "").trim(),
-          status: pickField(fields, /strategy\s*workstream\s*status/i),
-          workstreamStatus: pickField(fields, /^work[\s-]*stream\s*status$/i),
-          workstreamPriority: pickField(fields, /^work[\s-]*stream\s*priority$/i),
-          category: pickField(fields, /gtm\s*strategy\s*category/i),
-          sellInStatus: pickField(fields, /sell[\s-]*in\s*status/i),
-          maturity: pickField(fields, /maturity/i),
-          dellTargets: pickField(fields, /dell\s*targets?/i),
-          dellStakeholders: pickField(fields, /dell\s*stakeholders?/i),
-          nextSteps: pickField(fields, /next\s*steps?/i),
-          traction: pickField(fields, /traction/i),
-          momentum: pickField(fields, /momentum/i),
-          channel: pickField(fields, /channel/i),
-          targets: pickField(fields, /^targets?$/i) || pickField(fields, /dell\s*targets?/i),
-          sageTapStatus: pickField(fields, /sage\s*tap/i),
-          lastPitchReviewed: pickField(fields, /last\s*pitch/i),
-          gtmMaturity: pickField(fields, /(gtm|go[\s-]*to[\s-]*market).*maturity/i),
-          salesMaturity: pickField(fields, /sales.*maturity/i),
-          notes: (sub.notes || "").trim(),
-          fields,
-          owner: sub.assignee?.name?.trim() || "",
-          completed: sub.completed === true || /^(complete|completed)$/i.test(pickField(fields, /^work[\s-]*stream\s*status$/i).trim()),
-          lastActivity: modified ? modified.split("T")[0]! : "",
-          url: sub.permalink_url,
-        };
-      });
+      return (json.data || []).map((sub) => mapSubtask(sub, company));
     } catch (err) {
       console.error(`[asana] subtasks failed for ${parent.gid}:`, err);
       return [] as Workstream[];

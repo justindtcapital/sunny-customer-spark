@@ -6,6 +6,8 @@
  * This parser is pure so it can be unit tested.
  */
 
+import type { WorkstreamFieldMeta } from "./asana-field-payload";
+
 export type WorkstreamSegment = "BD" | "GTM" | "Other";
 
 export interface ParsedWorkstreamName {
@@ -98,6 +100,8 @@ export interface Workstream {
   notes: string;
   /** Every Asana custom field on the subtask, verbatim by field name. */
   fields: Record<string, string>;
+  /** Asana field metadata keyed by Workstream property, for editing. */
+  editable?: Partial<Record<keyof Workstream, WorkstreamFieldMeta>>;
   owner: string;
   completed: boolean;
   lastActivity: string;

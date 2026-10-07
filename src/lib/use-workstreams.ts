@@ -53,3 +53,8 @@ export function useWorkstreams() {
 
   return { workstreams, loading, refresh };
 }
+
+/** Swap one saved workstream into the shared cache so other panels see it. */
+export function patchWorkstreamCache(w: Workstream) {
+  if (cache) cache = cache.map((x) => (x.gid === w.gid ? w : x));
+}
