@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Workstream } from "@/lib/workstream-parse";
-import { PROGRAM_FIELDS, summaryChips, initialsOf } from "@/lib/workstream-parse";
+import { PROGRAM_FIELDS, workstreamBarStatus, initialsOf } from "@/lib/workstream-parse";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,10 +16,10 @@ import {
 export function statusTone(status: string): string {
   const s = (status || "").toLowerCase();
   if (s.includes("complete") && !s.includes("working"))
-    return "bg-emerald-500/10 text-emerald-600 border-emerald-500/30";
-  if (s.includes("working")) return "bg-amber-500/10 text-amber-600 border-amber-500/30";
+    return "bg-accent text-accent-foreground border-primary/30";
+  if (s.includes("working")) return "bg-warm text-warm-foreground border-warm-foreground/30";
   if (!s) return "bg-muted text-muted-foreground border-border";
-  return "bg-sky-500/10 text-sky-600 border-sky-500/30";
+  return "bg-cold text-cold-foreground border-cold-foreground/30";
 }
 
 function OwnerBadge({ owner }: { owner: string }) {
@@ -55,17 +55,18 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
   const program = PROGRAM_FIELDS[w.segment].map(
     ([label, key]) => [label, String(w[key] ?? "")] as [string, string],
   );
-  const chips = summaryChips(w);
+  const barStatus = workstreamBarStatus(w);
 
   return (
     <div className="rounded-md border border-border bg-card px-2.5 py-2">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setOpen((o) => !o)}
-        className="w-full text-left"
+        className="h-auto w-full min-w-0 justify-start whitespace-normal p-0 text-left hover:bg-transparent"
         aria-expanded={open}
       >
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex w-full min-w-0 flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 flex items-start gap-2">
             {open ? (
               <ChevronDown className="h-3 w-3 mt-1 shrink-0 text-muted-foreground" />
@@ -79,26 +80,19 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
                 )}
                 {w.name || w.rawName}
               </div>
-              {chips.length > 0 && (
-                <div className="text-[11px] text-muted-foreground truncate">{chips.join(" · ")}</div>
-              )}
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Badge variant="outline" className={`text-[10px] ${statusTone(w.status)}`}>
-              {w.status || "Not set"}
+          <div className="flex max-w-full flex-wrap items-center gap-1.5">
+            <Badge title="Work stream status" variant="outline" className={`text-[10px] whitespace-normal ${statusTone(barStatus)}`}>
+              {barStatus}
+            </Badge>
+            <Badge title="Work stream priority" variant="outline" className="text-[10px] whitespace-normal bg-muted text-muted-foreground border-border">
+              {w.workstreamPriority || "Not set"}
             </Badge>
             <OwnerBadge owner={w.owner} />
           </div>
         </div>
-      </button>
-
-      {!open && w.nextSteps && (
-        <p className="mt-1.5 text-[11px] text-muted-foreground line-clamp-2">
-          <span className="font-medium text-foreground/80">Next: </span>
-          {w.nextSteps}
-        </p>
-      )}
+      </Button>
 
       {open && (
         <div className="mt-2 space-y-2.5 border-t border-border pt-2">

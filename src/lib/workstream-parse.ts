@@ -77,6 +77,8 @@ export interface Workstream {
   name: string;
   rawName: string;
   status: string;
+  workstreamStatus: string;
+  workstreamPriority: string;
   category: string;
   sellInStatus: string;
   maturity: string;
@@ -137,6 +139,12 @@ export function summaryChips(w: Workstream): string[] {
       ? [w.sageTapStatus, w.gtmMaturity, w.salesMaturity]
       : [w.status, w.momentum, w.targets || w.dellTargets];
   return vals.map((v) => (v || "").trim()).filter(Boolean);
+}
+
+/** Shared bar values for both GTM and BD; task completion takes precedence. */
+export function workstreamBarStatus(w: Pick<Workstream, "completed" | "workstreamStatus">): string {
+  const status = (w.workstreamStatus || "").trim();
+  return w.completed || /^(complete|completed)$/i.test(status) ? "Completed" : status || "Not set";
 }
 
 export function initialsOf(name: string): string {

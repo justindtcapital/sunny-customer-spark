@@ -709,7 +709,7 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
   if (!projectGid) return [];
 
-  const cacheKey = `workstreams:${projectGid}`;
+  const cacheKey = `workstreams:v2:${projectGid}`;
   const cached = getCached<Workstream[]>(cacheKey);
   if (cached) return cached;
 
@@ -737,6 +737,8 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
           name: parsed.name,
           rawName: (sub.name || "").trim(),
           status: pickField(fields, /strategy\s*workstream\s*status/i),
+          workstreamStatus: pickField(fields, /^work[\s-]*stream\s*status$/i),
+          workstreamPriority: pickField(fields, /^work[\s-]*stream\s*priority$/i),
           category: pickField(fields, /gtm\s*strategy\s*category/i),
           sellInStatus: pickField(fields, /sell[\s-]*in\s*status/i),
           maturity: pickField(fields, /maturity/i),
@@ -754,7 +756,7 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
           notes: (sub.notes || "").trim(),
           fields,
           owner: sub.assignee?.name?.trim() || "",
-          completed: sub.completed === true,
+          completed: sub.completed === true || /^(complete|completed)$/i.test(pickField(fields, /^work[\s-]*stream\s*status$/i).trim()),
           lastActivity: modified ? modified.split("T")[0]! : "",
           url: sub.permalink_url,
         };
