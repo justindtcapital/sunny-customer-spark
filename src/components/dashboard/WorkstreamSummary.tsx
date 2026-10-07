@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { WorkstreamRow } from "@/components/portfolio/WorkstreamsPanel";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { workstreamBarStatus, type Workstream } from "@/lib/workstream-parse";
 import { ownerMatches, priorityRank } from "@/lib/action-owners";
 import { companyLogoSources, resolveCompanyLogoDomain } from "@/lib/domain-utils";
-import type { MatrixPoint } from "@/lib/portco-matrix";
+import { cleanPriority, type MatrixPoint } from "@/lib/portco-matrix";
 import {
   Select,
   SelectContent,
@@ -86,7 +89,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
   const { workstreams, loading } = useWorkstreams();
   const keySet = useMemo(() => new Set(keys), [keys]);
   const pointByKey = useMemo(() => new Map(points.map((p) => [p.key, p])), [points]);
-  const [company, setCompany] = useState("");
+  const [companies, setCompanies] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
 
@@ -104,6 +107,19 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [base, pointByKey],
   );
+  // Priority quick-picks (Needle mover, Nurture, Back burner…) for the PortCo filter.
+  const priorityGroups = useMemo(() => {
+    const names = new Set(companyOpts);
+    const map = new Map<string, string[]>();
+    for (const p of points) {
+      const name = p.name;
+      if (!names.has(name)) continue;
+      const pr = cleanPriority(p.priority);
+      if (!pr) continue;
+      map.set(pr, [...(map.get(pr) ?? []), name]);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [points, companyOpts]);
   const statusOpts = useMemo(
     () => [...new Set(base.map(workstreamBarStatus))].sort((a, b) => a.localeCompare(b)),
     [base],
@@ -119,7 +135,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
   const groups = useMemo(() => {
     const items = base.filter(
       (w) =>
-        (!company || nameOf(w) === company) &&
+        (companies.length === 0 || companies.includes(nameOf(w))) &&
         (!status || workstreamBarStatus(w) === status) &&
         (!priority || (w.workstreamPriority || "Not set") === priority),
     );
@@ -139,7 +155,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
         );
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, company, status, priority, pointByKey]);
+  }, [base, companies, status, priority, pointByKey]);
 
   return (
     <section className="space-y-2">
@@ -152,7 +168,70 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <FilterSelect value={company} onChange={setCompany} allLabel="All PortCos" options={companyOpts} />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-40 justify-between text-xs font-normal bg-card"
+              >
+                <span className="truncate">
+                  {companies.length === 0
+                    ? "All PortCos"
+                    : companies.length === 1
+                      ? companies[0]
+                      : `${companies.length} PortCos`}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-52 p-1">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+                onClick={() => setCompanies([])}
+              >
+                <Check className={cn("h-3.5 w-3.5", companies.length === 0 ? "opacity-100" : "opacity-0")} />
+                All PortCos
+              </button>
+              {priorityGroups.map(([pr, names]) => {
+                const active =
+                  names.length > 0 &&
+                  companies.length === names.length &&
+                  names.every((n) => companies.includes(n));
+                return (
+                  <button
+                    key={pr}
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+                    onClick={() => setCompanies(active ? [] : names)}
+                  >
+                    <Check className={cn("h-3.5 w-3.5", active ? "opacity-100" : "opacity-0")} />
+                    {pr}
+                  </button>
+                );
+              })}
+              <div className="my-1 h-px bg-border" />
+              <div className="max-h-56 overflow-y-auto">
+                {companyOpts.map((name) => {
+                  const on = companies.includes(name);
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+                      onClick={() =>
+                        setCompanies(on ? companies.filter((c) => c !== name) : [...companies, name])
+                      }
+                    >
+                      <Check className={cn("h-3.5 w-3.5", on ? "opacity-100" : "opacity-0")} />
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
           <FilterSelect value={status} onChange={setStatus} allLabel="All statuses" options={statusOpts} />
           <FilterSelect value={priority} onChange={setPriority} allLabel="All priorities" options={priorityOpts} />
         </div>
