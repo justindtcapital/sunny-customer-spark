@@ -331,7 +331,7 @@ function DashboardPage() {
 
       <ActivityCharts monthly={activity.monthly} scopeLabel={scopeLabel} />
 
-      {(owner || scopeKind === "company") && (
+      {(owner || investor || scopeKind === "company") && (
         <WorkstreamSummary
           keys={scopeKeys}
           scopeLabel={scopeLabel}
