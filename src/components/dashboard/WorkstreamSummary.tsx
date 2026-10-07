@@ -135,7 +135,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
   const groups = useMemo(() => {
     const items = base.filter(
       (w) =>
-        (!company || nameOf(w) === company) &&
+        (companies.length === 0 || companies.includes(nameOf(w))) &&
         (!status || workstreamBarStatus(w) === status) &&
         (!priority || (w.workstreamPriority || "Not set") === priority),
     );
@@ -155,7 +155,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
         );
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, company, status, priority, pointByKey]);
+  }, [base, companies, status, priority, pointByKey]);
 
   return (
     <section className="space-y-2">
