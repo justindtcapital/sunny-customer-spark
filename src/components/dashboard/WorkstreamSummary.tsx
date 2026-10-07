@@ -80,6 +80,69 @@ function FilterSelect({
   );
 }
 
+function MultiSelectFilter({
+  selected,
+  onChange,
+  allLabel,
+  options,
+}: {
+  selected: string[];
+  onChange: (v: string[]) => void;
+  allLabel: string;
+  options: string[];
+}) {
+  const allOn = selected.length === 0;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 w-36 justify-between text-xs font-normal bg-card"
+        >
+          <span className="truncate">
+            {allOn
+              ? allLabel
+              : selected.length === 1
+                ? selected[0]
+                : `${selected.length} selected`}
+          </span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-48 p-1">
+        <button
+          type="button"
+          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+          onClick={() => onChange([])}
+        >
+          <Check className={cn("h-3.5 w-3.5", allOn ? "opacity-100" : "opacity-0")} />
+          {allLabel}
+        </button>
+        <div className="my-1 h-px bg-border" />
+        <div className="max-h-56 overflow-y-auto">
+          {options.map((o) => {
+            const on = selected.includes(o);
+            return (
+              <button
+                key={o}
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent"
+                onClick={() =>
+                  onChange(on ? selected.filter((s) => s !== o) : [...selected, o])
+                }
+              >
+                <Check className={cn("h-3.5 w-3.5", on ? "opacity-100" : "opacity-0")} />
+                {o}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 const byPriority = (a: Workstream, b: Workstream) =>
   Number(a.completed) - Number(b.completed) ||
   priorityRank(a.workstreamPriority) - priorityRank(b.workstreamPriority) ||
@@ -90,7 +153,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
   const keySet = useMemo(() => new Set(keys), [keys]);
   const pointByKey = useMemo(() => new Map(points.map((p) => [p.key, p])), [points]);
   const [companies, setCompanies] = useState<string[]>([]);
-  const [status, setStatus] = useState("");
+  const [statuses, setStatuses] = useState<string[]>([]);
   const [priority, setPriority] = useState("");
 
   const base = useMemo(
