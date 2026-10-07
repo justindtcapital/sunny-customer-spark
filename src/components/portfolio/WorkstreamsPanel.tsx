@@ -60,7 +60,15 @@ function FieldGrid({ items }: { items: Array<[string, string]> }) {
   );
 }
 
-export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showCompany?: boolean }) {
+export function WorkstreamRow({
+  w,
+  showCompany = false,
+  showSegment = false,
+}: {
+  w: Workstream;
+  showCompany?: boolean;
+  showSegment?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const program = PROGRAM_FIELDS[w.segment].map(
     ([label, key]) => [label, String(w[key] ?? "")] as [string, string],
@@ -87,6 +95,11 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
               <div className="text-sm font-medium text-foreground truncate">
                 {showCompany && (
                   <span className="text-muted-foreground font-normal">{w.company} · </span>
+                )}
+                {showSegment && (
+                  <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {w.segment}
+                  </span>
                 )}
                 {w.name || w.rawName}
               </div>
