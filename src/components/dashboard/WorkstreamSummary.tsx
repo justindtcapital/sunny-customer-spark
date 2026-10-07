@@ -295,7 +295,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
               </div>
             </PopoverContent>
           </Popover>
-          <FilterSelect value={status} onChange={setStatus} allLabel="All statuses" options={statusOpts} />
+          <MultiSelectFilter selected={statuses} onChange={setStatuses} allLabel="All statuses" options={statusOpts} />
           <FilterSelect value={priority} onChange={setPriority} allLabel="All priorities" options={priorityOpts} />
         </div>
       </div>
