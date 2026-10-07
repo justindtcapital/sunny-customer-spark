@@ -65,6 +65,10 @@ export const Route = createFileRoute("/crm")({
     meta: [
       { title: "CRM — VenturePulse" },
       { name: "description", content: "Manage your DTC network contacts" },
+      { property: "og:title", content: "CRM — VenturePulse" },
+      { property: "og:description", content: "Manage your DTC network contacts" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   loader: async () => {

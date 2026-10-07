@@ -155,6 +155,10 @@ export const Route = createFileRoute("/targeting")({
     meta: [
       { title: "Targeting — VenturePulse" },
       { name: "description", content: "DTC network prospecting pipeline" },
+      { property: "og:title", content: "Targeting — VenturePulse" },
+      { property: "og:description", content: "DTC network prospecting pipeline" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   loader: async () => {

@@ -41,6 +41,10 @@ export const Route = createFileRoute("/portfolio")({
     meta: [
       { title: "Portfolio Companies — VenturePulse" },
       { name: "description", content: "Track and manage portfolio company activity" },
+      { property: "og:title", content: "Portfolio Companies — VenturePulse" },
+      { property: "og:description", content: "Track and manage portfolio company activity" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   loader: async (): Promise<{
