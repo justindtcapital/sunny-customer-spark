@@ -313,6 +313,7 @@ function DashboardPage() {
                 priority={priority}
                 selectedKey={selectedKey}
                 onSelect={setSelectedKey}
+                allowedKeys={ownerKeys}
               />
             )}
           </CardContent>
