@@ -153,9 +153,9 @@ function isOverdue(due?: string): boolean {
 export const Route = createFileRoute("/targeting")({
   head: () => ({
     meta: [
-      { title: "Targeting — VenturePulse" },
+      { title: "Prospecting — VenturePulse" },
       { name: "description", content: "DTC network prospecting pipeline" },
-      { property: "og:title", content: "Targeting — VenturePulse" },
+      { property: "og:title", content: "Prospecting — VenturePulse" },
       { property: "og:description", content: "DTC network prospecting pipeline" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -1353,6 +1353,7 @@ function TargetingPage() {
     event: t.event,
     portcoTags: t.portcoTags,
     followUp: t.followUp,
+    prime: t.prime,
   });
 
   // Promote selection into Network CRM contacts (+ Ready to Promote stage + note).
@@ -1377,12 +1378,20 @@ function TargetingPage() {
         res.added > 0 ? `+${res.added} contact${res.added !== 1 ? "s" : ""}` : null,
         res.duplicates > 0 ? `${res.duplicates} already in CRM` : null,
         res.notesLogged > 0 ? `${res.notesLogged} note${res.notesLogged !== 1 ? "s" : ""}` : null,
+        res.removedFromProspecting > 0 ? `${res.removedFromProspecting} moved out of Prospecting` : null,
       ].filter(Boolean);
       toast.success(
         parts.length
           ? `Promoted to CRM · ${parts.join(" · ")}`
           : "Targets marked Ready to Promote.",
       );
+      if (res.keptInProspecting > 0 && res.removedFromProspecting > 0) {
+        toast.warning(`${res.keptInProspecting} couldn't be verified in the CRM and stayed in Prospecting.`);
+      }
+      if (res.removedFromProspecting > 0) {
+        if (activeTarget && chosenIds.has(activeTarget.id)) setActiveTarget(null);
+        await refreshTargets();
+      }
     } catch (e) {
       console.error("promoteSelected failed", e);
       toast.error("Promote to CRM failed — see console.");
@@ -1405,7 +1414,11 @@ function TargetingPage() {
         toast.error(res.error || "Promote to CRM failed.");
         return;
       }
-      if (res.added > 0) {
+      if (res.removedFromProspecting > 0) {
+        toast.success(`Moved ${t.name || t.email} to the Network CRM with full history.`);
+        if (activeTarget?.id === t.id) setActiveTarget(null);
+        await refreshTargets();
+      } else if (res.added > 0) {
         toast.success(`Added ${t.name || t.email} to the Network CRM.`);
       } else if (res.duplicates > 0) {
         toast.success(`${t.name || t.email} is already in the CRM · marked Ready to Promote.`);

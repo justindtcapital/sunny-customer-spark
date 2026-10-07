@@ -334,6 +334,8 @@ export interface TargetLead {
   followUp?: boolean;
   /** Follow-up due date (YYYY-MM-DD); "" = flagged with no date. */
   followUpDue?: string;
+  /** Contact Prime (Targets "Prime" column) — carries into the CRM on promote. */
+  prime?: string;
   outreach: OutreachAttempt[];
   notes: string;
   /** Latest saved AI connection plan (persisted to the Target Strategy tab). */

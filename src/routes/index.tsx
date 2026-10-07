@@ -130,7 +130,7 @@ const MODULES: Module[] = [
     accent: "text-foreground",
   },
   {
-    title: "Targeting",
+    title: "Prospecting",
     url: "/targeting",
     Icon: TargetingIcon,
     description: "Prospects entering the network's gravity.",

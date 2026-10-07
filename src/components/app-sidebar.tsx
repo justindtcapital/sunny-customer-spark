@@ -85,7 +85,7 @@ import { ApiHealthWidget } from "@/components/ApiHealthWidget";
 const navItems = [
   { title: "Home", url: "/", icon: HomeIcon },
   { title: "Network", url: "/crm", icon: NetworkIcon },
-  { title: "Targeting", url: "/targeting", icon: TargetingIcon },
+  { title: "Prospecting", url: "/targeting", icon: TargetingIcon },
   { title: "Events", url: "/events", icon: EventsIcon },
   { title: "PortCo", url: "/portfolio", icon: PortCoIcon },
   { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },

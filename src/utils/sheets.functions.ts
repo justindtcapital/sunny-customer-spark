@@ -491,6 +491,8 @@ export const importTargets = createServerFn({ method: "POST" })
       campaign?: string;
       event?: string;
       portcoTags?: string[];
+      /** Contact Prime applied to every row. */
+      prime?: string;
       /** Flag every imported row for follow-up (event rosters). */
       followUp?: boolean;
     }) => data,
@@ -545,6 +547,7 @@ export const importTargets = createServerFn({ method: "POST" })
           event: (data.event || "").trim(),
           portcoTags: data.portcoTags || [],
           followUp: data.followUp === true,
+          prime: (data.prime || "").trim(),
         })),
       );
       await logOpsEventServer({
