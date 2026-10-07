@@ -1,35 +1,3 @@
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
-                        Event
-                      </Label>
-                      <EventPicker
-                        value={eventName}
-                        onChange={(v) => {
-                          setEventName(v);
-                          if (v && !campaign.trim()) setCampaign(`Follow-up — ${v}`);
-                        }}
-                        placeholder="Optional — tag this list to an event"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
-                        Contact Prime
-                      </Label>
-                      <Select value={prime || "__none"} onValueChange={(v) => setPrime(v === "__none" ? "" : v)}>
-                        <SelectTrigger className="h-9 text-xs">
-                          <SelectValue placeholder="No prime" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none">No prime</SelectItem>
-                          {CONTACT_PRIMES.map((p) => (
-                            <SelectItem key={p} value={p}>{p}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
 import { useMemo, useState } from "react";
 import {
   Dialog,
@@ -60,6 +28,8 @@ import { enrichContact } from "@/utils/apollo.functions";
 import { normalizeEmails } from "@/lib/email";
 import { targetKeyOf, RECORD_SOURCES } from "@/lib/types";
 import { toast } from "sonner";
+
+const CONTACT_PRIMES = ["Julia", "Hillock", "Falloon", "Early"] as const;
 
 interface Props {
   open: boolean;
@@ -512,7 +482,7 @@ export function TargetUploadDialog({
 
                   {/* Event source pulls the roster's event name from the Events list
                       and pre-fills the campaign with a follow-up label. */}
-                  {source === "Event" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
                         Event
@@ -523,10 +493,26 @@ export function TargetUploadDialog({
                           setEventName(v);
                           if (v && !campaign.trim()) setCampaign(`Follow-up — ${v}`);
                         }}
-                        placeholder="Select the event this list came from"
+                        placeholder="Optional — tag this list to an event"
                       />
                     </div>
-                  )}
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                        Contact Prime
+                      </Label>
+                      <Select value={prime || "__none"} onValueChange={(v) => setPrime(v === "__none" ? "" : v)}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="No prime" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No prime</SelectItem>
+                          {CONTACT_PRIMES.map((p) => (
+                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
