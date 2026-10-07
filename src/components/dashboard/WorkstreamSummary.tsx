@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
-import { Loader2, Rocket, Handshake } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { WorkstreamRow } from "@/components/portfolio/WorkstreamsPanel";
 import { useWorkstreams } from "@/lib/use-workstreams";
-import type { Workstream } from "@/lib/workstream-parse";
+import { workstreamBarStatus, type Workstream } from "@/lib/workstream-parse";
 import { ownerMatches, priorityRank } from "@/lib/action-owners";
+import { companyLogoSources, resolveCompanyLogoDomain } from "@/lib/domain-utils";
+import type { MatrixPoint } from "@/lib/portco-matrix";
 import {
   Select,
   SelectContent,
@@ -16,90 +18,128 @@ import {
 interface Props {
   keys: string[];
   scopeLabel: string;
-  showCompany: boolean;
   actionOwner?: string;
+  /** Matrix points, for company names + logos. */
+  points: MatrixPoint[];
 }
 
-type StatusFilter = "all" | "open" | "done";
-type SortKey = "priority" | "company" | "status";
-
-function sortItems(items: Workstream[], sort: SortKey): Workstream[] {
-  const cmp = (a: Workstream, b: Workstream) => {
-    if (a.completed !== b.completed) return a.completed ? 1 : -1;
-    if (sort === "priority") {
-      const d = priorityRank(a.workstreamPriority) - priorityRank(b.workstreamPriority);
-      if (d) return d;
-    } else if (sort === "status") {
-      const d = (a.workstreamStatus || "~").localeCompare(b.workstreamStatus || "~");
-      if (d) return d;
-    }
-    return a.company.localeCompare(b.company) || a.name.localeCompare(b.name);
-  };
-  return [...items].sort(cmp);
-}
-
-function Box({
-  title,
-  icon,
-  items,
-  showCompany,
-  loading,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  items: Workstream[];
-  showCompany: boolean;
-  loading: boolean;
-}) {
-  const open = items.filter((w) => !w.completed).length;
+function CompanyLogo({ name, website }: { name: string; website: string }) {
+  const [idx, setIdx] = useState(0);
+  const resolved = resolveCompanyLogoDomain({ website });
+  const sources =
+    resolved && resolved.confidence === "high"
+      ? companyLogoSources(resolved.domain, resolved.confidence)
+      : [];
+  const src = sources[idx];
   return (
-    <Card className="border-border">
-      <CardContent className="p-4 space-y-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            {icon}
-            <h3 className="font-display text-sm font-semibold text-foreground">{title}</h3>
-          </div>
-          <p className="text-[11px] text-muted-foreground tabular-nums">
-            {open} active · {items.length - open} complete
-          </p>
-        </div>
-        {loading ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground py-6">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading workstreams…
-          </div>
-        ) : items.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-6">No workstreams on record.</p>
-        ) : (
-          <div className="space-y-1.5 max-h-[520px] overflow-y-auto pr-1">
-            {items.map((w) => (
-              <WorkstreamRow key={w.gid} w={w} showCompany={showCompany} />
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-card">
+      {src ? (
+        <img
+          src={src}
+          alt={name}
+          className="h-full w-full object-cover"
+          onError={() => setIdx((i) => i + 1)}
+        />
+      ) : (
+        <span className="text-xs font-semibold text-foreground">
+          {name.slice(0, 2).toUpperCase()}
+        </span>
+      )}
+    </span>
   );
 }
 
-export function WorkstreamSummary({ keys, scopeLabel, showCompany, actionOwner = "" }: Props) {
+function FilterSelect({
+  value,
+  onChange,
+  allLabel,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  allLabel: string;
+  options: string[];
+}) {
+  return (
+    <Select value={value || "all"} onValueChange={(v) => onChange(v === "all" ? "" : v)}>
+      <SelectTrigger className="h-8 w-36 text-xs bg-card">
+        <SelectValue placeholder={allLabel} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">{allLabel}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o} value={o}>
+            {o}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+const byPriority = (a: Workstream, b: Workstream) =>
+  Number(a.completed) - Number(b.completed) ||
+  priorityRank(a.workstreamPriority) - priorityRank(b.workstreamPriority) ||
+  a.name.localeCompare(b.name);
+
+export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }: Props) {
   const { workstreams, loading } = useWorkstreams();
   const keySet = useMemo(() => new Set(keys), [keys]);
-  const [status, setStatus] = useState<StatusFilter>("all");
-  const [sort, setSort] = useState<SortKey>("priority");
+  const pointByKey = useMemo(() => new Map(points.map((p) => [p.key, p])), [points]);
+  const [company, setCompany] = useState("");
+  const [status, setStatus] = useState("");
+  const [priority, setPriority] = useState("");
 
-  const { gtm, bd } = useMemo(() => {
-    const inScope = workstreams.filter(
+  const base = useMemo(
+    () =>
+      workstreams.filter(
+        (w) => keySet.has(w.companyKey) && ownerMatches(w.owner, actionOwner),
+      ),
+    [workstreams, keySet, actionOwner],
+  );
+  const nameOf = (w: Workstream) => pointByKey.get(w.companyKey)?.name || w.company;
+
+  const companyOpts = useMemo(
+    () => [...new Set(base.map(nameOf))].sort((a, b) => a.localeCompare(b)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [base, pointByKey],
+  );
+  const statusOpts = useMemo(
+    () => [...new Set(base.map(workstreamBarStatus))].sort((a, b) => a.localeCompare(b)),
+    [base],
+  );
+  const priorityOpts = useMemo(
+    () =>
+      [...new Set(base.map((w) => w.workstreamPriority || "Not set"))].sort(
+        (a, b) => priorityRank(a) - priorityRank(b) || a.localeCompare(b),
+      ),
+    [base],
+  );
+
+  const groups = useMemo(() => {
+    const items = base.filter(
       (w) =>
-        keySet.has(w.companyKey) &&
-        ownerMatches(w.owner, actionOwner) &&
-        (status === "all" || (status === "done" ? w.completed : !w.completed)),
+        (!company || nameOf(w) === company) &&
+        (!status || workstreamBarStatus(w) === status) &&
+        (!priority || (w.workstreamPriority || "Not set") === priority),
     );
-    return {
-      gtm: sortItems(inScope.filter((w) => w.segment === "GTM"), sort),
-      bd: sortItems(inScope.filter((w) => w.segment !== "GTM"), sort),
-    };
-  }, [workstreams, keySet, actionOwner, status, sort]);
+    const map = new Map<string, Workstream[]>();
+    for (const w of items) {
+      const list = map.get(w.companyKey) ?? [];
+      list.push(w);
+      map.set(w.companyKey, list);
+    }
+    return [...map.entries()]
+      .map(([key, list]) => ({ key, items: list.sort(byPriority) }))
+      .sort((a, b) => {
+        const best = (l: Workstream[]) => byPriority(l[0]!, l[0]!) || priorityRank(l[0]!.workstreamPriority);
+        return (
+          best(a.items) - best(b.items) ||
+          (pointByKey.get(a.key)?.name || a.key).localeCompare(pointByKey.get(b.key)?.name || b.key)
+        );
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base, company, status, priority, pointByKey]);
 
   return (
     <section className="space-y-2">
@@ -108,48 +148,50 @@ export function WorkstreamSummary({ keys, scopeLabel, showCompany, actionOwner =
           <h2 className="font-display text-sm font-semibold text-foreground">Major workstreams</h2>
           <p className="text-xs text-muted-foreground">
             {scopeLabel}
-            {actionOwner ? ` · ${actionOwner}` : ""}
+            {actionOwner && !scopeLabel.includes(actionOwner) ? ` · ${actionOwner}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
-            <SelectTrigger className="h-8 w-32 text-xs bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="open">In progress</SelectItem>
-              <SelectItem value="done">Completed</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-            <SelectTrigger className="h-8 w-36 text-xs bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="priority">Sort: Priority</SelectItem>
-              <SelectItem value="company">Sort: Company</SelectItem>
-              <SelectItem value="status">Sort: Status</SelectItem>
-            </SelectContent>
-          </Select>
+          <FilterSelect value={company} onChange={setCompany} allLabel="All PortCos" options={companyOpts} />
+          <FilterSelect value={status} onChange={setStatus} allLabel="All statuses" options={statusOpts} />
+          <FilterSelect value={priority} onChange={setPriority} allLabel="All priorities" options={priorityOpts} />
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Box
-          title="Go-to-market"
-          icon={<Rocket className="h-4 w-4 text-primary" />}
-          items={gtm}
-          showCompany={showCompany}
-          loading={loading}
-        />
-        <Box
-          title="Business development"
-          icon={<Handshake className="h-4 w-4 text-primary" />}
-          items={bd}
-          showCompany={showCompany}
-          loading={loading}
-        />
-      </div>
+      <Card className="border-border">
+        <CardContent className="p-4">
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-6">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading workstreams…
+            </div>
+          ) : groups.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-6">No workstreams match.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {groups.map(({ key, items }) => {
+                const p = pointByKey.get(key);
+                const name = p?.name || items[0]!.company;
+                const open = items.filter((w) => !w.completed).length;
+                return (
+                  <div key={key} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+                    <CompanyLogo name={name} website={p?.website || ""} />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <h3 className="font-display text-sm font-semibold text-foreground">{name}</h3>
+                        <span className="text-[11px] text-muted-foreground tabular-nums">
+                          {open} active · {items.length - open} complete
+                        </span>
+                      </div>
+                      {items.map((w) => (
+                        <WorkstreamRow key={w.gid} w={w} showSegment />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }

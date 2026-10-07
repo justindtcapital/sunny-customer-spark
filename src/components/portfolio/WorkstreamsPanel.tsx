@@ -17,12 +17,22 @@ export function statusTone(status: string): string {
   const s = (status || "").toLowerCase();
   if (s.includes("complete") && !s.includes("working"))
     return "bg-accent text-accent-foreground border-primary/30";
-  if (s.includes("working")) return "bg-warm text-warm-foreground border-warm-foreground/30";
-  if (!s) return "bg-muted text-muted-foreground border-border";
+  if (s.includes("stall") || s.includes("block")) return "bg-hot text-hot-foreground border-hot-foreground/30";
+  if (s.includes("working") || s.includes("progress"))
+    return "bg-good text-good-foreground border-good-foreground/30";
+  if (!s || s === "not set" || s.includes("early")) return "bg-muted text-muted-foreground border-border";
   return "bg-cold text-cold-foreground border-cold-foreground/30";
 }
 
-function OwnerBadge({ owner }: { owner: string }) {
+export function priorityTone(priority: string): string {
+  const p = (priority || "").toLowerCase();
+  if (p.includes("high") || p.includes("critical") || p.includes("urgent"))
+    return "bg-hot text-hot-foreground border-hot-foreground/30";
+  if (p.includes("med")) return "bg-warm text-warm-foreground border-warm-foreground/30";
+  return "bg-muted text-muted-foreground border-border";
+}
+
+export function OwnerBadge({ owner }: { owner: string }) {
   const initials = initialsOf(owner);
   return (
     <span
@@ -50,7 +60,15 @@ function FieldGrid({ items }: { items: Array<[string, string]> }) {
   );
 }
 
-export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showCompany?: boolean }) {
+export function WorkstreamRow({
+  w,
+  showCompany = false,
+  showSegment = false,
+}: {
+  w: Workstream;
+  showCompany?: boolean;
+  showSegment?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const program = PROGRAM_FIELDS[w.segment].map(
     ([label, key]) => [label, String(w[key] ?? "")] as [string, string],
@@ -77,6 +95,11 @@ export function WorkstreamRow({ w, showCompany = false }: { w: Workstream; showC
               <div className="text-sm font-medium text-foreground truncate">
                 {showCompany && (
                   <span className="text-muted-foreground font-normal">{w.company} · </span>
+                )}
+                {showSegment && (
+                  <span className="mr-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {w.segment}
+                  </span>
                 )}
                 {w.name || w.rawName}
               </div>
