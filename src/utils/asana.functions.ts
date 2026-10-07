@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import {
   fetchPortcoFields,
   fetchPortfolioEvents,
@@ -96,3 +97,34 @@ export const refreshAsanaCacheFn = createServerFn({ method: "POST" }).handler(as
   clearAsanaCache();
   return { ok: true };
 });
+
+const fieldValue = z.union([z.string().max(5000), z.array(z.string().max(64)).max(100)]);
+
+// Writes workstream edits back to the Asana subtask (only changed fields).
+export const updateWorkstreamFn = createServerFn({ method: "POST" })
+  .inputValidator((data) =>
+    z
+      .object({
+        gid: z.string().regex(/^\d+$/),
+        changes: z
+          .array(
+            z.object({
+              gid: z.string().regex(/^\d+$/),
+              type: z.enum(["text", "number", "enum", "multi_enum", "date", "other"]),
+              original: fieldValue,
+              value: fieldValue,
+            }),
+          )
+          .max(40),
+        completed: z.boolean().optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }): Promise<{ ok: true; workstream: Workstream } | { ok: false; error: string }> => {
+    try {
+      const { updateWorkstream } = await import("./asana.server");
+      return { ok: true, workstream: await updateWorkstream(data) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });

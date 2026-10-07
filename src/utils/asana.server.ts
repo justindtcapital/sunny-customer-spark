@@ -15,6 +15,13 @@ import { isNameOnlyAttendeeEmail } from "@/lib/email-address";
 import { fetchAliasActivities, getActivityAliases, getInternalConfig } from "./gmail.server";
 import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
 import { parseWorkstreamName, type Workstream } from "@/lib/workstream-parse";
+import {
+  buildCustomFieldsPayload,
+  sameValue,
+  type AsanaFieldType,
+  type FieldChange,
+  type WorkstreamFieldMeta,
+} from "@/lib/asana-field-payload";
 
 const ASANA_BASE = "https://app.asana.com/api/1.0";
 const CACHE_TTL_MS = 60 * 1000; // 1 minute — Asana edits should show up quickly
@@ -882,7 +889,7 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
   if (!projectGid) return [];
 
-  const cacheKey = `workstreams:v2:${projectGid}`;
+  const cacheKey = `workstreams:v3:${projectGid}`;
   const cached = getCached<Workstream[]>(cacheKey);
   if (cached) return cached;
 
@@ -893,47 +900,7 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
         `/tasks/${parent.gid}/subtasks?opt_fields=${SUBTASK_FIELDS}&limit=100`,
       );
       const company = (parent.name || "").trim();
-      const companyKey = company.toLowerCase();
-      return (json.data || []).map((sub): Workstream => {
-        const fields: Record<string, string> = {};
-        for (const f of sub.custom_fields || []) {
-          const v = fieldStringValue(f);
-          if (v) fields[f.name] = v;
-        }
-        const parsed = parseWorkstreamName(sub.name || "", company);
-        const modified = (sub as AsanaTask & { modified_at?: string | null }).modified_at || "";
-        return {
-          gid: sub.gid,
-          companyKey,
-          company,
-          segment: parsed.segment,
-          name: parsed.name,
-          rawName: (sub.name || "").trim(),
-          status: pickField(fields, /strategy\s*workstream\s*status/i),
-          workstreamStatus: pickField(fields, /^work[\s-]*stream\s*status$/i),
-          workstreamPriority: pickField(fields, /^work[\s-]*stream\s*priority$/i),
-          category: pickField(fields, /gtm\s*strategy\s*category/i),
-          sellInStatus: pickField(fields, /sell[\s-]*in\s*status/i),
-          maturity: pickField(fields, /maturity/i),
-          dellTargets: pickField(fields, /dell\s*targets?/i),
-          dellStakeholders: pickField(fields, /dell\s*stakeholders?/i),
-          nextSteps: pickField(fields, /next\s*steps?/i),
-          traction: pickField(fields, /traction/i),
-          momentum: pickField(fields, /momentum/i),
-          channel: pickField(fields, /channel/i),
-          targets: pickField(fields, /^targets?$/i) || pickField(fields, /dell\s*targets?/i),
-          sageTapStatus: pickField(fields, /sage\s*tap/i),
-          lastPitchReviewed: pickField(fields, /last\s*pitch/i),
-          gtmMaturity: pickField(fields, /(gtm|go[\s-]*to[\s-]*market).*maturity/i),
-          salesMaturity: pickField(fields, /sales.*maturity/i),
-          notes: (sub.notes || "").trim(),
-          fields,
-          owner: sub.assignee?.name?.trim() || "",
-          completed: sub.completed === true || /^(complete|completed)$/i.test(pickField(fields, /^work[\s-]*stream\s*status$/i).trim()),
-          lastActivity: modified ? modified.split("T")[0]! : "",
-          url: sub.permalink_url,
-        };
-      });
+      return (json.data || []).map((sub) => mapSubtask(sub, company));
     } catch (err) {
       console.error(`[asana] subtasks failed for ${parent.gid}:`, err);
       return [] as Workstream[];
