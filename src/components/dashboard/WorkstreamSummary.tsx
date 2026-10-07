@@ -199,7 +199,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
     const items = base.filter(
       (w) =>
         (companies.length === 0 || companies.includes(nameOf(w))) &&
-        (!status || workstreamBarStatus(w) === status) &&
+        (statuses.length === 0 || statuses.includes(workstreamBarStatus(w))) &&
         (!priority || (w.workstreamPriority || "Not set") === priority),
     );
     const map = new Map<string, Workstream[]>();
