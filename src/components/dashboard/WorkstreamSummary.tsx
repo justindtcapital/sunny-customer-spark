@@ -218,7 +218,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
         );
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, companies, status, priority, pointByKey]);
+  }, [base, companies, statuses, priority, pointByKey]);
 
   return (
     <section className="space-y-2">
