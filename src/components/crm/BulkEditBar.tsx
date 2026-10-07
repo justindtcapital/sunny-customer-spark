@@ -49,7 +49,7 @@ const FIELDS: { key: BulkEditField; label: string }[] = [
 const TEMPERATURES: Temperature[] = ["Hot", "Warm", "Cold"];
 
 // Selectable Contact Primes for the bulk-edit multi-select.
-const PRIMES = ["Julia", "Hillock", "Falloon"] as const;
+const PRIMES = ["Julia", "Hillock", "Falloon", "Shane"] as const;
 
 // In-list bulk editor: appears above the contact table once rows are selected.
 // Persists the change to the Contacts sheet (bulkUpdateContacts) and reflects it

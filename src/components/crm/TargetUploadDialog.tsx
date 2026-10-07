@@ -29,7 +29,7 @@ import { normalizeEmails } from "@/lib/email";
 import { targetKeyOf, RECORD_SOURCES } from "@/lib/types";
 import { toast } from "sonner";
 
-const CONTACT_PRIMES = ["Julia", "Hillock", "Falloon"] as const;
+const CONTACT_PRIMES = ["Julia", "Hillock", "Falloon", "Shane"] as const;
 
 interface Props {
   open: boolean;
