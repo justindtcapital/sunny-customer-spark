@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import {
   addContactRow,
+  bulkDeleteTargets,
   appendInteractionRows,
   buildContacts,
   bulkUpdateTargetFields,
@@ -36,6 +37,8 @@ export interface PromoteTargetInput {
   portcoTags?: string[];
   /** Pending follow-up carries into the CRM contact. */
   followUp?: boolean;
+  /** Contact Prime set on the target. */
+  prime?: string;
 }
 
 export interface PromoteTargetsResult {
@@ -51,6 +54,10 @@ export interface PromoteTargetsResult {
   stagesUpdated: number;
   /** Notes rows written (promo summary + outreach). */
   notesLogged: number;
+  /** Targets removed from Prospecting after their CRM record was verified. */
+  removedFromProspecting: number;
+  /** Targets kept in Prospecting because the CRM write couldn't be verified. */
+  keptInProspecting: number;
   created: string[];
 }
 
@@ -83,6 +90,8 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
       failed: 0,
       stagesUpdated: 0,
       notesLogged: 0,
+      removedFromProspecting: 0,
+      keptInProspecting: 0,
       created: [],
     };
     const targets = (data.targets || []).filter((t) => t.name?.trim() || t.email?.trim());
@@ -111,6 +120,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
       await ensureColumn(TAB_NAMES.contacts, "PortCo Tags");
 
       const noteRows: InteractionRowInput[] = [];
+      const candidates: { t: PromoteTargetInput; keys: string[] }[] = [];
       const seen = new Set<string>();
       const today = todayIso();
 
@@ -125,9 +135,42 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
           result.failed++;
           continue;
         }
+        const outreachBits = (t.outreach || []).map(
+          (o) => `${o.date || "?"} ${o.method || "touch"}: ${(o.summary || "").slice(0, 160)}`,
+        );
+        const provenanceBits = [
+          t.campaign?.trim() ? `Campaign: ${t.campaign.trim()}` : "",
+          t.event?.trim() ? `Event: ${t.event.trim()}` : "",
+          (t.portcoTags || []).length ? `PortCos: ${(t.portcoTags || []).join(", ")}` : "",
+          t.originSource ? `Source: ${t.originSource}` : "",
+          t.prime?.trim() ? `Prime: ${t.prime.trim()}` : "",
+        ].filter(Boolean);
+        const historySummary = [
+          `Promoted from Prospecting${t.reasonSurfaced ? ` · ${t.reasonSurfaced}` : ""}`,
+          provenanceBits.join(" · "),
+          t.notes?.trim() ? `Research notes: ${t.notes.trim()}` : "",
+          outreachBits.length ? `Outreach history:\n${outreachBits.join("\n")}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 4000);
+        const pushNote = () => {
+          if (!email) return;
+          noteRows.push({
+            email,
+            date: today,
+            summary: historySummary,
+            type: "note",
+            requiresFollowUp: false,
+            sourceRef: t.urid ? `target:${t.urid}` : `target:${email.toLowerCase()}`,
+          });
+        };
+
         if (keys.some((k) => existing.has(k) || seen.has(k))) {
           result.duplicates++;
-          // Still bump stage so the pipeline reflects CRM-readiness.
+          // Already in the CRM: still carry the prospecting history onto the contact.
+          pushNote();
+          candidates.push({ t, keys });
           continue;
         }
 
@@ -137,11 +180,13 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
           t.event?.trim() ? `Event: ${t.event.trim()}` : "",
           t.reasonSurfaced?.trim(),
           t.notes?.trim(),
-          "Promoted from Targeting",
+          // No email → Notes can't join; keep outreach on the contact itself.
+          !email && outreachBits.length ? `Outreach: ${outreachBits.join(" | ")}` : "",
+          "Promoted from Prospecting",
         ]
           .filter(Boolean)
           .join(" · ")
-          .slice(0, 500);
+          .slice(0, email ? 500 : 2000);
 
         try {
           await addContactRow({
@@ -151,7 +196,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
             email,
             phone: t.phone || "",
             location: t.location || "",
-            prime: "",
+            prime: t.prime?.trim() || "",
             sector: t.sector || "",
             temperature: "Warm",
             linkedin,
@@ -169,45 +214,58 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
           result.added++;
           const label = `${name || email}${email ? ` <${email}>` : ""}${company ? ` · ${company}` : ""}`;
           result.created.push(label);
-
-          // Promo note on the contact (needs an email to join Notes).
-          if (email) {
-            const outreachBits = (t.outreach || [])
-              .slice(0, 8)
-              .map((o) => `${o.date || "?"} ${o.method || "touch"}: ${(o.summary || "").slice(0, 120)}`);
-            const provenanceBits = [
-              t.campaign?.trim() ? `Campaign: ${t.campaign.trim()}` : "",
-              t.event?.trim() ? `Event: ${t.event.trim()}` : "",
-              (t.portcoTags || []).length ? `PortCos: ${(t.portcoTags || []).join(", ")}` : "",
-              t.originSource ? `Source: ${t.originSource}` : "",
-            ].filter(Boolean);
-            const summary = [
-              `Promoted from Targeting${t.reasonSurfaced ? ` · ${t.reasonSurfaced}` : ""}`,
-              provenanceBits.length ? provenanceBits.join(" · ") : "",
-              outreachBits.length ? `Outreach history:\n${outreachBits.join("\n")}` : "",
-            ]
-              .filter(Boolean)
-              .join("\n")
-              .slice(0, 1500);
-
-            noteRows.push({
-              email,
-              date: today,
-              summary,
-              type: "note",
-              requiresFollowUp: false,
-              sourceRef: t.urid ? `target:${t.urid}` : `target:${email.toLowerCase()}`,
-            });
-          }
+          pushNote();
+          candidates.push({ t, keys });
         } catch (e) {
           console.error("[targets-crm] addContactRow failed:", e);
           result.failed++;
         }
       }
 
-      // Stage bump for everyone requested (including duplicates already in CRM).
+      // History first: notes must land before anything leaves Prospecting.
+      let notesOk = true;
+      if (noteRows.length > 0) {
+        try {
+          await appendInteractionRows(noteRows);
+          result.notesLogged = noteRows.length;
+        } catch (e) {
+          notesOk = false;
+          console.error("[targets-crm] note write failed — keeping targets:", e);
+        }
+      }
+
+      // Verify against a fresh CRM read, then remove only confirmed targets.
+      // Outreach / strategy tabs are left intact so history stays queryable.
+      const toRemove: { urid?: string; key?: string }[] = [];
+      if (notesOk && candidates.length > 0) {
+        try {
+          const fresh = new Set<string>();
+          for (const c of await buildContacts()) {
+            for (const k of dedupeKeys(c.name, c.company, c.email, c.linkedinUrl || "")) fresh.add(k);
+          }
+          for (const { t, keys } of candidates) {
+            if ((t.urid || t.key) && keys.some((k) => fresh.has(k))) {
+              toRemove.push({ urid: t.urid, key: t.key });
+            }
+          }
+        } catch (e) {
+          console.error("[targets-crm] verify read failed — keeping targets:", e);
+        }
+      }
+      if (toRemove.length > 0) {
+        try {
+          const del = await bulkDeleteTargets(toRemove);
+          result.removedFromProspecting = del.deleted;
+        } catch (e) {
+          console.error("[targets-crm] prospect removal failed:", e);
+        }
+      }
+      result.keptInProspecting = targets.length - result.removedFromProspecting;
+
+      // Anything not removed stays visible as Ready to Promote.
+      const removedSet = new Set(toRemove.map((r) => r.urid || r.key));
       const stageEntries = targets
-        .filter((t) => t.urid || t.key)
+        .filter((t) => (t.urid || t.key) && !(result.removedFromProspecting > 0 && removedSet.has(t.urid || t.key)))
         .map((t) => ({
           urid: t.urid,
           key: t.key,
@@ -222,11 +280,6 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
         }
       }
 
-      if (noteRows.length > 0) {
-        await appendInteractionRows(noteRows);
-        result.notesLogged = noteRows.length;
-      }
-
       await logOpsEvent({
         action: "import",
         source: "targets_crm",
@@ -234,7 +287,8 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
         summary:
           `Promoted to CRM · +${result.added} contacts` +
           (result.duplicates ? ` · ${result.duplicates} already in CRM` : "") +
-          (result.notesLogged ? ` · ${result.notesLogged} notes` : ""),
+          (result.notesLogged ? ` · ${result.notesLogged} notes` : "") +
+          (result.removedFromProspecting ? ` · ${result.removedFromProspecting} moved out of Prospecting` : ""),
         records: result.added,
         details: {
           requested: targets.length,
@@ -243,6 +297,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
           failed: result.failed,
           stagesUpdated: result.stagesUpdated,
           notesLogged: result.notesLogged,
+          removedFromProspecting: result.removedFromProspecting,
         },
         items: result.created,
       });
