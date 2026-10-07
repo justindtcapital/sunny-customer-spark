@@ -878,12 +878,6 @@ async function mapWithConcurrency<T, R>(
   return out;
 }
 
-function pickField(fields: Record<string, string>, re: RegExp): string {
-  for (const [k, v] of Object.entries(fields)) {
-    if (re.test(k.trim())) return v;
-  }
-  return "";
-}
 
 export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;

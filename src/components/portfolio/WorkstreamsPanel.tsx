@@ -89,12 +89,11 @@ function EditView({ w, onSaved, onCancel }: { w: Workstream; onSaved: (w: Workst
       if (!sameValue(draft[key]!, m.value))
         changes.push({ gid: m.gid, type: m.type, original: m.value, value: draft[key]! });
     }
-    const subtaskDone = w.completed && !/^(complete|completed)$/i.test(w.workstreamStatus.trim());
     const completedChanged = completed !== w.completed;
     if (!changes.length && !completedChanged) return onCancel();
     setSaving(true);
     const res = await save({
-      data: { gid: w.gid, changes, completed: completedChanged || subtaskDone ? completed : undefined },
+      data: { gid: w.gid, changes, completed: completedChanged ? completed : undefined },
     }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
     setSaving(false);
     if (!res.ok) {
