@@ -331,12 +331,14 @@ function DashboardPage() {
 
       <ActivityCharts monthly={activity.monthly} scopeLabel={scopeLabel} />
 
-      <WorkstreamSummary
-        keys={scopeKeys}
-        scopeLabel={scopeLabel}
-        showCompany={scopeKind !== "company"}
-        actionOwner={owner}
-      />
+      {(owner || scopeKind === "company") && (
+        <WorkstreamSummary
+          keys={scopeKeys}
+          scopeLabel={scopeLabel}
+          actionOwner={owner}
+          points={points}
+        />
+      )}
       {scopeKind === "company" && (
         <ActivityFeed
           keys={scopeKeys}
