@@ -25,7 +25,7 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
     firstName: "Chris",
     aliases: ["hillock, chris"],
   },
-  "shane.early@dell.com": { displayName: "Shane Early", firstName: "Shane" },
+  "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane" },
 };
 
 /** Lowercased teammate emails — always treated as internal for activity attribution. */
