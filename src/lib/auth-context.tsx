@@ -7,7 +7,7 @@ const ALLOWED_EMAILS = [
   "chris.falloon@dell.com",
   "julia.beech@dell.com",
   "chris.hillock@dell.com",
-  "shane.early@dell.com",
+  "shane.earley@dell.com",
 ];
 
 const STORAGE_KEY = "vp-auth-email";
