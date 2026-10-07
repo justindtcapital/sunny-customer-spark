@@ -107,6 +107,19 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [base, pointByKey],
   );
+  // Priority quick-picks (Needle mover, Nurture, Back burner…) for the PortCo filter.
+  const priorityGroups = useMemo(() => {
+    const names = new Set(companyOpts);
+    const map = new Map<string, string[]>();
+    for (const p of points) {
+      const name = p.name;
+      if (!names.has(name)) continue;
+      const pr = cleanPriority(p.priority);
+      if (!pr) continue;
+      map.set(pr, [...(map.get(pr) ?? []), name]);
+    }
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [points, companyOpts]);
   const statusOpts = useMemo(
     () => [...new Set(base.map(workstreamBarStatus))].sort((a, b) => a.localeCompare(b)),
     [base],
