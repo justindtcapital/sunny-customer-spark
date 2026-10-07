@@ -89,7 +89,7 @@ export function WorkstreamSummary({ keys, scopeLabel, actionOwner = "", points }
   const { workstreams, loading } = useWorkstreams();
   const keySet = useMemo(() => new Set(keys), [keys]);
   const pointByKey = useMemo(() => new Map(points.map((p) => [p.key, p])), [points]);
-  const [company, setCompany] = useState("");
+  const [companies, setCompanies] = useState<string[]>([]);
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
 
