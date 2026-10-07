@@ -1,3 +1,35 @@
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                        Event
+                      </Label>
+                      <EventPicker
+                        value={eventName}
+                        onChange={(v) => {
+                          setEventName(v);
+                          if (v && !campaign.trim()) setCampaign(`Follow-up — ${v}`);
+                        }}
+                        placeholder="Optional — tag this list to an event"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                        Contact Prime
+                      </Label>
+                      <Select value={prime || "__none"} onValueChange={(v) => setPrime(v === "__none" ? "" : v)}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="No prime" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No prime</SelectItem>
+                          {CONTACT_PRIMES.map((p) => (
+                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
 import { useMemo, useState } from "react";
 import {
   Dialog,
@@ -236,6 +268,7 @@ export function TargetUploadDialog({
   const [eventName, setEventName] = useState("");
   const [campaign, setCampaign] = useState("");
   const [portcoTags, setPortcoTags] = useState<string[]>([]);
+  const [prime, setPrime] = useState("");
   const [flagFollowUp, setFlagFollowUp] = useState(false);
   const [enrichOnImport, setEnrichOnImport] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -307,6 +340,7 @@ export function TargetUploadDialog({
     setMapping(emptyMapping());
     setSource("CSV Import");
     setEventName("");
+    setPrime("");
     setCampaign("");
     setPortcoTags([]);
     setEnrichOnImport(true);
@@ -349,7 +383,8 @@ export function TargetUploadDialog({
         data: {
           targets: built,
           campaign: campaign.trim(),
-          event: source === "Event" ? eventName.trim() : "",
+          event: eventName.trim(),
+          prime,
           portcoTags,
           followUp: flagFollowUp,
         },
@@ -513,7 +548,7 @@ export function TargetUploadDialog({
                         options={portcoNames}
                       />
                       <p className="text-[10px] text-muted-foreground mt-1">
-                        Optional — who this targeting is on behalf of.
+                        Optional — who this prospecting is on behalf of.
                       </p>
                     </div>
                   </div>
