@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { WorkstreamRow } from "@/components/portfolio/WorkstreamsPanel";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { workstreamBarStatus, type Workstream } from "@/lib/workstream-parse";
 import { ownerMatches, priorityRank } from "@/lib/action-owners";
 import { companyLogoSources, resolveCompanyLogoDomain } from "@/lib/domain-utils";
-import type { MatrixPoint } from "@/lib/portco-matrix";
+import { cleanPriority, type MatrixPoint } from "@/lib/portco-matrix";
 import {
   Select,
   SelectContent,
