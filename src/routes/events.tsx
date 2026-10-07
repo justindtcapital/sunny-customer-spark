@@ -91,6 +91,10 @@ export const Route = createFileRoute("/events")({
     meta: [
       { title: "Events — VenturePulse" },
       { name: "description", content: "Track Asana-sourced events and Network attendance" },
+      { property: "og:title", content: "Events — VenturePulse" },
+      { property: "og:description", content: "Track Asana-sourced events and Network attendance" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({ cf: parseCfParam(search.cf) }),

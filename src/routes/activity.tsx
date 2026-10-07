@@ -35,6 +35,10 @@ export const Route = createFileRoute("/activity")({
     meta: [
       { title: "Activity Log — VenturePulse" },
       { name: "description", content: "Audit trail of every import, export, sync, edit and delete" },
+      { property: "og:title", content: "Activity Log — VenturePulse" },
+      { property: "og:description", content: "Audit trail of every import, export, sync, edit and delete" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   loader: async (): Promise<{ entries: OpsLogEntry[] }> => ({ entries: await fetchOpsLog() }),

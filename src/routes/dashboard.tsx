@@ -52,6 +52,8 @@ export const Route = createFileRoute("/dashboard")({
         property: "og:description",
         content: "PortCo prioritization by sales and GTM maturity",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   loader: async () => {
