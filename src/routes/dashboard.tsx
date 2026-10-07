@@ -23,6 +23,8 @@ import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
 import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { computeScopeActivity } from "@/lib/dashboard-activity";
+import { useWorkstreams } from "@/lib/use-workstreams";
+import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
 
 import { portCoKey } from "@/lib/portco-canonical";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
@@ -115,6 +117,7 @@ function DashboardPage() {
   const [investor, setInvestor] = useState("");
   const [sector, setSector] = useState("");
   const [priority, setPriority] = useState("");
+  const [owner, setOwner] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -147,18 +150,31 @@ function DashboardPage() {
   const investors = useMemo(() => matrixInvestors(points), [points]);
   const sectors = useMemo(() => matrixSectors(points), [points]);
   const priorities = useMemo(() => matrixPriorities(points), [points]);
+  const { workstreams: allWorkstreams } = useWorkstreams();
+  const ownerKeys = useMemo(
+    () =>
+      owner
+        ? new Set(allWorkstreams.filter((w) => ownerMatches(w.owner, owner)).map((w) => w.companyKey))
+        : null,
+    [owner, allWorkstreams],
+  );
   const inFilter = (p: (typeof points)[number]) =>
     (!investor || p.investor === investor) &&
     (!sector || p.sectors.includes(sector)) &&
-    (!priority || cleanPriority(p.priority) === priority);
+    (!priority || cleanPriority(p.priority) === priority) &&
+    (!ownerKeys || ownerKeys.has(p.key));
 
   const selected = selectedKey ? points.find((p) => p.key === selectedKey) : undefined;
   const filtered = points.filter(inFilter);
   const scope = selected ? [selected] : filtered;
-  const scopeKind = selected ? "company" : investor || sector || priority ? "investor" : "all";
+  const scopeKind = selected
+    ? "company"
+    : investor || sector || priority || owner
+      ? "investor"
+      : "all";
   const scopeLabel = selected
     ? selected.name
-    : [investor, sector, priority].filter(Boolean).join(" · ") || "Entire portfolio";
+    : [investor, sector, priority, owner].filter(Boolean).join(" · ") || "Entire portfolio";
 
   const activity = useMemo(
     () => computeScopeActivity(new Set(scope.map((p) => p.key)), contacts, eventsByPortco),
@@ -204,9 +220,28 @@ function DashboardPage() {
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-3 mb-2">
               <h2 className="font-display text-sm font-semibold text-foreground">
-                PortCo Prioritization: Sales Maturity / GTM Maturity / Investment
+                PortCo Prioritization
               </h2>
               <div className="flex items-center gap-2 shrink-0">
+                <Select
+                  value={owner || "all"}
+                  onValueChange={(v) => {
+                    setOwner(v === "all" ? "" : v);
+                    setSelectedKey(null);
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-36 text-xs bg-card">
+                    <SelectValue placeholder="All action owners" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All action owners</SelectItem>
+                    {ACTION_OWNERS.map((o) => (
+                      <SelectItem key={o.name} value={o.name}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Select
                   value={investor || "all"}
                   onValueChange={(v) => {
@@ -278,6 +313,7 @@ function DashboardPage() {
                 priority={priority}
                 selectedKey={selectedKey}
                 onSelect={setSelectedKey}
+                allowedKeys={ownerKeys}
               />
             )}
           </CardContent>
@@ -295,16 +331,19 @@ function DashboardPage() {
 
       <ActivityCharts monthly={activity.monthly} scopeLabel={scopeLabel} />
 
+      <WorkstreamSummary
+        keys={scopeKeys}
+        scopeLabel={scopeLabel}
+        showCompany={scopeKind !== "company"}
+        actionOwner={owner}
+      />
       {scopeKind === "company" && (
-        <>
-          <WorkstreamSummary keys={scopeKeys} scopeLabel={scopeLabel} showCompany={false} />
-          <ActivityFeed
-            keys={scopeKeys}
-            scopeLabel={scopeLabel}
-            showCompany={false}
-            allScope={false}
-          />
-        </>
+        <ActivityFeed
+          keys={scopeKeys}
+          scopeLabel={scopeLabel}
+          showCompany={false}
+          allScope={false}
+        />
       )}
 
       <PortfolioDetail

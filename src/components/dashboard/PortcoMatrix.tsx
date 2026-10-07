@@ -190,7 +190,15 @@ function bucketOf(investment: number | null): BucketId {
   return "large";
 }
 
-export function PortcoMatrix({ points, investor, sector, priority, selectedKey, onSelect }: Props) {
+export function PortcoMatrix({
+  points,
+  investor,
+  sector,
+  priority,
+  selectedKey,
+  onSelect,
+  allowedKeys,
+}: Props & { allowedKeys?: Set<string> | null }) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
   const [zone, setZone] = useState<(typeof ZONES)[number] | null>(null);
   const [buckets, setBuckets] = useState<BucketId[]>(["small", "mid", "large"]);
@@ -227,6 +235,7 @@ export function PortcoMatrix({ points, investor, sector, priority, selectedKey, 
     (!!investor && p.investor !== investor) ||
     (!!sector && !p.sectors.includes(sector)) ||
     (!!priority && cleanPriority(p.priority) !== priority) ||
+    (!!allowedKeys && !allowedKeys.has(p.key)) ||
     !buckets.includes(bucketOf(p.investment));
 
 
