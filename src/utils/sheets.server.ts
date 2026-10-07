@@ -1988,6 +1988,8 @@ const TARGET_COLS: Record<string, string> = {
   "last contacted": "lastContacted",
   "follow up flag": "followUpFlag",
   "follow up due": "followUpDue",
+  prime: "prime",
+  "contact prime": "prime",
 };
 
 // Canonical Targets tab header order. Reading is header-name based (robust to
@@ -2045,6 +2047,8 @@ export interface TargetRowInput {
   followUp?: boolean;
   /** Optional follow-up due date (YYYY-MM-DD). */
   followUpDue?: string;
+  /** Contact Prime (relationship owner), same vocabulary as the CRM. */
+  prime?: string;
 }
 
 // Header-aware Targets append: stamps a stable URID on every new row and places
@@ -2061,6 +2065,7 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
   await ensureColumn(TAB_NAMES.targets, "PortCo Tags");
   await ensureColumn(TAB_NAMES.targets, "Follow Up Flag");
   await ensureColumn(TAB_NAMES.targets, "Follow Up Due");
+  if (inputs.some((t) => (t.prime || "").trim())) await ensureColumn(TAB_NAMES.targets, "Prime");
 
   const rows = await fetchSheetTab(TAB_NAMES.targets);
   const headers = (rows[0] || []).map((h) => h.trim().toLowerCase());
@@ -2092,6 +2097,8 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
         .join(", "),
       "follow up flag": t.followUp ? "TRUE" : "FALSE",
       "follow up due": (t.followUpDue || "").trim(),
+      prime: (t.prime || "").trim(),
+      "contact prime": (t.prime || "").trim(),
     };
     return headers.map((h) => valueByHeader[h] ?? "");
   });
@@ -3540,6 +3547,7 @@ const TARGET_UPDATE_HEADERS: Record<string, string[]> = {
   lastContacted: ["last contacted"],
   followUpFlag: ["follow up flag"],
   followUpDue: ["follow up due"],
+  prime: ["prime", "contact prime"],
 };
 
 // First matching header index for a field's alias list (-1 when absent).
@@ -4203,6 +4211,7 @@ export async function buildTargets(): Promise<TargetLead[]> {
       dateAdded: t.dateAdded || "",
       followUp: (t.followUpFlag || "").trim().toLowerCase() === "true",
       followUpDue: (t.followUpDue || "").trim(),
+      prime: (t.prime || "").trim(),
       outreach,
       notes: t.researchPurpose || "",
       connectionPlan,

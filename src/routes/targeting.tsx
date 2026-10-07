@@ -1353,6 +1353,7 @@ function TargetingPage() {
     event: t.event,
     portcoTags: t.portcoTags,
     followUp: t.followUp,
+    prime: t.prime,
   });
 
   // Promote selection into Network CRM contacts (+ Ready to Promote stage + note).
