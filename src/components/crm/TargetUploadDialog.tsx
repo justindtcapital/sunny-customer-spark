@@ -495,6 +495,13 @@ export function TargetUploadDialog({
                         }}
                         placeholder="Optional — tag this list to an event"
                       />
+                      {!eventName.trim() &&
+                        (source === "Event" ||
+                          /event|summit|dinner|conference|forum|briefing/i.test(campaign)) && (
+                          <p className="text-[10px] text-destructive mt-1">
+                            This looks like an event list — pick the event so people show up under it.
+                          </p>
+                        )}
                     </div>
                     <div>
                       <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
