@@ -743,9 +743,16 @@ function CampaignOverview({
           title: p.title || "",
           company: p.company || "",
           kind: p.origin === "network" ? "network" : "prospect",
+          campaignId: campaign.id,
+          linkedin: p.linkedin || "",
+          added: "",
+          subject: "",
+          body: "",
           sentDate: "",
           sentChannel: "",
-        }) as unknown as CampaignMember,
+          followUpOwner: "",
+          followUpDue: "",
+        }) satisfies CampaignMember,
     ),
   ];
   const s = summarizeMembers(members);
