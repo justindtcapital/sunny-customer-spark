@@ -414,19 +414,12 @@ function StartStep({
               {nameTaken && <p className="text-[11px] text-destructive mt-1">That name is already used. Pick it from the list instead.</p>}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <SectionLabel>Event {/event/i.test(purpose) ? "" : "(optional)"}</SectionLabel>
-                <EventPicker value={eventName} onChange={pickEvent} placeholder="Tag an event" />
-                {attendees && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    {contactsQ.isLoading || targetsQ.isLoading
-                      ? "Counting people tagged to this event…"
-                      : `${attendees.people.length} people tagged to this event (${attendees.network} Network, ${attendees.prospect} Prospecting)${
-                          attendees.portcos.length ? ` · ${attendees.portcos.length} PortCos added` : ""
-                        }. They'll be pre-loaded into the list.`}
-                  </p>
-                )}
-              </div>
+              {!/event/i.test(purpose) && (
+                <div>
+                  <SectionLabel>Event (optional)</SectionLabel>
+                  <EventPicker value={eventName} onChange={pickEvent} placeholder="Tag an event" />
+                </div>
+              )}
               <div>
                 <SectionLabel>Owner (optional)</SectionLabel>
                 <Select value={owner || "none"} onValueChange={(v) => setOwner(v === "none" ? "" : v)}>
