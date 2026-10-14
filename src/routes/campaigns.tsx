@@ -365,6 +365,30 @@ function StartStep({
           </div>
         </div>
 
+        {/event/i.test(purpose) && (
+          <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+            <SectionLabel>Event</SectionLabel>
+            <EventPicker value={eventName} onChange={pickEvent} placeholder="Pick the event" />
+            {attendees && (
+              <div className="text-[11px] text-muted-foreground space-y-1">
+                <p>
+                  {contactsQ.isLoading || targetsQ.isLoading
+                    ? "Counting people tagged to this event…"
+                    : `${attendees.people.length} people tagged to this event (${attendees.network} Network, ${attendees.prospect} Prospecting). They'll be pre-loaded into the list.`}
+                </p>
+                {attendees.portcos.length > 0 && (
+                  <p>Portfolio companies: {attendees.portcos.join(", ")}</p>
+                )}
+                {attendees.people.length > 0 && (
+                  <p className="line-clamp-3">
+                    {attendees.people.map((p) => p.name).join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <SectionLabel>Campaign</SectionLabel>
           <Select value={choice} onValueChange={pick}>
