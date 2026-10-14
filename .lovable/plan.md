@@ -65,7 +65,7 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
 - Aliases: bd-tracking@dt-capital.net (BD activity), gtm-tracking@dt-capital.net (GTM activity), workstreams@dt-capital.net (workstream updates), news@dt-capital.net (PortCo news and press; saved as knowledge records tagged "News" and available to Ask and briefs, but not counted as activity).
 
 ## Still need from you
-- The shared mailbox that receives all four aliases (Venture Pulse reads that one inbox).
+- Aliases are live in shane@dt-capital.net; Venture Pulse reads that inbox.
 - Make sure the Google account Venture Pulse uses has Content manager access to the shared KB Drive.
 
 ## Technical details
