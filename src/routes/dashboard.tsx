@@ -22,6 +22,8 @@ import { MatrixStatsPanel } from "@/components/dashboard/MatrixStatsPanel";
 import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
 import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { KnowledgePanel } from "@/components/knowledge/KnowledgePanel";
+import { WorkstreamReviewQueue } from "@/components/knowledge/WorkstreamReviewQueue";
 import { computeScopeActivity } from "@/lib/dashboard-activity";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
@@ -332,20 +334,26 @@ function DashboardPage() {
       <ActivityCharts monthly={activity.monthly} scopeLabel={scopeLabel} />
 
       {(owner || investor || scopeKind === "company") && (
-        <WorkstreamSummary
-          keys={scopeKeys}
-          scopeLabel={scopeLabel}
-          actionOwner={owner}
-          points={points}
-        />
+        <>
+          <WorkstreamSummary
+            keys={scopeKeys}
+            scopeLabel={scopeLabel}
+            actionOwner={owner}
+            points={points}
+          />
+          <WorkstreamReviewQueue />
+        </>
       )}
       {scopeKind === "company" && (
-        <ActivityFeed
-          keys={scopeKeys}
-          scopeLabel={scopeLabel}
-          showCompany={false}
-          allScope={false}
-        />
+        <>
+          <ActivityFeed
+            keys={scopeKeys}
+            scopeLabel={scopeLabel}
+            showCompany={false}
+            allScope={false}
+          />
+          <KnowledgePanel company={scopeLabel} />
+        </>
       )}
 
       <PortfolioDetail
