@@ -2,7 +2,7 @@
 export const ACTION_OWNERS: { name: string; test: RegExp }[] = [
   { name: "Chris Falloon", test: /fall?oon/i },
   { name: "Chris Hillock", test: /h[ei]ll?ock/i },
-  { name: "Shane Early", test: /early|shane/i },
+  { name: "Shane Earley", test: /earl?e?y|shane/i },
   { name: "Julia Beech", test: /bee?ch|beach|julia/i },
 ];
 

@@ -100,6 +100,7 @@ import { ActivitySection } from "./ActivitySection";
 import { useAsanaActivities } from "@/lib/use-activities";
 import { matchActivitiesToContact } from "@/lib/activity-match";
 import { Sparkles, Loader2 } from "lucide-react";
+import { PersonCampaigns } from "@/components/crm/PersonCampaigns";
 
 interface ContactDetailProps {
   contact: Contact | null;
@@ -1626,6 +1627,8 @@ export function ContactDetail({
                   </div>
                 </div>
               </section>
+
+              <PersonCampaigns email={contact.email} name={contact.name} company={contact.company} />
 
               {/* Interaction Trail */}
               <section>
