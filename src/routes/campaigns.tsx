@@ -591,11 +591,11 @@ function StartStep({
 type ContactLike = {
   name: string; email?: string; title: string; company: string; linkedinUrl?: string; location?: string; address?: string;
   sector: string; urid?: string; eventsAttended?: string[]; eventsInvited?: string[]; campaignEvent?: string;
-  portcoTags?: string[]; portCoIntros?: string[];
+  portcoTags?: string[]; portCoIntros?: string[]; campaign?: string;
 };
 type TargetLike = {
   name: string; email: string; title: string; company: string; linkedinUrl: string; location?: string; sector: string;
-  urid?: string; event?: string; portcoTags?: string[];
+  urid?: string; event?: string; portcoTags?: string[]; campaign?: string;
 };
 
 function eventAttendees(event: string, contacts: ContactLike[], targets: TargetLike[]) {
@@ -625,6 +625,27 @@ function eventAttendees(event: string, contacts: ContactLike[], targets: TargetL
   }
   const merged = mergeCandidates([], people).list;
   return { people: merged, network, prospect, portcos: [...portcos].sort() };
+}
+
+/** People on Network/Prospecting carrying a legacy campaign label. */
+function labelPeople(label: string, contacts: ContactLike[], targets: TargetLike[]): CandidatePerson[] {
+  const l = label.trim().toLowerCase();
+  const people: CandidatePerson[] = [];
+  for (const c of contacts) {
+    if ((c.campaign || "").trim().toLowerCase() !== l) continue;
+    people.push({
+      name: c.name, email: (c.email || "").split(/[,;]/)[0].trim(), title: c.title, company: c.company,
+      linkedin: c.linkedinUrl || "", location: c.location || c.address, sector: c.sector, origin: "network", urid: c.urid,
+    });
+  }
+  for (const t of targets) {
+    if ((t.campaign || "").trim().toLowerCase() !== l) continue;
+    people.push({
+      name: t.name, email: t.email, title: t.title, company: t.company, linkedin: t.linkedinUrl,
+      location: t.location, sector: t.sector, origin: "prospect", urid: t.urid,
+    });
+  }
+  return mergeCandidates([], people).list;
 }
 
 // ── Campaign overview + delete ─────────────────────────────
