@@ -125,6 +125,8 @@ import {
   AddToCampaignDialog,
   type AddToCampaignResult,
 } from "@/components/crm/AddToCampaignDialog";
+import { TagToEventDialog } from "@/components/crm/TagToEventDialog";
+import { CalendarPlus } from "lucide-react";
 import { invalidateCampaignCache } from "@/components/crm/CampaignCombobox";
 import { EmailDraftDialog } from "@/components/crm/EmailDraftDialog";
 import {
@@ -498,6 +500,7 @@ function TargetingPage() {
   } = useTargetSelection();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
+  const [tagEventOpen, setTagEventOpen] = useState(false);
   const [deletingTargets, setDeletingTargets] = useState(false);
   const [promotingCrm, setPromotingCrm] = useState(false);
   const { updateOptions } = useFilterOptions();
