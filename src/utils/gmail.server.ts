@@ -236,10 +236,10 @@ function toLabel(ms: number): string {
 
 const gmailDateDbg = { calls: 0, shifted: 0, samples: [] as { ny: string; utc: string }[] };
 
-async function getMessage(token: string, id: string): Promise<GmailMessage | null> {
+async function getMessage(token: string, id: string, mailbox?: string): Promise<GmailMessage | null> {
   let res: Response;
   try {
-    res = await fetch(`${GMAIL_API}/messages/${id}?format=full`, {
+    res = await fetch(`${gmailApiFor(mailbox)}/messages/${id}?format=full`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch {
@@ -320,7 +320,7 @@ export async function downloadGmailAttachment(
 // Low-level search — needs a valid Google token with gmail.readonly, not Signals.
 // Pages through Gmail's list endpoint (100/page) until `max` ids are collected, so
 // callers can request far more than one page worth of history.
-export async function searchGmailRaw(query: string, max = 25): Promise<GmailResult> {
+export async function searchGmailRaw(query: string, max = 25, mailbox?: string): Promise<GmailResult> {
   let token: string;
   try {
     token = await getAccessToken();
