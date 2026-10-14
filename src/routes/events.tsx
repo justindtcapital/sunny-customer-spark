@@ -1,5 +1,6 @@
+import { Megaphone } from "lucide-react";
 import { useMemo, useState } from "react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { fetchAsanaEvents } from "@/utils/asana.functions";
 import {
   fetchContacts,
@@ -1167,6 +1168,7 @@ function EventDetailSheet({
   synopsis?: string;
   onSelectContact?: (c: Contact) => void;
 }) {
+  const navigate = useNavigate();
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkType, setBulkType] = useState<"attended" | "invited">("attended");
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -1453,6 +1455,28 @@ function EventDetailSheet({
             </section>
           </div>
         </ScrollArea>
+
+        <div className="shrink-0 border-t border-border pt-3 flex flex-wrap justify-end gap-2">
+          {(() => {
+            const past = !!event.date && event.date < new Date().toISOString().slice(0, 10);
+            const go = (purpose: string) =>
+              void navigate({ to: "/campaigns", search: { event: event.name, purpose } });
+            return past ? (
+              <>
+                <Button size="sm" variant="outline" onClick={() => go("Event outreach")}>
+                  <Megaphone className="h-3.5 w-3.5 mr-1" /> Outreach campaign
+                </Button>
+                <Button size="sm" onClick={() => go("Event follow-up")}>
+                  <Megaphone className="h-3.5 w-3.5 mr-1" /> Follow-up campaign ({attended.length})
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" onClick={() => go("Event outreach")}>
+                <Megaphone className="h-3.5 w-3.5 mr-1" /> Build outreach campaign
+              </Button>
+            );
+          })()}
+        </div>
 
         <BulkAddAttendeesDialog
           open={bulkOpen}
