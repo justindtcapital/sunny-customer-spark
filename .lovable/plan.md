@@ -26,6 +26,7 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
 
 ## What you'll see
 1. **Folder per PortCo** in a shared Drive, created and kept in sync automatically. Meet's Gemini notes can be saved straight into the folder. Files Venture Pulse can't place go into an Unsorted folder for review.
+   - **Upload notes / drop a file** inside Venture Pulse, on the PortCo popup, the Dashboard knowledge section and a Knowledge page. You can drag in files (PDF, Word, PowerPoint, text, images) or type and paste minutes in a quick form: PortCo, optional workstream, meeting date, attendees, notes. Venture Pulse saves the file to the right PortCo folder in Venture Pulse KB, named by date and title, then reads and indexes it straight away. Saving files directly into the Drive folders still works too.
 2. **Activity tracking** (Dashboard with one PortCo selected, and the PortCo popup): a timeline built from email and meetings, filterable by type (intro, meeting, email, event, follow-up). Each entry opens its summary and the original source.
 3. **Knowledge & meetings section** below the workstreams: a summary of the last 6 months by default, with a 12-month toggle. You can open any set of minutes to see the full notes and their source links.
 4. **Meeting minutes matched to workstreams.** Gemini compares each set of minutes with that PortCo's GTM and BD workstreams, using the title, the people and the topics. If it finds a confident match, the minutes appear under that workstream. If not, they're shown as "Suggested workstream" with a one-click confirm. Expanding a workstream shows its latest meetings and next steps.
@@ -55,7 +56,7 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
 - The default summary window is 6 months.
 - Activities stop coming from Asana. Nothing is written back to Asana.
 
-- Shared KB Drive: id `0AFtlyPes27_KUk9PVA`. PortCo folders get created inside it.
+- Shared KB Drive "Venture Pulse KB" (id `0AFtlyPes27_KUk9PVA`): Venture Pulse can see it and add files to it. It is empty today. PortCo folders get created inside it.
 
 - Aliases: bd-tracking@dt-capital.net (BD activity), gtm-tracking@dt-capital.net (GTM activity), workstreams@dt-capital.net (workstream updates), news@dt-capital.net (PortCo news and press; saved as knowledge records tagged "News" and available to Ask and briefs, but not counted as activity).
 
