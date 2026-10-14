@@ -185,9 +185,9 @@ function CampaignBuilderPage() {
           campaigns={campaignsQ.data?.campaigns || []}
           loading={campaignsQ.isLoading}
           userEmail={userEmail || ""}
-          onReady={(c, next) => {
+          onReady={(c, next, prefill) => {
             setCampaign(c);
-            setStaged([]);
+            setStaged(prefill || []);
             void qc.invalidateQueries({ queryKey: ["campaigns"] });
             setStep(next);
           }}
@@ -275,9 +275,11 @@ function StartStep({
   campaigns: CampaignRecord[];
   loading: boolean;
   userEmail: string;
-  onReady: (c: CampaignRecord, next: Step) => void;
+  onReady: (c: CampaignRecord, next: Step, prefill?: CandidatePerson[]) => void;
 }) {
   const save = useServerFn(saveCampaignFn);
+  const contactsQ = useQuery({ queryKey: ["campaign-contacts"], queryFn: () => fetchContacts(), staleTime: 60_000 });
+  const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000 });
   const portfolioQ = useQuery({ queryKey: ["campaign-portcos"], queryFn: () => fetchPortfolioCompanies() });
   const portcoNames = useMemo(
     () => Array.from(new Set((portfolioQ.data || []).map((p) => p.name))).sort(),
@@ -304,6 +306,17 @@ function StartStep({
   const nameTaken =
     choice === NEW && campaigns.some((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
 
+  const attendees = useMemo(
+    () => (eventName ? eventAttendees(eventName, contactsQ.data || [], targetsQ.data || []) : null),
+    [eventName, contactsQ.data, targetsQ.data],
+  );
+  const pickEvent = (ev: string) => {
+    setEventName(ev);
+    if (!ev) return;
+    const a = eventAttendees(ev, contactsQ.data || [], targetsQ.data || []);
+    if (a.portcos.length) setPortcos((cur) => Array.from(new Set([...cur, ...a.portcos])));
+  };
+
   const go = async (next: Step) => {
     setBusy(true);
     try {
@@ -322,7 +335,9 @@ function StartStep({
         toast.error(res.error);
         return;
       }
-      onReady({ ...res.campaign, memberCount: existing?.memberCount }, next);
+      const prefill =
+        next === "build" && attendees && attendees.people.length ? attendees.people : undefined;
+      onReady({ ...res.campaign, memberCount: existing?.memberCount }, next, prefill);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the campaign");
     } finally {
@@ -376,7 +391,16 @@ function StartStep({
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <SectionLabel>Event {/event/i.test(purpose) ? "" : "(optional)"}</SectionLabel>
-                <EventPicker value={eventName} onChange={setEventName} placeholder="Tag an event" />
+                <EventPicker value={eventName} onChange={pickEvent} placeholder="Tag an event" />
+                {attendees && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {contactsQ.isLoading || targetsQ.isLoading
+                      ? "Counting people tagged to this event…"
+                      : `${attendees.people.length} people tagged to this event (${attendees.network} Network, ${attendees.prospect} Prospecting)${
+                          attendees.portcos.length ? ` · ${attendees.portcos.length} PortCos added` : ""
+                        }. They'll be pre-loaded into the list.`}
+                  </p>
+                )}
               </div>
               <div>
                 <SectionLabel>Owner (optional)</SectionLabel>
@@ -456,6 +480,47 @@ function StartStep({
       </div>
     </div>
   );
+}
+
+// ── Event attendees ────────────────────────────────────────
+
+type ContactLike = {
+  name: string; email?: string; title: string; company: string; linkedinUrl?: string; location?: string; address?: string;
+  sector: string; urid?: string; eventsAttended?: string[]; eventsInvited?: string[]; campaignEvent?: string;
+  portcoTags?: string[]; portCoIntros?: string[];
+};
+type TargetLike = {
+  name: string; email: string; title: string; company: string; linkedinUrl: string; location?: string; sector: string;
+  urid?: string; event?: string; portcoTags?: string[];
+};
+
+function eventAttendees(event: string, contacts: ContactLike[], targets: TargetLike[]) {
+  const ev = event.trim().toLowerCase();
+  const hit = (xs: (string | undefined)[]) => xs.some((x) => (x || "").trim().toLowerCase() === ev);
+  const people: CandidatePerson[] = [];
+  const portcos = new Set<string>();
+  let network = 0;
+  let prospect = 0;
+  for (const c of contacts) {
+    if (!hit([...(c.eventsAttended || []), ...(c.eventsInvited || []), c.campaignEvent])) continue;
+    network++;
+    (c.portcoTags || []).forEach((p) => p && portcos.add(p));
+    people.push({
+      name: c.name, email: (c.email || "").split(/[,;]/)[0].trim(), title: c.title, company: c.company,
+      linkedin: c.linkedinUrl || "", location: c.location || c.address, sector: c.sector, origin: "network", urid: c.urid,
+    });
+  }
+  for (const t of targets) {
+    if (!hit([t.event])) continue;
+    prospect++;
+    (t.portcoTags || []).forEach((p) => p && portcos.add(p));
+    people.push({
+      name: t.name, email: t.email, title: t.title, company: t.company, linkedin: t.linkedinUrl,
+      location: t.location, sector: t.sector, origin: "prospect", urid: t.urid,
+    });
+  }
+  const merged = mergeCandidates([], people).list;
+  return { people: merged, network, prospect, portcos: [...portcos].sort() };
 }
 
 // ── Campaign overview + delete ─────────────────────────────
