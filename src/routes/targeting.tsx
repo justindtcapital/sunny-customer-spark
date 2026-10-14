@@ -142,6 +142,7 @@ import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { useTargetSelection } from "@/lib/target-selection-context";
 import { connectionStrategy, type ConnectionStrategy } from "@/utils/insights.functions";
 import { loadEvents } from "@/components/events/EventPicker";
+import { PersonCampaigns } from "@/components/crm/PersonCampaigns";
 
 
 /** A flagged follow-up whose due date has passed (blank date is never overdue). */
@@ -2194,6 +2195,11 @@ function TargetingPage() {
                             </span>
                           </span>
                         </div>
+                        <PersonCampaigns
+                          email={activeTarget.email}
+                          name={activeTarget.name}
+                          company={activeTarget.company}
+                        />
                         {/* Where this prospect came from: campaign, event roster and
                             the portfolio companies the sourcing was run for. */}
                         {(activeTarget.campaign ||
