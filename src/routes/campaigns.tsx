@@ -811,7 +811,7 @@ function CampaignOverview({
   const s = summarizeMembers(members);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [confirmName, setConfirmName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [removeNew, setRemoveNew] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const shown = members.filter((m) =>
