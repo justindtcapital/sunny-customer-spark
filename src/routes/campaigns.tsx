@@ -78,12 +78,12 @@ import {
 export const Route = createFileRoute("/campaigns")({
   head: () => ({
     meta: [
-      { title: "Campaign Builder — VenturePulse" },
+      { title: "Campaign Manager — VenturePulse" },
       {
         name: "description",
         content: "Build outreach campaigns from your network and prospects, draft with AI, and track sends and follow-ups.",
       },
-      { property: "og:title", content: "Campaign Builder — VenturePulse" },
+      { property: "og:title", content: "Campaign Manager — VenturePulse" },
       {
         property: "og:description",
         content: "Build outreach campaigns from your network and prospects, draft with AI, and track sends and follow-ups.",
@@ -145,7 +145,7 @@ function CampaignBuilderPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="flex items-center gap-2 text-lg font-bold text-foreground">
           <Megaphone className="h-5 w-5 text-primary" />
-          Campaign Builder
+          Campaign Manager
           {campaign && <span className="text-muted-foreground font-normal">· {campaign.name}</span>}
         </h1>
         {campaign && (
@@ -540,7 +540,7 @@ function StartStep({
 
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-foreground">Campaigns</p>
+          <p className="text-xs font-semibold text-foreground">Current Campaigns</p>
           <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => pick(NEW)}>
             <Plus className="h-3 w-3 mr-1" /> New
           </Button>

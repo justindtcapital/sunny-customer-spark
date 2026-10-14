@@ -91,7 +91,7 @@ const navItems = [
   { title: "PortCo", url: "/portfolio", icon: PortCoIcon },
   { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
   { title: "Activity", url: "/activity", icon: ScrollText },
-  { title: "Campaign Builder", url: "/campaigns", icon: Megaphone },
+  { title: "Campaigns", url: "/campaigns", icon: Megaphone },
 ];
 
 interface AppSidebarProps {
