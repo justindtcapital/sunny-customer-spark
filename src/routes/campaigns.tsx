@@ -349,6 +349,23 @@ function StartStep({
     <div className="grid gap-5 md:grid-cols-[1fr_320px]">
       <div className="rounded-lg border border-border bg-card p-5 space-y-4">
         <div>
+          <SectionLabel>Why are you building this campaign?</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            {CAMPAIGN_PURPOSES.map((p) => (
+              <Button
+                key={p}
+                type="button"
+                size="sm"
+                variant={purpose === p ? "default" : "outline"}
+                onClick={() => setPurpose(p)}
+              >
+                {p}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div>
           <SectionLabel>Campaign</SectionLabel>
           <Select value={choice} onValueChange={pick}>
             <SelectTrigger>
@@ -371,22 +388,6 @@ function StartStep({
               <SectionLabel>Campaign name</SectionLabel>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Q4 Security Dinner" />
               {nameTaken && <p className="text-[11px] text-destructive mt-1">That name is already used. Pick it from the list instead.</p>}
-            </div>
-            <div>
-              <SectionLabel>Why are you building this campaign?</SectionLabel>
-              <div className="flex flex-wrap gap-2">
-                {CAMPAIGN_PURPOSES.map((p) => (
-                  <Button
-                    key={p}
-                    type="button"
-                    size="sm"
-                    variant={purpose === p ? "default" : "outline"}
-                    onClick={() => setPurpose(p)}
-                  >
-                    {p}
-                  </Button>
-                ))}
-              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
