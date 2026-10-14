@@ -96,7 +96,8 @@ export type RecordSourceType =
   | "gmail-workstreams"
   | "gmail-news"
   | "drive-doc"
-  | "upload";
+  | "upload"
+  | "granola";
 
 export type LinkStatus = "matched" | "suggested" | "confirmed" | "ignored" | "create-new";
 
