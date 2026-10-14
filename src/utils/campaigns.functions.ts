@@ -14,6 +14,7 @@ import {
 } from "./sheets.server";
 import {
   appendMembers,
+  deleteCampaign,
   campaignsForPerson,
   listCampaigns,
   listMembers,
@@ -57,6 +58,27 @@ export const fetchPersonCampaigns = createServerFn({ method: "POST" })
     } catch (e) {
       console.error("fetchPersonCampaigns failed", e);
       return [];
+    }
+  });
+
+export const deleteCampaignFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { id: string; removeNewProspects: boolean; by?: string }) =>
+    z.object({ id: z.string().min(1), removeNewProspects: z.boolean(), by: z.string().max(200).optional() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    try {
+      const r = await deleteCampaign(data.id, data.removeNewProspects);
+      await logOpsEvent({
+        action: "delete",
+        source: "campaign_builder",
+        status: "ok",
+        summary: `Deleted campaign "${r.name}" (${r.members} memberships, ${r.labelsCleared} labels cleared, ${r.prospectsRemoved} prospects removed)`,
+        details: { by: data.by, ...r },
+      });
+      return { ok: true as const, ...r, error: "" };
+    } catch (e) {
+      console.error("deleteCampaign failed", e);
+      return { ok: false as const, error: e instanceof Error ? e.message : "Could not delete campaign" };
     }
   });
 

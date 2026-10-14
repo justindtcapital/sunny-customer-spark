@@ -4,13 +4,15 @@
 //    so a person can belong to any number of campaigns without overwriting.
 import {
   appendSheetRows,
+  deleteSheetRows,
+  TAB_NAMES,
   colLetters,
   ensureColumn,
   ensureTab,
   fetchSheetTab,
   updateSheetCells,
 } from "./sheets.server";
-import type { CampaignMember, CampaignRecord, CampaignStatus, MemberKind } from "@/lib/campaigns";
+import { memberRowsFor, type CampaignMember, type CampaignRecord, type CampaignStatus, type MemberKind } from "@/lib/campaigns";
 
 export const CAMPAIGNS_TAB = "Campaigns";
 export const MEMBERS_TAB = "Campaign Members";
@@ -161,7 +163,7 @@ export async function listCampaigns(): Promise<CampaignRecord[]> {
     .map((r) => rowToCampaign(c.headers, r))
     .filter((x) => x.id && x.name)
     .map((x) => ({ ...x, memberCount: counts.get(x.id) || 0 }))
-    .sort((a, b) => (b.updated || b.created).localeCompare(a.updated || a.created));
+    .sort((a, b) => (b.created || "").localeCompare(a.created || ""));
 }
 
 export async function listMembers(campaignId?: string): Promise<CampaignMember[]> {
@@ -301,4 +303,71 @@ export async function campaignsForPerson(
     .filter((m) => want.has(m.personKey) || (m.email && want.has(m.email.toLowerCase())))
     .map((m) => ({ campaign: byId.get(m.campaignId)!, member: m }))
     .filter((x) => x.campaign);
+}
+
+/** Delete a campaign, all its membership rows, and matching legacy Targets
+ *  campaign labels. People records are kept unless `removeNewProspects`, which
+ *  only removes prospects this campaign created that have no other campaigns
+ *  and were never contacted. */
+export async function deleteCampaign(
+  id: string,
+  removeNewProspects: boolean,
+): Promise<{ name: string; members: number; labelsCleared: number; prospectsRemoved: number; followUps: number }> {
+  await ensureTabs();
+  const c = await readTab(CAMPAIGNS_TAB);
+  const cIdIdx = c.headers.indexOf("campaign id");
+  const cRowIdx = c.rows.findIndex((r) => (r[cIdIdx] || "").trim() === id);
+  if (cRowIdx === -1) throw new Error("Campaign not found.");
+  const camp = rowToCampaign(c.headers, c.rows[cRowIdx]);
+  const nameLc = camp.name.trim().toLowerCase();
+
+  const m = await readTab(MEMBERS_TAB);
+  const mIdIdx = m.headers.indexOf("campaign id");
+  const all = m.rows.map((r) => rowToMember(m.headers, r));
+  const mine = all.filter((x) => x.campaignId === id);
+  const otherKeys = new Set(all.filter((x) => x.campaignId !== id).map((x) => x.personKey));
+  const followUps = mine.filter((x) => x.followUpDue).length;
+
+  // Legacy Targets "Campaign" column.
+  const t = await fetchSheetTab(TAB_NAMES.targets).catch(() => [] as string[][]);
+  const th = (t[0] || []).map((h) => (h || "").trim().toLowerCase());
+  const tCamp = th.indexOf("campaign");
+  const tEmail = th.indexOf("email");
+  const tName = th.indexOf("name");
+  const tCo = th.indexOf("company");
+  const tSource = th.indexOf("source");
+  const removable = new Set(
+    removeNewProspects
+      ? mine.filter((x) => x.kind === "prospect" && !otherKeys.has(x.personKey) && !x.sentDate).map((x) => x.personKey)
+      : [],
+  );
+  const toDelete: number[] = [];
+  const clears: { range: string; value: string }[] = [];
+  if (tCamp !== -1) {
+    for (let i = 1; i < t.length; i++) {
+      const r = t[i];
+      if ((r[tCamp] || "").trim().toLowerCase() !== nameLc) continue;
+      const key = (
+        (tEmail >= 0 && (r[tEmail] || "").trim()) ||
+        `${tName >= 0 ? (r[tName] || "").trim() : ""}|${tCo >= 0 ? (r[tCo] || "").trim() : ""}`
+      ).toLowerCase();
+      const src = tSource >= 0 ? (r[tSource] || "").toLowerCase() : "";
+      const isNew = /sumble|apollo|csv/.test(src);
+      if (removable.size && isNew && removable.has(key)) toDelete.push(i + 1);
+      else clears.push({ range: `${colLetters(tCamp)}${i + 1}`, value: "" });
+    }
+  }
+  if (clears.length) await updateSheetCells(TAB_NAMES.targets, clears);
+  if (toDelete.length) await deleteSheetRows(TAB_NAMES.targets, toDelete);
+
+  const memberRows = memberRowsFor(m.rows.map((r) => r[mIdIdx] || ""), id);
+  if (memberRows.length) await deleteSheetRows(MEMBERS_TAB, memberRows);
+  await deleteSheetRows(CAMPAIGNS_TAB, [cRowIdx + 2]);
+  return {
+    name: camp.name,
+    members: memberRows.length,
+    labelsCleared: clears.length,
+    prospectsRemoved: toDelete.length,
+    followUps,
+  };
 }
