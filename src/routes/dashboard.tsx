@@ -24,6 +24,7 @@ import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { KnowledgePanel } from "@/components/knowledge/KnowledgePanel";
 import { WorkstreamReviewQueue } from "@/components/knowledge/WorkstreamReviewQueue";
+import { GranolaImports } from "@/components/knowledge/GranolaImports";
 import { computeScopeActivity } from "@/lib/dashboard-activity";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
@@ -355,6 +356,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
+      <GranolaImports />
 
       <PortfolioDetail
         company={detailCompany ?? null}
