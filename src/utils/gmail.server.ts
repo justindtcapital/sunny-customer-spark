@@ -342,7 +342,7 @@ export async function searchGmailRaw(query: string, max = 25, mailbox?: string):
 
     let listRes: Response;
     try {
-      listRes = await fetch(`${GMAIL_API}/messages?${params}`, {
+      listRes = await fetch(`${gmailApiFor(mailbox)}/messages?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch (e) {
@@ -388,7 +388,7 @@ export async function searchGmailRaw(query: string, max = 25, mailbox?: string):
   // Hydrate in small batches so large windows don't serialize hundreds of round-trips.
   const BATCH = 10;
   for (let i = 0; i < ids.length; i += BATCH) {
-    const batch = await Promise.all(ids.slice(i, i + BATCH).map((id) => getMessage(token, id)));
+    const batch = await Promise.all(ids.slice(i, i + BATCH).map((id) => getMessage(token, id, mailbox)));
     for (const m of batch) if (m) messages.push(m);
   }
   messages.sort((a, b) => b.date - a.date);
