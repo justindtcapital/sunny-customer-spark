@@ -921,7 +921,7 @@ function CampaignOverview({
         </p>
       ) : (
       <div className="flex justify-start">
-        <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setConfirmName(""); setRemoveNew(false); } }}>
+        <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setConfirmDelete(false); setRemoveNew(false); } }}>
           <AlertDialogTrigger asChild>
             <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
               <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete campaign
