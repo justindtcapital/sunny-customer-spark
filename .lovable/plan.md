@@ -5,27 +5,35 @@ A new **Campaign Builder** page, opened from a button at the bottom of the left 
 ## The wizard
 
 ```text
-1 Why  ->  2 Build list  ->  3 Confirm list  ->  4 Message  ->  5 Send & follow up
+1 Start: build new or manage existing
+        |
+2 Build list  ->  3 Confirm list  ->  Action now?  -- later --> saved, come back any time
+                                         | now
+                                  4 Message  ->  5 Send & follow up
 ```
 
-**Step 1 - Why are you building this campaign?**
-- Name the campaign (required, must be unique).
-- Pick a purpose: Outreach, Business development, Network building, Event, Event follow-up, Demand gen, PortCo demand gen, General follow-up.
-- Based on the purpose, tag it to existing items: events (event picker), portfolio companies (multi-select), and an optional owner.
+**Step 1 - Build a new campaign or manage an existing one**
+- Campaign name dropdown: pick an **existing campaign** or **create new**. A new name must be unique.
+- New campaign: pick a purpose (Outreach, Business development, Network building, Event, Event follow-up, Demand gen, PortCo demand gen, General follow-up) and tag it to existing events, portfolio companies, and an optional owner.
+- Existing campaign: shows its purpose, tags, member count and status, then offers **Add more people** (go to step 2) or **Action it now** (go to step 4). The tags can still be edited.
 
 **Step 2 - Where do I build my list from?** (can be repeated in rounds)
 - **Our own people:** Network, Prospecting, or both, using the same filters those pages already have (sector, location, seniority, title, temperature, campaign, event, etc.). Pre-filled from the campaign's tags where it makes sense (e.g. people tied to the chosen event or PortCo).
 - **Get more (external search):** Sumble, Apollo, or both, reusing the search we already built in Find / Network Search.
 - **Upload:** CSV or paste, using the existing prospect upload mapping.
-- Each round adds to a running list with a counter ("42 people - 30 Network, 8 Prospecting, 4 new from Apollo"). Duplicates are merged by email, then name + company.
+- Each round adds to a running list with a counter ("42 people - 30 Network, 8 Prospecting, 4 new from Apollo"). Duplicates are merged by email, then name + company, including against people already in the campaign.
 
-**Step 3 - Confirm the list**
-- Table of everyone with source, title, company, email, LinkedIn. Remove people, or go back for more.
-- On confirm: the campaign is tagged onto every person; anyone new from search/upload is added to Prospecting (stage "Prospecting", source Sumble/Apollo/CSV, tagged with the campaign, event, PortCos and Contact Prime).
+**Step 3 - Confirm and refine the list**
+- Table of everyone with source, title, company, email, LinkedIn, plus filters and search to refine. Remove people, or go back for more.
+- On confirm:
+  - **People already in Network or Prospecting are left exactly as they are.** Their stage, location and other details don't change. The only thing added is the campaign membership.
+  - **Only new people** from search or upload are added to Prospecting (stage "Prospecting", source Sumble/Apollo/CSV, tagged with this campaign, event, PortCos and Contact Prime).
+  - **A person can be in many campaigns.** Adding someone to a campaign never removes or overwrites their earlier campaigns.
+- Then choose **Action now** (go to step 4) or **Save and action later**. "Later" saves the list. You can reopen it from step 1 to refine it or action it.
 
-**Step 4 - Message (AI script builder)**
+**Step 4 - Message (AI script builder)** (start of the action phase)
 - Choose channel: Email, LinkedIn message, or both.
-- Script builder asks: objective, key message, tone, length, and call to action (dinner/event signup link, PortCo link, any other link). For event or follow-up campaigns it adds the event details and PortCo blurbs automatically.
+- Script builder asks: objective, key message, tone, length, and call to action (dinner/event signup link, PortCo link, any other link). For event or follow-up campaigns it adds the event details automatically. PortCo blurbs include a link to that company's own website.
 - Attach materials: upload a file; it's stored in the team's Google Drive and inserted as a share link (emails opened from links can't carry real attachments).
 - AI drafts a template with placeholders (name, role, company). You can edit and redraft.
 - **Personalize** button: writes a light, per-person version using their title, company, role, and work history from Apollo enrichment plus public web info. Each draft is editable on its own row.
@@ -49,7 +57,7 @@ A new **Campaign Builder** page, opened from a button at the bottom of the left 
 
 ## Technical details
 - New route `src/routes/campaigns.tsx` (own head metadata), sidebar link under Activity in `app-sidebar.tsx`.
-- Storage stays in Google Sheets like the rest of the app: new tabs **Campaigns** (id, name, purpose, events, portcos, owner, channel, template, status, created) and **Campaign Members** (campaign id, person urid, kind network|prospect, personalized subject/body, sent channel/date, follow-up owner/due). Created with `ensureColumn`/tab provisioning in `sheets.server.ts`. Existing single `campaign` column on Targets/Contacts stays and is set to the latest campaign for backward-compatible filters.
+- Storage stays in Google Sheets like the rest of the app: new tabs **Campaigns** (id, unique name, purpose, events, portcos, owner, channel, template, status draft|saved|actioning|done, created) and **Campaign Members** (campaign id, person urid, kind network|prospect, added date, personalized subject/body, sent channel/date, follow-up owner/due). Membership rows are append-only and unique per (campaign, person), so earlier campaigns are never overwritten. Existing records are never rewritten when added to a campaign; their legacy single `campaign` column is left as is and only new prospects get it set. Network/Prospecting campaign filters read both the legacy column and the membership tab.
 - New `src/utils/campaigns.functions.ts`: createCampaign, listCampaigns, getCampaign, addMembers (dedupe + new prospects via existing addTargets path), saveDrafts, logCampaignSend (appendInteractionRows / outreach rows), setCampaignFollowUps (setTargetFollowUp + contact follow-up flag with owner).
 - AI: draftCampaignTemplate and personalizeCampaignMessages via the existing Gemini helper (`callGeminiJSON` / gems), batched to stay within limits; personalization pulls Apollo `people/bulk_match` employment history for members lacking it.
 - External search reuses `sumble.server.ts` and `apollo.server.ts`; upload reuses TargetUploadDialog parsing.
