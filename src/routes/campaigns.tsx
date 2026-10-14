@@ -897,11 +897,13 @@ function InternalSearch({ campaign, onAdd }: { campaign: CampaignRecord; onAdd: 
   const [sector, setSector] = useState("");
   const [location, setLocation] = useState("");
   const [onlyTagged, setOnlyTagged] = useState(false);
+  // Nothing is matched until Find is clicked; results use the criteria at that moment.
+  const [applied, setApplied] = useState<null | { q: string; title: string; sector: string; location: string; onlyTagged: boolean; net: boolean; pro: boolean }>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   const pool = useMemo<CandidatePerson[]>(() => {
     const out: CandidatePerson[] = [];
-    if (useNetwork)
+    if (applied?.net)
       for (const c of contactsQ.data || [])
         out.push({
           name: c.name,
@@ -916,7 +918,7 @@ function InternalSearch({ campaign, onAdd }: { campaign: CampaignRecord; onAdd: 
           // tags for filtering
           ...({ _tags: [...(c.eventsAttended || []), ...(c.eventsInvited || []), ...(c.portCoIntros || [])] } as object),
         });
-    if (useProspects)
+    if (applied?.pro)
       for (const t of targetsQ.data || [])
         out.push({
           name: t.name,
@@ -931,17 +933,19 @@ function InternalSearch({ campaign, onAdd }: { campaign: CampaignRecord; onAdd: 
           ...({ _tags: [t.event || "", ...(t.portcoTags || [])] } as object),
         });
     return out;
-  }, [contactsQ.data, targetsQ.data, useNetwork, useProspects]);
+  }, [contactsQ.data, targetsQ.data, applied]);
 
   const tagSet = useMemo(
     () => new Set([...campaign.events, ...campaign.portcos].map((x) => x.toLowerCase())),
     [campaign],
   );
   const filtered = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    const ti = title.trim().toLowerCase();
-    const se = sector.trim().toLowerCase();
-    const lo = location.trim().toLowerCase();
+    if (!applied) return [];
+    const s = applied.q.trim().toLowerCase();
+    const ti = applied.title.trim().toLowerCase();
+    const se = applied.sector.trim().toLowerCase();
+    const lo = applied.location.trim().toLowerCase();
+    const onlyTagged = applied.onlyTagged;
     return pool.filter((p) => {
       if (s && !`${p.name} ${p.company} ${p.email}`.toLowerCase().includes(s)) return false;
       if (ti && !p.title.toLowerCase().includes(ti)) return false;
@@ -953,7 +957,7 @@ function InternalSearch({ campaign, onAdd }: { campaign: CampaignRecord; onAdd: 
       }
       return true;
     });
-  }, [pool, q, title, sector, location, onlyTagged, tagSet]);
+  }, [pool, applied, tagSet]);
 
   const keyOf = (p: CandidatePerson) => `${p.origin}:${personKeyOf(p)}`;
   const shown = filtered.slice(0, 300);
@@ -975,7 +979,7 @@ function InternalSearch({ campaign, onAdd }: { campaign: CampaignRecord; onAdd: 
         </label>
         {tagSet.size > 0 && (
           <label className="flex items-center gap-1.5">
-            <Switch checked={onlyTagged} onCheckedChange={setOnlyTagged} /> Only people tied to this campaign's event/PortCos
+            <Switch checked={onlyTagged} onCheckedChange={setOnlyTagged} /> People tied to this campaign's event/PortCos
           </label>
         )}
       </div>
@@ -989,8 +993,18 @@ function InternalSearch({ campaign, onAdd }: { campaign: CampaignRecord; onAdd: 
         <Input placeholder="Location contains" value={location} onChange={(e) => setLocation(e.target.value)} />
       </div>
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{loading ? "Loading…" : `${filtered.length} match${filtered.length === 1 ? "" : "es"}${filtered.length > 300 ? " (showing 300)" : ""}`}</span>
+        <span>{!applied ? "Choose where to look and any filters, then click Find." : loading ? "Loading…" : `${filtered.length} match${filtered.length === 1 ? "" : "es"}${filtered.length > 300 ? " (showing 300)" : ""}`}</span>
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            disabled={!useNetwork && !useProspects}
+            onClick={() => {
+              setPicked(new Set());
+              setApplied({ q, title, sector, location, onlyTagged, net: useNetwork, pro: useProspects });
+            }}
+          >
+            <Search className="h-3.5 w-3.5 mr-1" /> Find
+          </Button>
           <Button size="sm" variant="outline" onClick={() => onAdd(filtered.map(strip))} disabled={!filtered.length}>
             Add all {filtered.length}
           </Button>
