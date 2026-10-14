@@ -285,8 +285,11 @@ function StartStep({
     () => Array.from(new Set((portfolioQ.data || []).map((p) => p.name))).sort(),
     [portfolioQ.data],
   );
-  const [choice, setChoice] = useState<string>("");
+  const [choice, setChoice] = useState<string>(NEW);
   const [name, setName] = useState("");
+  const [autoName, setAutoName] = useState("");
+  const [legacy, setLegacy] = useState("");
+  const [listFilter, setListFilter] = useState<"mine" | "others" | "all">("all");
   const [purpose, setPurpose] = useState("");
   const [eventName, setEventName] = useState("");
   const [portcos, setPortcos] = useState<string[]>([]);
@@ -295,14 +298,73 @@ function StartStep({
 
   const existing = campaigns.find((c) => c.id === choice) || null;
   const pick = (id: string) => {
-    setChoice(id);
-    const c = campaigns.find((x) => x.id === id);
+    const next = id || NEW;
+    setChoice(next);
+    setLegacy("");
+    setAutoName("");
+    const c = campaigns.find((x) => x.id === next);
     setName(c?.name || "");
     setPurpose(c?.purpose || "");
     setEventName(c?.events[0] || "");
     setPortcos(c?.portcos || []);
     setOwner(c?.owner || "");
   };
+
+  // Campaign labels already on Network / Prospecting records but not yet builder campaigns.
+  const builderNames = useMemo(
+    () => new Set(campaigns.map((c) => c.name.trim().toLowerCase())),
+    [campaigns],
+  );
+  const legacyLabels = useMemo(() => {
+    const counts = new Map<string, number>();
+    const add = (v?: string) => {
+      const n = (v || "").trim();
+      if (!n || builderNames.has(n.toLowerCase())) return;
+      counts.set(n, (counts.get(n) || 0) + 1);
+    };
+    (contactsQ.data || []).forEach((c) => add((c as ContactLike).campaign));
+    (targetsQ.data || []).forEach((t) => add((t as TargetLike).campaign));
+    return [...counts.entries()].map(([n, count]) => ({ name: n, count }));
+  }, [contactsQ.data, targetsQ.data, builderNames]);
+
+  const legacyPeople = useMemo(
+    () => (legacy ? labelPeople(legacy, contactsQ.data || [], targetsQ.data || []) : null),
+    [legacy, contactsQ.data, targetsQ.data],
+  );
+
+  const pickLegacy = (label: string) => {
+    pick(NEW);
+    setLegacy(label);
+    setName(label);
+    setPurpose((p) => p || "General outreach");
+  };
+
+  const me = userEmail.trim().toLowerCase();
+  const visibleList = useMemo(() => {
+    const builder = campaigns.map((c) => ({
+      key: c.id,
+      name: c.name,
+      sub: c.purpose || "—",
+      count: c.memberCount ?? 0,
+      status: c.status as string,
+      legacy: false,
+      mine: (c.createdBy || "").trim().toLowerCase() === me,
+    }));
+    const old = legacyLabels
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((l) => ({
+        key: `legacy:${l.name}`,
+        name: l.name,
+        sub: "From Network/Prospecting",
+        count: l.count,
+        status: "existing",
+        legacy: true,
+        mine: false,
+      }));
+    const all = [...builder, ...old];
+    return listFilter === "all" ? all : all.filter((x) => (listFilter === "mine" ? x.mine : !x.mine));
+  }, [campaigns, legacyLabels, listFilter, me]);
+
   const nameTaken =
     choice === NEW && campaigns.some((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
 
@@ -313,6 +375,12 @@ function StartStep({
   const pickEvent = (ev: string) => {
     setEventName(ev);
     if (!ev) return;
+    // New campaigns get "<Event> - Follow-up" unless the name was typed by hand.
+    if (choice === NEW && !legacy && (!name.trim() || name === autoName)) {
+      const auto = /follow/i.test(purpose) || !purpose ? `${ev} - Follow-up` : ev;
+      setName(auto);
+      setAutoName(auto);
+    }
     const a = eventAttendees(ev, contactsQ.data || [], targetsQ.data || []);
     if (a.portcos.length) setPortcos((cur) => Array.from(new Set([...cur, ...a.portcos])));
   };
@@ -335,8 +403,8 @@ function StartStep({
         toast.error(res.error);
         return;
       }
-      const prefill =
-        next === "build" && attendees && attendees.people.length ? attendees.people : undefined;
+      const pre = [...(attendees?.people || []), ...(legacyPeople || [])];
+      const prefill = next === "build" && pre.length ? mergeCandidates([], pre).list : undefined;
       onReady({ ...res.campaign, memberCount: existing?.memberCount }, next, prefill);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the campaign");
@@ -389,28 +457,26 @@ function StartStep({
           </div>
         )}
 
-        <div>
-          <SectionLabel>Campaign</SectionLabel>
-          <Select value={choice} onValueChange={pick}>
-            <SelectTrigger>
-              <SelectValue placeholder={loading ? "Loading campaigns…" : "Build a new campaign or manage one"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NEW}>+ Build a new campaign</SelectItem>
-              {campaigns.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name} · {c.memberCount ?? 0} people
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         {choice && (
           <>
             <div>
               <SectionLabel>Campaign name</SectionLabel>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Q4 Security Dinner" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Q4 Security Dinner"
+                disabled={!!existing}
+              />
+              {existing && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Managing an existing campaign. Click <span className="font-medium">New</span> on the right to start a fresh one.
+                </p>
+              )}
+              {legacyPeople && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Existing label from Network/Prospecting · {legacyPeople.length} people will be pre-loaded. Their records stay unchanged.
+                </p>
+              )}
               {nameTaken && <p className="text-[11px] text-destructive mt-1">That name is already used. Pick it from the list instead.</p>}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -473,21 +539,41 @@ function StartStep({
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        <p className="text-xs font-semibold text-foreground mb-2">Your campaigns</p>
-        {campaigns.length === 0 && <p className="text-xs text-muted-foreground">No campaigns yet.</p>}
-        <div className="space-y-1.5 max-h-[460px] overflow-auto">
-          {campaigns.map((c) => (
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-foreground">Campaigns</p>
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => pick(NEW)}>
+            <Plus className="h-3 w-3 mr-1" /> New
+          </Button>
+        </div>
+        <div className="flex gap-1 mb-2">
+          {(["mine", "others", "all"] as const).map((f) => (
+            <Button
+              key={f}
+              size="sm"
+              variant={listFilter === f ? "default" : "outline"}
+              className="h-6 px-2 text-[11px] flex-1"
+              onClick={() => setListFilter(f)}
+            >
+              {f === "mine" ? "My campaigns" : f === "others" ? "Others'" : "All"}
+            </Button>
+          ))}
+        </div>
+        {visibleList.length === 0 && (
+          <p className="text-xs text-muted-foreground">{loading ? "Loading…" : "No campaigns here."}</p>
+        )}
+        <div className="space-y-1.5 max-h-[520px] overflow-auto">
+          {visibleList.map((c) => (
             <button
-              key={c.id}
+              key={c.key}
               type="button"
-              onClick={() => pick(c.id)}
+              onClick={() => (c.legacy ? pickLegacy(c.name) : pick(c.key))}
               className={`w-full text-left rounded-md border px-3 py-2 text-xs hover:bg-muted/50 ${
-                choice === c.id ? "border-primary" : "border-border"
+                (c.legacy ? legacy === c.name : choice === c.key) ? "border-primary" : "border-border"
               }`}
             >
               <div className="font-medium text-foreground truncate">{c.name}</div>
               <div className="flex items-center gap-2 text-muted-foreground mt-0.5">
-                <span>{c.purpose || "—"}</span>·<span>{c.memberCount ?? 0} people</span>
+                <span className="truncate">{c.sub}</span>·<span>{c.count} people</span>
                 <Badge variant="outline" className="ml-auto text-[9px] capitalize">
                   {c.status}
                 </Badge>
@@ -505,11 +591,11 @@ function StartStep({
 type ContactLike = {
   name: string; email?: string; title: string; company: string; linkedinUrl?: string; location?: string; address?: string;
   sector: string; urid?: string; eventsAttended?: string[]; eventsInvited?: string[]; campaignEvent?: string;
-  portcoTags?: string[]; portCoIntros?: string[];
+  portcoTags?: string[]; portCoIntros?: string[]; campaign?: string;
 };
 type TargetLike = {
   name: string; email: string; title: string; company: string; linkedinUrl: string; location?: string; sector: string;
-  urid?: string; event?: string; portcoTags?: string[];
+  urid?: string; event?: string; portcoTags?: string[]; campaign?: string;
 };
 
 function eventAttendees(event: string, contacts: ContactLike[], targets: TargetLike[]) {
@@ -539,6 +625,27 @@ function eventAttendees(event: string, contacts: ContactLike[], targets: TargetL
   }
   const merged = mergeCandidates([], people).list;
   return { people: merged, network, prospect, portcos: [...portcos].sort() };
+}
+
+/** People on Network/Prospecting carrying a legacy campaign label. */
+function labelPeople(label: string, contacts: ContactLike[], targets: TargetLike[]): CandidatePerson[] {
+  const l = label.trim().toLowerCase();
+  const people: CandidatePerson[] = [];
+  for (const c of contacts) {
+    if ((c.campaign || "").trim().toLowerCase() !== l) continue;
+    people.push({
+      name: c.name, email: (c.email || "").split(/[,;]/)[0].trim(), title: c.title, company: c.company,
+      linkedin: c.linkedinUrl || "", location: c.location || c.address, sector: c.sector, origin: "network", urid: c.urid,
+    });
+  }
+  for (const t of targets) {
+    if ((t.campaign || "").trim().toLowerCase() !== l) continue;
+    people.push({
+      name: t.name, email: t.email, title: t.title, company: t.company, linkedin: t.linkedinUrl,
+      location: t.location, sector: t.sector, origin: "prospect", urid: t.urid,
+    });
+  }
+  return mergeCandidates([], people).list;
 }
 
 // ── Campaign overview + delete ─────────────────────────────
