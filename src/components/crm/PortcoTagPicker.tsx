@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, Check, ChevronsUpDown } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -21,6 +21,8 @@ interface Props {
   options: string[];
   placeholder?: string;
   className?: string;
+  /** When set, selected names show as chips below; clicking one calls this (e.g. open its PortCo page). */
+  onOpen?: (name: string) => void;
 }
 
 // Optional multi-select of portfolio companies a target list is built for.
@@ -32,6 +34,7 @@ export function PortcoTagPicker({
   options,
   placeholder = "Tag portfolio companies (optional)",
   className,
+  onOpen,
 }: Props) {
   const [open, setOpen] = useState(false);
 
@@ -40,9 +43,10 @@ export function PortcoTagPicker({
   };
 
   const label =
-    value.length === 0 ? placeholder : value.length <= 2 ? value.join(", ") : `${value.length} portcos`;
+    value.length === 0 ? placeholder : onOpen ? `${value.length} selected — click to add or remove` : value.join(", ");
 
   return (
+    <div className="space-y-1.5">
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
@@ -98,5 +102,20 @@ export function PortcoTagPicker({
         </Command>
       </PopoverContent>
     </Popover>
+    {onOpen && value.length > 0 && (
+      <div className="flex flex-wrap gap-1.5">
+        {value.map((name) => (
+          <span key={name} className="inline-flex items-center rounded-md border border-border bg-muted/40 text-xs">
+            <button type="button" className="px-2 py-1 hover:text-primary hover:underline" onClick={() => onOpen(name)} title={`Open ${name}`}>
+              {name}
+            </button>
+            <button type="button" className="pr-1.5 text-muted-foreground hover:text-destructive" onClick={() => toggle(name)} aria-label={`Remove ${name}`}>
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+    )}
+    </div>
   );
 }

@@ -41,6 +41,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EventPicker, loadEvents } from "@/components/events/EventPicker";
 import { PortcoTagPicker } from "@/components/crm/PortcoTagPicker";
+import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { useAuth } from "@/lib/auth-context";
 import {
   CAMPAIGN_PURPOSES,
@@ -91,6 +92,10 @@ export const Route = createFileRoute("/campaigns")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
+  }),
+  validateSearch: (s: Record<string, unknown>): { event?: string; purpose?: string } => ({
+    event: typeof s.event === "string" ? s.event : undefined,
+    purpose: typeof s.purpose === "string" ? s.purpose : undefined,
   }),
   component: CampaignBuilderPage,
 });
@@ -297,6 +302,7 @@ function StartStep({
   const [portcos, setPortcos] = useState<string[]>([]);
   const [owner, setOwner] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openPortco, setOpenPortco] = useState("");
 
   const existing = campaigns.find((c) => c.id === choice) || null;
   const pick = (id: string) => {
@@ -386,6 +392,23 @@ function StartStep({
     const a = eventAttendees(ev, contactsQ.data || [], targetsQ.data || []);
     if (a.portcos.length) setPortcos((cur) => Array.from(new Set([...cur, ...a.portcos])));
   };
+
+  // Arriving from an event ("Build campaign" on Events): preset purpose + event once people load.
+  const search = Route.useSearch();
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (seeded || !search.event || contactsQ.isLoading || targetsQ.isLoading) return;
+    setSeeded(true);
+    const pur = search.purpose && (CAMPAIGN_PURPOSES as readonly string[]).includes(search.purpose) ? search.purpose : "Event outreach";
+    setPurpose(pur);
+    const ev = search.event;
+    const auto = /follow/i.test(pur) ? `${ev} - Follow-up` : `${ev} - Outreach`;
+    setName(auto);
+    setAutoName(auto);
+    setEventName(ev);
+    const a = eventAttendees(ev, contactsQ.data || [], targetsQ.data || []);
+    if (a.portcos.length) setPortcos((cur) => Array.from(new Set([...cur, ...a.portcos])));
+  }, [seeded, search.event, search.purpose, contactsQ.isLoading, targetsQ.isLoading, contactsQ.data, targetsQ.data]);
 
   // Existing campaign: people already tagged (by campaign label or the campaign's event) who
   // aren't yet membership rows — they count as actuals and are added before actioning.
@@ -570,7 +593,15 @@ function StartStep({
             </div>
             <div>
               <SectionLabel>Portfolio companies {/portco/i.test(purpose) ? "" : "(optional)"}</SectionLabel>
-              <PortcoTagPicker value={portcos} onChange={setPortcos} options={portcoNames} />
+              <PortcoTagPicker value={portcos} onChange={setPortcos} options={portcoNames} onOpen={setOpenPortco} />
+              <PortfolioDetail
+                company={(portfolioQ.data || []).find((p) => p.name === openPortco) ?? null}
+                open={!!openPortco}
+                onOpenChange={(o) => {
+                  if (!o) setOpenPortco("");
+                }}
+                crmContacts={(contactsQ.data || []).filter((c) => (c.portcoTags || []).includes(openPortco))}
+              />
             </div>
 
             {existing && (
