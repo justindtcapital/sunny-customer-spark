@@ -312,7 +312,7 @@ export async function downloadGmailAttachment(
 // Low-level search — needs a valid Google token with gmail.readonly, not Signals.
 // Pages through Gmail's list endpoint (100/page) until `max` ids are collected, so
 // callers can request far more than one page worth of history.
-async function searchGmailRaw(query: string, max = 25): Promise<GmailResult> {
+export async function searchGmailRaw(query: string, max = 25): Promise<GmailResult> {
   let token: string;
   try {
     token = await getAccessToken();
