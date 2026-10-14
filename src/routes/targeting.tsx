@@ -501,6 +501,7 @@ function TargetingPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [tagEventOpen, setTagEventOpen] = useState(false);
+  const [tagEventOpen, setTagEventOpen] = useState(false);
   const [deletingTargets, setDeletingTargets] = useState(false);
   const [promotingCrm, setPromotingCrm] = useState(false);
   const { updateOptions } = useFilterOptions();
