@@ -717,10 +717,12 @@ function labelPeople(label: string, contacts: ContactLike[], targets: TargetLike
 function CampaignOverview({
   campaign,
   userEmail,
+  tagged = [],
   onDeleted,
 }: {
   campaign: CampaignRecord;
   userEmail: string;
+  tagged?: CandidatePerson[];
   onDeleted: () => void;
 }) {
   const qc = useQueryClient();
@@ -729,7 +731,23 @@ function CampaignOverview({
     queryKey: ["campaign-members", campaign.id],
     queryFn: () => fetchCampaignMembers({ data: { campaignId: campaign.id } }),
   });
-  const members = q.data || [];
+  // Tagged people not yet saved as members still count as actuals (saved on "Action it now").
+  const members = [
+    ...(q.data || []),
+    ...tagged.map(
+      (p) =>
+        ({
+          personKey: personKeyOf(p),
+          name: p.name,
+          email: p.email || "",
+          title: p.title || "",
+          company: p.company || "",
+          kind: p.origin === "network" ? "network" : "prospect",
+          sentDate: "",
+          sentChannel: "",
+        }) as unknown as CampaignMember,
+    ),
+  ];
   const s = summarizeMembers(members);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
