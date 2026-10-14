@@ -42,7 +42,14 @@ function mergeEventCatalogs(asana: AsanaEvent[], app: AsanaEvent[]): AsanaEvent[
   }
   for (const e of asana) {
     const key = e.name.trim().toLowerCase();
-    if (key && !byName.has(key)) byName.set(key, e);
+    if (!key) continue;
+    const have = byName.get(key);
+    if (!have) byName.set(key, e);
+    else {
+      // Same event in both: keep the app copy but never drop Asana's PortCo tags.
+      const portcos = Array.from(new Set([...(have.portcos || []), ...(e.portcos || [])].filter(Boolean)));
+      byName.set(key, { ...e, ...have, date: have.date || e.date, portcos });
+    }
   }
   return [...byName.values()];
 }
