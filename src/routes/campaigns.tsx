@@ -940,19 +940,21 @@ function CampaignOverview({
               <Checkbox checked={removeNew} onCheckedChange={(v) => setRemoveNew(!!v)} />
               <span>Also remove prospects this campaign added new (from search or upload) that aren't in any other campaign and were never contacted.</span>
             </label>
-            <div>
-              <Label className="text-xs">Type the campaign name to confirm</Label>
-              <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} placeholder={campaign.name} />
-            </div>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
               <Button
                 variant="destructive"
-                disabled={deleting || confirmName.trim().toLowerCase() !== campaign.name.trim().toLowerCase()}
-                onClick={() => void doDelete()}
+                disabled={deleting}
+                onClick={() => {
+                  if (!confirmDelete) {
+                    setConfirmDelete(true);
+                    return;
+                  }
+                  void doDelete();
+                }}
               >
                 {deleting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Delete campaign
+                {confirmDelete ? "Click again to confirm" : "Delete campaign"}
               </Button>
             </AlertDialogFooter>
           </AlertDialogContent>
