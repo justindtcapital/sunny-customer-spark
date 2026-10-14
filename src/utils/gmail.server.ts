@@ -40,6 +40,14 @@ import { msToIsoDay } from "@/lib/sheet-date";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
+/** Gmail API base for a specific mailbox (delegated access uses the owner's email). */
+function gmailApiFor(mailbox?: string): string {
+  const m = (mailbox || "").trim().toLowerCase();
+  return m && m.includes("@")
+    ? `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(m)}`
+    : GMAIL_API;
+}
+
 /** A PDF attached to a message — metadata only; bytes come via
  *  downloadGmailAttachment on demand (attachments can be large). */
 export interface GmailAttachment {
