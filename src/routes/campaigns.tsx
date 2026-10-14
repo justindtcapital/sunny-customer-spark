@@ -862,6 +862,11 @@ function CampaignOverview({
           )}
         </>
       )}
+      {labelOnly ? (
+        <p className="text-[11px] text-muted-foreground">
+          Older label from Network/Prospecting. It becomes a full campaign once you build or action it.
+        </p>
+      ) : (
       <div className="flex justify-start">
         <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setConfirmName(""); setRemoveNew(false); } }}>
           <AlertDialogTrigger asChild>
