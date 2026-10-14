@@ -40,6 +40,14 @@ import { msToIsoDay } from "@/lib/sheet-date";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
+/** Gmail API base for a specific mailbox (delegated access uses the owner's email). */
+function gmailApiFor(mailbox?: string): string {
+  const m = (mailbox || "").trim().toLowerCase();
+  return m && m.includes("@")
+    ? `https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(m)}`
+    : GMAIL_API;
+}
+
 /** A PDF attached to a message — metadata only; bytes come via
  *  downloadGmailAttachment on demand (attachments can be large). */
 export interface GmailAttachment {
@@ -228,10 +236,10 @@ function toLabel(ms: number): string {
 
 const gmailDateDbg = { calls: 0, shifted: 0, samples: [] as { ny: string; utc: string }[] };
 
-async function getMessage(token: string, id: string): Promise<GmailMessage | null> {
+async function getMessage(token: string, id: string, mailbox?: string): Promise<GmailMessage | null> {
   let res: Response;
   try {
-    res = await fetch(`${GMAIL_API}/messages/${id}?format=full`, {
+    res = await fetch(`${gmailApiFor(mailbox)}/messages/${id}?format=full`, {
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch {
@@ -312,7 +320,7 @@ export async function downloadGmailAttachment(
 // Low-level search — needs a valid Google token with gmail.readonly, not Signals.
 // Pages through Gmail's list endpoint (100/page) until `max` ids are collected, so
 // callers can request far more than one page worth of history.
-export async function searchGmailRaw(query: string, max = 25): Promise<GmailResult> {
+export async function searchGmailRaw(query: string, max = 25, mailbox?: string): Promise<GmailResult> {
   let token: string;
   try {
     token = await getAccessToken();
@@ -334,7 +342,7 @@ export async function searchGmailRaw(query: string, max = 25): Promise<GmailResu
 
     let listRes: Response;
     try {
-      listRes = await fetch(`${GMAIL_API}/messages?${params}`, {
+      listRes = await fetch(`${gmailApiFor(mailbox)}/messages?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
     } catch (e) {
@@ -380,7 +388,7 @@ export async function searchGmailRaw(query: string, max = 25): Promise<GmailResu
   // Hydrate in small batches so large windows don't serialize hundreds of round-trips.
   const BATCH = 10;
   for (let i = 0; i < ids.length; i += BATCH) {
-    const batch = await Promise.all(ids.slice(i, i + BATCH).map((id) => getMessage(token, id)));
+    const batch = await Promise.all(ids.slice(i, i + BATCH).map((id) => getMessage(token, id, mailbox)));
     for (const m of batch) if (m) messages.push(m);
   }
   messages.sort((a, b) => b.date - a.date);

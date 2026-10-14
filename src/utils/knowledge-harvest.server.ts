@@ -164,7 +164,9 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number } 
     const aliasTerms = aliases.flatMap((a) => [`from:${a}`, `to:${a}`, `cc:${a}`, `deliveredto:${a}`]).join(" OR ");
     const q = `(${aliasTerms}) after:${after}`;
 
-    const res = await searchGmailRaw(q, maxPerTrack * 4);
+    // Read the shared mailbox (shane@) via delegated access when configured;
+    // otherwise the connected inbox.
+    const res = await searchGmailRaw(q, maxPerTrack * 4, process.env.GMAIL_KB_MAILBOX);
     if (!res.ok) {
       result.errors.push(`${track}: ${res.error || "gmail search failed"}`);
       continue;
