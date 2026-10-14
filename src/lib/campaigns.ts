@@ -2,14 +2,12 @@
 import { targetKeyOf } from "./types";
 
 export const CAMPAIGN_PURPOSES = [
-  "Outreach",
-  "Business development",
-  "Network building",
-  "Event",
   "Event follow-up",
-  "Demand gen",
+  "Business development",
+  "Network development",
+  "Event outreach",
   "PortCo demand gen",
-  "General follow-up",
+  "General outreach",
 ] as const;
 
 export const CAMPAIGN_TEAM = ["Chris Falloon", "Chris Hillock", "Shane Earley", "Julia Beech"];

@@ -349,6 +349,47 @@ function StartStep({
     <div className="grid gap-5 md:grid-cols-[1fr_320px]">
       <div className="rounded-lg border border-border bg-card p-5 space-y-4">
         <div>
+          <SectionLabel>Why are you building this campaign?</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            {CAMPAIGN_PURPOSES.map((p) => (
+              <Button
+                key={p}
+                type="button"
+                size="sm"
+                variant={purpose === p ? "default" : "outline"}
+                onClick={() => setPurpose(p)}
+              >
+                {p}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/event/i.test(purpose) && (
+          <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+            <SectionLabel>Event</SectionLabel>
+            <EventPicker value={eventName} onChange={pickEvent} placeholder="Pick the event" />
+            {attendees && (
+              <div className="text-[11px] text-muted-foreground space-y-1">
+                <p>
+                  {contactsQ.isLoading || targetsQ.isLoading
+                    ? "Counting people tagged to this event…"
+                    : `${attendees.people.length} people tagged to this event (${attendees.network} Network, ${attendees.prospect} Prospecting). They'll be pre-loaded into the list.`}
+                </p>
+                {attendees.portcos.length > 0 && (
+                  <p>Portfolio companies: {attendees.portcos.join(", ")}</p>
+                )}
+                {attendees.people.length > 0 && (
+                  <p className="line-clamp-3">
+                    {attendees.people.map((p) => p.name).join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
           <SectionLabel>Campaign</SectionLabel>
           <Select value={choice} onValueChange={pick}>
             <SelectTrigger>
@@ -372,36 +413,13 @@ function StartStep({
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Q4 Security Dinner" />
               {nameTaken && <p className="text-[11px] text-destructive mt-1">That name is already used. Pick it from the list instead.</p>}
             </div>
-            <div>
-              <SectionLabel>Why are you building this campaign?</SectionLabel>
-              <div className="flex flex-wrap gap-2">
-                {CAMPAIGN_PURPOSES.map((p) => (
-                  <Button
-                    key={p}
-                    type="button"
-                    size="sm"
-                    variant={purpose === p ? "default" : "outline"}
-                    onClick={() => setPurpose(p)}
-                  >
-                    {p}
-                  </Button>
-                ))}
-              </div>
-            </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <SectionLabel>Event {/event/i.test(purpose) ? "" : "(optional)"}</SectionLabel>
-                <EventPicker value={eventName} onChange={pickEvent} placeholder="Tag an event" />
-                {attendees && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    {contactsQ.isLoading || targetsQ.isLoading
-                      ? "Counting people tagged to this event…"
-                      : `${attendees.people.length} people tagged to this event (${attendees.network} Network, ${attendees.prospect} Prospecting)${
-                          attendees.portcos.length ? ` · ${attendees.portcos.length} PortCos added` : ""
-                        }. They'll be pre-loaded into the list.`}
-                  </p>
-                )}
-              </div>
+              {!/event/i.test(purpose) && (
+                <div>
+                  <SectionLabel>Event (optional)</SectionLabel>
+                  <EventPicker value={eventName} onChange={pickEvent} placeholder="Tag an event" />
+                </div>
+              )}
               <div>
                 <SectionLabel>Owner (optional)</SectionLabel>
                 <Select value={owner || "none"} onValueChange={(v) => setOwner(v === "none" ? "" : v)}>
