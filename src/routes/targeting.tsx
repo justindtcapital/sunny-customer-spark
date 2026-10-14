@@ -125,6 +125,8 @@ import {
   AddToCampaignDialog,
   type AddToCampaignResult,
 } from "@/components/crm/AddToCampaignDialog";
+import { TagToEventDialog } from "@/components/crm/TagToEventDialog";
+import { CalendarPlus } from "lucide-react";
 import { invalidateCampaignCache } from "@/components/crm/CampaignCombobox";
 import { EmailDraftDialog } from "@/components/crm/EmailDraftDialog";
 import {
@@ -498,6 +500,7 @@ function TargetingPage() {
   } = useTargetSelection();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
+  const [tagEventOpen, setTagEventOpen] = useState(false);
   const [deletingTargets, setDeletingTargets] = useState(false);
   const [promotingCrm, setPromotingCrm] = useState(false);
   const { updateOptions } = useFilterOptions();
@@ -1434,6 +1437,24 @@ function TargetingPage() {
     }
   };
 
+  // Bulk event tagging: writes only the Event cell on each selected prospect.
+  const tagSelectedToEvent = async (event: string) => {
+    const chosen = selectedTargets;
+    if (chosen.length === 0) return;
+    const ids = new Set(chosen.map((t) => t.id));
+    setTargets((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, event } : t)));
+    try {
+      const entries = chosen.map((t) => ({ urid: t.urid, key: targetKeyOf(t), fields: { event } }));
+      const res = await bulkUpdateTargetFields({ data: { entries } });
+      clearSelection();
+      toast.success(`${res.updated} prospect${res.updated !== 1 ? "s" : ""} tagged to ${event}`);
+      await refreshTargets();
+    } catch (e) {
+      console.error("tagSelectedToEvent failed", e);
+      toast.error("Event tagging failed — see console.");
+    }
+  };
+
   // Bulk campaign assignment: stamp campaign / event / portco tags (and an
   // optional follow-up flag) onto every selected target in one sheet write.
   const addSelectedToCampaign = async (result: AddToCampaignResult) => {
@@ -1699,6 +1720,16 @@ function TargetingPage() {
               >
                 <Megaphone className="h-3 w-3 mr-1" />
                 Add to Campaign
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className={actionBtnClass}
+                onClick={() => setTagEventOpen(true)}
+                disabled={researching || deletingTargets || promotingCrm}
+              >
+                <CalendarPlus className="h-3 w-3 mr-1" />
+                Tag to Event
               </Button>
               <Button
                 variant="outline"
@@ -2559,6 +2590,13 @@ function TargetingPage() {
         existingKeys={targets.map((t) => targetKeyOf(t))}
         portcoNames={companies.map((c) => c.name).filter(Boolean)}
         onImported={refreshTargets}
+      />
+
+      <TagToEventDialog
+        open={tagEventOpen}
+        onOpenChange={setTagEventOpen}
+        count={selectedIds.size}
+        onSave={tagSelectedToEvent}
       />
 
       {/* Bulk-assign the current selection to a campaign */}
