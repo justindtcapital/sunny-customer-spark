@@ -495,7 +495,12 @@ function StartStep({
 
         {/event/i.test(purpose) && (
           <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
-            <SectionLabel>Event</SectionLabel>
+            <div className="flex items-center justify-between">
+              <SectionLabel>Event</SectionLabel>
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => pick(NEW)}>
+                <Plus className="h-3 w-3 mr-1" /> New campaign
+              </Button>
+            </div>
             <EventPicker value={eventName} onChange={pickEvent} placeholder="Pick the event" />
             {attendees && (
               <div className="text-[11px] text-muted-foreground space-y-1">
@@ -574,6 +579,20 @@ function StartStep({
                 userEmail={userEmail}
                 tagged={untaggedExtra}
                 onDeleted={() => pick("")}
+              />
+            )}
+            {!existing && legacy && legacyPeople && (
+              <CampaignOverview
+                key={`legacy:${legacy}`}
+                labelOnly
+                campaign={{
+                  id: `legacy:${legacy}`, name: legacy, purpose, events: eventName ? [eventName] : [], portcos,
+                  owner, channel: "email", templateSubject: "", templateBody: "", status: "draft",
+                  created: "", updated: "", createdBy: "",
+                }}
+                userEmail={userEmail}
+                tagged={legacyPeople}
+                onDeleted={() => pick(NEW)}
               />
             )}
 
@@ -719,17 +738,20 @@ function CampaignOverview({
   userEmail,
   tagged = [],
   onDeleted,
+  labelOnly = false,
 }: {
   campaign: CampaignRecord;
   userEmail: string;
   tagged?: CandidatePerson[];
   onDeleted: () => void;
+  labelOnly?: boolean;
 }) {
   const qc = useQueryClient();
   const del = useServerFn(deleteCampaignFn);
   const q = useQuery({
     queryKey: ["campaign-members", campaign.id],
     queryFn: () => fetchCampaignMembers({ data: { campaignId: campaign.id } }),
+    enabled: !labelOnly,
   });
   // Tagged people not yet saved as members still count as actuals (saved on "Action it now").
   const members = [
@@ -862,6 +884,11 @@ function CampaignOverview({
           )}
         </>
       )}
+      {labelOnly ? (
+        <p className="text-[11px] text-muted-foreground">
+          Older label from Network/Prospecting. It becomes a full campaign once you build or action it.
+        </p>
+      ) : (
       <div className="flex justify-start">
         <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setConfirmName(""); setRemoveNew(false); } }}>
           <AlertDialogTrigger asChild>
@@ -900,6 +927,7 @@ function CampaignOverview({
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      )}
     </div>
   );
 }
