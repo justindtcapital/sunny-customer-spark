@@ -57,8 +57,10 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
 
 - Shared KB Drive: id `0AFtlyPes27_KUk9PVA`. PortCo folders get created inside it.
 
+- Aliases: bd-tracking@dt-capital.net (BD activity), gtm-tracking@dt-capital.net (GTM activity), workstreams@dt-capital.net (workstream updates), news@dt-capital.net (PortCo news and press; saved as knowledge records tagged "News" and available to Ask and briefs, but not counted as activity).
+
 ## Still need from you
-- The three alias addresses (bd, gtm, workstreams) and the shared mailbox they deliver to.
+- The shared mailbox that receives all four aliases (Venture Pulse reads that one inbox).
 - Make sure the Google account Venture Pulse uses has Content manager access to the shared KB Drive.
 
 ## Technical details
