@@ -55,8 +55,11 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
 - The default summary window is 6 months.
 - Activities stop coming from Asana. Nothing is written back to Asana.
 
+- Shared KB Drive: id `0AFtlyPes27_KUk9PVA`. PortCo folders get created inside it.
+
 ## Still need from you
-- The shared mailbox address, once it exists, and whether Venture Pulse should create the shared Drive (suggested name: "Venture Pulse KB").
+- The three alias addresses (bd, gtm, workstreams) and the shared mailbox they deliver to.
+- Make sure the Google account Venture Pulse uses has Content manager access to the shared KB Drive.
 
 ## Technical details
 - New sheet tabs: `Knowledge Records` (source type, Gmail thread id or Drive file id, PortCo, date, participants, cleaned text, summary, extracted JSON, content hash), `Harvested Activities`, `Suggested Contacts`, and `Harvest State` (Gmail historyId, Drive page token). Writes are append-mostly and deduplicated by source id and hash.
