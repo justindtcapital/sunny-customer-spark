@@ -22,6 +22,7 @@ import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-sc
 import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
 import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
+import { Route as ApiPublicCronKnowledgeHarvestRouteImport } from './routes/api/public/cron/knowledge-harvest'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +89,12 @@ const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   path: '/api/public/inngest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCronKnowledgeHarvestRoute =
+  ApiPublicCronKnowledgeHarvestRouteImport.update({
+    id: '/api/public/cron/knowledge-harvest',
+    path: '/api/public/cron/knowledge-harvest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +126,7 @@ export interface FileRoutesByTo {
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +143,7 @@ export interface FileRoutesById {
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
+    | '/api/public/cron/knowledge-harvest'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
+    | '/api/public/cron/knowledge-harvest'
   id:
     | '__root__'
     | '/'
@@ -181,6 +193,7 @@ export interface FileRouteTypes {
     | '/api/cron/scan-signals'
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
+    | '/api/public/cron/knowledge-harvest'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +210,7 @@ export interface RootRouteChildren {
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
   ApiCronSignalsReconcileRoute: typeof ApiCronSignalsReconcileRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
+  ApiPublicCronKnowledgeHarvestRoute: typeof ApiPublicCronKnowledgeHarvestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +306,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cron/knowledge-harvest': {
+      id: '/api/public/cron/knowledge-harvest'
+      path: '/api/public/cron/knowledge-harvest'
+      fullPath: '/api/public/cron/knowledge-harvest'
+      preLoaderRoute: typeof ApiPublicCronKnowledgeHarvestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,6 +330,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,
   ApiCronSignalsReconcileRoute: ApiCronSignalsReconcileRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
+  ApiPublicCronKnowledgeHarvestRoute: ApiPublicCronKnowledgeHarvestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
