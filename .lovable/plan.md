@@ -29,13 +29,17 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
    - **Upload notes / drop a file** inside Venture Pulse, on the PortCo popup, the Dashboard knowledge section and a Knowledge page. You can drag in files (PDF, Word, PowerPoint, text, images) or type and paste minutes in a quick form: PortCo, optional workstream, meeting date, attendees, notes. Venture Pulse saves the file to the right PortCo folder in Venture Pulse KB, named by date and title, then reads and indexes it straight away. Saving files directly into the Drive folders still works too.
 2. **Activity tracking** (Dashboard with one PortCo selected, and the PortCo popup): a timeline built from email and meetings, filterable by type (intro, meeting, email, event, follow-up). Each entry opens its summary and the original source.
 3. **Knowledge & meetings section** below the workstreams: a summary of the last 6 months by default, with a 12-month toggle. You can open any set of minutes to see the full notes and their source links.
-4. **Meeting minutes matched to workstreams.** Gemini compares each set of minutes with that PortCo's GTM and BD workstreams, using the title, the people and the topics. If it finds a confident match, the minutes appear under that workstream. If not, they're shown as "Suggested workstream" with a one-click confirm. Expanding a workstream shows its latest meetings and next steps.
-5. **Third alias: workstreams@.** Copy it on any email that matters to a workstream. Venture Pulse then:
-   - Matches the email to the PortCo and the workstream.
-   - Pulls out a summary, an update, next steps (with owners and dates when stated) and any timeline.
-   - Saves attachments into that PortCo's Drive folder, in a "Workstream docs" subfolder, linked back to the record.
-   - Shows it all as a "Workstream update" in the workstream's expanded view.
-   - Writes nothing to Asana.
+4. **One matching engine for everything.** Meeting minutes, uploaded notes and workstreams@ emails all go through the same step:
+   - Gemini works out the PortCo first, then the workstream, using the title, the people, the topics and the email domains.
+   - It pulls out the same things every time: a summary, an update, next steps (with owners and dates), any timeline, and the attachments. Attachments are saved to `/<PortCo>/Workstream docs/` in Venture Pulse KB.
+   - Nothing is written to Asana.
+5. **Review queue with four choices.** Every match lands in a single "Workstream updates" queue, whether it came from minutes or email:
+   - **Confirm**: accept the suggested PortCo and workstream.
+   - **Change**: pick a different PortCo or workstream.
+   - **Create new**: start a new suggested workstream. It is tracked in Venture Pulse and marked "Not in Asana yet".
+   - **Ignore**: dismiss it. It stays saved but is hidden, and an "Ignored" filter brings it back.
+   Confident matches still wait for your Confirm, shown as "Matched". Weak ones are shown as "Suggested". Only confirmed items appear under a workstream.
+   **Where this shows:** only on the Dashboard workstream view (Action owners / Investor view), with a "Needs review (N)" panel beneath the workstreams. PortCo pages are left as they are.
 6. **Three tracks**, all from the one shared mailbox: bd@ (BD activity), gtm@ (GTM activity) and workstreams@ (workstream updates). Meeting minutes feed all three.
 7. **Suggested contacts** review list (on Network) for new people found in alias emails.
 8. **Ask panel** on the Dashboard and PortCo pages. It draws on everything: knowledge records, activities, workstream updates, Network and Prospecting contacts, events and attendance, campaigns, and Asana workstreams. For example:
