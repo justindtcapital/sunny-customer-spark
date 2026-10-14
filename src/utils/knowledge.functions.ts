@@ -45,3 +45,16 @@ export const runKnowledgeHarvestFn = createServerFn({ method: "POST" }).handler(
   const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
   return runKnowledgeHarvest({ maxThreadsPerTrack: 15 });
 });
+
+export const fetchGranolaImportsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { listGranolaImports, isGranolaConfigured } = await import("./granola.server");
+  if (!isGranolaConfigured()) return { connected: false, imports: [] };
+  return { connected: true, imports: await listGranolaImports().catch(() => []) };
+});
+
+export const verifyGranolaImportsFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { noteIds?: string[]; retry?: boolean }) => input)
+  .handler(async ({ data }) => {
+    const { verifyGranolaImports } = await import("./granola.server");
+    return { imports: await verifyGranolaImports({ noteIds: data.noteIds, retry: !!data.retry }) };
+  });

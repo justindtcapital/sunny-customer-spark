@@ -52,6 +52,8 @@ export interface HarvestResult {
   activitiesAdded: number;
   linksAdded: number;
   contactsSuggested: number;
+  granolaNotesAdded: number;
+  granolaCopiedToDrive: number;
   errors: string[];
 }
 
@@ -133,11 +135,11 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
   return [...seen.entries()].map(([email, name]) => ({ name, email }));
 }
 
-export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number } = {}): Promise<HarvestResult> {
+export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number } = {}): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
     ok: true, threadsSeen: 0, recordsAdded: 0, activitiesAdded: 0,
-    linksAdded: 0, contactsSuggested: 0, errors: [],
+    linksAdded: 0, contactsSuggested: 0, granolaNotesAdded: 0, granolaCopiedToDrive: 0, errors: [],
   };
 
   await ensureKnowledgeTabs();
@@ -272,7 +274,27 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number } 
     await setHarvestState(`gmail:${track}`, new Date().toISOString().slice(0, 10).replace(/-/g, "/"));
   }
 
-  await saveKnowledgeRecords(newRecords);
+  // Granola meeting notes (read-only source).
+  try {
+    const { harvestGranola, verifyGranolaImports } = await import("./granola.server");
+    const internal = getInternalConfig();
+    const g = await harvestGranola({
+      candidates, known, suggested, maxNotes: opts.maxGranolaNotes ?? 25,
+      isExternal: (e) => !isInternalEmail(e, internal) && !isNoiseEmail(e),
+    });
+    newRecords.push(...g.records);
+    newActivities.push(...g.activities);
+    newLinks.push(...g.links);
+    newContacts.push(...g.contacts);
+    result.errors.push(...g.errors);
+    result.granolaNotesAdded = g.records.length;
+    result.granolaCopiedToDrive = g.copiedToDrive;
+    await saveKnowledgeRecords(newRecords);
+    if (g.records.length) await verifyGranolaImports({ noteIds: g.records.map((r) => r.sourceId) });
+  } catch (e) {
+    result.errors.push(`Granola: ${(e as Error).message}`);
+    await saveKnowledgeRecords(newRecords);
+  }
   await saveHarvestedActivities(newActivities);
   await saveWorkstreamLinks(newLinks);
   await saveSuggestedContacts(newContacts);

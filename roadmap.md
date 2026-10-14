@@ -11,3 +11,5 @@
 - [ ] P2: Suggested contacts review (Network)
 - [ ] P3: Ask panel + Investor/Founder briefs
 - [ ] Env vars, typecheck, tests, verify
+- [x] Granola notes → knowledge base (records, activities, Drive copy, review queue, contacts)
+- [x] Granola Imports list with verified "Safe to delete in Granola" badge
