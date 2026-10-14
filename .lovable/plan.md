@@ -17,6 +17,14 @@ Any meeting note in your Granola workspace shows up in Venture Pulse automatical
 ## Optional: Granola folders
 If your team files notes in Granola folders named after PortCos, the folder name becomes the PortCo match. Gemini is only used when a note has no folder.
 
+## Knowing when a note is safe to delete in Granola
+- A new **Granola Imports** list on the dashboard knowledge area shows every Granola note Venture Pulse has seen: title, meeting date, PortCo, and three checkmarks: **Saved** (stored permanently in Venture Pulse), **Copied to Drive** (with a link to open the copy), and **Transcript** (included, or none available).
+- A note shows a green **Safe to delete in Granola** badge only after Venture Pulse re-reads both the saved record and the Drive file and confirms they match the Granola note. Notes still missing anything show what's missing, plus a "Retry" button.
+- After each harvest you get a short summary, e.g. "12 new Granola notes saved, 12 copied to Drive, 0 problems."
+- Filter: "Safe to delete" lists only verified notes, so you can work through Granola with confidence.
+- Deleting a note in Granola later never removes it from Venture Pulse or Drive, and it won't be re-imported.
+- Venture Pulse will not delete anything in Granola itself; you stay in control of that.
+
 ## Limits to know
 - Granola's API is read-only for this purpose. Venture Pulse copies notes in and never changes anything in Granola.
 - API access depends on your Granola plan. If the key is refused, the connect step will say so.
