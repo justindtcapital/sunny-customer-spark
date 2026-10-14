@@ -353,7 +353,7 @@ export async function deleteCampaign(
       ).toLowerCase();
       const src = tSource >= 0 ? (r[tSource] || "").toLowerCase() : "";
       const isNew = /sumble|apollo|csv/.test(src);
-      if (removable.size && isNew && [...removable].some((k) => k === key || k.includes(key))) toDelete.push(i + 1);
+      if (removable.size && isNew && removable.has(key)) toDelete.push(i + 1);
       else clears.push({ range: `${colLetters(tCamp)}${i + 1}`, value: "" });
     }
   }
