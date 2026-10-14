@@ -27,24 +27,36 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
 ## What you'll see
 1. **Folder per PortCo** in a shared Drive, created and kept in sync automatically. Meet's Gemini notes can be saved straight into the folder. Files Venture Pulse can't place go into an Unsorted folder for review.
 2. **Activity tracking** (Dashboard with one PortCo selected, and the PortCo popup): a timeline built from email and meetings, filterable by type (intro, meeting, email, event, follow-up). Each entry opens its summary and the original source.
-3. **Knowledge & meetings section** below the workstreams: a summary for the last 6 or 12 months, and minutes you can drill into with source links.
-4. **Suggested contacts** review list (on Network) for new people found in alias emails.
-5. **Ask panel** on the Dashboard and PortCo pages. It draws on everything: knowledge records, activities, Network and Prospecting contacts, events and attendance, campaigns, and Asana workstreams. For example:
+3. **Knowledge & meetings section** below the workstreams: a summary of the last 6 months by default, with a 12-month toggle. You can open any set of minutes to see the full notes and their source links.
+4. **Meeting minutes matched to workstreams.** Gemini compares each set of minutes with that PortCo's GTM and BD workstreams, using the title, the people and the topics. If it finds a confident match, the minutes appear under that workstream. If not, they're shown as "Suggested workstream" with a one-click confirm. Expanding a workstream shows its latest meetings and next steps.
+5. **Third alias: workstreams@.** Copy it on any email that matters to a workstream. Venture Pulse then:
+   - Matches the email to the PortCo and the workstream.
+   - Pulls out a summary, an update, next steps (with owners and dates when stated) and any timeline.
+   - Saves attachments into that PortCo's Drive folder, in a "Workstream docs" subfolder, linked back to the record.
+   - Shows it all as a "Workstream update" in the workstream's expanded view.
+   - Writes nothing to Asana.
+6. **Three tracks**, all from the one shared mailbox: bd@ (BD activity), gtm@ (GTM activity) and workstreams@ (workstream updates). Meeting minutes feed all three.
+7. **Suggested contacts** review list (on Network) for new people found in alias emails.
+8. **Ask panel** on the Dashboard and PortCo pages. It draws on everything: knowledge records, activities, workstream updates, Network and Prospecting contacts, events and attendance, campaigns, and Asana workstreams. For example:
    - "Summarize all introductions made for Skan"
    - "Which events has Maven AGI been part of, and who attended?"
    - "Give me a business brief of the PortDev effort for this account"
    - One-click **Investor brief** and **Founder brief** buttons produce a polished write-up with citations, ready to export or copy.
-6. **NotebookLM:** it has no API for apps like this. Anyone can still point a notebook at a PortCo folder.
+9. **NotebookLM:** it has no API for apps like this. Anyone can still point a notebook at a PortCo folder.
 
 ## Phases
-- **Phase 1:** Harvest the shared mailbox and Drive, save the records permanently, build the new Activity timeline, and import the Asana activity history once.
-- **Phase 2:** Suggested contacts review, adding to Network or Prospecting.
+- **Phase 1:** Harvest the shared mailbox (all three aliases) and Drive, save the records permanently, build the new Activity timeline, and import the Asana activity history once.
+- **Phase 2:** Match minutes to workstreams, add workstream updates and save attachments to Drive, and add the Suggested contacts review.
 - **Phase 3:** Ask panel, plus the Investor and Founder briefs.
 
+## Confirmed
+- Use one shared mailbox. You will create the bd@, gtm@ and workstreams@ aliases.
+- Gemini runs under your Workspace Google account, which is protected.
+- The default summary window is 6 months.
+- Activities stop coming from Asana. Nothing is written back to Asana.
+
 ## Still need from you
-- Which shared mailbox address holds the aliases, and the name of the shared Drive (or should Venture Pulse create it)?
-- Confirm it's OK to send PortCo email and document content to Gemini under your Google account.
-- Default summary window: 6 or 12 months?
+- The shared mailbox address, once it exists, and whether Venture Pulse should create the shared Drive (suggested name: "Venture Pulse KB").
 
 ## Technical details
 - New sheet tabs: `Knowledge Records` (source type, Gmail thread id or Drive file id, PortCo, date, participants, cleaned text, summary, extracted JSON, content hash), `Harvested Activities`, `Suggested Contacts`, and `Harvest State` (Gmail historyId, Drive page token). Writes are append-mostly and deduplicated by source id and hash.
@@ -53,3 +65,7 @@ Shared mailbox (bd@ / gtm@)      Shared Drive /<PortCo>/ minutes, decks
 - Contact extraction reuses `email-address`, `email-noise`/`contact-noise` and `activity-match`. New people are written only to `Suggested Contacts` until approved.
 - Activity tracking UI switches from `fetchAsanaActivities` to a new harvested-activities function. The one-time Asana import script maps rows into `Harvested Activities` with source "Asana (archived)".
 - Ask: a server function gathers scoped context (PortCo, date window) across the tabs, sends it to Gemini with citation ids, and renders answers with `MarkdownMessage`. Brief templates are Gems in `src/utils/gems/registry.ts`.
+- Track routing by the recipient alias in To/Cc/Delivered-To headers: bd / gtm / workstreams.
+- Workstream matching: candidates are the PortCo's workstream subtasks. Gemini returns a gid and a confidence score; below the threshold the match is stored as suggested. Stored in a `Workstream Links` tab (record id, workstream gid, confidence, confirmed).
+- Attachments: download them with Gmail `attachments.get`, upload them to `/<PortCo>/Workstream docs/` with `drive.server.ts`, and deduplicate by SHA-256. The Drive file id is stored on the record.
+- Gemini goes through the existing Vertex setup (`gemini.server.ts`) under the Workspace project.
