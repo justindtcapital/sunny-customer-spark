@@ -198,3 +198,39 @@ export function parseCandidateCsv(text: string): CandidatePerson[] {
     origin: "upload" as const,
   }));
 }
+
+export interface CampaignSummary {
+  total: number;
+  network: number;
+  prospect: number;
+  contacted: number;
+  personalized: number;
+  openFollowUps: number;
+  followUpOwners: string[];
+  nextFollowUp: string;
+}
+
+/** Size + progress numbers for one campaign's members. */
+export function summarizeMembers(members: CampaignMember[]): CampaignSummary {
+  const fu = members.filter((m) => m.followUpDue);
+  const dues = fu.map((m) => m.followUpDue).sort();
+  return {
+    total: members.length,
+    network: members.filter((m) => m.kind === "network").length,
+    prospect: members.filter((m) => m.kind !== "network").length,
+    contacted: members.filter((m) => m.sentDate || m.sentChannel).length,
+    personalized: members.filter((m) => m.body.trim()).length,
+    openFollowUps: fu.length,
+    followUpOwners: [...new Set(fu.map((m) => m.followUpOwner).filter(Boolean))],
+    nextFollowUp: dues[0] || "",
+  };
+}
+
+/** 1-based sheet row numbers (header = row 1) of member rows for `campaignId`. */
+export function memberRowsFor(campaignIds: string[], campaignId: string): number[] {
+  const out: number[] = [];
+  campaignIds.forEach((id, i) => {
+    if ((id || "").trim() === campaignId) out.push(i + 2);
+  });
+  return out;
+}
