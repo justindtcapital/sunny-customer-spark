@@ -28,6 +28,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EventPicker } from "@/components/events/EventPicker";
 import { PortcoTagPicker } from "@/components/crm/PortcoTagPicker";
@@ -46,6 +56,7 @@ import {
   type CampaignRecord,
   type CandidatePerson,
   type FollowUpUnit,
+  summarizeMembers,
 } from "@/lib/campaigns";
 import { fetchContacts, fetchTargets, fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { findProspects } from "@/utils/prospects.functions";
@@ -54,6 +65,7 @@ import {
   draftCampaignTemplate,
   fetchCampaignMembers,
   fetchCampaigns,
+  deleteCampaignFn,
   finishCampaign,
   logCampaignSend,
   personalizeCampaignMessages,
@@ -388,6 +400,14 @@ function StartStep({
               <PortcoTagPicker value={portcos} onChange={setPortcos} options={portcoNames} />
             </div>
 
+            {existing && (
+              <CampaignOverview
+                campaign={existing}
+                userEmail={userEmail}
+                onDeleted={() => pick("")}
+              />
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
               {existing ? (
                 <>
@@ -433,6 +453,173 @@ function StartStep({
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Campaign overview + delete ─────────────────────────────
+
+function CampaignOverview({
+  campaign,
+  userEmail,
+  onDeleted,
+}: {
+  campaign: CampaignRecord;
+  userEmail: string;
+  onDeleted: () => void;
+}) {
+  const qc = useQueryClient();
+  const del = useServerFn(deleteCampaignFn);
+  const q = useQuery({
+    queryKey: ["campaign-members", campaign.id],
+    queryFn: () => fetchCampaignMembers({ data: { campaignId: campaign.id } }),
+  });
+  const members = q.data || [];
+  const s = summarizeMembers(members);
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState("");
+  const [removeNew, setRemoveNew] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const shown = members.filter((m) =>
+    `${m.name} ${m.title} ${m.company} ${m.email}`.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+  const fmt = (d: string) => (d ? d.slice(0, 10) : "—");
+
+  const doDelete = async () => {
+    setDeleting(true);
+    try {
+      const r = await del({ data: { id: campaign.id, removeNewProspects: removeNew, by: userEmail } });
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      toast.success(
+        `Deleted "${r.name}": ${r.members} people untagged${r.prospectsRemoved ? `, ${r.prospectsRemoved} new prospects removed` : ""}`,
+      );
+      setOpen(false);
+      onDeleted();
+      await qc.invalidateQueries({ queryKey: ["campaigns"] });
+      await qc.invalidateQueries({ queryKey: ["person-campaigns"] });
+      await qc.invalidateQueries({ queryKey: ["campaign-targets"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not delete campaign");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const Stat = ({ label, value, sub }: { label: string; value: string | number; sub?: string }) => (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-lg font-semibold text-foreground leading-tight">{value}</div>
+      {sub && <div className="text-[10px] text-muted-foreground truncate">{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <SectionLabel>In this campaign</SectionLabel>
+        <span className="text-[11px] text-muted-foreground">
+          Created {fmt(campaign.created)}
+          {campaign.createdBy ? ` by ${campaign.createdBy}` : ""} · Updated {fmt(campaign.updated)}
+        </span>
+      </div>
+      {q.isLoading ? (
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" /> Loading people…
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <Stat label="People" value={s.total} sub={`${s.network} Network · ${s.prospect} Prospecting`} />
+            <Stat label="Contacted" value={s.contacted} sub={s.total ? `${Math.round((s.contacted / s.total) * 100)}%` : ""} />
+            <Stat label="Personalized" value={s.personalized} />
+            <Stat
+              label="Follow-ups"
+              value={s.openFollowUps}
+              sub={s.openFollowUps ? `Next ${s.nextFollowUp}${s.followUpOwners.length ? ` · ${s.followUpOwners.join(", ")}` : ""}` : ""}
+            />
+          </div>
+          {members.length > 0 && (
+            <>
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search people in this campaign" className="h-8 text-xs" />
+              <div className="max-h-56 overflow-auto rounded-md border border-border">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50 text-muted-foreground sticky top-0">
+                    <tr>
+                      <th className="text-left px-2 py-1.5 font-medium">Name</th>
+                      <th className="text-left px-2 py-1.5 font-medium">Title</th>
+                      <th className="text-left px-2 py-1.5 font-medium">Company</th>
+                      <th className="text-left px-2 py-1.5 font-medium">From</th>
+                      <th className="text-left px-2 py-1.5 font-medium">Contacted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shown.map((m) => (
+                      <tr key={m.personKey} className="border-t border-border">
+                        <td className="px-2 py-1.5 text-foreground">
+                          {m.name || m.email}
+                          {m.email && <div className="text-[10px] text-muted-foreground">{m.email}</div>}
+                        </td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{m.title || "—"}</td>
+                        <td className="px-2 py-1.5 text-muted-foreground">{m.company || "—"}</td>
+                        <td className="px-2 py-1.5">
+                          <Badge variant="outline" className="text-[9px]">
+                            {m.kind === "network" ? "Network" : "Prospecting"}
+                          </Badge>
+                        </td>
+                        <td className="px-2 py-1.5 text-muted-foreground">
+                          {m.sentDate ? `${fmt(m.sentDate)}${m.sentChannel ? ` · ${m.sentChannel}` : ""}` : "Not yet"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </>
+      )}
+      <div className="flex justify-start">
+        <AlertDialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setConfirmName(""); setRemoveNew(false); } }}>
+          <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete campaign
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete "{campaign.name}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the campaign and untags all {s.total} people. Their Network and Prospecting records,
+                their other campaigns, and outreach already logged are kept.
+                {s.openFollowUps > 0 && ` ${s.openFollowUps} follow-ups set by this campaign will stay; clear them on each card if needed.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <label className="flex items-start gap-2 text-xs">
+              <Checkbox checked={removeNew} onCheckedChange={(v) => setRemoveNew(!!v)} />
+              <span>Also remove prospects this campaign added new (from search or upload) that aren't in any other campaign and were never contacted.</span>
+            </label>
+            <div>
+              <Label className="text-xs">Type the campaign name to confirm</Label>
+              <Input value={confirmName} onChange={(e) => setConfirmName(e.target.value)} placeholder={campaign.name} />
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <Button
+                variant="destructive"
+                disabled={deleting || confirmName.trim().toLowerCase() !== campaign.name.trim().toLowerCase()}
+                onClick={() => void doDelete()}
+              >
+                {deleting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Delete campaign
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
