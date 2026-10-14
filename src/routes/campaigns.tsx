@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -39,7 +39,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EventPicker } from "@/components/events/EventPicker";
+import { EventPicker, loadEvents } from "@/components/events/EventPicker";
 import { PortcoTagPicker } from "@/components/crm/PortcoTagPicker";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -278,6 +278,8 @@ function StartStep({
   onReady: (c: CampaignRecord, next: Step, prefill?: CandidatePerson[]) => void;
 }) {
   const save = useServerFn(saveCampaignFn);
+  const addMembers = useServerFn(addCampaignMembers);
+  const qc = useQueryClient();
   const contactsQ = useQuery({ queryKey: ["campaign-contacts"], queryFn: () => fetchContacts(), staleTime: 60_000 });
   const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000 });
   const portfolioQ = useQuery({ queryKey: ["campaign-portcos"], queryFn: () => fetchPortfolioCompanies() });
@@ -383,6 +385,64 @@ function StartStep({
     }
     const a = eventAttendees(ev, contactsQ.data || [], targetsQ.data || []);
     if (a.portcos.length) setPortcos((cur) => Array.from(new Set([...cur, ...a.portcos])));
+  };
+
+  // Existing campaign: people already tagged (by campaign label or the campaign's event) who
+  // aren't yet membership rows — they count as actuals and are added before actioning.
+  const existingMembersQ = useQuery({
+    queryKey: ["campaign-members", existing?.id],
+    queryFn: () => fetchCampaignMembers({ data: { campaignId: existing!.id } }),
+    enabled: !!existing,
+  });
+  const untaggedExtra = useMemo(() => {
+    if (!existing) return [] as CandidatePerson[];
+    const cs = contactsQ.data || [];
+    const ts = targetsQ.data || [];
+    const pool = [
+      ...labelPeople(existing.name, cs, ts),
+      ...existing.events.flatMap((ev) => eventAttendees(ev, cs, ts).people),
+    ];
+    const have = new Set((existingMembersQ.data || []).map((m) => m.personKey));
+    return mergeCandidates([], pool).list.filter((p) => !have.has(personKeyOf(p)));
+  }, [existing, contactsQ.data, targetsQ.data, existingMembersQ.data]);
+
+  // Auto-fill PortCos from the event catalog and from tagged people's records (adds only).
+  const eventsQ = useQuery({ queryKey: ["campaign-event-catalog"], queryFn: () => loadEvents(), staleTime: 60_000 });
+  useEffect(() => {
+    if (!eventName) return;
+    const ev = (eventsQ.data || []).find((e) => e.name.trim().toLowerCase() === eventName.trim().toLowerCase());
+    const fromPeople = eventAttendees(eventName, contactsQ.data || [], targetsQ.data || []).portcos;
+    const extra = [...(ev?.portcos || []), ...fromPeople].filter(Boolean);
+    if (extra.length) setPortcos((cur) => {
+      const next = Array.from(new Set([...cur, ...extra]));
+      return next.length === cur.length ? cur : next;
+    });
+  }, [eventName, eventsQ.data, contactsQ.data, targetsQ.data, choice]);
+
+  const actionNow = async () => {
+    if (existing && untaggedExtra.length) {
+      setBusy(true);
+      try {
+        await addMembers({
+          data: {
+            campaignId: existing.id,
+            campaignName: existing.name,
+            people: untaggedExtra,
+            event: existing.events[0] || "",
+            portcos,
+            prime: "",
+            by: userEmail,
+          },
+        });
+        await qc.invalidateQueries({ queryKey: ["campaign-members", existing.id] });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not add tagged people");
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
+    await go("message");
   };
 
   const go = async (next: Step) => {
@@ -512,6 +572,7 @@ function StartStep({
               <CampaignOverview
                 campaign={existing}
                 userEmail={userEmail}
+                tagged={untaggedExtra}
                 onDeleted={() => pick("")}
               />
             )}
@@ -522,7 +583,10 @@ function StartStep({
                   <Button variant="outline" disabled={busy} onClick={() => void go("build")}>
                     <Plus className="h-4 w-4 mr-1" /> Add more people
                   </Button>
-                  <Button disabled={busy || !(existing.memberCount ?? 0)} onClick={() => void go("message")}>
+                  <Button
+                    disabled={busy || !((existingMembersQ.data?.length ?? existing.memberCount ?? 0) + untaggedExtra.length)}
+                    onClick={() => void actionNow()}
+                  >
                     {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
                     Action it now <ArrowRight className="h-4 w-4 ml-1" />
                   </Button>
