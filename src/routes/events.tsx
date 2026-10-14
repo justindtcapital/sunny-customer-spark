@@ -530,7 +530,7 @@ function EventTableInner({
             <TableHead className="text-[11px]">Sector</TableHead>
             <TableHead className="text-[11px]">Role</TableHead>
             <TableHead className="text-[11px]">Portfolio Companies</TableHead>
-            <TableHead className="text-[11px] text-right">
+            <TableHead className="text-[11px] text-right whitespace-nowrap">
               <span className="font-bold">Estimated</span>
               <span className="text-muted-foreground"> · Network · Prospects</span>
             </TableHead>
