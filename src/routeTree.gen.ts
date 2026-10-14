@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EventsRouteImport } from './routes/events'
@@ -30,6 +31,11 @@ const IndexRoute = IndexRouteImport.update({
 const ActivityRoute = ActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsRoute = CampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CrmRoute = CrmRouteImport.update({
@@ -86,6 +92,7 @@ const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
+  '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/activity'
+    | '/campaigns'
     | '/crm'
     | '/dashboard'
     | '/events'
@@ -145,6 +155,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity'
+    | '/campaigns'
     | '/crm'
     | '/dashboard'
     | '/events'
@@ -159,6 +170,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/activity'
+    | '/campaigns'
     | '/crm'
     | '/dashboard'
     | '/events'
@@ -174,6 +186,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRoute: typeof ActivityRoute
+  CampaignsRoute: typeof CampaignsRoute
   CrmRoute: typeof CrmRoute
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof ActivityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns': {
+      id: '/campaigns'
+      path: '/campaigns'
+      fullPath: '/campaigns'
+      preLoaderRoute: typeof CampaignsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/crm': {
@@ -278,6 +298,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
+  CampaignsRoute: CampaignsRoute,
   CrmRoute: CrmRoute,
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,

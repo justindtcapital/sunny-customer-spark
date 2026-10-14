@@ -10,6 +10,7 @@ import {
   Telescope,
   Loader2,
   ScrollText,
+  Megaphone,
 } from "lucide-react";
 import {
   HomeIcon,
