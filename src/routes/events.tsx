@@ -2,6 +2,8 @@ import { Megaphone } from "lucide-react";
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { fetchAsanaEvents } from "@/utils/asana.functions";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTargets } from "@/utils/sheets.functions";
 import {
   fetchContacts,
   addEvent as addEventToSheet,
@@ -495,6 +497,27 @@ function EventTable({
   if (events.length === 0) {
     return <p className="text-xs text-muted-foreground py-8 text-center">No events.</p>;
   }
+  return <EventTableInner events={events} contacts={contacts} onSelect={onSelect} />;
+}
+
+function EventTableInner({
+  events,
+  contacts,
+  onSelect,
+}: {
+  events: AsanaEvent[];
+  contacts: Contact[];
+  onSelect: (e: AsanaEvent) => void;
+}) {
+  const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000 });
+  const prospectsByEvent = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of (targetsQ.data || []) as { event?: string }[]) {
+      const k = (t.event || "").trim().toLowerCase();
+      if (k) m.set(k, (m.get(k) || 0) + 1);
+    }
+    return m;
+  }, [targetsQ.data]);
   return (
     <div className="border border-border rounded-md mt-3">
       <Table>
@@ -507,7 +530,7 @@ function EventTable({
             <TableHead className="text-[11px]">Sector</TableHead>
             <TableHead className="text-[11px]">Role</TableHead>
             <TableHead className="text-[11px]">Portfolio Companies</TableHead>
-            <TableHead className="text-[11px] text-right">Network attendees</TableHead>
+            <TableHead className="text-[11px] text-right">Total · Network · Prospects</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -580,9 +603,9 @@ function EventTable({
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
-                  {attended.length > 0 && (
-                    <span className="text-muted-foreground"> · {attended.length} in network</span>
-                  )}
+                  <span className="text-muted-foreground">
+                    {" "}· {attended.length} network · {prospectsByEvent.get(e.name.trim().toLowerCase()) || 0} prospects
+                  </span>
                   {invited.length > 0 && (
                     <span className="text-muted-foreground"> · {invited.length} inv</span>
                   )}
