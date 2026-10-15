@@ -573,7 +573,12 @@ export function threadToActivity(
   aliases: Set<string>,
   internal: InternalConfig = getInternalConfig(),
 ): AsanaActivity | null {
-  const usable = messages.filter((m) => !m.isBulk);
+  // Google Groups delivery stamps List-Unsubscribe/Precedence headers on every
+  // alias message, which trips the bulk-mail detector. Messages that match a
+  // tracking alias are activity by definition — never drop them as bulk.
+  const usable = messages.filter(
+    (m) => !m.isBulk || isActivityTrackingMessage(m, aliases),
+  );
   if (usable.length === 0) return null;
   const ordered = [...usable].sort((a, b) => b.date - a.date);
   const newest = ordered[0];
