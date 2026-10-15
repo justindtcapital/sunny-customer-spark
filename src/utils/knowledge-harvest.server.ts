@@ -135,7 +135,7 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
   return [...seen.entries()].map(([email, name]) => ({ name, email }));
 }
 
-export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean } = {}): Promise<HarvestResult> {
+export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number } = {}): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
     ok: true, threadsSeen: 0, recordsAdded: 0, activitiesAdded: 0,
@@ -274,12 +274,8 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; m
     await setHarvestState(`gmail:${track}`, new Date().toISOString().slice(0, 10).replace(/-/g, "/"));
   }
 
-  // Granola meeting notes (read-only source). Manual only: runs when the user
-  // clicks "Import from Granola", never from the scheduled harvest, so notes
-  // can be cleaned up in Granola first.
-  if (!opts.includeGranola) {
-    await saveKnowledgeRecords(newRecords);
-  } else try {
+  // Granola meeting notes (read-only source).
+  try {
     const { harvestGranola, verifyGranolaImports } = await import("./granola.server");
     const internal = getInternalConfig();
     const g = await harvestGranola({

@@ -46,12 +46,6 @@ export const runKnowledgeHarvestFn = createServerFn({ method: "POST" }).handler(
   return runKnowledgeHarvest({ maxThreadsPerTrack: 15 });
 });
 
-/** Manual Granola sync — the only path that pulls from Granola. */
-export const syncGranolaFn = createServerFn({ method: "POST" }).handler(async () => {
-  const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
-  return runKnowledgeHarvest({ maxThreadsPerTrack: 15, includeGranola: true, maxGranolaNotes: 40 });
-});
-
 export const fetchGranolaImportsFn = createServerFn({ method: "GET" }).handler(async () => {
   const { listGranolaImports, isGranolaConfigured } = await import("./granola.server");
   if (!isGranolaConfigured()) return { connected: false, imports: [] };

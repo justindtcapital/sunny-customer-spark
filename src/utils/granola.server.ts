@@ -198,20 +198,14 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
   }
   const existing = new Set((await listKnowledgeRecords()).filter((r) => r.sourceType === "granola").map((r) => r.sourceId));
   const now = new Date().toISOString();
-  out.notesSeen = list.length;
-  const pending = list
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
-    .filter((i) => !existing.has(i.id));
-  const hitCap = pending.length > input.maxNotes;
-  const todo = pending.slice(0, input.maxNotes);
+  let processed = 0;
+  let hitCap = false;
 
-  // Process notes in parallel batches (fetch + Gemini + Drive per note).
-  const BATCH = 5;
-  for (let b = 0; b < todo.length; b += BATCH) {
-    await Promise.all(todo.slice(b, b + BATCH).map((item) => processOne(item)));
-  }
-
-  async function processOne(item: GranolaNoteListItem) {
+  for (const item of list.sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    out.notesSeen++;
+    if (existing.has(item.id)) continue;
+    if (processed >= input.maxNotes) { hitCap = true; break; }
+    processed++;
     try {
       const n = await getGranolaNote(item.id);
       const summary = n.summary_markdown || n.summary_text || "";
