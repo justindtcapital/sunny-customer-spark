@@ -102,6 +102,7 @@ export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
           <CardTitle className="text-base">Notes Imports</CardTitle>
           <span className="text-xs text-muted-foreground">
             {loading ? "loading…" : history ? `${items.length} reviewed` : `${items.length} to review`}
+            {actionOwner ? ` · imported by ${actionOwner}` : ""}
           </span>
         </div>
         <div className="flex items-center gap-2">
