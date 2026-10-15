@@ -198,7 +198,6 @@ export function AppSidebar({
       onPortfolioFiltersChange({ ...portfolioFilters, ...partial });
   };
 
-  const showNetworkSearch = currentPath === "/crm" && !collapsed;
   const showCrmFilters = currentPath === "/crm" && filters && onFiltersChange && !collapsed;
   const showTargetingFilters =
     currentPath === "/targeting" && targetingFilters && onTargetingFiltersChange && !collapsed;
@@ -558,6 +557,7 @@ export function AppSidebar({
 
                   <DetailedToggle open={crmDetailed} onToggle={() => setCrmDetailed((o) => !o)} active={crmActiveCount} />
                   {crmDetailed && (<div className="space-y-3">
+                  <NetworkSearchPanel />
 
                   <div>
                     <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
@@ -770,20 +770,6 @@ export function AppSidebar({
 
 
 
-          {showNetworkSearch && (
-            <>
-              <SidebarSeparator />
-              <SidebarGroup>
-                <SidebarGroupLabel className="flex items-center gap-1.5">
-                  <Search className="h-3 w-3" />
-                  Network Search
-                </SidebarGroupLabel>
-                <SidebarGroupContent className="px-2">
-                  <NetworkSearchPanel />
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </>
-          )}
 
           {showTargetingFilters && (
             <>
@@ -806,6 +792,7 @@ export function AppSidebar({
 
                   <DetailedToggle open={targetDetailed} onToggle={() => setTargetDetailed((o) => !o)} active={targetActiveCount} />
                   {targetDetailed && (<div className="space-y-3">
+                  <NetworkSearchPanel />
 
                   <div>
                     <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">

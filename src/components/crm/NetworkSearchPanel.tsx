@@ -204,7 +204,7 @@ export function NetworkSearchPanel(_props: NetworkSearchPanelProps = {}) {
           Search network
         </Button>
         <p className="text-[10px] leading-tight text-muted-foreground">
-          Searches your contacts &amp; targets plus external Sumble company data.
+          Searches your contacts and targets plus external company data.
         </p>
       </div>
 
