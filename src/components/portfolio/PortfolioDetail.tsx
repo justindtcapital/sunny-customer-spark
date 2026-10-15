@@ -67,6 +67,9 @@ import type { PortcoIntelResult, PortcoBriefResult } from "@/utils/sumble.server
 import { CustomerDiscoveryPanel } from "./CustomerDiscoveryPanel";
 import { EditPortfolioCompanyDialog } from "./EditPortfolioCompanyDialog";
 import { PortcoSignalsPanel } from "./PortcoSignalsPanel";
+import { StatSection } from "./StatSection";
+import { workstreamBarStatus } from "@/lib/workstream-parse";
+import { portcoMatches, useKnowledge } from "@/lib/use-knowledge";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
 import {
@@ -138,6 +141,7 @@ export function PortfolioDetail({
     loading: workstreamsLoading,
     refresh: refreshWorkstreams,
   } = useWorkstreams();
+  const knowledge = useKnowledge();
 
   if (!company) return null;
 
@@ -172,6 +176,33 @@ export function PortfolioDetail({
   const companyDomain = extractDomain(company.website) || "";
 
   const companyActivities = matchActivitiesToCompany(activities, company.name);
+
+  const NOTE_TYPES = new Set(["granola", "upload", "drive-doc"]);
+  const SRC_LABEL: Record<string, string> = { granola: "Granola", upload: "Upload", "drive-doc": "Drive" };
+  // Sheets sometimes hands dates back as serial day numbers (e.g. 46266) — normalize to YYYY-MM-DD.
+  const isoDate = (d?: string) => {
+    const v = String(d ?? "").trim();
+    if (/^\d{5}(\.\d+)?$/.test(v)) return new Date(Date.UTC(1899, 11, 30) + Number(v) * 864e5).toISOString().slice(0, 10);
+    return v.slice(0, 10);
+  };
+  const companyNotes = knowledge.records
+    .map((r) => ({ ...r, date: isoDate(r.date) }))
+    .filter((r) => NOTE_TYPES.has(r.sourceType) && portcoMatches(r.portco, company.name))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  // Confirmed (registered) email/notes activity tagged to this PortCo — News is knowledge, not activity.
+  const harvestedActs = knowledge.activities
+    .map((a) => ({ ...a, date: isoDate(a.date) }))
+    .filter((a) => a.track !== "News" && portcoMatches(a.portco, company.name))
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const trackCounts: Record<string, number> = {};
+  for (const a of companyActivities) trackCounts[a.track] = (trackCounts[a.track] || 0) + 1;
+  for (const a of harvestedActs) trackCounts[a.track || "Other"] = (trackCounts[a.track || "Other"] || 0) + 1;
+  const since30 = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+  const recentActs =
+    companyActivities.filter((a) => (a.date || "") >= since30).length +
+    harvestedActs.filter((a) => (a.date || "") >= since30).length;
+  const noteSrcCounts: Record<string, number> = {};
+  for (const r of companyNotes) { const k = SRC_LABEL[r.sourceType] || r.sourceType; noteSrcCounts[k] = (noteSrcCounts[k] || 0) + 1; }
 
   const companyWorkstreams = allWorkstreams.filter(
     (w) => w.companyKey === company.name.trim().toLowerCase(),
@@ -578,42 +609,6 @@ export function PortfolioDetail({
               </section>
 
 
-              {/* BD / GTM activity from the BD/GTM sheets, matched to this company */}
-              {(activitiesLoading || companyActivities.length > 0) && (
-                <section className="border-b border-border pb-6">
-                  <ActivitySection
-                    activities={companyActivities}
-                    loading={activitiesLoading}
-                    enableSourcing
-                    defaultCompany={company.name}
-                  />
-                </section>
-              )}
-
-              {/* Workstreams — Asana subtasks under this company's portfolio task */}
-              <section className="border-b border-border pb-6">
-                <WorkstreamsPanel
-                  workstreams={companyWorkstreams}
-                  loading={workstreamsLoading}
-                  onRefresh={refreshWorkstreams}
-                />
-              </section>
-
-              {/* Signals — recent news/activity for this PortCo (scoped scan) */}
-              <section className="border-b border-border pb-6">
-                <PortcoSignalsPanel company={company} />
-              </section>
-
-              {/* Sumble Intelligence */}
-              <section className="border-b border-border pb-6">
-                <PortcoIntelPanel company={company} />
-              </section>
-
-              {/* Customer Discovery — likely customers for this portfolio company */}
-              <section className="border-b border-border pb-6">
-                <CustomerDiscoveryPanel company={company} />
-              </section>
-
               {/* Key People — pulled from CRM contacts whose email domain matches the company website */}
               <section className="border-b border-border pb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -767,8 +762,107 @@ export function PortfolioDetail({
                 )}
               </section>
 
+              <div className="space-y-3 border-b border-border pb-6">
+              <StatSection
+                title="BD / GTM Activity"
+                stats={[
+                  { label: "Total", value: activitiesLoading || knowledge.loading ? "…" : companyActivities.length + harvestedActs.length },
+                  { label: "BD", value: trackCounts.BD || 0 },
+                  { label: "GTM", value: trackCounts.GTM || 0 },
+                  { label: "Last 30d", value: recentActs },
+                ]}
+                dots={trackCounts}
+              >
+                <div className="space-y-4">
+                  {harvestedActs.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                        Confirmed from email &amp; notes ({harvestedActs.length})
+                      </h4>
+                      <div className="max-h-72 overflow-y-auto pr-1 space-y-1.5">
+                        {harvestedActs.map((a) => (
+                          <div key={a.activityId} className="rounded border border-border px-2 py-1.5">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[10px] shrink-0">{a.track || "Activity"}</Badge>
+                              <span className="text-xs font-medium text-foreground truncate">{a.title}</span>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {a.date}{a.person ? ` · ${a.person}` : ""}{a.owner ? ` · ${a.owner}` : ""}
+                            </div>
+                            {a.summary && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.summary}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {(activitiesLoading || companyActivities.length > 0) ? (
+                    <ActivitySection
+                      activities={companyActivities}
+                      loading={activitiesLoading}
+                      enableSourcing
+                      defaultCompany={company.name}
+                    />
+                  ) : harvestedActs.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No BD or GTM activity yet</p>
+                  ) : null}
+                </div>
+              </StatSection>
+
+              <StatSection
+                title="Notes"
+                stats={[
+                  { label: "Notes", value: knowledge.loading ? "…" : companyNotes.length },
+                  { label: "Last 30d", value: companyNotes.filter((r) => (r.date || "") >= since30).length },
+                  { label: "Latest", value: <span className="text-sm">{companyNotes[0]?.date?.slice(0, 10) || "—"}</span> },
+                ]}
+                dots={noteSrcCounts}
+              >
+                {companyNotes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No meeting notes tagged to {company.name} yet</p>
+                ) : (
+                  <div className="max-h-80 overflow-y-auto pr-1 space-y-1.5">
+                    {companyNotes.map((r) => (
+                      <div key={r.recordId} className="rounded border border-border px-2 py-1.5">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] shrink-0">{SRC_LABEL[r.sourceType] || r.sourceType}</Badge>
+                          {r.sourceUrl ? (
+                            <a href={r.sourceUrl} target="_blank" rel="noreferrer" className="text-xs font-medium text-foreground truncate hover:underline">{r.title}</a>
+                          ) : (
+                            <span className="text-xs font-medium text-foreground truncate">{r.title}</span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate">{r.date?.slice(0, 10)}{r.participants ? ` · ${r.participants}` : ""}</div>
+                        {r.summary && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-3">{r.summary}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </StatSection>
+
+              <StatSection
+                title="Workstreams"
+                stats={[
+                  { label: "Streams", value: workstreamsLoading ? "…" : companyWorkstreams.length },
+                  { label: "Active", value: companyWorkstreams.filter((w) => !/complete/i.test(workstreamBarStatus(w))).length },
+                  { label: "Completed", value: companyWorkstreams.filter((w) => /complete/i.test(workstreamBarStatus(w))).length },
+                ]}
+                dots={companyWorkstreams.reduce<Record<string, number>>((o, w) => { const k = w.segment || "Other"; o[k] = (o[k] || 0) + 1; return o; }, {})}
+              >
+                <WorkstreamsPanel
+                  workstreams={companyWorkstreams}
+                  loading={workstreamsLoading}
+                  onRefresh={refreshWorkstreams}
+                />
+              </StatSection>
               {/* Events Timeline */}
-              <section className="border-b border-border pb-6">
+              <StatSection
+                title="Events"
+                stats={[
+                  { label: "Events", value: plannedEvents.length + completedEvents.length },
+                  { label: "Planned", value: plannedEvents.length },
+                  { label: "Completed", value: completedEvents.length },
+                ]}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
                     Events Timeline
@@ -870,11 +964,15 @@ export function PortfolioDetail({
                     )}
                   </div>
                 )}
-              </section>
-              <section>
-                <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-3">
-                  Introductions ({sortedIntros.length})
-                </h3>
+              </StatSection>
+              <StatSection
+                title="Introductions"
+                stats={[
+                  { label: "Intros", value: sortedIntros.length },
+                  { label: "Network", value: crmIntros.length },
+                  { label: "Logged", value: companyIntros.length },
+                ]}
+              >
 
                 {/* #5 — intro insights: deterministic stats always; Claude on demand */}
                 {sortedIntros.length > 0 && (
@@ -998,6 +1096,22 @@ export function PortfolioDetail({
                 ) : (
                   <p className="text-xs text-muted-foreground">No introductions logged yet</p>
                 )}
+              </StatSection>
+              </div>
+
+              {/* Signals — recent news/activity for this PortCo (scoped scan) */}
+              <section className="border-b border-border pb-6">
+                <PortcoSignalsPanel company={company} />
+              </section>
+
+              {/* Sumble Intelligence */}
+              <section className="border-b border-border pb-6">
+                <PortcoIntelPanel company={company} />
+              </section>
+
+              {/* Customer Discovery — likely customers for this portfolio company */}
+              <section className="border-b border-border pb-6">
+                <CustomerDiscoveryPanel company={company} />
               </section>
 
               <section>
