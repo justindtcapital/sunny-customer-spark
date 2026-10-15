@@ -26,6 +26,8 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
   LayoutGrid,
   List,
@@ -2555,6 +2557,40 @@ function TargetingPage() {
                   </section>
                 </div>
               </ScrollArea>
+              {(() => {
+                const idx = sortedTargets.findIndex((t) => t.id === activeTarget.id);
+                const prev = idx > 0 ? sortedTargets[idx - 1] : null;
+                const next = idx >= 0 && idx < sortedTargets.length - 1 ? sortedTargets[idx + 1] : null;
+                return (
+                  <div className="shrink-0 border-t border-border px-4 py-2 flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-[11px] px-2"
+                      onClick={() => prev && setActiveTarget(prev)}
+                      disabled={!prev}
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                      Previous
+                    </Button>
+                    {idx >= 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {idx + 1} of {sortedTargets.length}
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-[11px] px-2"
+                      onClick={() => next && setActiveTarget(next)}
+                      disabled={!next}
+                    >
+                      Next
+                      <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  </div>
+                );
+              })()}
             </>
           )}
         </SheetContent>
