@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   fetchGranolaImportsFn,
-  runKnowledgeHarvestFn,
+  syncGranolaFn,
   verifyGranolaImportsFn,
 } from "@/utils/knowledge.functions";
 import type { GranolaImportStatus } from "@/utils/granola.server";
@@ -56,7 +56,7 @@ export function GranolaImports() {
   async function importNow() {
     setBusy("harvest");
     try {
-      const r = await runKnowledgeHarvestFn();
+      const r = await syncGranolaFn();
       const problems = r.errors.filter((e) => /granola|drive/i.test(e)).length;
       toast.success(`${r.granolaNotesAdded} new Granola notes saved, ${r.granolaCopiedToDrive} copied to Drive, ${problems} problems.`);
       await load();
