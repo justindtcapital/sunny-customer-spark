@@ -11,6 +11,9 @@ import { uploadNoteFn } from "@/utils/knowledge.functions";
 import { submitQuery } from "@/utils/llm.functions";
 import { MarkdownMessage } from "@/components/query/MarkdownMessage";
 import { toast } from "sonner";
+import { detectVoiceCategory, voiceTitle, type VoiceCategory } from "@/lib/voice-category";
+
+const CATEGORIES: VoiceCategory[] = ["Network", "Workstream", "PortCo", "GTM", "BD", "Follow-up"];
 
 type Mode = "tell" | "ask";
 
@@ -45,7 +48,11 @@ function CaptureDialog({ mode, email, onClose }: { mode: Mode; email: string; on
   const ask = useServerFn(submitQuery);
   const client = useQueryClient();
   const [text, setText] = useState("");
-  const [title, setTitle] = useState(`Voice update — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`);
+  const [picked, setPicked] = useState<VoiceCategory | null | undefined>(undefined);
+  const category = picked !== undefined ? picked : detectVoiceCategory(text);
+  const [customTitle, setCustomTitle] = useState<string | null>(null);
+  const title = customTitle ?? voiceTitle(category, new Date());
+  const setTitle = (v: string) => setCustomTitle(v);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState<"" | "transcribing" | "saving" | "asking">("");
   const [answer, setAnswer] = useState("");
@@ -113,6 +120,7 @@ function CaptureDialog({ mode, email, onClose }: { mode: Mode; email: string; on
           </Button>
           <span className="text-xs text-muted-foreground">{recording ? <span className="inline-flex items-center gap-2"><span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />Listening…</span> : busy === "transcribing" ? <span className="inline-flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" />Transcribing…</span> : "Tap Record, or type below"}</span>
         </div>
+        {tell && <div className="space-y-1.5"><div className="flex flex-wrap items-center gap-1.5"><span className="mr-1 text-xs text-muted-foreground">Category</span>{CATEGORIES.map((c) => <Button key={c} type="button" size="sm" variant={category === c ? "default" : "outline"} className="h-7 rounded-full px-3 text-xs" aria-pressed={category === c} onClick={() => { setPicked(category === c ? null : c); setCustomTitle(null); }}>{c}</Button>)}</div><p className="text-[11px] text-muted-foreground">{picked === undefined && category ? `Detected from "${category === "GTM" ? "go-to-market" : category.toLowerCase()} update"` : "Start with “Network update”, “Workstream update”, “PortCo update”, “Go-to-market update” or “BD update” to set this automatically."}</p></div>}
         {tell && <Input aria-label="Update title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title (add NWK for network notes)" />}
         <Textarea aria-label={tell ? "Update text" : "Question"} rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder={tell ? "e.g. Met Sarah at Acme about MavenAGI pilot — follow up next Tuesday with pricing." : "e.g. What's the latest with MavenAGI and who should I introduce them to?"} />
         <div className="flex justify-end gap-2">
