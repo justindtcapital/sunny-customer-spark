@@ -54,6 +54,8 @@ export interface HarvestResult {
   contactsSuggested: number;
   granolaNotesAdded: number;
   granolaCopiedToDrive: number;
+  driveNotesAdded?: number;
+  recordingsFiled?: number;
   errors: string[];
 }
 
@@ -141,7 +143,7 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
  * cron never passes it.
  */
 export async function runKnowledgeHarvest(
-  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean; importedBy?: string } = {},
+  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean; includeDrive?: boolean; importedBy?: string } = {},
 ): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
@@ -313,7 +315,19 @@ export async function runKnowledgeHarvest(
   await saveWorkstreamLinks(newLinks);
   await saveSuggestedContacts(newContacts);
 
-  result.recordsAdded = newRecords.length;
+  // Meeting files dropped into the KB Drive (Meet notes, transcripts, recordings).
+  if (opts.includeDrive !== false) {
+    try {
+      const { importDriveNotes } = await import("./drive-notes.server");
+      const d = await importDriveNotes();
+      result.driveNotesAdded = d.imported;
+      result.recordingsFiled = d.recordingsFiled;
+      result.errors.push(...d.errors.slice(0, 10));
+    } catch (e) {
+      result.errors.push(`Drive: ${(e as Error).message}`);
+    }
+  }
+  result.recordsAdded = newRecords.length + (result.driveNotesAdded || 0);
   result.activitiesAdded = newActivities.length;
   result.linksAdded = newLinks.length;
   result.contactsSuggested = newContacts.length;

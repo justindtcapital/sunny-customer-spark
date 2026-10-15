@@ -69,7 +69,7 @@ export const syncGranolaFn = createServerFn({ method: "POST" })
   .inputValidator((input: { importedBy?: string }) => input || {})
   .handler(async ({ data }) => {
     const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
-    return runKnowledgeHarvest({ includeGmail: false, includeGranola: true, maxGranolaNotes: 30, importedBy: data?.importedBy });
+    return runKnowledgeHarvest({ includeGmail: false, includeDrive: false, includeGranola: true, maxGranolaNotes: 30, importedBy: data?.importedBy });
   });
 
 export const fetchNotesInboxFn = createServerFn({ method: "POST" })
@@ -104,3 +104,9 @@ export const reopenNoteFn = createServerFn({ method: "POST" })
     await reopenNote(data.recordId);
     return { ok: true };
   });
+
+/** Pull meeting files dropped into the Venture Pulse KB Drive. */
+export const syncDriveNotesFn = createServerFn({ method: "POST" }).handler(async () => {
+  const { importDriveNotes } = await import("./drive-notes.server");
+  return importDriveNotes();
+});
