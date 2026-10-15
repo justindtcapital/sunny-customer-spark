@@ -13,3 +13,6 @@
 - [ ] Env vars, typecheck, tests, verify
 - [x] Granola notes → knowledge base (records, activities, Drive copy, review queue, contacts)
 - [x] Granola Imports list with verified "Safe to delete in Granola" badge
+- [x] Granola syncs only on "Import from Granola" click (no scheduled pull)
+- [x] Delete test Granola imports and re-import cleaned-up notes
+- [x] Notes Imports inbox (Granola/Upload/Drive/Email rows, workstream confirm/change/new, next-step follow-ups, add people, history)
