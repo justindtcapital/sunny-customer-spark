@@ -349,11 +349,41 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     })));
   }
 
+  // Promote the note into each tagged contact's Interaction Trail (idempotent by source ref).
+  const tagged = new Map<string, string>();
+  if (input.status !== "skipped") {
+    for (const c of [...(input.linkContacts || []), ...input.addPeople]) {
+      const e = (c.email || "").trim().toLowerCase();
+      if (e.includes("@")) tagged.set(e, c.name);
+    }
+  }
+  if (tagged.size) {
+    const { appendInteractionRows } = await import("./sheets.server");
+    const sourceRef = `kb:${r.recordId}`;
+    const existing = new Set<string>();
+    try {
+      const rows = await fetchSheetTab("Notes");
+      const h = (rows[0] || []).map((x) => (x || "").trim().toLowerCase());
+      const ei = h.indexOf("contact email"), si = h.indexOf("source ref");
+      if (ei >= 0 && si >= 0) for (const row of rows.slice(1)) if (row[si] === sourceRef) existing.add((row[ei] || "").toLowerCase());
+    } catch { /* tab missing */ }
+    const isNwk = (input.track || "") === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
+    const steps = input.followUps.map((f) => `• ${f.action}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
+    const due = input.followUps.map((f) => f.dueDate).filter(Boolean).sort()[0] || "";
+    const summary = `${isNwk ? "[NWK] " : ""}${r.title}${r.summary ? ` — ${r.summary}` : ""}${steps ? `\nNext steps:\n${steps}` : ""}`.slice(0, 4000);
+    await appendInteractionRows([...tagged.keys()].filter((e) => !existing.has(e)).map((email) => ({
+      email, date: r.date || now.slice(0, 10), summary,
+      type: (r.sourceType.startsWith("gmail-") ? "email" : "meeting") as Parameters<typeof appendInteractionRows>[0][number]["type"],
+      requiresFollowUp: !!due, followUpDue: due || undefined, owner: input.reviewer, sourceRef,
+    })));
+  }
+
   const review: NoteReview = {
     reviewedAt: now, reviewedBy: input.reviewer, workstream: wsLabel,
     contactsAdded: added, followUps: input.followUps.length,
     ...(input.status ? { status: input.status } : {}),
     ...(input.track ? { track: input.track } : {}),
+    ...(tagged.size ? { contacts: [...tagged.keys()] } : {}),
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
   return review;
