@@ -40,12 +40,13 @@ describe("calendar momentum", () => {
     expect(inPeriod(undefined, "2026-10-12", "2026-10-15")).toBe(false);
     expect(inPeriod("2026-10-14T23:00:00Z", "2026-10-12", "2026-10-15")).toBe(true);
   });
-  it("Working to Complete is active, while completed, blocked and early streams are not", () => {
+  it("completed and unset streams do not count as active", () => {
     const w = (status: string) => ({ completed: false, workstreamStatus: status }) as Workstream;
-    expect(activeWorkstream(w("Working to Complete"))).toBe(true);
     expect(activeWorkstream(w("Completed"))).toBe(false);
-    expect(activeWorkstream(w("Stalled"))).toBe(false);
-    expect(activeWorkstream(w("Early Conversations"))).toBe(false);
+    expect(activeWorkstream(w("Not set"))).toBe(false);
+  });
+  it.each(["Working to Complete", "Stalled", "Early Conversations"])("%s counts as active", (status) => {
+    expect(activeWorkstream({ completed: false, workstreamStatus: status } as Workstream)).toBe(true);
   });
 });
 
