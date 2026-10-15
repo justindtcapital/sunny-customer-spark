@@ -6,3 +6,4 @@
 - External note sources (Gmail aliases, Drive, Granola) plug in as knowledge-harvester tracks keyed by a stable source id, read-only toward the source — keeps re-runs idempotent and never mutates the origin system.
 - Granola is pulled only by the manual sync button, never by the cron harvest — users clean notes in Granola before importing.
 - Mailbox tokens: per-mailbox Gmail refresh tokens are stored AES-GCM encrypted in the private "Mailbox Tokens" sheet tab, accepted only when Google confirms the consenting account equals GMAIL_KB_MAILBOX — app sign-in is an allowlist, so Google is the identity proof.
+- Alias-harvested (gmail-*) activities count as registered activity only after Activity Review confirms them (review state shared with Notes Imports in Harvest State) — keeps automated tagging from polluting dashboards.
