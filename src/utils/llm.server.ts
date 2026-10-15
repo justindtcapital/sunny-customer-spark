@@ -1292,7 +1292,7 @@ export async function runAgent(
     let resp: GeminiResponse;
     try {
       resp = await geminiGenerate({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: systemPromptWithDate() }] },
         contents: state.messages,
         tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
         generationConfig: {
