@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -358,7 +358,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
-      <NotesImports actionOwner={owner} />
+      <ReviewInboxes owner={owner} />
 
       <PortfolioDetail
         company={detailCompany ?? null}
@@ -373,3 +373,28 @@ function DashboardPage() {
   );
 }
 
+
+function ReviewInboxes({ owner }: { owner: string }) {
+  const [tab, setTab] = useState<"notes" | "activity">("notes");
+  const [counts, setCounts] = useState({ notes: 0, activity: 0 });
+  const setNotes = useCallback((n: number) => setCounts((c) => ({ ...c, notes: n })), []);
+  const setActivity = useCallback((n: number) => setCounts((c) => ({ ...c, activity: n })), []);
+  return (
+    <div className="space-y-2">
+      <div className="inline-flex rounded-md border border-border p-0.5">
+        {(["notes", "activity"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={`rounded px-3 py-1 text-sm ${tab === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}
+          >
+            {k === "notes" ? "Notes Imports" : "Activity Review"}
+            <span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{counts[k]}</span>
+          </button>
+        ))}
+      </div>
+      <div className={tab === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onCount={setNotes} /></div>
+      <div className={tab === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onCount={setActivity} /></div>
+    </div>
+  );
+}
