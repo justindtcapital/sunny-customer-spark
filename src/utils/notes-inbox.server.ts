@@ -35,7 +35,7 @@ export interface NoteReview {
 }
 
 export type InboxKind = "notes" | "activity";
-export const ACTIVITY_TRACKS = ["BD", "GTM", "Workstream", "News"] as const;
+export const ACTIVITY_TRACKS = ["BD", "GTM", "Workstream", "Network", "News"] as const;
 
 /** Pure: does a harvested activity count as registered Venture Pulse activity? */
 export function isRegisteredActivity(sourceType: string, review: NoteReview | undefined | null): boolean {
