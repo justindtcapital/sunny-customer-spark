@@ -74,12 +74,22 @@ export const Route = createFileRoute("/portfolio")({
       (key) => asana.namesByCompanyName[key] || key,
     );
     const claimedAsana = new Set(sheetToAsana.values());
+    // Events tag PortCos by their Events-project label ("Maven AGI"), which can
+    // differ from the PortCo project name ("MavenAGI") — fuzzy-match those too.
+    const sheetToEventKey = matchSheetToAsanaKeys(
+      sheetCompanies.map((c) => c.name),
+      Object.keys(asana.eventsByCompanyName),
+    );
 
     // Sheet companies, enriched with matching Asana fields + events (by name).
     const merged = sheetCompanies.map((c) => {
       const asanaKey = sheetToAsana.get(c.name);
       const asanaFields = asanaKey ? asana.fieldsByCompanyName[asanaKey] : undefined;
-      const asanaEvents = asanaKey ? asana.eventsByCompanyName[asanaKey] || [] : [];
+      const eventKey = sheetToEventKey.get(c.name);
+      const asanaEvents =
+        (asanaKey && asana.eventsByCompanyName[asanaKey]) ||
+        (eventKey && asana.eventsByCompanyName[eventKey]) ||
+        [];
       return {
         ...c,
         asanaFields: asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined,

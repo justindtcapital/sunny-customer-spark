@@ -74,6 +74,8 @@ console.log("— Twine vs Twine Security prefers closer —");
   check("Twine left unmatched", !map.has("Twine"));
 }
 
+check("MavenAGI matches Maven AGI (event tag spacing)", matchSheetToAsanaKeys(["MavenAGI"], ["maven agi"]).get("MavenAGI") === "maven agi");
+
 if (failures > 0) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

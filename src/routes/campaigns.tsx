@@ -93,7 +93,8 @@ export const Route = createFileRoute("/campaigns")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>): { event?: string; purpose?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { event?: string; purpose?: string; campaign?: string } => ({
+    campaign: typeof s.campaign === "string" ? s.campaign : undefined,
     event: typeof s.event === "string" ? s.event : undefined,
     purpose: typeof s.purpose === "string" ? s.purpose : undefined,
   }),
@@ -392,6 +393,16 @@ function StartStep({
     const a = eventAttendees(ev, contactsQ.data || [], targetsQ.data || []);
     if (a.portcos.length) setPortcos((cur) => Array.from(new Set([...cur, ...a.portcos])));
   };
+
+  // Arriving from a PortCo panel link: open that campaign in Current Campaigns.
+  const linkSearch = Route.useSearch();
+  const [linked, setLinked] = useState(false);
+  useEffect(() => {
+    if (linked || !linkSearch.campaign || !campaigns.some((c) => c.id === linkSearch.campaign)) return;
+    setLinked(true);
+    pick(linkSearch.campaign);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked, linkSearch.campaign, campaigns]);
 
   // Arriving from an event ("Build campaign" on Events): preset purpose + event once people load.
   const search = Route.useSearch();

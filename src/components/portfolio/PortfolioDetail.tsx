@@ -68,6 +68,7 @@ import { CustomerDiscoveryPanel } from "./CustomerDiscoveryPanel";
 import { EditPortfolioCompanyDialog } from "./EditPortfolioCompanyDialog";
 import { PortcoSignalsPanel } from "./PortcoSignalsPanel";
 import { StatSection } from "./StatSection";
+import { PortcoCampaigns } from "./PortcoCampaigns";
 import { workstreamBarStatus } from "@/lib/workstream-parse";
 import { portcoMatches, useKnowledge } from "@/lib/use-knowledge";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
@@ -855,6 +856,8 @@ export function PortfolioDetail({
                 />
               </StatSection>
               {/* Events Timeline */}
+              <PortcoCampaigns company={company.name} />
+
               <StatSection
                 title="Events"
                 stats={[

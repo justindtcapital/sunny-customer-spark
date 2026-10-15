@@ -31,6 +31,8 @@ export function scorePortcoNameMatch(a: string, b: string): number {
   const nb = normalizePortcoName(b);
   if (!na || !nb) return 0;
   if (na === nb) return 900;
+  // Spacing variants ("MavenAGI" ↔ "Maven AGI").
+  if (la.replace(/[^a-z0-9]/g, "") === lb.replace(/[^a-z0-9]/g, "")) return 850;
   if (na.includes(nb) || nb.includes(na)) {
     const shorter = Math.min(na.length, nb.length);
     const longer = Math.max(na.length, nb.length);
