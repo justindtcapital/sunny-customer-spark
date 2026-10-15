@@ -345,16 +345,29 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                 {item.people.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No people found in this note.</p>
                 ) : item.people.map((p) => (
-                  <div key={p.key} className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="flex-1">{p.name || p.email} <span className="text-muted-foreground">{p.email}{p.company && ` · ${p.company}`}</span></span>
-                    {p.where !== "New" || p.status.startsWith("approved") ? (
-                      <Badge variant="secondary" className="text-[10px]">{p.where === "New" ? "Added" : `In ${p.where}`}</Badge>
-                    ) : (
-                      <>
-                        <Badge variant="outline" className="text-[10px]">New</Badge>
-                        <Button size="sm" variant={people[p.key] === "add" ? "secondary" : "outline"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "add" ? "" : "add" }))}>Add to contacts</Button>
-                        <Button size="sm" variant={people[p.key] === "skip" ? "secondary" : "ghost"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "skip" ? "" : "skip" }))}>Skip</Button>
-                      </>
+                  <div key={p.key} className="space-y-1 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="flex-1">{p.name || p.email} <span className="text-muted-foreground">{p.email}{p.company && ` · ${p.company}`}</span></span>
+                      {p.where !== "New" || p.status.startsWith("approved") ? (
+                        <Badge variant="secondary" className="text-[10px]">{p.where === "New" ? "Added" : `In ${p.where}`}</Badge>
+                      ) : (
+                        <>
+                          <Badge variant="outline" className="text-[10px]">New</Badge>
+                          <Button size="sm" variant={people[p.key] === "add" ? "secondary" : "outline"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "add" ? "" : "add" }))}>Add to contacts</Button>
+                          <Button size="sm" variant={editing[p.key] ? "secondary" : "outline"} onClick={() => setEditing((s) => ({ ...s, [p.key]: !s[p.key] }))}>Edit</Button>
+                          <Button size="sm" variant={people[p.key] === "skip" ? "secondary" : "ghost"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "skip" ? "" : "skip" }))}>Skip</Button>
+                        </>
+                      )}
+                    </div>
+                    {editing[p.key] && p.where === "New" && !p.status.startsWith("approved") && (
+                      <div className="flex flex-wrap items-center gap-2 pl-2">
+                        <Input className="h-7 w-44 text-xs" placeholder="Name" value={edits[p.key]?.name ?? p.name}
+                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: e.target.value, email: s[p.key]?.email ?? p.email, company: s[p.key]?.company ?? p.company } }))} />
+                        <Input className="h-7 w-52 text-xs" placeholder="Email" value={edits[p.key]?.email ?? p.email}
+                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: s[p.key]?.name ?? p.name, email: e.target.value, company: s[p.key]?.company ?? p.company } }))} />
+                        <Input className="h-7 w-40 text-xs" placeholder="Company" value={edits[p.key]?.company ?? p.company}
+                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: s[p.key]?.name ?? p.name, email: s[p.key]?.email ?? p.email, company: e.target.value } }))} />
+                      </div>
                     )}
                   </div>
                 ))}
