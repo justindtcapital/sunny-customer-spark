@@ -181,7 +181,7 @@ export function PortfolioDetail({
   const SRC_LABEL: Record<string, string> = { granola: "Granola", upload: "Upload", "drive-doc": "Drive" };
   // Sheets sometimes hands dates back as serial day numbers (e.g. 46266) — normalize to YYYY-MM-DD.
   const isoDate = (d?: string) => {
-    const v = (d || "").trim();
+    const v = String(d ?? "").trim();
     if (/^\d{5}(\.\d+)?$/.test(v)) return new Date(Date.UTC(1899, 11, 30) + Number(v) * 864e5).toISOString().slice(0, 10);
     return v.slice(0, 10);
   };
