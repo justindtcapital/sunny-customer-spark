@@ -179,8 +179,15 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
   const [newName, setNewName] = useState(item.link && !item.link.workstreamGid ? item.link.workstreamName : "");
   const [newSegment, setNewSegment] = useState<"GTM" | "BD">("GTM");
   const [people, setPeople] = useState<Record<string, "add" | "skip" | "">>({});
+  const [edits, setEdits] = useState<Record<string, { name: string; email: string; company: string }>>({});
+  const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [fu, setFu] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
+
+  function editedPerson(p: NoteInboxItem["people"][number]) {
+    const e = edits[p.key];
+    return { name: e?.name ?? p.name, email: e?.email ?? p.email, company: e?.company ?? p.company, suggestionId: p.suggestionId || undefined };
+  }
 
   async function save() {
     setSaving(true);
