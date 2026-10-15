@@ -101,14 +101,27 @@ async function reviewMap(): Promise<Map<string, NoteReview>> {
   return m;
 }
 
+/** Who manually imported each record (stamped at import time; email harvest is unstamped). */
+async function importedByMap(): Promise<Map<string, string>> {
+  const m = new Map<string, string>();
+  try {
+    const rows = await fetchSheetTab(KNOWLEDGE_TABS.harvestState);
+    for (const r of rows.slice(1)) {
+      if (r[0]?.startsWith("importedBy:")) m.set(r[0].slice("importedBy:".length), (r[1] || "").toLowerCase());
+    }
+  } catch { /* none */ }
+  return m;
+}
+
 function sourceLabel(r: KnowledgeRecord): NoteInboxItem["source"] {
   return r.sourceType === "granola" ? "Granola" : r.sourceType === "upload" ? "Upload" : r.sourceType === "drive-doc" ? "Drive" : "Email";
 }
 
-export async function listNotesInbox(history: boolean): Promise<NoteInboxItem[]> {
-  const [records, links, contacts, reviews, dir] = await Promise.all([
-    listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(), directory(),
+export async function listNotesInbox(history: boolean, owner?: string): Promise<NoteInboxItem[]> {
+  const [records, links, contacts, reviews, dir, importers] = await Promise.all([
+    listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(), directory(), importedByMap(),
   ]);
+  const ownerKey = (owner || "").trim().toLowerCase();
   const whereOf = (email: string, name: string): NotePerson["where"] => {
     const keys = [email, name.toLowerCase()].filter(Boolean);
     if (keys.some((k) => dir.network.has(k))) return "Network";
@@ -124,6 +137,8 @@ export async function listNotesInbox(history: boolean): Promise<NoteInboxItem[]>
     if (!NOTE_SOURCES.has(r.sourceType) && !link) continue;
     const review = reviews.get(r.recordId) || null;
     if (history ? !review : !!review) continue;
+    // When an action owner is selected, only notes that person imported.
+    if (ownerKey && importers.get(r.recordId) !== ownerKey) continue;
     let ex: { nextSteps?: NoteInboxItem["nextSteps"]; people?: Array<{ name: string; email: string; company: string }>; granola?: { hasTranscript?: boolean } } = {};
     try { ex = JSON.parse(r.extractedJson || "{}"); } catch { /* ignore */ }
     const g = r.sourceType === "granola" ? granola.get(r.sourceId) : undefined;
