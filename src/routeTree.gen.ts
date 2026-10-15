@@ -23,6 +23,7 @@ import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-s
 import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
 import { Route as ApiPublicCronKnowledgeHarvestRouteImport } from './routes/api/public/cron/knowledge-harvest'
+import { Route as ApiPublicGoogleMailboxCallbackRouteImport } from './routes/api/public/google-mailbox/callback'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -95,6 +96,12 @@ const ApiPublicCronKnowledgeHarvestRoute =
     path: '/api/public/cron/knowledge-harvest',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicGoogleMailboxCallbackRoute =
+  ApiPublicGoogleMailboxCallbackRouteImport.update({
+    id: '/api/public/google-mailbox/callback',
+    path: '/api/public/google-mailbox/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
+  '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -127,6 +135,7 @@ export interface FileRoutesByTo {
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
+  '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -144,6 +153,7 @@ export interface FileRoutesById {
   '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
+  '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
+    | '/api/public/google-mailbox/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
+    | '/api/public/google-mailbox/callback'
   id:
     | '__root__'
     | '/'
@@ -194,6 +206,7 @@ export interface FileRouteTypes {
     | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
+    | '/api/public/google-mailbox/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -211,6 +224,7 @@ export interface RootRouteChildren {
   ApiCronSignalsReconcileRoute: typeof ApiCronSignalsReconcileRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
   ApiPublicCronKnowledgeHarvestRoute: typeof ApiPublicCronKnowledgeHarvestRoute
+  ApiPublicGoogleMailboxCallbackRoute: typeof ApiPublicGoogleMailboxCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -313,6 +327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronKnowledgeHarvestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/google-mailbox/callback': {
+      id: '/api/public/google-mailbox/callback'
+      path: '/api/public/google-mailbox/callback'
+      fullPath: '/api/public/google-mailbox/callback'
+      preLoaderRoute: typeof ApiPublicGoogleMailboxCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -331,6 +352,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronSignalsReconcileRoute: ApiCronSignalsReconcileRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
   ApiPublicCronKnowledgeHarvestRoute: ApiPublicCronKnowledgeHarvestRoute,
+  ApiPublicGoogleMailboxCallbackRoute: ApiPublicGoogleMailboxCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
