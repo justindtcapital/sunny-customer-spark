@@ -23,8 +23,7 @@ import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
 import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { KnowledgePanel } from "@/components/knowledge/KnowledgePanel";
-import { WorkstreamReviewQueue } from "@/components/knowledge/WorkstreamReviewQueue";
-import { GranolaImports } from "@/components/knowledge/GranolaImports";
+import { NotesImports } from "@/components/knowledge/NotesImports";
 import { computeScopeActivity } from "@/lib/dashboard-activity";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
@@ -342,7 +341,6 @@ function DashboardPage() {
             actionOwner={owner}
             points={points}
           />
-          <WorkstreamReviewQueue />
         </>
       )}
       {scopeKind === "company" && (
@@ -356,7 +354,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
-      <GranolaImports />
+      <NotesImports />
 
       <PortfolioDetail
         company={detailCompany ?? null}
