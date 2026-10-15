@@ -60,21 +60,23 @@ export const verifyGranolaImportsFn = createServerFn({ method: "POST" })
   });
 
 /** Manual-only Granola pull (the scheduled harvest never touches Granola). */
-export const syncGranolaFn = createServerFn({ method: "POST" }).handler(async () => {
-  const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
-  return runKnowledgeHarvest({ includeGmail: false, includeGranola: true, maxGranolaNotes: 30 });
-});
+export const syncGranolaFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { importedBy?: string }) => input || {})
+  .handler(async ({ data }) => {
+    const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
+    return runKnowledgeHarvest({ includeGmail: false, includeGranola: true, maxGranolaNotes: 30, importedBy: data?.importedBy });
+  });
 
 export const fetchNotesInboxFn = createServerFn({ method: "POST" })
-  .inputValidator((input: { history?: boolean }) => input)
+  .inputValidator((input: { history?: boolean; owner?: string }) => input)
   .handler(async ({ data }) => {
     const { listNotesInbox } = await import("./notes-inbox.server");
     const { isGranolaConfigured } = await import("./granola.server");
-    return { granolaConnected: isGranolaConfigured(), items: await listNotesInbox(!!data.history) };
+    return { granolaConnected: isGranolaConfigured(), items: await listNotesInbox(!!data.history, data.owner) };
   });
 
 export const uploadNoteFn = createServerFn({ method: "POST" })
-  .inputValidator((input: { name: string; text: string; base64: string; mimeType: string }) => {
+  .inputValidator((input: { name: string; text: string; base64: string; mimeType: string; importedBy?: string }) => {
     if (!input.name || input.base64.length > 8_000_000) throw new Error("File missing or too large");
     return input;
   })

@@ -138,7 +138,10 @@ export async function listNotesInbox(history: boolean, owner?: string): Promise<
     const review = reviews.get(r.recordId) || null;
     if (history ? !review : !!review) continue;
     // When an action owner is selected, only notes that person imported.
-    if (ownerKey && importers.get(r.recordId) !== ownerKey) continue;
+    if (ownerKey) {
+      const { ownerMatches } = await import("@/lib/action-owners");
+      if (!ownerMatches(importers.get(r.recordId) || "", ownerKey)) continue;
+    }
     let ex: { nextSteps?: NoteInboxItem["nextSteps"]; people?: Array<{ name: string; email: string; company: string }>; granola?: { hasTranscript?: boolean } } = {};
     try { ex = JSON.parse(r.extractedJson || "{}"); } catch { /* ignore */ }
     const g = r.sourceType === "granola" ? granola.get(r.sourceId) : undefined;
