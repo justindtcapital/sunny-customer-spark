@@ -31,15 +31,17 @@ import {
 } from "./knowledge.server";
 import { sha256Hex } from "./sha256";
 
-const TRACKS: Array<{ track: string; sourceType: RecordSourceType; env: string }> = [
+const TRACKS: Array<{ track: string; sourceType: RecordSourceType; env: string; fallback?: string }> = [
   { track: "BD", sourceType: "gmail-bd", env: "GMAIL_BD_ALIAS" },
   { track: "GTM", sourceType: "gmail-gtm", env: "GMAIL_GTM_ALIAS" },
   { track: "Workstream", sourceType: "gmail-workstreams", env: "GMAIL_WORKSTREAMS_ALIAS" },
   { track: "News", sourceType: "gmail-news", env: "GMAIL_NEWS_ALIAS" },
+  // Network management conversations (NWK@ Group delivers into the shared mailbox).
+  { track: "Network", sourceType: "gmail-network", env: "GMAIL_NWK_ALIAS", fallback: "nwk@dt-capital.net" },
 ];
 
-function aliasesFor(env: string): string[] {
-  return (process.env[env] || "")
+function aliasesFor(env: string, fallback = ""): string[] {
+  return (process.env[env] || fallback)
     .split(/[;,]/)
     .map((s) => s.trim().toLowerCase())
     .filter((s) => s.includes("@"));
@@ -163,8 +165,8 @@ export async function runKnowledgeHarvest(
   const newContacts: SuggestedContact[] = [];
   const now = new Date().toISOString();
 
-  for (const { track, sourceType, env } of opts.includeGmail === false ? [] : TRACKS) {
-    const aliases = aliasesFor(env);
+  for (const { track, sourceType, env, fallback } of opts.includeGmail === false ? [] : TRACKS) {
+    const aliases = aliasesFor(env, fallback);
     if (aliases.length === 0) continue;
 
 
