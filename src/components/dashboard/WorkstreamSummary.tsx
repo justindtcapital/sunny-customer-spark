@@ -26,7 +26,7 @@ interface Props {
   points: MatrixPoint[];
 }
 
-function CompanyLogo({ name, website }: { name: string; website: string }) {
+export function CompanyLogo({ name, website }: { name: string; website: string }) {
   const [idx, setIdx] = useState(0);
   const resolved = resolveCompanyLogoDomain({ website });
   const sources =
