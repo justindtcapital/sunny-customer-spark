@@ -524,7 +524,7 @@ export function AppSidebar({
                       <button
                         type="button"
                         onClick={() => update({ ownershipScope: "mine" })}
-                        className={`h-6 rounded px-2 text-[10px] font-medium transition-colors ${
+                        className={`h-6 whitespace-nowrap rounded px-2 text-[10px] font-medium transition-colors ${
                           filters.ownershipScope !== "everyone"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:bg-accent"
@@ -535,7 +535,7 @@ export function AppSidebar({
                       <button
                         type="button"
                         onClick={() => update({ ownershipScope: "everyone" })}
-                        className={`h-6 rounded px-2 text-[10px] font-medium transition-colors ${
+                        className={`h-6 whitespace-nowrap rounded px-2 text-[10px] font-medium transition-colors ${
                           filters.ownershipScope === "everyone"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:bg-accent"
