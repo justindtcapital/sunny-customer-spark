@@ -10,4 +10,4 @@
 ## Homepage dashboard navigation
 - [x] Pass signed-in owner and requested section from both homepage buttons
 - [x] Select owner, expand and scroll to requested dashboard section
-- [ ] Verify both signed-in navigation flows
+- [x] Verify both signed-in navigation flows
