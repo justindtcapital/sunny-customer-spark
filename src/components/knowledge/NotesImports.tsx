@@ -38,7 +38,12 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(s);
 }
 
-export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
+export function NotesImports({ actionOwner = "", kind = "notes", onCount }: {
+  actionOwner?: string; kind?: "notes" | "activity"; onCount?: (n: number) => void;
+}) {
+  const isActivity = kind === "activity";
+  const [trackFilter, setTrackFilter] = useState("all");
+  const [q, setQ] = useState("");
   const { email } = useAuth();
   const [items, setItems] = useState<NoteInboxItem[]>([]);
   const [granolaConnected, setGranolaConnected] = useState(true);
@@ -52,15 +57,16 @@ export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetchNotesInboxFn({ data: { history, owner: actionOwner || undefined } });
+      const r = await fetchNotesInboxFn({ data: { history, owner: actionOwner || undefined, kind } });
       setItems(r.items);
+      if (!history) onCount?.(r.items.length);
       setGranolaConnected(r.granolaConnected);
     } catch (e) {
       toast.error(`Couldn't load notes: ${(e as Error).message}`);
     } finally {
       setLoading(false);
     }
-  }, [history, actionOwner]);
+  }, [history, actionOwner, kind, onCount]);
   useEffect(() => { void load(); }, [load]);
 
   async function syncGranola() {
@@ -95,25 +101,30 @@ export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
     await load();
   }
 
+  const shown = useMemo(() => items.filter((i) =>
+    (trackFilter === "all" || i.track === trackFilter) &&
+    (!q.trim() || `${i.title} ${i.portco} ${i.summary}`.toLowerCase().includes(q.trim().toLowerCase())),
+  ), [items, trackFilter, q]);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-base">Notes Imports</CardTitle>
+          <CardTitle className="text-base">{isActivity ? "Activity Review" : "Notes Imports"}</CardTitle>
           <span className="text-xs text-muted-foreground">
             {loading ? "loading…" : history ? `${items.length} reviewed` : `${items.length} to review`}
-            {actionOwner ? ` · imported by ${actionOwner}` : ""}
+            {actionOwner ? ` · ${isActivity ? "involving" : "imported by"} ${actionOwner}` : ""}
           </span>
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant={history ? "secondary" : "ghost"} onClick={() => setHistory((h) => !h)}>
             <History className="h-3.5 w-3.5" /> {history ? "Back to inbox" : "Show history"}
           </Button>
-          <Button size="sm" variant="outline" disabled={!!busy} onClick={() => fileRef.current?.click()}>
+          {!isActivity && <Button size="sm" variant="outline" disabled={!!busy} onClick={() => fileRef.current?.click()}>
             {busy === "upload" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             Upload notes
-          </Button>
-          {granolaConnected && (
+          </Button>}
+          {granolaConnected && !isActivity && (
             <Button size="sm" disabled={!!busy} onClick={syncGranola}>
               {busy === "granola" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Import from Granola
@@ -126,7 +137,19 @@ export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {!history && (
+        {isActivity && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={trackFilter} onValueChange={setTrackFilter}>
+              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All tracks</SelectItem>
+                {TRACKS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Input className="h-8 w-64 text-xs" placeholder="Search subject, PortCo, summary" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+        )}
+        {!history && !isActivity && (
           <div
             onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
@@ -141,12 +164,15 @@ export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
         )}
         {!loading && items.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            {history ? "No reviewed notes yet." : "Nothing to review. Import from Granola or upload notes."}
+            {isActivity
+              ? history ? "No reviewed activity yet." : "No new tracked emails to review."
+              : history ? "No reviewed notes yet." : "Nothing to review. Import from Granola or upload notes."}
           </p>
         )}
         <div className="divide-y divide-border rounded-md border border-border">
-          {items.map((i) => (
+          {shown.map((i) => (
             <NoteRow
+              kind={kind}
               key={i.recordId}
               item={i}
               open={openId === i.recordId}
@@ -161,8 +187,10 @@ export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
   );
 }
 
-function NoteRow({ item, open, onToggle, reviewer, onDone }: {
-  item: NoteInboxItem; open: boolean; onToggle: () => void; reviewer: string; onDone: () => Promise<void>;
+const TRACKS = ["BD", "GTM", "Workstream", "News"];
+
+function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
+  kind: "notes" | "activity"; item: NoteInboxItem; open: boolean; onToggle: () => void; reviewer: string; onDone: () => Promise<void>;
 }) {
   const { workstreams } = useWorkstreams();
   const portcos = useMemo(() => {
@@ -184,6 +212,9 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
   const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [fu, setFu] = useState<Record<number, { due?: string; action?: string; who?: string }>>({});
   const [saving, setSaving] = useState(false);
+  const isActivity = kind === "activity";
+  const [track, setTrack] = useState(item.track || "BD");
+  const isNews = isActivity && track === "News";
 
   function editedPerson(p: NoteInboxItem["people"][number]) {
     const e = edits[p.key];
@@ -202,7 +233,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
       const byKey = new Map(item.people.map((p) => [p.key, p]));
       await reviewNoteFn({
         data: {
-          recordId: item.recordId, reviewer, portco, workstream,
+          recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
+          ...(isActivity ? { status: "confirmed" as const, track } : {}),
           addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
             .map((p) => editedPerson(p)),
           skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
@@ -212,7 +244,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
           }),
         },
       });
-      toast.success("Note reviewed.");
+      toast.success(isActivity ? (isNews ? "Saved as PortCo news." : "Activity registered.") : "Note reviewed.");
       await onDone();
     } catch (e) {
       toast.error(`Save failed: ${(e as Error).message}`);
@@ -230,9 +262,12 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
     setSaving(true);
     try {
       await reviewNoteFn({
-        data: { recordId: item.recordId, reviewer, portco: item.portco || "", addPeople: [], skipContacts: [], followUps: [] },
+        data: {
+          recordId: item.recordId, reviewer, portco: item.portco || "", addPeople: [], skipContacts: [], followUps: [],
+          ...(isActivity ? { status: "skipped" as const } : {}),
+        },
       });
-      toast.success("Note skipped.");
+      toast.success(isActivity ? "Skipped — not counted as activity." : "Note skipped.");
       await onDone();
     } catch (e) {
       toast.error(`Skip failed: ${(e as Error).message}`);
@@ -246,14 +281,19 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <button className="flex min-w-[260px] flex-1 items-center gap-2 text-left" onClick={onToggle}>
           <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", !open && "-rotate-90")} />
-          <Badge variant="outline" className="shrink-0 text-[10px]">{item.source}</Badge>
+          <Badge variant="outline" className="shrink-0 text-[10px]">{isActivity ? item.track || "Email" : item.source}</Badge>
           <div>
             <div className="text-sm font-medium">{item.title}</div>
             <div className="text-xs text-muted-foreground">{item.date} · {item.portco || "No PortCo matched"}</div>
           </div>
         </button>
-        <Tick ok={item.saved} label="Saved" />
-        <Tick ok={item.copiedToDrive} label="Copied to Drive" />
+        {!isActivity && <Tick ok={item.saved} label="Saved" />}
+        {!isActivity && <Tick ok={item.copiedToDrive} label="Copied to Drive" />}
+        {isActivity && item.review && (
+          <Badge variant={item.review.status === "skipped" ? "outline" : "secondary"} className="text-[10px]">
+            {item.review.status === "skipped" ? "Skipped" : "Confirmed"}
+          </Badge>
+        )}
         {item.source === "Granola" && <Tick ok={item.hasTranscript} label="Transcript included" />}
         {item.source === "Granola" && <Tick ok={item.safeToDelete} label="Safe to delete" />}
         <div className="flex gap-2 text-xs">
@@ -277,6 +317,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
           {item.review ? (
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span>Reviewed {item.review.reviewedAt.slice(0, 10)} by {item.review.reviewedBy || "—"}</span>
+              {item.review.track && <span>Track: {item.review.track}</span>}
               <span>Workstream: {item.review.workstream || "—"}</span>
               <span>Contacts added: {item.review.contactsAdded}</span>
               <span>Follow-ups: {item.review.followUps}</span>
@@ -284,8 +325,19 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
             </div>
           ) : (
             <>
+              {isActivity && (
+                <section className="space-y-1.5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Track</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {TRACKS.map((t) => (
+                      <Button key={t} size="sm" variant={track === t ? "default" : "outline"} onClick={() => setTrack(t)}>{t}</Button>
+                    ))}
+                  </div>
+                  {isNews && <p className="text-xs text-muted-foreground">News is saved as PortCo knowledge, not activity. Just confirm the PortCo.</p>}
+                </section>
+              )}
               <section className="space-y-1.5">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PortCo &amp; workstream</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{isNews ? "PortCo" : "PortCo & workstream"}</h4>
                 {item.link && (
                   <p className="text-xs text-muted-foreground">Suggested: <b className="text-foreground">{item.link.workstreamName}</b> ({item.link.confidence})</p>
                 )}
@@ -297,7 +349,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                       {portcos.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Select value={wsChoice} onValueChange={setWsChoice} disabled={!portco}>
+                  {!isNews && <Select value={wsChoice} onValueChange={setWsChoice} disabled={!portco}>
                     <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder={portco ? "Pick workstream" : "Pick a PortCo first"} /></SelectTrigger>
                     <SelectContent>
                       {companyWs.map((w) => (
@@ -306,8 +358,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                       <SelectItem value="__new">+ New workstream (adds to Asana)</SelectItem>
                       <SelectItem value="__ignore">Not workstream-related</SelectItem>
                     </SelectContent>
-                  </Select>
-                  {wsChoice === "__new" && (
+                  </Select>}
+                  {!isNews && wsChoice === "__new" && (
                     <>
                       <Select value={newSegment} onValueChange={(v) => setNewSegment(v as "GTM" | "BD")}>
                         <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
@@ -322,7 +374,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                 </div>
               </section>
 
-              <section className="space-y-1.5">
+              {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
                 {item.nextSteps.length === 0 ? (
                   <p className="text-xs text-muted-foreground">None found.</p>
@@ -347,7 +399,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                     )}
                   </div>
                 ))}
-              </section>
+              </section>}
 
               <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">People</h4>
@@ -386,7 +438,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                 <Button size="sm" variant="ghost" disabled={saving} onClick={skip}>Skip</Button>
                 <Button size="sm" disabled={saving} onClick={save}>
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                  Mark reviewed
+                  {isActivity ? "Confirm" : "Mark reviewed"}
                 </Button>
               </div>
             </>
