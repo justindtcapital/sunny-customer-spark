@@ -768,3 +768,46 @@ console.log("— double-sync idempotency (same mailbox state) —");
 
 console.log(failures === 0 ? "\nAll attribution checks passed." : `\n${failures} failure(s).`);
 process.exit(failures === 0 ? 0 : 1);
+
+console.log("— alias-matching mail survives Google Groups bulk headers —");
+// Google Groups delivery stamps List-Unsubscribe/Precedence on every alias
+// message; threadToActivity must keep alias-matching mail even when isBulk.
+const groupsDelivered = threadToActivity(
+  [
+    msg({
+      id: "g1",
+      threadId: "tgrp",
+      subject: "DTC: Acme — BD Discussion",
+      fromName: "Pat Lee",
+      fromEmail: "pat@acme.com",
+      toPeople: [{ name: "BD Tracking", email: "bd-tracking@dt-capital.net" }],
+      toEmails: ["bd-tracking@dt-capital.net"],
+      date: Date.parse("2026-10-10T10:00:00Z"),
+      dateLabel: "2026-10-10",
+      isBulk: true,
+    }),
+  ],
+  "BD",
+  ALIASES,
+  INTERNAL,
+);
+check("alias mail kept despite isBulk", groupsDelivered !== null);
+const pureBulk = threadToActivity(
+  [
+    msg({
+      id: "g2",
+      threadId: "tbulk",
+      subject: "Weekly newsletter",
+      fromName: "News",
+      fromEmail: "newsletter@example.com",
+      toEmails: ["someone@dt-capital.net"],
+      date: Date.parse("2026-10-10T10:00:00Z"),
+      dateLabel: "2026-10-10",
+      isBulk: true,
+    }),
+  ],
+  "BD",
+  ALIASES,
+  INTERNAL,
+);
+check("non-alias bulk still dropped", pureBulk === null);
