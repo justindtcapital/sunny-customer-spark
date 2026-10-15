@@ -490,14 +490,18 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children }: {
   return (
     <div className="space-y-3">
       <SummaryCard title="Workstreams" sub={scopeLabel} open={open} onToggle={() => setOpen((o) => !o)}>
-        <div className="flex flex-wrap gap-8">
-          <Stat label="Streams" value={ws.length} />
-          <Stat label="Active" value={ws.length - done} />
-          <Stat label="Completed" value={done} />
-          <Stat label="PortCos" value={new Set(ws.map((w) => w.companyKey)).size} />
+        <div className="flex flex-wrap items-start gap-8">
+          <div className="flex flex-wrap gap-8">
+            <Stat label="Streams" value={ws.length} />
+            <Stat label="Active" value={ws.length - done} />
+            <Stat label="Completed" value={done} />
+            <Stat label="PortCos" value={new Set(ws.map((w) => w.companyKey)).size} />
+          </div>
+          <div className="min-w-[200px] flex-1 space-y-2 self-center">
+            <DotChips counts={tally(statuses)} map={STATUS_DOT} />
+            <DotChips counts={tally(ws.map((w) => (w.workstreamPriority || "No priority")))} map={PRIORITY_DOT} />
+          </div>
         </div>
-        <DotChips counts={tally(statuses)} map={STATUS_DOT} />
-        <DotChips counts={tally(ws.map((w) => (w.workstreamPriority || "No priority")))} map={PRIORITY_DOT} />
         <LogoCounts counts={tally(ws.map((w) => w.company))} points={points} />
       </SummaryCard>
       {open && children}
@@ -517,12 +521,16 @@ function ReviewInboxes({ owner, points }: { owner: string; points: { name: strin
   return (
     <div className="space-y-3">
       <SummaryCard title="Notes & Activity" sub="Waiting for review" open={open} onToggle={() => setOpen((o) => !o)}>
-        <div className="flex flex-wrap gap-8">
-          <Stat label="Notes" value={counts.notes} />
-          <Stat label="Emails" value={counts.activity} />
-          <Stat label="No PortCo" value={unmatched} />
+        <div className="flex flex-wrap items-start gap-8">
+          <div className="flex flex-wrap gap-8">
+            <Stat label="Notes" value={counts.notes} />
+            <Stat label="Emails" value={counts.activity} />
+            <Stat label="No PortCo" value={unmatched} />
+          </div>
+          <div className="min-w-[200px] flex-1 space-y-2 self-center">
+            <DotChips counts={tally(acts.map((i) => i.track || "Untagged"))} />
+          </div>
         </div>
-        <DotChips counts={tally(acts.map((i) => i.track || "Untagged"))} />
         <LogoCounts counts={tally([...notes, ...acts].map((i) => i.portco).filter(Boolean))} points={points} />
       </SummaryCard>
       <div className={open ? "space-y-2" : "hidden"}>
