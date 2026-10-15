@@ -436,7 +436,7 @@ function WorkstreamOverview({ keys, owner, scopeLabel, children }: {
     const set = new Set(keys);
     return workstreams.filter((w) => set.has(w.companyKey) && (!owner || ownerMatches(w.owner, owner)));
   }, [workstreams, keys, owner]);
-  const statuses = ws.map((w) => workstreamBarStatus(w).status || "No status");
+  const statuses = ws.map((w) => workstreamBarStatus(w));
   const done = statuses.filter((s) => /complete/i.test(s)).length;
   return (
     <div className="space-y-3">
@@ -445,7 +445,7 @@ function WorkstreamOverview({ keys, owner, scopeLabel, children }: {
         <Kpi label="PortCos" value={new Set(ws.map((w) => w.companyKey)).size} />
         <Kpi label="Completed" value={done} />
         <Breakdown title="By status" counts={tally(statuses)} />
-        <Breakdown title="By priority" counts={tally(ws.map((w) => workstreamBarStatus(w).priority || "No priority"))} />
+        <Breakdown title="By priority" counts={tally(ws.map((w) => (w.workstreamPriority || "No priority")))} />
         <Breakdown title="By PortCo" counts={tally(ws.map((w) => w.company))} />
       </SummaryCard>
       {open && children}
