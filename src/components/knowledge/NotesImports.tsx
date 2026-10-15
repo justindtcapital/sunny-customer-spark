@@ -40,8 +40,9 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(s);
 }
 
-export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems }: {
+export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems, onStats }: {
   actionOwner?: string; kind?: "notes" | "activity"; onCount?: (n: number) => void; onItems?: (items: NoteInboxItem[]) => void;
+  onStats?: (stats: { pending: number; reviewed: number }) => void;
 }) {
   const isActivity = kind === "activity";
   const [trackFilter, setTrackFilter] = useState("all");
@@ -59,16 +60,23 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetchNotesInboxFn({ data: { history, owner: actionOwner || undefined, kind } });
+      const [r, h] = await Promise.all([
+        fetchNotesInboxFn({ data: { history, owner: actionOwner || undefined, kind } }),
+        history ? Promise.resolve(null) : fetchNotesInboxFn({ data: { history: true, owner: actionOwner || undefined, kind } }),
+      ]);
       setItems(r.items);
-      if (!history) { onCount?.(r.items.length); onItems?.(r.items); }
+      if (!history) {
+        onCount?.(r.items.length);
+        onItems?.(r.items);
+        onStats?.({ pending: r.items.length, reviewed: h ? h.items.length : 0 });
+      }
       setGranolaConnected(r.granolaConnected);
     } catch (e) {
       toast.error(`Couldn't load notes: ${(e as Error).message}`);
     } finally {
       setLoading(false);
     }
-  }, [history, actionOwner, kind, onCount, onItems]);
+  }, [history, actionOwner, kind, onCount, onItems, onStats]);
   useEffect(() => { void load(); }, [load]);
 
   async function syncGranola() {
