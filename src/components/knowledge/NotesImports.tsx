@@ -164,12 +164,20 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
   item: NoteInboxItem; open: boolean; onToggle: () => void; reviewer: string; onDone: () => Promise<void>;
 }) {
   const { workstreams } = useWorkstreams();
+  const portcos = useMemo(() => {
+    const set = new Set(workstreams.map((w) => w.company).filter(Boolean));
+    if (item.portco) set.add(item.portco);
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [workstreams, item.portco]);
+  const [portco, setPortco] = useState(item.portco || "");
   const companyWs = useMemo(
-    () => workstreams.filter((w) => w.company.toLowerCase() === (item.portco || "").toLowerCase()),
-    [workstreams, item.portco],
+    () => workstreams.filter((w) => w.company.toLowerCase() === portco.toLowerCase() && !/complete/i.test(w.workstreamStatus || "")),
+    [workstreams, portco],
   );
-  const [wsChoice, setWsChoice] = useState<string>(item.link?.workstreamGid || (item.link ? "__new" : ""));
-  const [newName, setNewName] = useState(item.link?.workstreamName || "");
+  const suggestedGid = item.link?.workstreamGid && companyWs.some((w) => w.gid === item.link!.workstreamGid) ? item.link.workstreamGid : "";
+  const [wsChoice, setWsChoice] = useState<string>(suggestedGid || (item.link && !item.link.workstreamGid ? "__new" : ""));
+  const [newName, setNewName] = useState(item.link && !item.link.workstreamGid ? item.link.workstreamName : "");
+  const [newSegment, setNewSegment] = useState<"GTM" | "BD">("GTM");
   const [people, setPeople] = useState<Record<string, "add" | "skip" | "">>({});
   const [fu, setFu] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
@@ -177,17 +185,19 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
   async function save() {
     setSaving(true);
     try {
-      let workstream: { action: "confirm" | "ignore"; gid?: string; name?: string } | undefined;
-      if (item.link) {
-        if (wsChoice === "__ignore") workstream = { action: "ignore" };
-        else if (wsChoice === "__new") workstream = { action: "confirm", gid: "", name: newName.trim() || item.link.workstreamName };
-        else if (wsChoice) workstream = { action: "confirm", gid: wsChoice, name: companyWs.find((w) => w.gid === wsChoice)?.name || item.link.workstreamName };
-      }
+      let workstream: { action: "confirm" | "ignore" | "create"; gid?: string; name?: string; segment?: "GTM" | "BD" } | undefined;
+      if (wsChoice === "__ignore") workstream = { action: "ignore" };
+      else if (wsChoice === "__new") {
+        if (!newName.trim()) throw new Error("Type a name for the new workstream");
+        workstream = { action: "create", name: newName.trim(), segment: newSegment };
+      } else if (wsChoice) workstream = { action: "confirm", gid: wsChoice, name: companyWs.find((w) => w.gid === wsChoice)?.name || "" };
+      const byKey = new Map(item.people.map((p) => [p.key, p]));
       await reviewNoteFn({
         data: {
-          recordId: item.recordId, reviewer, workstream,
-          addContacts: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => k),
-          skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => k),
+          recordId: item.recordId, reviewer, portco, workstream,
+          addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
+            .map((p) => ({ name: p.name, email: p.email, company: p.company, suggestionId: p.suggestionId || undefined })),
+          skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
           followUps: Object.entries(fu).map(([idx, due]) => {
             const n = item.nextSteps[Number(idx)]!;
             return { action: n.action, who: n.who, dueDate: due || n.dueDate };
@@ -252,27 +262,41 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
           ) : (
             <>
               <section className="space-y-1.5">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workstream</h4>
-                {!item.link ? (
-                  <p className="text-xs text-muted-foreground">No workstream suggested.</p>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs">Suggested: <b>{item.link.workstreamName}</b> ({item.link.confidence})</span>
-                    <Select value={wsChoice} onValueChange={setWsChoice}>
-                      <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder="Pick workstream" /></SelectTrigger>
-                      <SelectContent>
-                        {companyWs.map((w) => (
-                          <SelectItem key={w.gid} value={w.gid}>{w.segment} · {w.name}</SelectItem>
-                        ))}
-                        <SelectItem value="__new">Create new workstream…</SelectItem>
-                        <SelectItem value="__ignore">Not workstream-related</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {wsChoice === "__new" && (
-                      <Input className="h-8 w-60 text-xs" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New workstream name" />
-                    )}
-                  </div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PortCo &amp; workstream</h4>
+                {item.link && (
+                  <p className="text-xs text-muted-foreground">Suggested: <b className="text-foreground">{item.link.workstreamName}</b> ({item.link.confidence})</p>
                 )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select value={portco || "__none"} onValueChange={(v) => { setPortco(v === "__none" ? "" : v); setWsChoice(""); }}>
+                    <SelectTrigger className="h-8 w-52 text-xs"><SelectValue placeholder="Pick PortCo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">No PortCo</SelectItem>
+                      {portcos.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={wsChoice} onValueChange={setWsChoice} disabled={!portco}>
+                    <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder={portco ? "Pick workstream" : "Pick a PortCo first"} /></SelectTrigger>
+                    <SelectContent>
+                      {companyWs.map((w) => (
+                        <SelectItem key={w.gid} value={w.gid}>{w.segment} · {w.name}</SelectItem>
+                      ))}
+                      <SelectItem value="__new">+ New workstream (adds to Asana)</SelectItem>
+                      <SelectItem value="__ignore">Not workstream-related</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {wsChoice === "__new" && (
+                    <>
+                      <Select value={newSegment} onValueChange={(v) => setNewSegment(v as "GTM" | "BD")}>
+                        <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="GTM">GTM</SelectItem>
+                          <SelectItem value="BD">BD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input className="h-8 w-60 text-xs" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New workstream name" />
+                    </>
+                  )}
+                </div>
               </section>
 
               <section className="space-y-1.5">
@@ -295,14 +319,21 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
               </section>
 
               <section className="space-y-1.5">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">New people</h4>
-                {item.people.filter((p) => p.status === "pending").length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No new people to add.</p>
-                ) : item.people.filter((p) => p.status === "pending").map((p) => (
-                  <div key={p.suggestionId} className="flex flex-wrap items-center gap-2 text-xs">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">People</h4>
+                {item.people.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No people found in this note.</p>
+                ) : item.people.map((p) => (
+                  <div key={p.key} className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="flex-1">{p.name || p.email} <span className="text-muted-foreground">{p.email}{p.company && ` · ${p.company}`}</span></span>
-                    <Button size="sm" variant={people[p.suggestionId] === "add" ? "secondary" : "outline"} onClick={() => setPeople((s) => ({ ...s, [p.suggestionId]: s[p.suggestionId] === "add" ? "" : "add" }))}>Add to contacts</Button>
-                    <Button size="sm" variant={people[p.suggestionId] === "skip" ? "secondary" : "ghost"} onClick={() => setPeople((s) => ({ ...s, [p.suggestionId]: s[p.suggestionId] === "skip" ? "" : "skip" }))}>Skip</Button>
+                    {p.where !== "New" || p.status.startsWith("approved") ? (
+                      <Badge variant="secondary" className="text-[10px]">{p.where === "New" ? "Added" : `In ${p.where}`}</Badge>
+                    ) : (
+                      <>
+                        <Badge variant="outline" className="text-[10px]">New</Badge>
+                        <Button size="sm" variant={people[p.key] === "add" ? "secondary" : "outline"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "add" ? "" : "add" }))}>Add to contacts</Button>
+                        <Button size="sm" variant={people[p.key] === "skip" ? "secondary" : "ghost"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "skip" ? "" : "skip" }))}>Skip</Button>
+                      </>
+                    )}
                   </div>
                 ))}
               </section>

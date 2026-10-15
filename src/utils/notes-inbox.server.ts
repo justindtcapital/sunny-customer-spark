@@ -28,6 +28,17 @@ export interface NoteReview {
   followUps: number;
 }
 
+export interface NotePerson {
+  key: string;
+  suggestionId: string;
+  name: string;
+  email: string;
+  company: string;
+  /** Where this person already lives, or "New". */
+  where: "Network" | "Prospecting" | "New";
+  status: string;
+}
+
 export interface NoteInboxItem {
   recordId: string;
   source: "Granola" | "Upload" | "Drive" | "Email";
@@ -43,13 +54,39 @@ export interface NoteInboxItem {
   safeToDelete: boolean;
   link: { linkId: string; workstreamGid: string; workstreamName: string; status: string; confidence: string } | null;
   nextSteps: Array<{ who: string; action: string; dueDate: string }>;
-  people: Array<{ suggestionId: string; name: string; email: string; company: string; status: string }>;
+  people: NotePerson[];
   review: NoteReview | null;
 }
 
 /** Pure: is this record pending (not reviewed)? Exported for tests. */
 export function isPendingNote(recordId: string, reviews: Map<string, NoteReview>): boolean {
   return !reviews.has(recordId);
+}
+
+/** Lowercased emails + names already in Contacts (Network) and Targets (Prospecting). */
+async function directory(): Promise<{ network: Set<string>; prospects: Set<string> }> {
+  const build = async (tab: string) => {
+    const set = new Set<string>();
+    try {
+      const rows = await fetchSheetTab(tab);
+      for (const row of rows.slice(1)) for (const c of row) {
+        const v = (c || "").trim().toLowerCase();
+        if (!v || v.length > 200) continue;
+        set.add(v);
+        for (const m of v.match(/[\w.+-]+@[\w-]+\.[\w.]+/g) || []) set.add(m);
+      }
+    } catch { /* missing tab */ }
+    return set;
+  };
+  const [network, prospects] = await Promise.all([build("Contacts"), build("Targets")]);
+  return { network, prospects };
+}
+
+function parseParticipants(s: string): Array<{ name: string; email: string }> {
+  return (s || "").split(";").map((p) => p.trim()).filter(Boolean).map((p) => {
+    const m = p.match(/^(.*?)\s*<([^>]+)>$/);
+    return m ? { name: m[1]!.trim(), email: m[2]!.trim().toLowerCase() } : p.includes("@") ? { name: "", email: p.toLowerCase() } : { name: p, email: "" };
+  });
 }
 
 async function reviewMap(): Promise<Map<string, NoteReview>> {
@@ -69,9 +106,15 @@ function sourceLabel(r: KnowledgeRecord): NoteInboxItem["source"] {
 }
 
 export async function listNotesInbox(history: boolean): Promise<NoteInboxItem[]> {
-  const [records, links, contacts, reviews] = await Promise.all([
-    listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(),
+  const [records, links, contacts, reviews, dir] = await Promise.all([
+    listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(), directory(),
   ]);
+  const whereOf = (email: string, name: string): NotePerson["where"] => {
+    const keys = [email, name.toLowerCase()].filter(Boolean);
+    if (keys.some((k) => dir.network.has(k))) return "Network";
+    if (keys.some((k) => dir.prospects.has(k))) return "Prospecting";
+    return "New";
+  };
   const { listGranolaImports } = await import("./granola.server");
   const granola = new Map((await listGranolaImports().catch(() => [])).map((g) => [g.noteId, g]));
   const linkBy = new Map(links.map((l) => [l.recordId, l]));
@@ -81,7 +124,7 @@ export async function listNotesInbox(history: boolean): Promise<NoteInboxItem[]>
     if (!NOTE_SOURCES.has(r.sourceType) && !link) continue;
     const review = reviews.get(r.recordId) || null;
     if (history ? !review : !!review) continue;
-    let ex: { nextSteps?: NoteInboxItem["nextSteps"]; granola?: { hasTranscript?: boolean } } = {};
+    let ex: { nextSteps?: NoteInboxItem["nextSteps"]; people?: Array<{ name: string; email: string; company: string }>; granola?: { hasTranscript?: boolean } } = {};
     try { ex = JSON.parse(r.extractedJson || "{}"); } catch { /* ignore */ }
     const g = r.sourceType === "granola" ? granola.get(r.sourceId) : undefined;
     const driveUrl = r.textRef ? `https://drive.google.com/file/d/${r.textRef}/view` : "";
@@ -92,7 +135,23 @@ export async function listNotesInbox(history: boolean): Promise<NoteInboxItem[]>
       safeToDelete: g ? g.safeToDelete : !!r.textRef,
       link: link ? { linkId: link.linkId, workstreamGid: link.workstreamGid, workstreamName: link.workstreamName, status: link.status, confidence: link.confidence } : null,
       nextSteps: (ex.nextSteps || []).filter((n) => n.action),
-      people: contacts.filter((c) => c.recordId === r.recordId).map((c) => ({ suggestionId: c.suggestionId, name: c.name, email: c.email, company: c.company, status: c.status })),
+      people: (() => {
+        const map = new Map<string, NotePerson>();
+        const put = (name: string, email: string, company: string, suggestionId = "", status = "") => {
+          const key = (email || name).toLowerCase();
+          if (!key) return;
+          const prev = map.get(key);
+          map.set(key, {
+            key, suggestionId: suggestionId || prev?.suggestionId || "", name: name || prev?.name || "",
+            email: email || prev?.email || "", company: company || prev?.company || "",
+            where: whereOf(email || prev?.email || "", name || prev?.name || ""), status: status || prev?.status || "",
+          });
+        };
+        for (const p of parseParticipants(r.participants)) put(p.name, p.email, "");
+        for (const p of ex.people || []) put(p.name, (p.email || "").toLowerCase(), p.company);
+        for (const c of contacts.filter((c) => c.recordId === r.recordId)) put(c.name, c.email, c.company, c.suggestionId, c.status);
+        return [...map.values()];
+      })(),
       review,
     });
   }
@@ -102,8 +161,9 @@ export async function listNotesInbox(history: boolean): Promise<NoteInboxItem[]>
 export interface ReviewNoteInput {
   recordId: string;
   reviewer: string;
-  workstream?: { action: "confirm" | "ignore"; gid?: string; name?: string };
-  addContacts: string[];
+  portco: string;
+  workstream?: { action: "confirm" | "ignore" | "create"; gid?: string; name?: string; segment?: "GTM" | "BD" };
+  addPeople: Array<{ name: string; email: string; company: string; suggestionId?: string }>;
   skipContacts: string[];
   followUps: Array<{ action: string; who: string; dueDate: string }>;
 }
@@ -112,27 +172,47 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
   const records = await listKnowledgeRecords();
   const r = records.find((x) => x.recordId === input.recordId);
   if (!r) throw new Error("Note not found");
+  const portco = (input.portco || "").trim();
+  if (portco !== r.portco) await retagPortco(r.recordId, portco);
+
   const links = await listWorkstreamLinks();
   const link = links.find((l) => l.recordId === r.recordId);
   let wsLabel = "";
-  if (link && input.workstream) {
-    const status = input.workstream.action === "confirm" ? "confirmed" : "ignored";
-    await reviewWorkstreamLink(link.linkId, status, input.workstream.gid || "", input.workstream.name || "");
-    wsLabel = status === "confirmed" ? input.workstream.name || link.workstreamName : "Ignored";
+  const ws = input.workstream;
+  if (ws) {
+    let gid = ws.gid || "";
+    let name = ws.name || "";
+    if (ws.action === "create") {
+      if (!portco) throw new Error("Pick a PortCo before creating a workstream");
+      const { createWorkstream } = await import("./asana.server");
+      const created = await createWorkstream({ company: portco, segment: ws.segment || "GTM", name });
+      gid = created.gid;
+      name = created.name;
+    }
+    const status = ws.action === "ignore" ? "ignored" : "confirmed";
+    if (link) {
+      await reviewWorkstreamLink(link.linkId, status, gid, name, portco);
+    } else if (status === "confirmed") {
+      const { saveWorkstreamLinks } = await import("./knowledge.server");
+      await saveWorkstreamLinks([{
+        linkId: r.recordId, recordId: r.recordId, portco, workstreamGid: gid, workstreamName: name,
+        confidence: "high", status: "confirmed", createdAt: new Date().toISOString(), reviewedAt: new Date().toISOString(),
+      }]);
+    }
+    wsLabel = status === "confirmed" ? name : "Ignored";
   }
 
-  const contacts = (await listSuggestedContacts()).filter((c) => c.recordId === r.recordId);
   let added = 0;
-  if (input.addContacts.length) {
+  if (input.addPeople.length) {
     const { addContactRow } = await import("./sheets.server");
-    for (const c of contacts.filter((x) => input.addContacts.includes(x.suggestionId))) {
+    for (const c of input.addPeople) {
       try {
         await addContactRow({
           name: c.name || c.email, role: "", company: c.company, email: c.email, phone: "", location: "",
           prime: input.reviewer, sector: "", temperature: "Cold", source: "Meeting Notes",
           sourceContext: r.title,
         } as Parameters<typeof addContactRow>[0]);
-        await reviewSuggestedContact(c.suggestionId, "approved-network");
+        if (c.suggestionId) await reviewSuggestedContact(c.suggestionId, "approved-network");
         added++;
       } catch (e) {
         console.error("[notes-inbox] add contact failed:", e);
@@ -157,6 +237,21 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
   return review;
+}
+
+/** Change a note's PortCo on its record and its harvested activities. */
+async function retagPortco(recordId: string, portco: string): Promise<void> {
+  const { writeSheetRow } = await import("./sheets.server");
+  for (const [tab, idCol, coCol] of [[KNOWLEDGE_TABS.records, 0, 5], [KNOWLEDGE_TABS.activities, 1, 6]] as const) {
+    const rows = await fetchSheetTab(tab);
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i]![idCol] !== recordId) continue;
+      const row = [...rows[i]!];
+      while (row.length <= coCol) row.push("");
+      row[coCol] = portco;
+      await writeSheetRow(tab, i + 1, row);
+    }
+  }
 }
 
 export async function reopenNote(recordId: string): Promise<void> {

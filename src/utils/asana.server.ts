@@ -803,7 +803,7 @@ function mapSubtask(sub: AsanaTask, company: string): Workstream {
   };
 }
 
-async function asanaWrite<T = unknown>(path: string, method: "PUT", body: unknown): Promise<T> {
+async function asanaWrite<T = unknown>(path: string, method: "PUT" | "POST", body: unknown): Promise<T> {
   const token = process.env.ASANA_ACCESS_TOKEN;
   if (!token) throw new Error("ASANA_ACCESS_TOKEN is not configured");
   const res = await fetch(`${ASANA_BASE}${path}`, {
@@ -904,4 +904,22 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   const flat = results.flat();
   setCached(cacheKey, flat);
   return flat;
+}
+
+/** Create a new workstream subtask ("<GTM|BD> -> name") under a PortCo's parent task. */
+export async function createWorkstream(input: { company: string; segment: "GTM" | "BD"; name: string }): Promise<Workstream> {
+  const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
+  if (!projectGid) throw new Error("Asana PortCo project is not configured");
+  const name = input.name.trim();
+  if (!name) throw new Error("Workstream name is required");
+  const parents = await fetchProjectTasks(projectGid);
+  const want = input.company.trim().toLowerCase();
+  const parent = parents.find((p) => (p.name || "").trim().toLowerCase() === want);
+  if (!parent) throw new Error(`No Asana task found for "${input.company}"`);
+  const created: { data: AsanaTask } = await asanaWrite(`/tasks/${parent.gid}/subtasks`, "POST", {
+    data: { name: `${input.segment} -> ${name}` },
+  });
+  clearAsanaCache();
+  const after: { data: AsanaTask } = await asanaFetch(`/tasks/${created.data.gid}?opt_fields=${SUBTASK_FIELDS}`);
+  return mapSubtask(after.data, (parent.name || "").trim());
 }
