@@ -205,9 +205,9 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
           addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
             .map((p) => editedPerson(p)),
           skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
-          followUps: Object.entries(fu).map(([idx, due]) => {
+          followUps: Object.entries(fu).map(([idx, f]) => {
             const n = item.nextSteps[Number(idx)]!;
-            return { action: n.action, who: n.who, dueDate: due || n.dueDate };
+            return { action: f.action?.trim() || n.action, who: f.who?.trim() || n.who, dueDate: f.due || n.dueDate };
           }),
         },
       });
@@ -330,11 +330,19 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                     <span className="flex-1">{n.action}{n.who && <span className="text-muted-foreground"> — {n.who}</span>}{n.dueDate && <span className="text-muted-foreground"> · due {n.dueDate}</span>}</span>
                     {idx in fu ? (
                       <>
-                        <Input type="date" className="h-7 w-36 text-xs" value={fu[idx] || n.dueDate} onChange={(e) => setFu((s) => ({ ...s, [idx]: e.target.value }))} />
+                        <Input className="h-7 w-56 text-xs" placeholder="Next step" value={fu[idx]?.action ?? n.action}
+                          onChange={(e) => setFu((s) => ({ ...s, [idx]: { ...s[idx], action: e.target.value } }))} />
+                        <Input className="h-7 w-36 text-xs" placeholder="Who" value={fu[idx]?.who ?? n.who}
+                          onChange={(e) => setFu((s) => ({ ...s, [idx]: { ...s[idx], who: e.target.value } }))} />
+                        <Input type="date" className="h-7 w-36 text-xs" value={fu[idx]?.due || n.dueDate}
+                          onChange={(e) => setFu((s) => ({ ...s, [idx]: { ...s[idx], due: e.target.value } }))} />
                         <Button size="sm" variant="ghost" onClick={() => setFu((s) => { const c = { ...s }; delete c[idx]; return c; })}>Cancel</Button>
                       </>
                     ) : (
-                      <Button size="sm" variant="outline" onClick={() => setFu((s) => ({ ...s, [idx]: n.dueDate }))}>Create follow-up</Button>
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => setFu((s) => ({ ...s, [idx]: { due: n.dueDate } }))}>Create follow-up</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setFu((s) => ({ ...s, [idx]: { due: n.dueDate } }))}>Edit</Button>
+                      </>
                     )}
                   </div>
                 ))}
