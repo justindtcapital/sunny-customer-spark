@@ -4,6 +4,8 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { fetchAsanaEvents } from "@/utils/asana.functions";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTargets } from "@/utils/sheets.functions";
+import { fetchCampaigns } from "@/utils/campaigns.functions";
+import type { TargetLead } from "@/lib/types";
 import {
   fetchContacts,
   addEvent as addEventToSheet,
@@ -1222,8 +1224,41 @@ function EventDetailSheet({
     setSynopsisText(synopsis);
   }
 
+  const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000 });
+  const campaignsQ = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns(), staleTime: 30_000 });
+
   if (!event) return null;
   const { attended, invited } = findAttendees(contacts, event.name);
+  const evKey = event.name.trim().toLowerCase();
+  const evPast = !!event.date && event.date < new Date().toISOString().slice(0, 10);
+  // Prospects carry only an Event tag (no invited/attended status): rosters for
+  // past events are attendee lists, tags on upcoming events are invitations.
+  const eventProspects = ((targetsQ.data || []) as TargetLead[]).filter(
+    (t) => (t.event || "").trim().toLowerCase() === evKey,
+  );
+  const prospectAttended = evPast ? eventProspects : [];
+  const prospectInvited = evPast ? [] : eventProspects;
+  const eventCampaigns = (campaignsQ.data?.campaigns || []).filter((c) =>
+    (c.events || []).some((n) => n.trim().toLowerCase() === evKey),
+  );
+  const prospectList = (list: TargetLead[], empty: string) =>
+    list.length === 0 ? (
+      <p className="text-xs text-muted-foreground">{empty}</p>
+    ) : (
+      <div className="space-y-1.5">
+        {list.map((t) => (
+          <div key={t.id} className="flex items-center justify-between border border-border rounded px-2 py-1.5">
+            <div className="min-w-0">
+              <div className="text-xs font-medium truncate">{t.name}</div>
+              <div className="text-[10px] text-muted-foreground truncate">
+                {[t.title, t.company].filter(Boolean).join(" · ")}
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[9px] shrink-0">{t.stage || "Prospect"}</Badge>
+          </div>
+        ))}
+      </div>
+    );
 
   const saveSynopsis = async () => {
     setSynopsisBusy(true);
@@ -1436,7 +1471,7 @@ function EventDetailSheet({
             <section>
               <div className="flex items-center justify-between mb-2 gap-2">
                 <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                  Invited ({invited.length})
+                  Invited network ({invited.length})
                 </h3>
                 <Button
                   size="sm"
@@ -1459,6 +1494,50 @@ function EventDetailSheet({
                 <div className="space-y-1.5">
                   {invited.map((c) => (
                     <AttendeeRow key={c.id} contact={c} onSelect={onSelectContact} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
+                Prospect attendees ({prospectAttended.length})
+              </h3>
+              {prospectList(prospectAttended, evPast ? "No prospects tagged to this event." : "Prospect attendees appear once the event has happened.")}
+            </section>
+
+            <section>
+              <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
+                Invited prospects ({prospectInvited.length})
+              </h3>
+              {prospectList(prospectInvited, evPast ? "Event has passed — tagged prospects are listed as attendees." : "No prospects tagged to this event yet.")}
+            </section>
+
+            <section>
+              <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
+                Campaigns ({eventCampaigns.length})
+              </h3>
+              {eventCampaigns.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No campaigns linked to this event yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {eventCampaigns.map((c) => (
+                    <div key={c.id} className="flex items-center justify-between gap-2 border border-border rounded px-2 py-1.5">
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium truncate">{c.name}</div>
+                        <div className="text-[10px] text-muted-foreground truncate">
+                          {[c.purpose, `${c.memberCount} people`, c.status, c.owner].filter(Boolean).join(" · ")}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-6 text-[10px] shrink-0"
+                        onClick={() => void navigate({ to: "/campaigns", search: { campaign: c.id } as never })}
+                      >
+                        Open
+                      </Button>
+                    </div>
                   ))}
                 </div>
               )}
