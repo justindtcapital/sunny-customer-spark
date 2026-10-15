@@ -340,7 +340,7 @@ function DashboardPage() {
 
       <ActivityCharts monthly={activity.monthly} scopeLabel={scopeLabel} />
 
-      {(owner || investor || scopeKind === "company") && (
+      {owner && (
         <>
           <WorkstreamOverview keys={scopeKeys} owner={owner} scopeLabel={scopeLabel}>
             <WorkstreamSummary
@@ -363,7 +363,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
-      <ReviewInboxes owner={owner} />
+      {owner && <ReviewInboxes key={owner} owner={owner} />}
 
       <PortfolioDetail
         company={detailCompany ?? null}
