@@ -524,7 +524,6 @@ function ReviewInboxes({ owner, points }: { owner: string; points: { name: strin
     setCounts((c) => ({ ...c, activity: s.pending }));
     setReviewed((r) => ({ ...r, activity: s.reviewed }));
   }, []);
-  const unmatched = [...notes, ...acts].filter((i) => !i.portco).length;
   return (
     <div className="space-y-3">
       <SummaryCard title="Notes & Activity" sub={`${owner} · Waiting for Review`} open={open} onToggle={() => setOpen((o) => !o)}>
@@ -554,8 +553,8 @@ function ReviewInboxes({ owner, points }: { owner: string; points: { name: strin
             </button>
           ))}
         </div>
-        <div className={tab === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onCount={setNotes} onItems={setNotesItems} onStats={setNotesStats} /></div>
-        <div className={tab === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onCount={setActivity} onItems={setActs} onStats={setActivityStats} /></div>
+        <div className={tab === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onItems={setNotesItems} onStats={setNotesStats} /></div>
+        <div className={tab === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onItems={setActs} onStats={setActivityStats} /></div>
       </div>
     </div>
   );
