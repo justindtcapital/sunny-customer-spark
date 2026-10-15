@@ -129,6 +129,8 @@ export function AppSidebar({
     researching: targetResearching,
   } = useTargetSelection();
   const { options: filterOpts } = useFilterOptions();
+  const [crmDetailed, setCrmDetailed] = useState(false);
+  const [targetDetailed, setTargetDetailed] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkEditType, setBulkEditType] = useState<"portco" | "event" | "note" | "profile">("note");
   const [bulkPortCo, setBulkPortCo] = useState("");
@@ -500,39 +502,20 @@ export function AppSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {showNetworkSearch && (
-            <>
-              <SidebarSeparator />
-              <SidebarGroup>
-                <SidebarGroupLabel className="flex items-center gap-1.5">
-                  <Search className="h-3 w-3" />
-                  Network Search
-                </SidebarGroupLabel>
-                <SidebarGroupContent className="px-2">
-                  <NetworkSearchPanel />
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </>
-          )}
-
           {showCrmFilters && (
             <>
               <SidebarSeparator />
               <SidebarGroup>
-                <SidebarGroupLabel className="flex items-center gap-1.5">
-                  <Filter className="h-3 w-3" />
-                  Filters
-                </SidebarGroupLabel>
                 <SidebarGroupContent className="px-2 space-y-3">
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1.5 block">
-                      Book
-                    </label>
-                    <div className="grid grid-cols-2 gap-1 rounded-md border border-border p-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                      <Search className="h-3 w-3" /> Search
+                    </span>
+                    <div className="grid grid-cols-2 gap-0.5 rounded-md border border-border p-0.5">
                       <button
                         type="button"
                         onClick={() => update({ ownershipScope: "mine" })}
-                        className={`h-7 rounded text-[11px] font-medium transition-colors ${
+                        className={`h-6 rounded px-2 text-[10px] font-medium transition-colors ${
                           filters.ownershipScope !== "everyone"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:bg-accent"
@@ -543,7 +526,7 @@ export function AppSidebar({
                       <button
                         type="button"
                         onClick={() => update({ ownershipScope: "everyone" })}
-                        className={`h-7 rounded text-[11px] font-medium transition-colors ${
+                        className={`h-6 rounded px-2 text-[10px] font-medium transition-colors ${
                           filters.ownershipScope === "everyone"
                             ? "bg-primary text-primary-foreground"
                             : "text-muted-foreground hover:bg-accent"
@@ -554,20 +537,18 @@ export function AppSidebar({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
-                      Search
-                    </label>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input
-                        placeholder="Name, company, or email…"
-                        value={filters.search}
-                        onChange={(e) => update({ search: e.target.value })}
-                        className="pl-8 h-8 text-xs"
-                      />
-                    </div>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Name, company, or email…"
+                      value={filters.search}
+                      onChange={(e) => update({ search: e.target.value })}
+                      className="pl-8 h-9 text-xs"
+                    />
                   </div>
+
+                  <DetailedToggle open={crmDetailed} onToggle={() => setCrmDetailed((o) => !o)} active={crmActiveCount} />
+                  {crmDetailed && (<div className="space-y-3">
 
                   <div>
                     <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
@@ -771,6 +752,7 @@ export function AppSidebar({
                       Follow-ups only
                     </label>
                   </div>
+                  </div>)}
                 </SidebarGroupContent>
               </SidebarGroup>
             </>
@@ -779,24 +761,42 @@ export function AppSidebar({
 
 
 
+          {showNetworkSearch && (
+            <>
+              <SidebarSeparator />
+              <SidebarGroup>
+                <SidebarGroupLabel className="flex items-center gap-1.5">
+                  <Search className="h-3 w-3" />
+                  Network Search
+                </SidebarGroupLabel>
+                <SidebarGroupContent className="px-2">
+                  <NetworkSearchPanel />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </>
+          )}
+
           {showTargetingFilters && (
             <>
               <SidebarSeparator />
               <SidebarGroup>
                 <SidebarGroupLabel className="flex items-center gap-1.5">
-                  <Filter className="h-3 w-3" />
-                  Filters
+                  <Search className="h-3 w-3" />
+                  Search
                 </SidebarGroupLabel>
                 <SidebarGroupContent className="px-2 space-y-3">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
-                      placeholder="Search targets..."
+                      placeholder="Name, company, or email…"
                       value={targetingFilters.search}
                       onChange={(e) => updateTarget({ search: e.target.value })}
-                      className="pl-8 h-8 text-xs"
+                      className="pl-8 h-9 text-xs"
                     />
                   </div>
+
+                  <DetailedToggle open={targetDetailed} onToggle={() => setTargetDetailed((o) => !o)} active={targetActiveCount} />
+                  {targetDetailed && (<div className="space-y-3">
 
                   <div>
                     <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
@@ -982,6 +982,7 @@ export function AppSidebar({
                       </div>
                     </div>
                   </div>
+                  </div>)}
                 </SidebarGroupContent>
               </SidebarGroup>
             </>
@@ -1443,5 +1444,22 @@ export function AppSidebar({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function DetailedToggle({ open, onToggle, active }: { open: boolean; onToggle: () => void; active: number }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="flex w-full items-center justify-between rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <span className="flex items-center gap-1.5">
+        <Filter className="h-3 w-3" /> Detailed search
+        {active > 0 && <span className="rounded-full bg-primary px-1.5 text-[10px] text-primary-foreground">{active}</span>}
+      </span>
+      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+    </button>
   );
 }

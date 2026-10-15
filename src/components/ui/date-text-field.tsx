@@ -91,9 +91,6 @@ export function DateTextField({
         className="w-auto p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          if (e.target instanceof Node && e.currentTarget instanceof Node && (e.target as HTMLElement).closest?.("[data-date-anchor]")) e.preventDefault();
-        }}
       >
         <Calendar
           mode="single"
