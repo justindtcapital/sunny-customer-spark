@@ -11,3 +11,8 @@
 - [x] Pass signed-in owner and requested section from both homepage buttons
 - [x] Select owner, expand and scroll to requested dashboard section
 - [x] Verify both signed-in navigation flows
+
+## Search pane cleanup
+- [x] Move deep search (technology/industry/company/product/keywords) into Detailed search on Network and Prospecting
+- [x] Remove the standalone Network Search box
+- [x] Verify both panes signed-in
