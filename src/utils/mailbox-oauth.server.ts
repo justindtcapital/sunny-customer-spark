@@ -29,7 +29,7 @@ function b64u(bytes: Uint8Array): string {
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function fromB64u(s: string): Uint8Array {
+function fromB64u(s: string): Uint8Array<ArrayBuffer> {
   const pad = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
   const bin = atob(pad);
   return Uint8Array.from(bin, (c) => c.charCodeAt(0));
