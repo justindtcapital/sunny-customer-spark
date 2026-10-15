@@ -10,7 +10,6 @@ import {
   mergeContactFields,
   storeApolloRaw,
   setContactRating,
-  clearContactRatingOverride,
   logOpsEvent,
 } from "@/utils/sheets.functions";
 import { enrichContact } from "@/utils/apollo.functions";
@@ -135,28 +134,13 @@ function RatingControl({
       });
       if (res.success) {
         onContactUpdate?.({ ...contact, temperature: tier, ratingLocked: true });
-        toast.success(`Rating set to ${tier} and locked.`);
+        toast.success(`Rating set to ${tier}.`);
       } else {
         toast.warning("Couldn't find this contact's row to save the rating.");
       }
     } catch (e) {
       console.error("setContactRating failed", e);
       toast.error("Failed to save the rating — see console.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const useAuto = async () => {
-    if (!contact.email) return;
-    setBusy(true);
-    try {
-      await clearContactRatingOverride({ data: { email: contact.email, urid: contact.urid } });
-      onContactUpdate?.({ ...contact, ratingLocked: false });
-      toast.success("Switched to automatic — applies on the next recalculation.");
-    } catch (e) {
-      console.error("clearContactRatingOverride failed", e);
-      toast.error("Failed to switch to automatic — see console.");
     } finally {
       setBusy(false);
     }
@@ -185,30 +169,16 @@ function RatingControl({
               </span>
             );
           })()}
-          {contact.ratingLocked ? (
-            <Lock className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <span className="text-[9px] uppercase tracking-wide text-muted-foreground">auto</span>
-          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel className="text-[10px]">Set rating (locks it)</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[10px]">Set rating</DropdownMenuLabel>
         {TIERS.map((t) => (
           <DropdownMenuItem key={t} onClick={() => setTier(t)}>
             <TemperatureBadge temperature={t} className="mr-2" showLabel={false} />
             {t}
           </DropdownMenuItem>
         ))}
-        {contact.ratingLocked && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={useAuto}>
-              <Unlock className="h-3.5 w-3.5 mr-2" />
-              Use automatic
-            </DropdownMenuItem>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

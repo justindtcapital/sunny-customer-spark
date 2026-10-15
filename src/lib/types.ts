@@ -454,6 +454,8 @@ export type EventFormat = "in-person" | "virtual" | "hybrid";
 export type EventLead = "DTC" | "PortCo" | "Partner" | "External" | "Other";
 
 export interface AsanaEvent {
+  createdAt?: string;
+  owner?: string;
   gid: string;
   name: string;
   date: string; // YYYY-MM-DD

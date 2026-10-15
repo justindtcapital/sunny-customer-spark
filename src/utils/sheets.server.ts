@@ -2724,71 +2724,9 @@ async function setRatingOverride(
   await appendSheetRow(TAB_NAMES.ratingOverrides, newRow);
 }
 
-// Recompute every unlocked contact's tier from activity, write the changed ones
-// back to the Contacts "Relationship Status" column, and log each change.
+// Legacy endpoint is deliberately inert: relationship ratings are manual-only.
 export async function recalculateRatings(): Promise<RecalcResult> {
-  const contacts = await buildContacts();
-  const rows = await fetchSheetTab(TAB_NAMES.contacts);
-  if (rows.length < 2) return { scanned: 0, updated: 0, skippedLocked: 0, changes: [] };
-
-  const headers = rows[0].map((h) => h.trim().toLowerCase());
-  const emailIdx = headers.indexOf("email");
-  const uridIdx = headers.indexOf("urid");
-  const statusIdx = headers.indexOf("relationship status");
-  if (emailIdx === -1 || statusIdx === -1) {
-    throw new Error("Contacts tab is missing the Email or Relationship Status column");
-  }
-
-  // Resolve a contact to its 1-based sheet row by stable urid first, then email.
-  const rowByEmail = new Map<string, number>();
-  const rowByUrid = new Map<string, number>();
-  for (let i = 1; i < rows.length; i++) {
-    const e = (rows[i][emailIdx] || "").trim().toLowerCase();
-    if (e && !rowByEmail.has(e)) rowByEmail.set(e, i + 1);
-    const u = uridIdx !== -1 ? (rows[i][uridIdx] || "").trim().toLowerCase() : "";
-    if (u && !rowByUrid.has(u)) rowByUrid.set(u, i + 1);
-  }
-
-  const statusCol = colLetters(statusIdx);
-  const now = Date.now();
-  const ts = new Date().toISOString();
-  const cellUpdates: { range: string; value: string }[] = [];
-  const historyRows: string[][] = [];
-  const changes: RatingChange[] = [];
-  let skippedLocked = 0;
-
-  for (const c of contacts) {
-    if (c.ratingLocked) {
-      skippedLocked++;
-      continue;
-    }
-    const { score, tier, drivers } = scoreContact(c, now);
-    if (tier === c.temperature) continue;
-    const rowNum =
-      (c.urid ? rowByUrid.get(c.urid.toLowerCase()) : undefined) ||
-      (c.email ? rowByEmail.get(c.email.toLowerCase()) : undefined);
-    if (!rowNum) continue;
-    cellUpdates.push({ range: `${statusCol}${rowNum}`, value: tier });
-    historyRows.push([
-      ts,
-      c.email,
-      c.name,
-      c.temperature,
-      tier,
-      String(score),
-      "auto",
-      drivers.join("; "),
-    ]);
-    changes.push({ email: c.email, name: c.name, from: c.temperature, to: tier, score });
-  }
-
-  if (cellUpdates.length > 0) {
-    await updateSheetCells(TAB_NAMES.contacts, cellUpdates);
-    await ensureTab(TAB_NAMES.ratingHistory, RATING_HISTORY_HEADERS);
-    await appendSheetRows(TAB_NAMES.ratingHistory, historyRows);
-  }
-
-  return { scanned: contacts.length, updated: changes.length, skippedLocked, changes };
+  return { scanned: 0, updated: 0, skippedLocked: 0, changes: [] };
 }
 
 /** Every usable address from a multi-email cell (lowercased). */
@@ -2876,13 +2814,9 @@ export async function setContactRating(
   return { success: false };
 }
 
-// Remove a contact's manual lock so the automatic scorecard governs it again.
-export async function clearContactRatingOverride(
-  email: string,
-  urid?: string,
-): Promise<{ success: boolean }> {
-  await setRatingOverride(email, urid, false, "", new Date().toISOString());
-  return { success: true };
+// Legacy automatic-mode requests cannot change ratings or enable automation.
+export async function clearContactRatingOverride(_email: string, _urid?: string): Promise<{ success: boolean }> {
+  return { success: false };
 }
 
 // ══════════════════════════════════════════════════════════════

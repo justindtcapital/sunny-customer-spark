@@ -44,6 +44,8 @@ interface AsanaTask {
   due_on?: string | null;
   due_at?: string | null;
   completed?: boolean;
+  created_at?: string | null;
+  completed_at?: string | null;
   custom_fields?: AsanaCustomField[];
   assignee?: { name?: string } | null;
   notes?: string | null;
@@ -267,6 +269,7 @@ export async function fetchAllAsanaEvents(): Promise<AsanaEvent[]> {
   const tasks = await fetchProjectTasks(projectGid, {
     dueAfter: fmt(back),
     dueBefore: fmt(fwd),
+    extraFields: "created_at,assignee.name",
   });
 
   const todayStr = fmt(today);
@@ -357,6 +360,8 @@ export async function fetchAllAsanaEvents(): Promise<AsanaEvent[]> {
       type,
       lead,
       format,
+      createdAt: task.created_at || "",
+      owner: task.assignee?.name || lead || "",
       sectors: industry,
       attendeeCount,
     });
@@ -686,7 +691,7 @@ export async function parseActivityThreads(
 
 
 const SUBTASK_FIELDS =
-  "name,completed,completed_at,due_on,modified_at,notes,permalink_url,assignee.name,custom_fields.gid,custom_fields.name,custom_fields.type,custom_fields.resource_subtype,custom_fields.is_formula_field,custom_fields.display_value,custom_fields.enum_value,custom_fields.multi_enum_values,custom_fields.text_value,custom_fields.number_value,custom_fields.date_value,custom_fields.enum_options.name,custom_fields.enum_options.enabled";
+  "name,created_at,completed,completed_at,due_on,modified_at,notes,permalink_url,assignee.name,custom_fields.gid,custom_fields.name,custom_fields.type,custom_fields.resource_subtype,custom_fields.is_formula_field,custom_fields.display_value,custom_fields.enum_value,custom_fields.multi_enum_values,custom_fields.text_value,custom_fields.number_value,custom_fields.date_value,custom_fields.enum_options.name,custom_fields.enum_options.enabled";
 
 // One mapping table drives both display values and edit metadata.
 const WORKSTREAM_FIELD_PATTERNS: Array<[keyof Workstream, RegExp[]]> = [
@@ -798,7 +803,9 @@ function mapSubtask(sub: AsanaTask, company: string): Workstream {
     editable,
     owner: sub.assignee?.name?.trim() || "",
     completed: sub.completed === true || /^(complete|completed)$/i.test(v("workstreamStatus").trim()),
-    lastActivity: modified ? modified.split("T")[0]! : "",
+    createdAt: sub.created_at || "",
+    completedAt: sub.completed_at || "",
+    lastActivity: modified ? modified.split("T")[0] || "" : "",
     url: sub.permalink_url,
   };
 }
@@ -833,6 +840,8 @@ export async function updateWorkstream(input: {
   gid: string;
   changes: FieldChange[];
   completed?: boolean;
+  created_at?: string | null;
+  completed_at?: string | null;
 }): Promise<Workstream> {
   const before: { data: AsanaTask & { parent?: { name?: string } | null } } = await asanaFetch(
     `/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS},parent.name`,

@@ -198,7 +198,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
             location: t.location || "",
             prime: t.prime?.trim() || "",
             sector: t.sector || "",
-            temperature: "Warm",
+            temperature: "Cold",
             linkedin,
             source,
             sourceContext,
