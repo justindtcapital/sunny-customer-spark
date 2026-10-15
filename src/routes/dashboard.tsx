@@ -24,6 +24,7 @@ import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { KnowledgePanel } from "@/components/knowledge/KnowledgePanel";
 import { NotesImports } from "@/components/knowledge/NotesImports";
+import { ConnectMailboxButton } from "@/components/knowledge/ConnectMailboxButton";
 import { computeScopeActivity } from "@/lib/dashboard-activity";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
@@ -196,6 +197,8 @@ function DashboardPage() {
             investment. Click a company for its own numbers.
           </p>
         </div>
+        <div className="flex gap-2 shrink-0">
+        <ConnectMailboxButton />
         <Button
           variant="outline"
           size="sm"
@@ -215,6 +218,7 @@ function DashboardPage() {
           <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
           {refreshing ? "Refreshing…" : "Refresh Asana data"}
         </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
