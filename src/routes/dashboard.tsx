@@ -379,25 +379,71 @@ function DashboardPage() {
 }
 
 
-function Kpi({ label, value }: { label: string; value: ReactNode }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="min-w-[96px]">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="font-display text-xl font-semibold text-foreground">{value}</div>
+    <div className="min-w-[72px]">
+      <div className="font-display text-2xl font-semibold leading-none text-foreground tabular-nums">{value}</div>
+      <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
   );
 }
 
-function Breakdown({ title, counts }: { title: string; counts: Record<string, number> }) {
-  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+const STATUS_DOT: [RegExp, string][] = [
+  [/stalled|blocked/i, "bg-red-500"],
+  [/early|not started|on hold/i, "bg-zinc-400"],
+  [/working|progress|active/i, "bg-emerald-500"],
+  [/complete|done/i, "bg-sky-500"],
+];
+const PRIORITY_DOT: [RegExp, string][] = [
+  [/high|needle/i, "bg-red-500"],
+  [/medium|nurture/i, "bg-amber-400"],
+  [/low|back ?burner/i, "bg-zinc-400"],
+];
+const TRACK_DOT: Record<string, string> = {
+  BD: "bg-sky-500",
+  GTM: "bg-emerald-500",
+  Workstream: "bg-violet-500",
+  News: "bg-amber-400",
+};
+
+function dotFor(label: string, map: [RegExp, string][]): string {
+  for (const [re, cls] of map) if (re.test(label)) return cls;
+  return "bg-muted-foreground/40";
+}
+
+function DotChips({ counts, map }: { counts: Record<string, number>; map?: [RegExp, string][] }) {
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (rows.length === 0) return null;
   return (
-    <div className="min-w-[160px]">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
-      <div className="mt-1 flex flex-wrap gap-1">
-        {rows.length === 0 ? <span className="text-xs text-muted-foreground">—</span> : rows.map(([k, n]) => (
-          <span key={k} className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">{k} <b>{n}</b></span>
-        ))}
-      </div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {rows.map(([k, n]) => (
+        <span key={k} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className={`h-2 w-2 rounded-full ${map ? dotFor(k, map) : (TRACK_DOT[k] ?? "bg-muted-foreground/40")}`} />
+          {k} <b className="text-foreground tabular-nums">{n}</b>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function LogoCounts({ counts, points }: { counts: Record<string, number>; points: { name: string; website: string }[] }) {
+  const byName = useMemo(() => new Map(points.map((p) => [p.name, p])), [points]);
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (rows.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {rows.map(([name, n]) => (
+        <span
+          key={name}
+          title={`${name} · ${n}`}
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pl-0.5 pr-2"
+        >
+          <span className="[&>span]:h-6 [&>span]:w-6 [&_img]:h-full [&_img]:w-full">
+            <CompanyLogo name={name} website={byName.get(name)?.website || ""} />
+          </span>
+          <span className="text-xs font-semibold text-foreground tabular-nums">{n}</span>
+        </span>
+      ))}
     </div>
   );
 }
@@ -413,22 +459,25 @@ function SummaryCard({ title, sub, open, onToggle, children }: {
 }) {
   return (
     <Card className="border-border">
-      <CardContent className="flex flex-wrap items-center gap-6 p-4">
-        <div className="min-w-[160px]">
-          <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>
-          <p className="text-xs text-muted-foreground">{sub}</p>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>
+            <p className="text-xs text-muted-foreground">{sub}</p>
+          </div>
+          <Button size="sm" variant={open ? "secondary" : "outline"} onClick={onToggle}>
+            {open ? "Close" : "Manage"}
+          </Button>
         </div>
-        <div className="flex flex-1 flex-wrap items-start gap-6">{children}</div>
-        <Button size="sm" variant={open ? "secondary" : "outline"} onClick={onToggle}>
-          {open ? "Close" : "Manage"}
-        </Button>
+        <div className="mt-3 space-y-3">{children}</div>
       </CardContent>
     </Card>
   );
 }
 
-function WorkstreamOverview({ keys, owner, scopeLabel, children }: {
-  keys: string[]; owner: string; scopeLabel: string; children: ReactNode;
+function WorkstreamOverview({ keys, owner, scopeLabel, points, children }: {
+  keys: string[]; owner: string; scopeLabel: string;
+  points: { name: string; website: string }[]; children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const { workstreams } = useWorkstreams();
@@ -441,19 +490,22 @@ function WorkstreamOverview({ keys, owner, scopeLabel, children }: {
   return (
     <div className="space-y-3">
       <SummaryCard title="Workstreams" sub={scopeLabel} open={open} onToggle={() => setOpen((o) => !o)}>
-        <Kpi label="Streams" value={ws.length} />
-        <Kpi label="PortCos" value={new Set(ws.map((w) => w.companyKey)).size} />
-        <Kpi label="Completed" value={done} />
-        <Breakdown title="By status" counts={tally(statuses)} />
-        <Breakdown title="By priority" counts={tally(ws.map((w) => (w.workstreamPriority || "No priority")))} />
-        <Breakdown title="By PortCo" counts={tally(ws.map((w) => w.company))} />
+        <div className="flex flex-wrap gap-8">
+          <Stat label="Streams" value={ws.length} />
+          <Stat label="Active" value={ws.length - done} />
+          <Stat label="Completed" value={done} />
+          <Stat label="PortCos" value={new Set(ws.map((w) => w.companyKey)).size} />
+        </div>
+        <DotChips counts={tally(statuses)} map={STATUS_DOT} />
+        <DotChips counts={tally(ws.map((w) => (w.workstreamPriority || "No priority")))} map={PRIORITY_DOT} />
+        <LogoCounts counts={tally(ws.map((w) => w.company))} points={points} />
       </SummaryCard>
       {open && children}
     </div>
   );
 }
 
-function ReviewInboxes({ owner }: { owner: string }) {
+function ReviewInboxes({ owner, points }: { owner: string; points: { name: string; website: string }[] }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"notes" | "activity">("notes");
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
@@ -465,11 +517,13 @@ function ReviewInboxes({ owner }: { owner: string }) {
   return (
     <div className="space-y-3">
       <SummaryCard title="Notes & Activity" sub="Waiting for review" open={open} onToggle={() => setOpen((o) => !o)}>
-        <Kpi label="Notes" value={counts.notes} />
-        <Kpi label="Emails" value={counts.activity} />
-        <Kpi label="No PortCo" value={unmatched} />
-        <Breakdown title="Emails by track" counts={tally(acts.map((i) => i.track || "Untagged"))} />
-        <Breakdown title="By PortCo" counts={tally([...notes, ...acts].map((i) => i.portco).filter(Boolean))} />
+        <div className="flex flex-wrap gap-8">
+          <Stat label="Notes" value={counts.notes} />
+          <Stat label="Emails" value={counts.activity} />
+          <Stat label="No PortCo" value={unmatched} />
+        </div>
+        <DotChips counts={tally(acts.map((i) => i.track || "Untagged"))} />
+        <LogoCounts counts={tally([...notes, ...acts].map((i) => i.portco).filter(Boolean))} points={points} />
       </SummaryCard>
       <div className={open ? "space-y-2" : "hidden"}>
         <div className="inline-flex rounded-md border border-border p-0.5">
