@@ -18,11 +18,12 @@ import {
   fetchNotesInboxFn,
   reopenNoteFn,
   reviewNoteFn,
+  searchPeopleFn,
   syncGranolaFn,
   syncDriveNotesFn,
   uploadNoteFn,
 } from "@/utils/knowledge.functions";
-import type { NoteInboxItem } from "@/utils/notes-inbox.server";
+import type { NoteInboxItem, PersonMatch } from "@/utils/notes-inbox.server";
 
 function Tick({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -215,7 +216,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
   );
 }
 
-const TRACKS = ["BD", "GTM", "Workstream", "News"];
+const TRACKS = ["BD", "GTM", "Workstream", "Network", "News"];
 
 /** PortCo names that appear as whole words in the text (case-insensitive). */
 export function detectPortcos(text: string, names: string[]): string[] {
@@ -260,6 +261,20 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   const isActivity = kind === "activity";
   const [track, setTrack] = useState(item.track || "BD");
   const isNews = isActivity && track === "News";
+  const isNetwork = track === "Network" || item.track === "Network";
+  // Contacts this note is tagged to — existing Network/Prospecting people start tagged.
+  const [linked, setLinked] = useState<PersonMatch[]>(() => item.people
+    .filter((p) => p.email && (p.where === "Network" || p.where === "Prospecting"))
+    .map((p) => ({ name: p.name, email: p.email, company: p.company, where: p.where as PersonMatch["where"] })));
+  const [pq, setPq] = useState("");
+  const [results, setResults] = useState<PersonMatch[]>([]);
+  useEffect(() => {
+    const q = pq.trim();
+    if (q.length < 2) { setResults([]); return; }
+    let live = true;
+    const t = setTimeout(() => { void searchPeopleFn({ data: { q } }).then((r) => { if (live) setResults(r); }).catch(() => {}); }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [pq]);
 
   function editedPerson(p: NoteInboxItem["people"][number]) {
     const e = edits[p.key];
@@ -279,7 +294,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
       await reviewNoteFn({
         data: {
           recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
-          ...(isActivity ? { status: "confirmed" as const, track } : {}),
+          ...(isActivity ? { status: "confirmed" as const, track } : isNetwork ? { track: "Network" } : {}),
+          linkContacts: linked,
           addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
             .map((p) => editedPerson(p)),
           skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
@@ -327,6 +343,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
         <button className="flex min-w-[260px] flex-1 items-center gap-2 text-left" onClick={onToggle}>
           <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", !open && "-rotate-90")} />
           <Badge variant="outline" className="shrink-0 text-[10px]">{isActivity ? item.track || "Email" : item.source}</Badge>
+          {!isActivity && item.track === "Network" && <Badge variant="secondary" className="shrink-0 text-[10px]">NWK</Badge>}
           <div>
             <div className="text-sm font-medium">{item.title}</div>
             <div className="text-xs text-muted-foreground">{item.date} · {item.portco || "No PortCo matched"}</div>
@@ -499,6 +516,38 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
                   </div>
                 ))}
               </section>
+
+              {!isNews && <section className="space-y-1.5">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tag to contacts</h4>
+                <p className="text-xs text-muted-foreground">Tagged people get this {isActivity ? "email" : "note"} on their contact card{isNetwork ? " as a Network conversation" : ""}.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {linked.length === 0 && <span className="text-xs text-muted-foreground">No contacts tagged yet.</span>}
+                  {linked.map((c) => (
+                    <Badge key={c.email} variant="secondary" className="gap-1 text-[11px]">
+                      {c.name || c.email} <span className="text-muted-foreground">· {c.where}</span>
+                      <button type="button" aria-label={`Remove ${c.name || c.email}`} onClick={() => setLinked((l) => l.filter((x) => x.email !== c.email))}><X className="h-3 w-3" /></button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="relative w-80">
+                  <Input className="h-8 text-xs" placeholder="Search Network & Prospecting by name, email, company" value={pq} onChange={(e) => setPq(e.target.value)} />
+                  {results.length > 0 && (
+                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">
+                      {results.map((r) => {
+                        const on = linked.some((x) => x.email && x.email === r.email);
+                        return (
+                          <button key={`${r.where}:${r.email || r.name}`} type="button" disabled={!r.email}
+                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
+                            onClick={() => { if (!on) setLinked((l) => [...l, r]); setPq(""); setResults([]); }}>
+                            <span className="flex-1 truncate">{r.name || r.email} <span className="text-muted-foreground">{r.company}</span></span>
+                            <Badge variant="outline" className="text-[10px]">{on ? "Tagged" : r.email ? r.where : "No email"}</Badge>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </section>}
 
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="ghost" disabled={saving} onClick={skip}>Skip</Button>
