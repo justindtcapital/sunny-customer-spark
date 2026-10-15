@@ -95,7 +95,7 @@ export function PersonContextSection({ name, email }: { name: string; email: str
                   <div className="text-[10px] text-muted-foreground">{w.portco || "No PortCo"} · last mention {w.last}</div>
                 </div>
                 {w.status && <Badge variant="outline" className="text-[9px]">{w.status === "create-new" ? "New" : w.status}</Badge>}
-                <Link to="/dashboard" search={{ section: "workstreams" } as never} className="text-[11px] text-primary hover:underline">Open</Link>
+                <Link to="/dashboard" search={{ section: "workstreams" }} className="text-[11px] text-primary hover:underline">Open</Link>
               </div>
             ))}
           </div>
