@@ -368,7 +368,7 @@ function DashboardPage() {
 
       {owner && (
         <>
-          <div ref={search.section === "workstreams" ? destination : undefined} className="scroll-mt-6">
+          <div ref={search.section === "workstreams" ? destination : undefined} className={search.section === "workstreams" ? "scroll-mt-6 min-h-screen" : "scroll-mt-6"}>
           <WorkstreamOverview key={`${owner}:${search.section}`} initiallyOpen={search.section === "workstreams"} keys={scopeKeys} owner={owner} scopeLabel={scopeLabel} points={points}>
             <WorkstreamSummary
               keys={scopeKeys}
@@ -391,7 +391,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
-      {owner && <div ref={search.section === "notes" ? destination : undefined} className="scroll-mt-6"><ReviewInboxes key={`${owner}:${search.section}`} initiallyOpen={search.section === "notes"} owner={owner} points={points} /></div>}
+      {owner && <div ref={search.section === "notes" ? destination : undefined} className={search.section === "notes" ? "scroll-mt-6 min-h-screen" : "scroll-mt-6"}><ReviewInboxes key={`${owner}:${search.section}`} initiallyOpen={search.section === "notes"} owner={owner} points={points} /></div>}
 
       <PortfolioDetail
         company={detailCompany ?? null}
