@@ -76,7 +76,7 @@ function Momentum({ email, scope, period }: { email: string; scope: HomeScope; p
     { name: "Events", to: "/events" as const, Icon: EventsIcon, count: value("Events", upcoming), label: "Upcoming", a: value("Events", newEvents), al: "New", b: data.events.filter((e) => inPeriod(e.date, bounds.start, bounds.today)).length, bl: "Held in period" },
     { name: "PortCo", to: "/portfolio" as const, Icon: PortCoIcon, count: value("PortCo", data.companies.length), label: "Companies", a: value("Workstreams", active), al: "Active streams", b: initiated, bl: "New streams" },
     { name: "Campaigns", to: "/campaigns" as const, Icon: Megaphone, count: value("Campaigns", currentCampaigns.length), label: "Active campaigns", a: value("Campaigns", newCampaigns), al: "New", b: currentCampaigns.reduce((n, c) => n + (c.memberCount || 0), 0), bl: "Memberships" },
-    { name: "Dashboard", to: "/dashboard" as const, Icon: DashboardIcon, count: data.errors.includes("Notes") || data.errors.includes("Email review") ? "—" : data.notes.length + data.emails.length, label: "To review", a: value("Notes", data.notes.length), al: "Notes", b: value("Email review", data.emails.length), bl: "Emails" },
+    { name: "Notes & Activity", to: "/dashboard" as const, Icon: DashboardIcon, count: data.errors.includes("Notes") || data.errors.includes("Email review") ? "—" : data.notes.length + data.emails.length, label: "To review", a: value("Notes", data.notes.length), al: "Notes", b: value("Email review", data.emails.length), bl: "Emails" },
   ];
   const statusCounts = new Map<string, number>();
   const logoCounts = new Map<string, number>();
