@@ -269,6 +269,23 @@ const TOOLS = [
     },
   },
   {
+    name: "query_events",
+    description:
+      "List the firm's event catalog (conferences, dinners, summits, webinars, briefings) — the same events shown on the Events page, including FUTURE/planned events. Use this for ANY question about upcoming or past events, NOT query_sheet on the Events tab (that tab is only a contact attendance log).",
+    input_schema: {
+      type: "object",
+      properties: {
+        start_date: { type: "string", description: "Only events on/after this date (YYYY-MM-DD)" },
+        end_date: { type: "string", description: "Only events on/before this date (YYYY-MM-DD)" },
+        status: { type: "string", description: "planned or completed" },
+        portco: { type: "string", description: "Portfolio company name (partial match)" },
+        lead: { type: "string", description: "Event lead/owner name (partial match)" },
+        search: { type: "string", description: "Free text matched against event name" },
+        limit: { type: "integer", description: "Max events (default 50, max 200)" },
+      },
+    },
+  },
+  {
     name: "query_signals",
     description:
       "Search Signal Radar news signals (Signals tab): funding rounds, launches, moves and other tracked events about people/companies in the network. Sorted newest first. Use for any question about recent signals or news the app has captured.",
@@ -563,11 +580,11 @@ GROUNDING (critical): Answer data questions ONLY from tool results. Never invent
 
 CLARIFICATION: If a request is ambiguous, missing a required detail, or you are unsure what the user wants, call request_clarification rather than guessing. Prefer asking.
 
-DATA ACCESS: You have FULL read access to EVERY tab of the CRM Google Sheet workbook. Use the dedicated tools first — query_contacts (network contacts), query_portfolio (portfolio companies), query_targets (Targeting pipeline, with outreach history), query_signals (Signal Radar news) — they return the richest, joined records. For anything else use query_sheet with the exact tab name, and USE its filters/columns/sort_by/limit parameters to fetch only what you need rather than dumping whole tabs. If you don't know which tabs exist or the exact name, call list_sheet_tabs first. Known tabs include Events, PortCos Introduced, Notes, App Events, PortCo Intel, Sumble Prospects, Customer Discovery, Target Accounts, Target Outreach, Target Strategy, and LLM_Query_Log — but read any tab the workbook actually contains.
+DATA ACCESS: You have FULL read access to EVERY tab of the CRM Google Sheet workbook. Use the dedicated tools first — query_contacts (network contacts), query_portfolio (portfolio companies), query_targets (Targeting pipeline, with outreach history), query_signals (Signal Radar news), query_events (the firm's event catalog incl. upcoming events — ALWAYS use this for event questions; the Events tab is only an attendance log) — they return the richest, joined records. For anything else use query_sheet with the exact tab name, and USE its filters/columns/sort_by/limit parameters to fetch only what you need rather than dumping whole tabs. If you don't know which tabs exist or the exact name, call list_sheet_tabs first. Known tabs include Events, PortCos Introduced, Notes, App Events, PortCo Intel, Sumble Prospects, Customer Discovery, Target Accounts, Target Outreach, Target Strategy, and LLM_Query_Log — but read any tab the workbook actually contains.
 
 CONFIDENTIALITY: Asana data is confidential and is NOT available to you — you have no Asana tools and read Google Sheets only. The Asana-sourced PortCo investment fields and Asana Events never reach you. Never claim to access Asana; if asked for Asana-sourced data, explain it's excluded for confidentiality. (Everything in the Google Sheet is fair game.)
 
-TOOLS & TIERS: Read tools (query_contacts, query_portfolio, query_targets, query_signals, query_sheet, apollo_search, apollo_enrich, web_search) run automatically. Draft tools (draft_outreach, propose_invite_list, score_company_dna) produce reviewable output and commit nothing. Write tools each require user approval of a diff before committing: sheets_update_contact (edit an existing contact by email — profile fields, sector, prime, or temperature), sheets_add_contact (add a NEW contact — check with query_contacts first that they're not already in the CRM), sheets_add_note (record a note/interaction on a contact's trail), sheets_add_event (create a NEW event in the app; this does NOT touch Asana), sheets_add_attendees (tag contacts as attendees/invitees of an event — gather their emails with query_contacts or propose_invite_list first), sheets_add_target (add a NEW prospect to the Targeting pipeline — check query_targets for duplicates and always give reasonSurfaced), and sheets_update_target (edit an existing target's stage/sector/title/location/notes). Before adding a contact, enrich with Apollo when useful so the new record is complete. If the user declines a proposed write, accept the decision — do not re-propose the same write. Writing must wait until any clarification is answered.
+TOOLS & TIERS: Read tools (query_events, query_contacts, query_portfolio, query_targets, query_signals, query_sheet, apollo_search, apollo_enrich, web_search) run automatically. Draft tools (draft_outreach, propose_invite_list, score_company_dna) produce reviewable output and commit nothing. Write tools each require user approval of a diff before committing: sheets_update_contact (edit an existing contact by email — profile fields, sector, prime, or temperature), sheets_add_contact (add a NEW contact — check with query_contacts first that they're not already in the CRM), sheets_add_note (record a note/interaction on a contact's trail), sheets_add_event (create a NEW event in the app; this does NOT touch Asana), sheets_add_attendees (tag contacts as attendees/invitees of an event — gather their emails with query_contacts or propose_invite_list first), sheets_add_target (add a NEW prospect to the Targeting pipeline — check query_targets for duplicates and always give reasonSurfaced), and sheets_update_target (edit an existing target's stage/sector/title/location/notes). Before adding a contact, enrich with Apollo when useful so the new record is complete. If the user declines a proposed write, accept the decision — do not re-propose the same write. Writing must wait until any clarification is answered.
 
 Be concise. When you produce a draft, list, or score via a tool, briefly summarize it for the user.`;
 
@@ -810,6 +827,28 @@ async function executeTool(
         }),
         summary: `query_contacts → ${matched.length} contacts${excluded ? ` (${excluded} confidential excluded)` : ""}${detail ? " (detail)" : ""}`,
         sources,
+        artifacts: [],
+      };
+    }
+    case "query_events": {
+      const { fetchAllAsanaEvents } = await import("./asana.server");
+      const all = await fetchAllAsanaEvents().catch(() => []);
+      const lc = (v: JsonValue | undefined) => (str(v) || "").toLowerCase();
+      const from = str(input.start_date), to = str(input.end_date);
+      const st = lc(input.status), pc = lc(input.portco), ld = lc(input.lead), q = lc(input.search);
+      const lim = Math.min(Math.max(Number(input.limit) || 50, 1), 200);
+      const rows = all
+        .filter((e) => (!from || e.date >= from) && (!to || e.date <= to))
+        .filter((e) => !st || e.status === st)
+        .filter((e) => !pc || e.portcos.some((p) => p.toLowerCase().includes(pc)))
+        .filter((e) => !ld || (e.lead || "").toLowerCase().includes(ld))
+        .filter((e) => !q || e.name.toLowerCase().includes(q))
+        .map((e) => ({ name: e.name, date: e.date, status: e.status, type: e.type, role: e.role, format: e.format, lead: e.lead, portcos: e.portcos, sectors: e.sectors }));
+      const page = rows.slice(0, lim);
+      return {
+        content: JSON.stringify({ count: rows.length, returned: page.length, events: page }),
+        summary: `query_events → ${page.length}/${rows.length} events`,
+        sources: [],
         artifacts: [],
       };
     }
