@@ -135,7 +135,14 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
   return [...seen.entries()].map(([email, name]) => ({ name, email }));
 }
 
-export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number } = {}): Promise<HarvestResult> {
+/**
+ * Granola is pulled ONLY when includeGranola is true (the manual "Import from
+ * Granola" button) so notes can be cleaned up in Granola first. The scheduled
+ * cron never passes it.
+ */
+export async function runKnowledgeHarvest(
+  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean } = {},
+): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
     ok: true, threadsSeen: 0, recordsAdded: 0, activitiesAdded: 0,
@@ -154,9 +161,10 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; m
   const newContacts: SuggestedContact[] = [];
   const now = new Date().toISOString();
 
-  for (const { track, sourceType, env } of TRACKS) {
+  for (const { track, sourceType, env } of opts.includeGmail === false ? [] : TRACKS) {
     const aliases = aliasesFor(env);
     if (aliases.length === 0) continue;
+
 
     // Incremental window: since last harvest of this track (default 30d back).
     const last = await getHarvestState(`gmail:${track}`);
@@ -274,8 +282,10 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; m
     await setHarvestState(`gmail:${track}`, new Date().toISOString().slice(0, 10).replace(/-/g, "/"));
   }
 
-  // Granola meeting notes (read-only source).
-  try {
+  // Granola meeting notes (read-only source) — manual sync only.
+  if (!opts.includeGranola) {
+    await saveKnowledgeRecords(newRecords);
+  } else try {
     const { harvestGranola, verifyGranolaImports } = await import("./granola.server");
     const internal = getInternalConfig();
     const g = await harvestGranola({
