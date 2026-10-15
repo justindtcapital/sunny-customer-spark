@@ -32,6 +32,8 @@ export interface NoteReview {
   track?: string;
   /** Lowercased emails of contacts this note was tagged to. */
   contacts?: string[];
+  /** Drive folder the file was moved into on review. */
+  filedTo?: string;
 }
 
 export type InboxKind = "notes" | "activity";
@@ -73,6 +75,8 @@ export interface NoteInboxItem {
   review: NoteReview | null;
   /** Activity Review: current track (BD/GTM/Workstream/News). */
   track: string;
+  /** Original author / sender / uploader stamped on ingest. */
+  author: string;
 }
 
 /** Pure: is this record pending (not reviewed)? Exported for tests. */
@@ -124,7 +128,7 @@ async function importedByMap(): Promise<Map<string, string>> {
   try {
     const rows = await fetchSheetTab(KNOWLEDGE_TABS.harvestState);
     for (const r of rows.slice(1)) {
-      if (r[0]?.startsWith("importedBy:")) m.set(r[0].slice("importedBy:".length), (r[1] || "").toLowerCase());
+      if (r[0]?.startsWith("importedBy:")) m.set(r[0].slice("importedBy:".length), r[1] || "");
     }
   } catch { /* none */ }
   return m;
@@ -173,9 +177,10 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
     // When an action owner is selected, only notes that person imported.
     if (ownerKey) {
       const { ownerMatches } = await import("@/lib/action-owners");
-      const who = kind === "activity"
+      // Recorded author first; legacy unstamped emails fall back to name matching.
+      const who = importers.get(r.recordId) || (kind === "activity"
         ? [...(actsBy.get(r.recordId)?.owners || []), r.participants, r.summary].join(" ")
-        : importers.get(r.recordId) || (r.sourceType === "granola" ? GRANOLA_OWNER : "");
+        : r.sourceType === "granola" ? GRANOLA_OWNER : "");
       if (!ownerMatches(who, owner || "")) continue;
     }
     let ex: { nextSteps?: NoteInboxItem["nextSteps"]; people?: Array<{ name: string; email: string; company: string }>; granola?: { hasTranscript?: boolean } } = {};
@@ -183,7 +188,7 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
     const g = r.sourceType === "granola" ? granola.get(r.sourceId) : undefined;
     const driveUrl = r.textRef ? `https://drive.google.com/file/d/${r.textRef}/view` : "";
     out.push({
-      recordId: r.recordId, source: sourceLabel(r), title: r.title, date: r.date, portco: r.portco,
+      recordId: r.recordId, source: sourceLabel(r), author: importers.get(r.recordId) || (r.sourceType === "granola" ? "Chris Falloon" : ""), title: r.title, date: r.date, portco: r.portco,
       summary: r.summary, sourceUrl: r.sourceUrl, driveUrl,
       saved: true, copiedToDrive: !!r.textRef, hasTranscript: !!ex.granola?.hasTranscript,
       safeToDelete: g ? g.safeToDelete : !!r.textRef,
@@ -225,6 +230,8 @@ export interface ReviewNoteInput {
   track?: string;
   /** Network/Prospecting people this note is tagged to; each gets a trail entry on confirm. */
   linkContacts?: Array<{ name: string; email: string; company: string; where: string }>;
+  /** Where to file the Drive copy on confirm (default: PortCo, or Network Updates for NWK). */
+  folder?: "portco" | "operations" | "network";
 }
 
 export interface PersonMatch { name: string; email: string; company: string; where: "Network" | "Prospecting" }
@@ -378,7 +385,32 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     })));
   }
 
+  // File the Drive copy out of Unfiled Documents. Author/owner/history stay on the file.
+  let filedTo = "";
+  const kb = process.env.GOOGLE_KB_DRIVE_ID;
+  if (kb && r.textRef && input.status !== "skipped") {
+    const isNwk = input.track === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
+    const dest = input.folder || (isNwk ? "network" : "portco");
+    const primary = portco.split(",")[0]!.trim();
+    try {
+      const { findOrCreateFolder } = await import("./granola.server");
+      const { moveDriveFile } = await import("./drive-notes.server");
+      let folderId = "";
+      if (dest === "network") { folderId = await findOrCreateFolder("Network Updates", kb, kb); filedTo = "Network Updates"; }
+      else if (dest === "operations") { folderId = await findOrCreateFolder("PortCo Operations", kb, kb); filedTo = "PortCo Operations"; }
+      else if (primary) {
+        folderId = await findOrCreateFolder(primary, await findOrCreateFolder("Meeting Notes", kb, kb), kb);
+        filedTo = `Meeting Notes/${primary}`;
+      }
+      if (folderId) await moveDriveFile(r.textRef, folderId);
+    } catch (e) {
+      console.error("[notes-inbox] file move failed:", e);
+      filedTo = "";
+    }
+  }
+
   const review: NoteReview = {
+    ...(filedTo ? { filedTo } : {}),
     reviewedAt: now, reviewedBy: input.reviewer, workstream: wsLabel,
     contactsAdded: added, followUps: input.followUps.length,
     ...(input.status ? { status: input.status } : {}),

@@ -164,6 +164,9 @@ export async function runKnowledgeHarvest(
   const newLinks: WorkstreamLink[] = [];
   const newContacts: SuggestedContact[] = [];
   const now = new Date().toISOString();
+  /** Original author per record (email sender, Granola owner) — stamped on ingest. */
+  const authors = new Map<string, string>();
+  const internalCfg = getInternalConfig();
 
   for (const { track, sourceType, env, fallback } of opts.includeGmail === false ? [] : TRACKS) {
     const aliases = aliasesFor(env, fallback);
@@ -207,6 +210,11 @@ export async function runKnowledgeHarvest(
       const people = externalPeople(messages);
       const participants = people.map((p) => (p.name ? `${p.name} <${p.email}>` : p.email)).join("; ").slice(0, 900);
       const recordId = recordIdFor(sourceType, threadId);
+      // Sender = the team member who sent/forwarded it to the alias (earliest internal From).
+      const byDate = [...messages].sort((a, b) => a.date - b.date);
+      const fromMsg = byDate.find((m) => m.fromEmail && isInternalEmail(m.fromEmail, internalCfg)) || byDate[0];
+      const sender = fromMsg?.fromEmail ? [fromMsg.fromName, `<${fromMsg.fromEmail.toLowerCase()}>`].filter(Boolean).join(" ") : "";
+      if (sender) authors.set(recordId, sender);
 
       newRecords.push({
         recordId,
@@ -236,7 +244,7 @@ export async function runKnowledgeHarvest(
             title: a.title || newest.subject,
             portco: extraction.portco,
             person: a.person,
-            owner: "",
+            owner: sender,
             summary: a.summary,
             sourceUrl: newest.permalink,
             createdAt: now,
@@ -298,6 +306,7 @@ export async function runKnowledgeHarvest(
     });
     newRecords.push(...g.records);
     newActivities.push(...g.activities);
+    for (const a of g.activities) if (a.owner && !authors.has(a.recordId)) authors.set(a.recordId, a.owner);
     newLinks.push(...g.links);
     newContacts.push(...g.contacts);
     result.errors.push(...g.errors);
@@ -309,9 +318,10 @@ export async function runKnowledgeHarvest(
     result.errors.push(`Granola: ${(e as Error).message}`);
     await saveKnowledgeRecords(newRecords);
   }
-  // Stamp who triggered a manual import so the inbox can be scoped per person.
-  if (opts.importedBy && newRecords.length) {
-    for (const r of newRecords) await setHarvestState(`importedBy:${r.recordId}`, opts.importedBy);
+  // Stamp the original author (sender / Granola owner), else whoever triggered the import.
+  for (const r of newRecords) {
+    const who = authors.get(r.recordId) || opts.importedBy || "";
+    if (who) await setHarvestState(`importedBy:${r.recordId}`, who);
   }
   await saveHarvestedActivities(newActivities);
   await saveWorkstreamLinks(newLinks);
@@ -377,8 +387,8 @@ export async function ingestNote(input: {
   const kb = process.env.GOOGLE_KB_DRIVE_ID;
   if (kb) {
     const { findOrCreateFolder } = await import("./granola.server");
-    const notes = await findOrCreateFolder("Meeting Notes", kb, kb);
-    const co = await findOrCreateFolder(ex.portco || "Unmatched", notes, kb);
+    // Staging: everything lands in Unfiled Documents until reviewed.
+    const co = await findOrCreateFolder("Unfiled Documents", kb, kb);
     if (input.driveFileId) {
       const { moveDriveFile } = await import("./drive-notes.server");
       await moveDriveFile(input.driveFileId, co).catch(() => undefined);
@@ -401,7 +411,7 @@ export async function ingestNote(input: {
   const acts = ex.activities.length ? ex.activities : [{ type: "meeting", title, person: "", summary: ex.summary }];
   await saveHarvestedActivities(acts.map((a, i) => ({
     activityId: sha256Hex(`${recordId}:${a.type}:${i}`).slice(0, 24), recordId, date, track: input.sourceType === "upload" ? "Meeting – Upload" : "Meeting – Drive",
-    type: a.type || "meeting", title: a.title || title, portco: ex.portco, person: a.person, owner: "",
+    type: a.type || "meeting", title: a.title || title, portco: ex.portco, person: a.person, owner: input.importedBy || "",
     summary: a.summary, sourceUrl: driveUrl, createdAt: now,
   })));
   if (ex.workstreamName && ex.portco) {
