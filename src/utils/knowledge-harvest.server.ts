@@ -141,7 +141,7 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
  * cron never passes it.
  */
 export async function runKnowledgeHarvest(
-  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean } = {},
+  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean; importedBy?: string } = {},
 ): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
@@ -305,6 +305,10 @@ export async function runKnowledgeHarvest(
     result.errors.push(`Granola: ${(e as Error).message}`);
     await saveKnowledgeRecords(newRecords);
   }
+  // Stamp who triggered a manual import so the inbox can be scoped per person.
+  if (opts.importedBy && newRecords.length) {
+    for (const r of newRecords) await setHarvestState(`importedBy:${r.recordId}`, opts.importedBy);
+  }
   await saveHarvestedActivities(newActivities);
   await saveWorkstreamLinks(newLinks);
   await saveSuggestedContacts(newContacts);
@@ -319,7 +323,7 @@ export async function runKnowledgeHarvest(
 
 // ── Manual note upload (file picker / drag-and-drop) ─────────
 
-export async function uploadNote(input: { name: string; text: string; base64: string; mimeType: string }): Promise<{ recordId: string; portco: string }> {
+export async function uploadNote(input: { name: string; text: string; base64: string; mimeType: string; importedBy?: string }): Promise<{ recordId: string; portco: string }> {
   const text = (input.text || "").trim();
   if (!text) throw new Error("This file has no readable text (use .md or .txt).");
   await ensureKnowledgeTabs();
@@ -355,6 +359,7 @@ export async function uploadNote(input: { name: string; text: string; base64: st
     summary: ex.summary, extractedJson: JSON.stringify(ex).slice(0, 45000), textHash,
     textRef: driveId, sourceUrl: driveUrl, createdAt: now,
   }]);
+  if (input.importedBy) await setHarvestState(`importedBy:${recordId}`, input.importedBy);
   const acts = ex.activities.length ? ex.activities : [{ type: "meeting", title, person: "", summary: ex.summary }];
   await saveHarvestedActivities(acts.map((a, i) => ({
     activityId: sha256Hex(`${recordId}:${a.type}:${i}`).slice(0, 24), recordId, date, track: "Meeting – Upload",

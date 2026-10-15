@@ -354,7 +354,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
-      <NotesImports />
+      <NotesImports actionOwner={owner} />
 
       <PortfolioDetail
         company={detailCompany ?? null}
