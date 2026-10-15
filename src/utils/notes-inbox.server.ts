@@ -26,6 +26,18 @@ export interface NoteReview {
   workstream: string;
   contactsAdded: number;
   followUps: number;
+  /** Activity Review only: confirmed registers the email as activity; skipped keeps it out. */
+  status?: "confirmed" | "skipped";
+  track?: string;
+}
+
+export type InboxKind = "notes" | "activity";
+export const ACTIVITY_TRACKS = ["BD", "GTM", "Workstream", "News"] as const;
+
+/** Pure: does a harvested activity count as registered Venture Pulse activity? */
+export function isRegisteredActivity(sourceType: string, review: NoteReview | undefined | null): boolean {
+  if (!sourceType.startsWith("gmail-")) return true; // Asana archive, notes, uploads, follow-ups
+  return !!review && review.status !== "skipped";
 }
 
 export interface NotePerson {
@@ -56,6 +68,8 @@ export interface NoteInboxItem {
   nextSteps: Array<{ who: string; action: string; dueDate: string }>;
   people: NotePerson[];
   review: NoteReview | null;
+  /** Activity Review: current track (BD/GTM/Workstream/News). */
+  track: string;
 }
 
 /** Pure: is this record pending (not reviewed)? Exported for tests. */
@@ -89,7 +103,7 @@ function parseParticipants(s: string): Array<{ name: string; email: string }> {
   });
 }
 
-async function reviewMap(): Promise<Map<string, NoteReview>> {
+export async function reviewMap(): Promise<Map<string, NoteReview>> {
   const m = new Map<string, NoteReview>();
   try {
     const rows = await fetchSheetTab(KNOWLEDGE_TABS.harvestState);
@@ -117,7 +131,7 @@ function sourceLabel(r: KnowledgeRecord): NoteInboxItem["source"] {
   return r.sourceType === "granola" ? "Granola" : r.sourceType === "upload" ? "Upload" : r.sourceType === "drive-doc" ? "Drive" : "Email";
 }
 
-export async function listNotesInbox(history: boolean, owner?: string): Promise<NoteInboxItem[]> {
+export async function listNotesInbox(history: boolean, owner?: string, kind: InboxKind = "notes"): Promise<NoteInboxItem[]> {
   const [records, links, contacts, reviews, dir, importers] = await Promise.all([
     listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(), directory(), importedByMap(),
   ]);
@@ -131,16 +145,32 @@ export async function listNotesInbox(history: boolean, owner?: string): Promise<
   const { listGranolaImports } = await import("./granola.server");
   const granola = new Map((await listGranolaImports().catch(() => [])).map((g) => [g.noteId, g]));
   const linkBy = new Map(links.map((l) => [l.recordId, l]));
+  const actsBy = new Map<string, { owners: string[]; track: string }>();
+  if (kind === "activity") {
+    const { listHarvestedActivities } = await import("./knowledge.server");
+    for (const a of await listHarvestedActivities().catch(() => [])) {
+      const e = actsBy.get(a.recordId) || { owners: [], track: "" };
+      if (a.owner) e.owners.push(a.owner);
+      if (!e.track && a.type !== "follow-up") e.track = a.track;
+      actsBy.set(a.recordId, e);
+    }
+  }
+  const trackOf = (r: KnowledgeRecord) =>
+    actsBy.get(r.recordId)?.track || ({ "gmail-bd": "BD", "gmail-gtm": "GTM", "gmail-workstreams": "Workstream", "gmail-news": "News" } as Record<string, string>)[r.sourceType] || "";
   const out: NoteInboxItem[] = [];
   for (const r of records) {
     const link = linkBy.get(r.recordId);
-    if (!NOTE_SOURCES.has(r.sourceType) && !link) continue;
+    const isEmail = r.sourceType.startsWith("gmail-");
+    if (kind === "activity" ? !isEmail : !NOTE_SOURCES.has(r.sourceType)) continue;
     const review = reviews.get(r.recordId) || null;
     if (history ? !review : !!review) continue;
     // When an action owner is selected, only notes that person imported.
     if (ownerKey) {
       const { ownerMatches } = await import("@/lib/action-owners");
-      if (!ownerMatches(importers.get(r.recordId) || "", ownerKey)) continue;
+      const who = kind === "activity"
+        ? [...(actsBy.get(r.recordId)?.owners || []), r.participants].join(" ")
+        : importers.get(r.recordId) || "";
+      if (!ownerMatches(who, owner || "")) continue;
     }
     let ex: { nextSteps?: NoteInboxItem["nextSteps"]; people?: Array<{ name: string; email: string; company: string }>; granola?: { hasTranscript?: boolean } } = {};
     try { ex = JSON.parse(r.extractedJson || "{}"); } catch { /* ignore */ }
@@ -171,6 +201,7 @@ export async function listNotesInbox(history: boolean, owner?: string): Promise<
         return [...map.values()];
       })(),
       review,
+      track: review?.track || trackOf(r),
     });
   }
   return out.sort((a, b) => b.date.localeCompare(a.date));
@@ -184,6 +215,8 @@ export interface ReviewNoteInput {
   addPeople: Array<{ name: string; email: string; company: string; suggestionId?: string }>;
   skipContacts: string[];
   followUps: Array<{ action: string; who: string; dueDate: string }>;
+  status?: "confirmed" | "skipped";
+  track?: string;
 }
 
 export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
@@ -192,6 +225,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
   if (!r) throw new Error("Note not found");
   const portco = (input.portco || "").trim();
   if (portco !== r.portco) await retagPortco(r.recordId, portco);
+  if (input.track) await retagTrack(r.recordId, input.track);
 
   const links = await listWorkstreamLinks();
   const link = links.find((l) => l.recordId === r.recordId);
@@ -252,6 +286,8 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
   const review: NoteReview = {
     reviewedAt: now, reviewedBy: input.reviewer, workstream: wsLabel,
     contactsAdded: added, followUps: input.followUps.length,
+    ...(input.status ? { status: input.status } : {}),
+    ...(input.track ? { track: input.track } : {}),
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
   return review;
@@ -269,6 +305,19 @@ async function retagPortco(recordId: string, portco: string): Promise<void> {
       row[coCol] = portco;
       await writeSheetRow(tab, i + 1, row);
     }
+  }
+}
+
+/** Change the Track on an email's harvested activities (follow-ups keep theirs). */
+async function retagTrack(recordId: string, track: string): Promise<void> {
+  const { writeSheetRow } = await import("./sheets.server");
+  const rows = await fetchSheetTab(KNOWLEDGE_TABS.activities);
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]!;
+    if (row[1] !== recordId || row[3] === track || row[4] === "follow-up") continue;
+    const next = [...row];
+    next[3] = track;
+    await writeSheetRow(KNOWLEDGE_TABS.activities, i + 1, next);
   }
 }
 

@@ -12,7 +12,12 @@ export const fetchKnowledgeDataFn = createServerFn({ method: "GET" }).handler(as
     listWorkstreamLinks().catch(() => []),
     listSuggestedContacts().catch(() => []),
   ]);
-  return { records, activities, links, suggested };
+  // Email-harvested activity only counts once confirmed in Activity Review.
+  const { reviewMap, isRegisteredActivity } = await import("./notes-inbox.server");
+  const reviews = await reviewMap();
+  const typeOf = new Map(records.map((r) => [r.recordId, r.sourceType]));
+  const registered = activities.filter((a) => isRegisteredActivity(typeOf.get(a.recordId) || "", reviews.get(a.recordId)));
+  return { records, activities: registered, links, suggested };
 });
 
 export const reviewWorkstreamLinkFn = createServerFn({ method: "POST" })
@@ -68,11 +73,11 @@ export const syncGranolaFn = createServerFn({ method: "POST" })
   });
 
 export const fetchNotesInboxFn = createServerFn({ method: "POST" })
-  .inputValidator((input: { history?: boolean; owner?: string }) => input)
+  .inputValidator((input: { history?: boolean; owner?: string; kind?: "notes" | "activity" }) => input)
   .handler(async ({ data }) => {
     const { listNotesInbox } = await import("./notes-inbox.server");
     const { isGranolaConfigured } = await import("./granola.server");
-    return { granolaConnected: isGranolaConfigured(), items: await listNotesInbox(!!data.history, data.owner) };
+    return { granolaConnected: isGranolaConfigured(), items: await listNotesInbox(!!data.history, data.owner, data.kind || "notes") };
   });
 
 export const uploadNoteFn = createServerFn({ method: "POST" })
