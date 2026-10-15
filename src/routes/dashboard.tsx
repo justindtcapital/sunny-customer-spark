@@ -133,8 +133,9 @@ function DashboardPage() {
   const destination = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!owner || !["notes", "workstreams"].includes(search.section || "")) return;
-    const frame = requestAnimationFrame(() => destination.current?.scrollIntoView({ block: "start" }));
-    return () => cancelAnimationFrame(frame);
+    // Run after the router restores the previous page position.
+    const timer = window.setTimeout(() => destination.current?.scrollIntoView({ block: "start" }), 250);
+    return () => window.clearTimeout(timer);
   }, [owner, search.section]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
