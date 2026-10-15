@@ -203,7 +203,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
         data: {
           recordId: item.recordId, reviewer, portco, workstream,
           addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
-            .map((p) => ({ name: p.name, email: p.email, company: p.company, suggestionId: p.suggestionId || undefined })),
+            .map((p) => editedPerson(p)),
           skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
           followUps: Object.entries(fu).map(([idx, due]) => {
             const n = item.nextSteps[Number(idx)]!;
