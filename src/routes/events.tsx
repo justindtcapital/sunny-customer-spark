@@ -1,5 +1,5 @@
 import { Megaphone } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { fetchAsanaEvents } from "@/utils/asana.functions";
 import { useQuery } from "@tanstack/react-query";
@@ -100,7 +100,10 @@ export const Route = createFileRoute("/events")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>) => ({ cf: parseCfParam(search.cf) }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    cf: parseCfParam(search.cf),
+    event: typeof search.event === "string" && search.event.trim() ? search.event : undefined,
+  }),
   loader: async () => {
     const [asanaEvents, contacts, emailActivity, synopses] = await Promise.all([
       fetchAsanaEvents().catch((): AsanaEvent[] => []),
@@ -177,6 +180,15 @@ function EventsPage() {
   const [view, setView] = useState<"list" | "calendar" | "analytics">("list");
   const [selected, setSelected] = useState<AsanaEvent | null>(null);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const { event: openEventName } = Route.useSearch();
+  // Deep link (?event=<name>) — e.g. from a PortCo panel's Open button — opens
+  // that event's detail once the list loads.
+  useEffect(() => {
+    if (!openEventName || selected) return;
+    const target = openEventName.trim().toLowerCase();
+    const match = events.find((e) => e.name.trim().toLowerCase() === target);
+    if (match) setSelected(match);
+  }, [openEventName, events, selected]);
   const [filters, setFilters] = useState<Filters>({ lead: "", format: "", sector: "" });
 
   const leads = useMemo(
