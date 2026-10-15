@@ -235,6 +235,9 @@ export function ContactDetail({
   open,
   onOpenChange,
   onContactUpdate,
+  onPrev,
+  onNext,
+  position,
 }: ContactDetailProps) {
   const { options: filterOpts } = useFilterOptions();
   const portfolioCompanies = filterOpts.portfolioCompanies;
@@ -1813,8 +1816,35 @@ export function ContactDetail({
                   </div>
                 </div>
               </section>
-            </div>
+             </div>
           </ScrollArea>
+          {(onPrev || onNext) && (
+            <div className="shrink-0 border-t border-border px-4 py-2 flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] px-2"
+                onClick={onPrev}
+                disabled={!onPrev}
+              >
+                <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                Previous
+              </Button>
+              {position && (
+                <span className="text-[11px] text-muted-foreground">{position}</span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] px-2"
+                onClick={onNext}
+                disabled={!onNext}
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
 
