@@ -100,7 +100,7 @@ export function granolaNoteMarkdown(n: GranolaNote): string {
 
 const folderCache = new Map<string, string>();
 
-async function findOrCreateFolder(name: string, parentId: string, driveId: string): Promise<string> {
+export async function findOrCreateFolder(name: string, parentId: string, driveId: string): Promise<string> {
   const key = `${parentId}/${name}`;
   const hit = folderCache.get(key);
   if (hit) return hit;
@@ -186,7 +186,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
   // Look back 2 days from the cursor: notes appear only once summarised.
   const since = last
     ? new Date(new Date(last).getTime() - 2 * 86400000).toISOString()
-    : new Date(Date.now() - 30 * 86400000).toISOString();
+    : new Date(Date.now() - 365 * 86400000).toISOString();
   const startedAt = new Date().toISOString();
 
   let list: GranolaNoteListItem[];
