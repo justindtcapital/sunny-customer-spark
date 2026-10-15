@@ -34,7 +34,7 @@ export function inPeriod(value: string | undefined, start: string, end: string) 
 }
 export function activeWorkstream(w: Workstream): boolean {
   const status = workstreamBarStatus(w);
-  return !/complete|not started|not set|early|hold|blocked|stalled/i.test(status) && /active|progress|working|ongoing|started/i.test(status);
+  return status !== "Completed" && !/not started|not set|early|hold|blocked|stalled/i.test(status) && /active|progress|working|ongoing|started/i.test(status);
 }
 export interface HomeReminder {
   id: string;
