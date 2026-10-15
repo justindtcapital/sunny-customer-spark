@@ -4,3 +4,4 @@
 
 - Campaign membership lives in the "Campaign Members" sheet tab, one append-only row per (campaign, person); adding existing Network/Prospecting people never edits their records — so people can join many campaigns without data loss.
 - External note sources (Gmail aliases, Drive, Granola) plug in as knowledge-harvester tracks keyed by a stable source id, read-only toward the source — keeps re-runs idempotent and never mutates the origin system.
+- Granola is pulled only by the manual sync button, never by the cron harvest — users clean notes in Granola before importing.

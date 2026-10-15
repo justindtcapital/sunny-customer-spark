@@ -135,7 +135,14 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
   return [...seen.entries()].map(([email, name]) => ({ name, email }));
 }
 
-export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number } = {}): Promise<HarvestResult> {
+/**
+ * Granola is pulled ONLY when includeGranola is true (the manual "Import from
+ * Granola" button) so notes can be cleaned up in Granola first. The scheduled
+ * cron never passes it.
+ */
+export async function runKnowledgeHarvest(
+  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean } = {},
+): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
     ok: true, threadsSeen: 0, recordsAdded: 0, activitiesAdded: 0,
@@ -154,9 +161,10 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; m
   const newContacts: SuggestedContact[] = [];
   const now = new Date().toISOString();
 
-  for (const { track, sourceType, env } of TRACKS) {
+  for (const { track, sourceType, env } of opts.includeGmail === false ? [] : TRACKS) {
     const aliases = aliasesFor(env);
     if (aliases.length === 0) continue;
+
 
     // Incremental window: since last harvest of this track (default 30d back).
     const last = await getHarvestState(`gmail:${track}`);
@@ -274,8 +282,10 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; m
     await setHarvestState(`gmail:${track}`, new Date().toISOString().slice(0, 10).replace(/-/g, "/"));
   }
 
-  // Granola meeting notes (read-only source).
-  try {
+  // Granola meeting notes (read-only source) — manual sync only.
+  if (!opts.includeGranola) {
+    await saveKnowledgeRecords(newRecords);
+  } else try {
     const { harvestGranola, verifyGranolaImports } = await import("./granola.server");
     const internal = getInternalConfig();
     const g = await harvestGranola({
@@ -305,4 +315,72 @@ export async function runKnowledgeHarvest(opts: { maxThreadsPerTrack?: number; m
   result.contactsSuggested = newContacts.length;
   result.ok = result.errors.length === 0;
   return result;
+}
+
+// ── Manual note upload (file picker / drag-and-drop) ─────────
+
+export async function uploadNote(input: { name: string; text: string; base64: string; mimeType: string }): Promise<{ recordId: string; portco: string }> {
+  const text = (input.text || "").trim();
+  if (!text) throw new Error("This file has no readable text (use .md or .txt).");
+  await ensureKnowledgeTabs();
+  const candidates = await matchCandidates();
+  const title = input.name.replace(/\.[^.]+$/, "") || "Uploaded note";
+  const ex = await extractKnowledge(text, title, candidates.names, candidates.workstreams);
+  const now = new Date().toISOString();
+  const date = now.slice(0, 10);
+  const textHash = sha256Hex(text);
+  const recordId = recordIdFor("upload", textHash);
+  if ((await listKnowledgeRecords()).some((r) => r.recordId === recordId)) {
+    throw new Error("This note was already imported.");
+  }
+
+  let driveId = "";
+  let driveUrl = "";
+  const kb = process.env.GOOGLE_KB_DRIVE_ID;
+  if (kb) {
+    const { findOrCreateFolder } = await import("./granola.server");
+    const { uploadDriveFile } = await import("./drive.server");
+    const notes = await findOrCreateFolder("Meeting Notes", kb, kb);
+    const co = await findOrCreateFolder(ex.portco || "Unmatched", notes, kb);
+    const doc = await uploadDriveFile({ name: input.name, mimeType: input.mimeType || "text/plain", base64: input.base64, folderId: co });
+    if (doc) { driveId = doc.id; driveUrl = doc.webViewLink; }
+  }
+
+  const known = await knownEmails();
+  const suggested = new Set((await listSuggestedContacts()).map((c) => c.email));
+  const internal = getInternalConfig();
+  await saveKnowledgeRecords([{
+    recordId, sourceType: "upload", sourceId: textHash, date, title, portco: ex.portco,
+    participants: ex.people.map((p) => p.email ? `${p.name} <${p.email}>` : p.name).join("; ").slice(0, 900),
+    summary: ex.summary, extractedJson: JSON.stringify(ex).slice(0, 45000), textHash,
+    textRef: driveId, sourceUrl: driveUrl, createdAt: now,
+  }]);
+  const acts = ex.activities.length ? ex.activities : [{ type: "meeting", title, person: "", summary: ex.summary }];
+  await saveHarvestedActivities(acts.map((a, i) => ({
+    activityId: sha256Hex(`${recordId}:${a.type}:${i}`).slice(0, 24), recordId, date, track: "Meeting – Upload",
+    type: a.type || "meeting", title: a.title || title, portco: ex.portco, person: a.person, owner: "",
+    summary: a.summary, sourceUrl: driveUrl, createdAt: now,
+  })));
+  if (ex.workstreamName && ex.portco) {
+    const gid = candidates.gidByName.get(`${ex.portco}::${ex.workstreamName}`.toLowerCase()) || "";
+    await saveWorkstreamLinks([{
+      linkId: recordId, recordId, portco: ex.portco, workstreamGid: gid, workstreamName: ex.workstreamName,
+      confidence: ex.workstreamConfidence,
+      status: gid ? (ex.workstreamConfidence === "high" ? "matched" : "suggested") : "create-new",
+      createdAt: now, reviewedAt: "",
+    }]);
+  }
+  const contacts: SuggestedContact[] = [];
+  for (const p of ex.people) {
+    if (!p.email || known.has(p.email) || suggested.has(p.email)) continue;
+    if (isInternalEmail(p.email, internal) || isNoiseEmail(p.email)) continue;
+    suggested.add(p.email);
+    contacts.push({
+      suggestionId: sha256Hex(p.email).slice(0, 24), name: p.name, email: p.email, company: p.company,
+      domain: p.email.split("@")[1] || "", portco: ex.portco, firstSeen: `${title} (${date})`.slice(0, 200),
+      recordId, status: "pending", createdAt: now, reviewedAt: "",
+    });
+  }
+  await saveSuggestedContacts(contacts);
+  return { recordId, portco: ex.portco };
 }

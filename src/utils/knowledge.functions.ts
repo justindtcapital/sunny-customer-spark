@@ -58,3 +58,42 @@ export const verifyGranolaImportsFn = createServerFn({ method: "POST" })
     const { verifyGranolaImports } = await import("./granola.server");
     return { imports: await verifyGranolaImports({ noteIds: data.noteIds, retry: !!data.retry }) };
   });
+
+/** Manual-only Granola pull (the scheduled harvest never touches Granola). */
+export const syncGranolaFn = createServerFn({ method: "POST" }).handler(async () => {
+  const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
+  return runKnowledgeHarvest({ includeGmail: false, includeGranola: true, maxGranolaNotes: 30 });
+});
+
+export const fetchNotesInboxFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { history?: boolean }) => input)
+  .handler(async ({ data }) => {
+    const { listNotesInbox } = await import("./notes-inbox.server");
+    const { isGranolaConfigured } = await import("./granola.server");
+    return { granolaConnected: isGranolaConfigured(), items: await listNotesInbox(!!data.history) };
+  });
+
+export const uploadNoteFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { name: string; text: string; base64: string; mimeType: string }) => {
+    if (!input.name || input.base64.length > 8_000_000) throw new Error("File missing or too large");
+    return input;
+  })
+  .handler(async ({ data }) => {
+    const { uploadNote } = await import("./knowledge-harvest.server");
+    return uploadNote(data);
+  });
+
+export const reviewNoteFn = createServerFn({ method: "POST" })
+  .inputValidator((input: import("./notes-inbox.server").ReviewNoteInput) => input)
+  .handler(async ({ data }) => {
+    const { reviewNote } = await import("./notes-inbox.server");
+    return reviewNote(data);
+  });
+
+export const reopenNoteFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { recordId: string }) => input)
+  .handler(async ({ data }) => {
+    const { reopenNote } = await import("./notes-inbox.server");
+    await reopenNote(data.recordId);
+    return { ok: true };
+  });
