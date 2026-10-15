@@ -20,7 +20,7 @@ import {
 import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
 import { MatrixStatsPanel } from "@/components/dashboard/MatrixStatsPanel";
 import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
-import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
+import { WorkstreamSummary, CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { KnowledgePanel } from "@/components/knowledge/KnowledgePanel";
 import { NotesImports } from "@/components/knowledge/NotesImports";
