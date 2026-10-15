@@ -225,6 +225,21 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
     try { await reopenNoteFn({ data: { recordId: item.recordId } }); await onDone(); } finally { setSaving(false); }
   }
 
+  async function skip() {
+    setSaving(true);
+    try {
+      await reviewNoteFn({
+        data: { recordId: item.recordId, reviewer, portco: item.portco || "", addPeople: [], skipContacts: [], followUps: [] },
+      });
+      toast.success("Note skipped.");
+      await onDone();
+    } catch (e) {
+      toast.error(`Skip failed: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="px-3 py-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
