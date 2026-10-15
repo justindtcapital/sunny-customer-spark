@@ -13,6 +13,7 @@ import { workstreamBarStatus } from "@/lib/workstream-parse";
 import { fetchHomeMomentum, completeHomeNoteFollowUp } from "@/utils/home.functions";
 import { getBriefing, generateBriefing } from "@/utils/briefing.functions";
 import { DailyBriefing } from "@/components/home/DailyBriefing";
+import { VoiceCaptureTiles } from "@/components/home/VoiceCapture";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { toast } from "sonner";
 
@@ -48,6 +49,7 @@ function HomePage() {
         <ToggleGroup type="single" value={period} aria-label="Momentum period" className="rounded-md border border-border p-1" onValueChange={(v) => { if (v === "week" || v === "month") void navigate({ search: (prev) => ({ ...prev, period: v }) }); }}><ToggleGroupItem value="week" className="text-xs">This week</ToggleGroupItem><ToggleGroupItem value="month" className="text-xs">This month</ToggleGroupItem></ToggleGroup>
       </div>
     </header>
+    {ready && email && <VoiceCaptureTiles email={email} />}
     {ready && email ? <Suspense fallback={<LoadingHome />}><Momentum email={email} scope={scope} period={period} /></Suspense> : <LoadingHome />}
   </div>;
 }
