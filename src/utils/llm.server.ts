@@ -1,4 +1,5 @@
 // LLM Query Tab — Gemini function-calling agent over VenturePulse data.
+import { CRM_TIMEZONE, todayIso } from "@/lib/sheet-date";
 // Grounding: the agent answers ONLY from tool results. Asana is confidential and
 // has no tool (it can never reach the model). See VenturePulse_LLM_Query_Tab_Spec.
 //
