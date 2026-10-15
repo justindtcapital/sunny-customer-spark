@@ -26,7 +26,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     const [events, workstreams, campaigns] = await Promise.all([
       read("Events", asana.fetchAllAsanaEvents, []), read("Workstreams", asana.fetchPortcoWorkstreams, []), read("Campaigns", campaignsStore.listCampaigns, []),
     ]);
-    const index = await read("Ownership", () => sheets.buildOwnershipIndex(data.email), { ownedGids: [] as string[] });
+    const index = await read("Ownership", () => sheets.buildOwnershipIndex(data.email), { email: data.email, firstName: "", displayName: "", ownedGids: [] as string[] });
     const members = await read("Campaign reminders", () => campaignsStore.listMembers(), []);
     const owner = data.scope === "mine" ? teamProfile(data.email)?.displayName : undefined;
     const notes = await read("Notes", () => inbox.listNotesInbox(false, owner, "notes"), []);
@@ -73,7 +73,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
       reminders.push({ id: a.activityId, activityId: a.activityId, person: a.person || a.title, company: a.portco, owner: a.owner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl });
     }
     const recordDates = new Map(records.map((r) => [r.recordId, r.createdAt]));
-    return { ...scoped, notes: notes.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), emails: emails.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), history: [...noteHistory, ...emailHistory].filter((n) => n.review?.status !== "skipped"), reminders: dedupeReminders(reminders), errors, asOf: new Date().toISOString() };
+    return { ...scoped, notes: notes.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), emails: emails.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), history: [...noteHistory, ...emailHistory].filter((n) => n.review?.status !== "skipped").map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), reminders: dedupeReminders(reminders), errors, asOf: new Date().toISOString() };
   });
 
 export const completeHomeNoteFollowUp = createServerFn({ method: "POST" })

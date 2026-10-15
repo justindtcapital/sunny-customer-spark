@@ -20,7 +20,7 @@ const homeQuery = (email: string, scope: HomeScope) => queryOptions({ queryKey: 
 const briefingQuery = queryOptions({ queryKey: ["home-briefing"], queryFn: () => getBriefing(), staleTime: 60_000 });
 
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>): { scope: HomeScope; period: HomePeriod } => ({ scope: search.scope === "team" ? "team" : "mine", period: search.period === "month" ? "month" : "week" }),
+  validateSearch: (search: Record<string, unknown>): { scope?: HomeScope; period?: HomePeriod } => ({ scope: search.scope === "team" ? "team" : "mine", period: search.period === "month" ? "month" : "week" }),
   head: () => ({ meta: [
     { title: "Home — VenturePulse Momentum" },
     { name: "description", content: "Workspace momentum, portfolio workstreams and follow-ups across VenturePulse." },
@@ -37,7 +37,7 @@ function Stat({ label, value, small = false }: { label: string; value: number | 
 
 function HomePage() {
   const { email, ready } = useAuth();
-  const { scope, period } = Route.useSearch();
+  const { scope = "mine", period = "week" } = Route.useSearch();
   const navigate = Route.useNavigate();
   const profile = teamProfile(email);
   return <div className="mx-auto max-w-[1400px] space-y-7 p-4 sm:p-6">
@@ -67,7 +67,7 @@ function Momentum({ email, scope, period }: { email: string; scope: HomeScope; p
   const active = data.workstreams.filter(activeWorkstream).length;
   const completed = data.workstreams.filter((w) => workstreamBarStatus(w) === "Completed");
   const completedPeriod = completed.filter((w) => inPeriod(w.completedAt, bounds.start, bounds.today)).length;
-  const imported = [...data.notes, ...data.emails].filter((n) => inPeriod(n.importedAt, bounds.start, bounds.today)).length + data.history.filter((n) => inPeriod(data.asOf && n.date, bounds.start, bounds.today)).length;
+  const imported = [...data.notes, ...data.emails].filter((n) => inPeriod(n.importedAt, bounds.start, bounds.today)).length + data.history.filter((n) => inPeriod(n.importedAt, bounds.start, bounds.today)).length;
   const reviewed = data.history.filter((n) => inPeriod(n.review?.reviewedAt, bounds.start, bounds.today)).length;
   const value = (source: string, count: number) => data.errors.includes(source) ? "—" : count;
   const tiles = [
@@ -75,7 +75,7 @@ function Momentum({ email, scope, period }: { email: string; scope: HomeScope; p
     { name: "Prospecting", to: "/targeting" as const, Icon: TargetingIcon, count: value("Prospecting", data.targets.length), label: "Prospects", a: value("Prospecting", added(data.targets)), al: "Added", b: data.targets.filter((t) => t.followUp).length, bl: "Follow-ups" },
     { name: "Events", to: "/events" as const, Icon: EventsIcon, count: value("Events", upcoming), label: "Upcoming", a: value("Events", newEvents), al: "New", b: data.events.filter((e) => inPeriod(e.date, bounds.start, bounds.today)).length, bl: "Held in period" },
     { name: "PortCo", to: "/portfolio" as const, Icon: PortCoIcon, count: value("PortCo", data.companies.length), label: "Companies", a: value("Workstreams", active), al: "Active streams", b: initiated, bl: "New streams" },
-    { name: "Campaigns", to: "/campaigns" as const, Icon: Megaphone, count: value("Campaigns", currentCampaigns.length), label: "Active campaigns", a: value("Campaigns", newCampaigns), al: "New", b: currentCampaigns.reduce((n, c) => n + c.memberCount, 0), bl: "Memberships" },
+    { name: "Campaigns", to: "/campaigns" as const, Icon: Megaphone, count: value("Campaigns", currentCampaigns.length), label: "Active campaigns", a: value("Campaigns", newCampaigns), al: "New", b: currentCampaigns.reduce((n, c) => n + (c.memberCount || 0), 0), bl: "Memberships" },
     { name: "Dashboard", to: "/dashboard" as const, Icon: DashboardIcon, count: data.errors.includes("Notes") || data.errors.includes("Email review") ? "—" : data.notes.length + data.emails.length, label: "To review", a: value("Notes", data.notes.length), al: "Notes", b: value("Email review", data.emails.length), bl: "Emails" },
   ];
   const statusCounts = new Map<string, number>();

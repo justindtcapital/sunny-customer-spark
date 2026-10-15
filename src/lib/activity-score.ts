@@ -1,4 +1,5 @@
 import type { Contact, Temperature } from "@/lib/types";
+import { ratingAfterActivity } from "./relationship-rating";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Automatic network scorecard.
@@ -128,7 +129,7 @@ export function scoreContact(contact: Contact, now: number = Date.now()): Activi
 
   const score = Math.min(100, recency + interactions + events + intros + followUp);
 
-  const tier = contact.temperature;
+  const tier = ratingAfterActivity(contact.temperature, score);
 
   return { score, tier, drivers };
 }

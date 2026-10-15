@@ -21,6 +21,7 @@ import type {
   AsanaActivity,
 } from "@/lib/types";
 import { scoreContact } from "@/lib/activity-score";
+import { creationRating } from "@/lib/relationship-rating";
 import { inferInterestAreas } from "@/lib/interest-domains";
 import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
@@ -1215,6 +1216,7 @@ export interface AddContactInput {
   prime: string;
   sector: string;
   temperature: string;
+  ratingExplicitlySelected?: boolean;
   /** Sourced LinkedIn profile URL (written to the "LinkedIn" column). */
   linkedin?: string;
   /** Canonical origin (RecordSource). Written to the "Source" column — callers
@@ -1314,7 +1316,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
     prime: data.prime,
     "industry category": sector,
     sector: sector,
-    "relationship status": data.temperature,
+    "relationship status": creationRating(data.temperature as Temperature, data.ratingExplicitlySelected),
     "follow up flag": data.followUp ? "TRUE" : "FALSE",
     "date added": now,
     // Canonical source — filled only when one of these columns exists.
@@ -1345,7 +1347,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
       data.location,
       data.prime,
       data.sector,
-      data.temperature,
+      creationRating(data.temperature as Temperature, data.ratingExplicitlySelected),
       data.followUp ? "TRUE" : "FALSE",
       now,
     ]);
