@@ -146,11 +146,13 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
   const granola = new Map((await listGranolaImports().catch(() => [])).map((g) => [g.noteId, g]));
   const linkBy = new Map(links.map((l) => [l.recordId, l]));
   const actsBy = new Map<string, { owners: string[]; track: string }>();
+  // Granola is connected through Chris Falloon's account, so unstamped Granola notes are his.
+  const GRANOLA_OWNER = "chris falloon";
   if (kind === "activity") {
     const { listHarvestedActivities } = await import("./knowledge.server");
     for (const a of await listHarvestedActivities().catch(() => [])) {
       const e = actsBy.get(a.recordId) || { owners: [], track: "" };
-      if (a.owner) e.owners.push(a.owner);
+      e.owners.push(a.owner, a.person, a.summary);
       if (!e.track && a.type !== "follow-up") e.track = a.track;
       actsBy.set(a.recordId, e);
     }
@@ -168,8 +170,8 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
     if (ownerKey) {
       const { ownerMatches } = await import("@/lib/action-owners");
       const who = kind === "activity"
-        ? [...(actsBy.get(r.recordId)?.owners || []), r.participants].join(" ")
-        : importers.get(r.recordId) || "";
+        ? [...(actsBy.get(r.recordId)?.owners || []), r.participants, r.summary].join(" ")
+        : importers.get(r.recordId) || (r.sourceType === "granola" ? GRANOLA_OWNER : "");
       if (!ownerMatches(who, owner || "")) continue;
     }
     let ex: { nextSteps?: NoteInboxItem["nextSteps"]; people?: Array<{ name: string; email: string; company: string }>; granola?: { hasTranscript?: boolean } } = {};
