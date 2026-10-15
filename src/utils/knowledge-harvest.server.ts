@@ -54,6 +54,8 @@ export interface HarvestResult {
   contactsSuggested: number;
   granolaNotesAdded: number;
   granolaCopiedToDrive: number;
+  driveNotesAdded?: number;
+  recordingsFiled?: number;
   errors: string[];
 }
 
@@ -141,7 +143,7 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
  * cron never passes it.
  */
 export async function runKnowledgeHarvest(
-  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean; importedBy?: string } = {},
+  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean; includeDrive?: boolean; importedBy?: string } = {},
 ): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
@@ -313,7 +315,19 @@ export async function runKnowledgeHarvest(
   await saveWorkstreamLinks(newLinks);
   await saveSuggestedContacts(newContacts);
 
-  result.recordsAdded = newRecords.length;
+  // Meeting files dropped into the KB Drive (Meet notes, transcripts, recordings).
+  if (opts.includeDrive !== false) {
+    try {
+      const { importDriveNotes } = await import("./drive-notes.server");
+      const d = await importDriveNotes();
+      result.driveNotesAdded = d.imported;
+      result.recordingsFiled = d.recordingsFiled;
+      result.errors.push(...d.errors.slice(0, 10));
+    } catch (e) {
+      result.errors.push(`Drive: ${(e as Error).message}`);
+    }
+  }
+  result.recordsAdded = newRecords.length + (result.driveNotesAdded || 0);
   result.activitiesAdded = newActivities.length;
   result.linksAdded = newLinks.length;
   result.contactsSuggested = newContacts.length;
@@ -324,37 +338,59 @@ export async function runKnowledgeHarvest(
 // ── Manual note upload (file picker / drag-and-drop) ─────────
 
 export async function uploadNote(input: { name: string; text: string; base64: string; mimeType: string; importedBy?: string }): Promise<{ recordId: string; portco: string }> {
-  const text = (input.text || "").trim();
-  if (!text) throw new Error("This file has no readable text (use .md or .txt).");
+  let text = (input.text || "").trim();
+  // Word/PDF/transcript files: let Drive convert them to a Doc and read the text back.
+  if (!text && input.base64) {
+    const { convertToText } = await import("./drive-notes.server");
+    text = (await convertToText(input.name, input.mimeType, input.base64)).trim();
+  }
+  if (!text) throw new Error("This file has no readable text (use .md, .txt, .docx, .pdf or .vtt).");
+  return ingestNote({ text, title: input.name.replace(/\.[^.]+$/, "") || "Uploaded note", sourceType: "upload", importedBy: input.importedBy,
+    upload: { name: input.name, mimeType: input.mimeType || "text/plain", base64: input.base64 } });
+}
+
+/** Shared note ingest: extract, file into Meeting Notes/<PortCo>, save records, stamp the owner. */
+export async function ingestNote(input: {
+  text: string; title: string; sourceType: "upload" | "drive-doc"; sourceId?: string; importedBy?: string; date?: string;
+  upload?: { name: string; mimeType: string; base64: string };
+  /** Existing Drive file to move into the PortCo folder instead of uploading a copy. */
+  driveFileId?: string; driveUrl?: string;
+}): Promise<{ recordId: string; portco: string }> {
+  const text = input.text.trim();
   await ensureKnowledgeTabs();
   const candidates = await matchCandidates();
-  const title = input.name.replace(/\.[^.]+$/, "") || "Uploaded note";
+  const title = input.title;
   const ex = await extractKnowledge(text, title, candidates.names, candidates.workstreams);
   const now = new Date().toISOString();
-  const date = now.slice(0, 10);
+  const date = input.date || now.slice(0, 10);
   const textHash = sha256Hex(text);
-  const recordId = recordIdFor("upload", textHash);
-  if ((await listKnowledgeRecords()).some((r) => r.recordId === recordId)) {
+  const sourceId = input.sourceId || textHash;
+  const recordId = recordIdFor(input.sourceType, sourceId);
+  if ((await listKnowledgeRecords()).some((r) => r.recordId === recordId || (r.textHash === textHash && input.sourceType === "upload"))) {
     throw new Error("This note was already imported.");
   }
 
-  let driveId = "";
-  let driveUrl = "";
+  let driveId = input.driveFileId || "";
+  let driveUrl = input.driveUrl || "";
   const kb = process.env.GOOGLE_KB_DRIVE_ID;
   if (kb) {
     const { findOrCreateFolder } = await import("./granola.server");
-    const { uploadDriveFile } = await import("./drive.server");
     const notes = await findOrCreateFolder("Meeting Notes", kb, kb);
     const co = await findOrCreateFolder(ex.portco || "Unmatched", notes, kb);
-    const doc = await uploadDriveFile({ name: input.name, mimeType: input.mimeType || "text/plain", base64: input.base64, folderId: co });
-    if (doc) { driveId = doc.id; driveUrl = doc.webViewLink; }
+    if (input.driveFileId) {
+      const { moveDriveFile } = await import("./drive-notes.server");
+      await moveDriveFile(input.driveFileId, co).catch(() => undefined);
+    } else if (input.upload) {
+      const { uploadDriveFile } = await import("./drive.server");
+      const doc = await uploadDriveFile({ ...input.upload, folderId: co, appProperties: { vp: "1" } });
+      if (doc) { driveId = doc.id; driveUrl = doc.webViewLink; }
+    }
   }
-
   const known = await knownEmails();
   const suggested = new Set((await listSuggestedContacts()).map((c) => c.email));
   const internal = getInternalConfig();
   await saveKnowledgeRecords([{
-    recordId, sourceType: "upload", sourceId: textHash, date, title, portco: ex.portco,
+    recordId, sourceType: input.sourceType, sourceId, date, title, portco: ex.portco,
     participants: ex.people.map((p) => p.email ? `${p.name} <${p.email}>` : p.name).join("; ").slice(0, 900),
     summary: ex.summary, extractedJson: JSON.stringify(ex).slice(0, 45000), textHash,
     textRef: driveId, sourceUrl: driveUrl, createdAt: now,
@@ -362,7 +398,7 @@ export async function uploadNote(input: { name: string; text: string; base64: st
   if (input.importedBy) await setHarvestState(`importedBy:${recordId}`, input.importedBy);
   const acts = ex.activities.length ? ex.activities : [{ type: "meeting", title, person: "", summary: ex.summary }];
   await saveHarvestedActivities(acts.map((a, i) => ({
-    activityId: sha256Hex(`${recordId}:${a.type}:${i}`).slice(0, 24), recordId, date, track: "Meeting – Upload",
+    activityId: sha256Hex(`${recordId}:${a.type}:${i}`).slice(0, 24), recordId, date, track: input.sourceType === "upload" ? "Meeting – Upload" : "Meeting – Drive",
     type: a.type || "meeting", title: a.title || title, portco: ex.portco, person: a.person, owner: "",
     summary: a.summary, sourceUrl: driveUrl, createdAt: now,
   })));

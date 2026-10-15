@@ -19,6 +19,7 @@ import {
   reopenNoteFn,
   reviewNoteFn,
   syncGranolaFn,
+  syncDriveNotesFn,
   uploadNoteFn,
 } from "@/utils/knowledge.functions";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
@@ -84,13 +85,27 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
     }
   }
 
+  async function syncDrive() {
+    setBusy("drive");
+    try {
+      const r = await syncDriveNotesFn();
+      toast.success(`${r.imported} meeting files imported from Drive${r.recordingsFiled ? `, ${r.recordingsFiled} recordings filed` : ""}${r.errors.length ? `, ${r.errors.length} problems` : ""}.`);
+      await load();
+    } catch (e) {
+      toast.error(`Drive import failed: ${(e as Error).message}`);
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function uploadFiles(files: FileList | File[]) {
     setBusy("upload");
     let ok = 0;
     for (const f of Array.from(files)) {
       try {
         const buf = await f.arrayBuffer();
-        const text = /\.(md|txt|markdown)$/i.test(f.name) || f.type.startsWith("text/") ? new TextDecoder().decode(buf) : "";
+        if (f.size > 6_000_000) throw new Error("Too large to drop here — put recordings in the Venture Pulse KB Drive and click Import from Drive");
+        const text = /\.(md|txt|markdown|vtt|srt)$/i.test(f.name) || f.type.startsWith("text/") ? new TextDecoder().decode(buf) : "";
         await uploadNoteFn({ data: { name: f.name, text, base64: toBase64(buf), mimeType: f.type || "text/plain", importedBy: email || "" } });
         ok++;
       } catch (e) {
@@ -125,6 +140,10 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
             {busy === "upload" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
             Upload notes
           </Button>}
+          {!isActivity && <Button size="sm" variant="outline" disabled={!!busy} onClick={syncDrive}>
+            {busy === "drive" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Import from Drive
+          </Button>}
           {granolaConnected && !isActivity && (
             <Button size="sm" disabled={!!busy} onClick={syncGranola}>
               {busy === "granola" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -132,7 +151,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
             </Button>
           )}
           <input
-            ref={fileRef} type="file" multiple accept=".md,.txt,.markdown,text/plain,text/markdown" className="hidden"
+            ref={fileRef} type="file" multiple accept=".md,.txt,.markdown,.vtt,.srt,.docx,.doc,.pdf,.rtf,text/plain,text/markdown" className="hidden"
             onChange={(e) => { if (e.target.files?.length) void uploadFiles(e.target.files); e.target.value = ""; }}
           />
         </div>
@@ -160,7 +179,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
               drag && "border-primary bg-primary/5 text-foreground",
             )}
           >
-            Drop meeting notes here (.md or .txt)
+            Drop meeting notes or Meet transcripts here (.docx, .pdf, .txt, .md, .vtt) — they're filed by PortCo and tagged to you
           </div>
         )}
         {!loading && items.length === 0 && (
