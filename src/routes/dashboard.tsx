@@ -342,7 +342,7 @@ function DashboardPage() {
 
       {owner && (
         <>
-          <WorkstreamOverview keys={scopeKeys} owner={owner} scopeLabel={scopeLabel}>
+          <WorkstreamOverview keys={scopeKeys} owner={owner} scopeLabel={scopeLabel} points={points}>
             <WorkstreamSummary
               keys={scopeKeys}
               scopeLabel={scopeLabel}
@@ -363,7 +363,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
-      {owner && <ReviewInboxes key={owner} owner={owner} />}
+      {owner && <ReviewInboxes key={owner} owner={owner} points={points} />}
 
       <PortfolioDetail
         company={detailCompany ?? null}
