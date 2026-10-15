@@ -28,6 +28,9 @@ import { ConnectMailboxButton } from "@/components/knowledge/ConnectMailboxButto
 import { computeScopeActivity } from "@/lib/dashboard-activity";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
+import { workstreamBarStatus } from "@/lib/workstream-parse";
+import type { NoteInboxItem } from "@/utils/notes-inbox.server";
+import type { ReactNode } from "react";
 
 import { portCoKey } from "@/lib/portco-canonical";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
@@ -339,12 +342,14 @@ function DashboardPage() {
 
       {(owner || investor || scopeKind === "company") && (
         <>
-          <WorkstreamSummary
-            keys={scopeKeys}
-            scopeLabel={scopeLabel}
-            actionOwner={owner}
-            points={points}
-          />
+          <WorkstreamOverview keys={scopeKeys} owner={owner} scopeLabel={scopeLabel}>
+            <WorkstreamSummary
+              keys={scopeKeys}
+              scopeLabel={scopeLabel}
+              actionOwner={owner}
+              points={points}
+            />
+          </WorkstreamOverview>
         </>
       )}
       {scopeKind === "company" && (
@@ -374,27 +379,114 @@ function DashboardPage() {
 }
 
 
-function ReviewInboxes({ owner }: { owner: string }) {
-  const [tab, setTab] = useState<"notes" | "activity">("notes");
-  const [counts, setCounts] = useState({ notes: 0, activity: 0 });
-  const setNotes = useCallback((n: number) => setCounts((c) => ({ ...c, notes: n })), []);
-  const setActivity = useCallback((n: number) => setCounts((c) => ({ ...c, activity: n })), []);
+function Kpi({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div className="inline-flex rounded-md border border-border p-0.5">
-        {(["notes", "activity"] as const).map((k) => (
-          <button
-            key={k}
-            onClick={() => setTab(k)}
-            className={`rounded px-3 py-1 text-sm ${tab === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}
-          >
-            {k === "notes" ? "Notes Imports" : "Activity Review"}
-            <span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{counts[k]}</span>
-          </button>
+    <div className="min-w-[96px]">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="font-display text-xl font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function Breakdown({ title, counts }: { title: string; counts: Record<string, number> }) {
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  return (
+    <div className="min-w-[160px]">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {rows.length === 0 ? <span className="text-xs text-muted-foreground">—</span> : rows.map(([k, n]) => (
+          <span key={k} className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground">{k} <b>{n}</b></span>
         ))}
       </div>
-      <div className={tab === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onCount={setNotes} /></div>
-      <div className={tab === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onCount={setActivity} /></div>
+    </div>
+  );
+}
+
+function tally(xs: string[]): Record<string, number> {
+  const o: Record<string, number> = {};
+  for (const x of xs) o[x || "None"] = (o[x || "None"] || 0) + 1;
+  return o;
+}
+
+function SummaryCard({ title, sub, open, onToggle, children }: {
+  title: string; sub: string; open: boolean; onToggle: () => void; children: ReactNode;
+}) {
+  return (
+    <Card className="border-border">
+      <CardContent className="flex flex-wrap items-center gap-6 p-4">
+        <div className="min-w-[160px]">
+          <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>
+          <p className="text-xs text-muted-foreground">{sub}</p>
+        </div>
+        <div className="flex flex-1 flex-wrap items-start gap-6">{children}</div>
+        <Button size="sm" variant={open ? "secondary" : "outline"} onClick={onToggle}>
+          {open ? "Close" : "Manage"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WorkstreamOverview({ keys, owner, scopeLabel, children }: {
+  keys: string[]; owner: string; scopeLabel: string; children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const { workstreams } = useWorkstreams();
+  const ws = useMemo(() => {
+    const set = new Set(keys);
+    return workstreams.filter((w) => set.has(w.companyKey) && (!owner || ownerMatches(w.owner, owner)));
+  }, [workstreams, keys, owner]);
+  const statuses = ws.map((w) => workstreamBarStatus(w).status || "No status");
+  const done = statuses.filter((s) => /complete/i.test(s)).length;
+  return (
+    <div className="space-y-3">
+      <SummaryCard title="Workstreams" sub={scopeLabel} open={open} onToggle={() => setOpen((o) => !o)}>
+        <Kpi label="Streams" value={ws.length} />
+        <Kpi label="PortCos" value={new Set(ws.map((w) => w.companyKey)).size} />
+        <Kpi label="Completed" value={done} />
+        <Breakdown title="By status" counts={tally(statuses)} />
+        <Breakdown title="By priority" counts={tally(ws.map((w) => workstreamBarStatus(w).priority || "No priority"))} />
+        <Breakdown title="By PortCo" counts={tally(ws.map((w) => w.company))} />
+      </SummaryCard>
+      {open && children}
+    </div>
+  );
+}
+
+function ReviewInboxes({ owner }: { owner: string }) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"notes" | "activity">("notes");
+  const [counts, setCounts] = useState({ notes: 0, activity: 0 });
+  const [acts, setActs] = useState<NoteInboxItem[]>([]);
+  const [notes, setNotesItems] = useState<NoteInboxItem[]>([]);
+  const setNotes = useCallback((n: number) => setCounts((c) => ({ ...c, notes: n })), []);
+  const setActivity = useCallback((n: number) => setCounts((c) => ({ ...c, activity: n })), []);
+  const unmatched = [...notes, ...acts].filter((i) => !i.portco).length;
+  return (
+    <div className="space-y-3">
+      <SummaryCard title="Notes & Activity" sub="Waiting for review" open={open} onToggle={() => setOpen((o) => !o)}>
+        <Kpi label="Notes" value={counts.notes} />
+        <Kpi label="Emails" value={counts.activity} />
+        <Kpi label="No PortCo" value={unmatched} />
+        <Breakdown title="Emails by track" counts={tally(acts.map((i) => i.track || "Untagged"))} />
+        <Breakdown title="By PortCo" counts={tally([...notes, ...acts].map((i) => i.portco).filter(Boolean))} />
+      </SummaryCard>
+      <div className={open ? "space-y-2" : "hidden"}>
+        <div className="inline-flex rounded-md border border-border p-0.5">
+          {(["notes", "activity"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`rounded px-3 py-1 text-sm ${tab === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}
+            >
+              {k === "notes" ? "Notes Imports" : "Activity Review"}
+              <span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{counts[k]}</span>
+            </button>
+          ))}
+        </div>
+        <div className={tab === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onCount={setNotes} onItems={setNotesItems} /></div>
+        <div className={tab === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onCount={setActivity} onItems={setActs} /></div>
+      </div>
     </div>
   );
 }
