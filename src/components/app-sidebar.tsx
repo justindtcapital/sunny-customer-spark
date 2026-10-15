@@ -181,6 +181,14 @@ export function AppSidebar({
     { label: "30d", days: 30 },
     { label: "90d", days: 90 },
   ];
+  // How many detailed filters are set (badge on the collapsed Detailed search button).
+  const activeCount = (f: object | undefined | null) =>
+    Object.entries(f || {}).filter(([k, v]) =>
+      !["search", "ownershipScope", "dateField"].includes(k) &&
+      (Array.isArray(v) ? v.length > 0 : typeof v === "boolean" ? v : typeof v === "string" ? !!v && v !== "all" : false),
+    ).length;
+  const crmActiveCount = activeCount(filters);
+  const targetActiveCount = activeCount(targetingFilters);
   const updateTarget = (partial: Partial<TargetingFilters>) => {
     if (targetingFilters && onTargetingFiltersChange)
       onTargetingFiltersChange({ ...targetingFilters, ...partial });
