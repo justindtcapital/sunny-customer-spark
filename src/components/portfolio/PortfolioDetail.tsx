@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "@tanstack/react-router";
 import type { PortfolioCompany, Contact, EmailActivityRecord } from "@/lib/types";
 import { formatEngagementSources } from "@/lib/engagement-source";
 import {
@@ -915,6 +916,13 @@ export function PortfolioDetail({
                                   <span className="text-xs font-medium text-foreground truncate">
                                     {event.name}
                                   </span>
+                                  <Link
+                                    to="/events"
+                                    search={{ event: event.name }}
+                                    className="ml-auto inline-flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0"
+                                  >
+                                    Open <ExternalLink className="h-3 w-3" />
+                                  </Link>
                                 </div>
                                 <span className="text-[10px] text-muted-foreground">
                                   {event.date}
@@ -955,6 +963,13 @@ export function PortfolioDetail({
                                   <span className="text-xs font-medium text-foreground truncate">
                                     {event.name}
                                   </span>
+                                  <Link
+                                    to="/events"
+                                    search={{ event: event.name }}
+                                    className="ml-auto inline-flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0"
+                                  >
+                                    Open <ExternalLink className="h-3 w-3" />
+                                  </Link>
                                 </div>
                                 <span className="text-[10px] text-muted-foreground">
                                   {event.date}
