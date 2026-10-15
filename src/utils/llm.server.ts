@@ -833,7 +833,7 @@ async function executeTool(
     case "query_events": {
       const { fetchAllAsanaEvents } = await import("./asana.server");
       const all = await fetchAllAsanaEvents().catch(() => []);
-      const lc = (v: unknown) => (str(v) || "").toLowerCase();
+      const lc = (v: JsonValue | undefined) => (str(v) || "").toLowerCase();
       const from = str(input.start_date), to = str(input.end_date);
       const st = lc(input.status), pc = lc(input.portco), ld = lc(input.lead), q = lc(input.search);
       const lim = Math.min(Math.max(Number(input.limit) || 50, 1), 200);
