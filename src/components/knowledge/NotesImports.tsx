@@ -181,7 +181,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
   const [people, setPeople] = useState<Record<string, "add" | "skip" | "">>({});
   const [edits, setEdits] = useState<Record<string, { name: string; email: string; company: string }>>({});
   const [editing, setEditing] = useState<Record<string, boolean>>({});
-  const [fu, setFu] = useState<Record<number, string>>({});
+  const [fu, setFu] = useState<Record<number, { due?: string; action?: string; who?: string }>>({});
   const [saving, setSaving] = useState(false);
 
   function editedPerson(p: NoteInboxItem["people"][number]) {
