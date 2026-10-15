@@ -1,5 +1,12 @@
 # Roadmap — PortCo Knowledge Base (Drive + Gmail + Gemini)
 
+## Homepage momentum and manual ratings
+- [ ] Enforce Cold promotions and manual-only saved ratings; remove auto-rating controls
+- [ ] Project Asana creation/completion dates and event owners
+- [ ] Build scoped workspace momentum and Workstreams summary on Home
+- [ ] Persist follow-up due dates/completion and show due/overdue/undated reminders
+- [ ] Add rule tests and verify signed-in homepage flows
+
 - [ ] Explore existing code: sheets tab helpers, gmail, asana workstreams, gemini, dashboard
 - [ ] P1: knowledge.server.ts — Knowledge Records / Harvested Activities / Suggested Contacts / Workstream Links / Harvest State tabs
 - [ ] P1: Harvester (4 aliases via shane@dt-capital.net + Venture Pulse KB drive 0AFtlyPes27_KUk9PVA), extraction, dedupe, matching engine (portco → workstream, confirm/change/create/ignore)
