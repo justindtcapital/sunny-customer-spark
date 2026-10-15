@@ -97,6 +97,7 @@ export type RecordSourceType =
   | "gmail-gtm"
   | "gmail-workstreams"
   | "gmail-news"
+  | "gmail-network"
   | "drive-doc"
   | "upload"
   | "granola";

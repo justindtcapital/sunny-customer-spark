@@ -44,6 +44,7 @@ import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactAvatar } from "@/components/crm/ContactAvatar";
+import { PersonContextSection } from "@/components/crm/PersonContextSection";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -2426,6 +2427,10 @@ function TargetingPage() {
                       </div>
                     )}
                   </section>
+
+                  <div className="pt-6">
+                    <PersonContextSection name={activeTarget.name} email={activeTarget.email || ""} />
+                  </div>
 
                   {/* Outreach Trail */}
                   <section className="border-b border-border py-6">

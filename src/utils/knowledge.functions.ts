@@ -97,6 +97,24 @@ export const reviewNoteFn = createServerFn({ method: "POST" })
     return reviewNote(data);
   });
 
+/** Contact search (Network + Prospecting) for tagging notes and activity. */
+export const searchPeopleFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { q: string }) => ({ q: String(input?.q || "").slice(0, 100) }))
+  .handler(async ({ data }) => {
+    const { searchPeople } = await import("./notes-inbox.server");
+    return searchPeople(data.q);
+  });
+
+/** Notes, emails and workstreams connected to one person (contact/prospect panels). */
+export const fetchPersonContextFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { name?: string; email?: string }) => ({
+    name: String(input?.name || "").slice(0, 200), email: String(input?.email || "").slice(0, 200),
+  }))
+  .handler(async ({ data }) => {
+    const { personContext } = await import("./notes-inbox.server");
+    return personContext(data);
+  });
+
 export const reopenNoteFn = createServerFn({ method: "POST" })
   .inputValidator((input: { recordId: string }) => input)
   .handler(async ({ data }) => {

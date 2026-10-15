@@ -96,6 +96,7 @@ import { EventPicker } from "@/components/events/EventPicker";
 import { EmailDraftDialog } from "./EmailDraftDialog";
 import { TechStackSection } from "./TechStackSection";
 import { ActivitySection } from "./ActivitySection";
+import { PersonContextSection } from "./PersonContextSection";
 import { useAsanaActivities } from "@/lib/use-activities";
 import { matchActivitiesToContact } from "@/lib/activity-match";
 import { Sparkles, Loader2 } from "lucide-react";
@@ -1455,6 +1456,8 @@ export function ContactDetail({
                   compact
                 />
               </section>
+
+              <PersonContextSection name={contact.name} email={contact.email || ""} />
 
               {/* BD / GTM activity from the BD/GTM sheets, matched to this contact */}
               {(activitiesLoading || contactActivities.length > 0) && (
