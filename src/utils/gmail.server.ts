@@ -323,7 +323,17 @@ export async function downloadGmailAttachment(
 export async function searchGmailRaw(query: string, max = 25, mailbox?: string): Promise<GmailResult> {
   let token: string;
   try {
-    token = await getAccessToken();
+    // Prefer the mailbox owner's own connected token (read as users/me);
+    // fall back to the shared token + delegated path otherwise.
+    const own = mailbox
+      ? await (await import("./mailbox-oauth.server")).getMailboxAccessToken(mailbox)
+      : null;
+    if (own) {
+      token = own;
+      mailbox = undefined;
+    } else {
+      token = await getAccessToken();
+    }
   } catch (e) {
     console.error("[gmail] auth failed:", e);
     return { ok: false, messages: [], error: "Google auth failed." };
