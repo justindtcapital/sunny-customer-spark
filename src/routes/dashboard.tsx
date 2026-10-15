@@ -431,7 +431,7 @@ function LogoCounts({ counts, points }: { counts: Record<string, number>; points
   const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
   if (rows.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {rows.map(([name, n]) => (
         <span
           key={name}
