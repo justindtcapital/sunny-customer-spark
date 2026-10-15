@@ -99,7 +99,7 @@ import { ActivitySection } from "./ActivitySection";
 import { PersonContextSection } from "./PersonContextSection";
 import { useAsanaActivities } from "@/lib/use-activities";
 import { matchActivitiesToContact } from "@/lib/activity-match";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PersonCampaigns } from "@/components/crm/PersonCampaigns";
 
 interface ContactDetailProps {
@@ -107,6 +107,12 @@ interface ContactDetailProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onContactUpdate?: (contact: Contact) => void;
+  /** Step to the previous contact in the current list (undefined = at start). */
+  onPrev?: () => void;
+  /** Step to the next contact in the current list (undefined = at end). */
+  onNext?: () => void;
+  /** Position label, e.g. "3 of 42". */
+  position?: string;
 }
 
 const TIERS: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
