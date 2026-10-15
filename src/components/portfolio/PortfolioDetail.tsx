@@ -179,11 +179,19 @@ export function PortfolioDetail({
 
   const NOTE_TYPES = new Set(["granola", "upload", "drive-doc"]);
   const SRC_LABEL: Record<string, string> = { granola: "Granola", upload: "Upload", "drive-doc": "Drive" };
+  // Sheets sometimes hands dates back as serial day numbers (e.g. 46266) — normalize to YYYY-MM-DD.
+  const isoDate = (d?: string) => {
+    const v = (d || "").trim();
+    if (/^\d{5}(\.\d+)?$/.test(v)) return new Date(Date.UTC(1899, 11, 30) + Number(v) * 864e5).toISOString().slice(0, 10);
+    return v.slice(0, 10);
+  };
   const companyNotes = knowledge.records
+    .map((r) => ({ ...r, date: isoDate(r.date) }))
     .filter((r) => NOTE_TYPES.has(r.sourceType) && portcoMatches(r.portco, company.name))
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   // Confirmed (registered) email/notes activity tagged to this PortCo — News is knowledge, not activity.
   const harvestedActs = knowledge.activities
+    .map((a) => ({ ...a, date: isoDate(a.date) }))
     .filter((a) => a.track !== "News" && portcoMatches(a.portco, company.name))
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const trackCounts: Record<string, number> = {};
