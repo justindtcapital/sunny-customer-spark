@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
+import { CalendarIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 // Typeable MM/DD/YYYY date input — no native browser date picker. The public
@@ -44,6 +47,7 @@ export function DateTextField({
   placeholder = "MM/DD/YYYY",
   className,
 }: DateTextFieldProps) {
+  const [open, setOpen] = useState(false);
   const [text, setText] = useState(() => toDisplay(value));
 
   // Re-sync when the committed value changes from outside (clear, quick-range…).
@@ -62,16 +66,49 @@ export function DateTextField({
     if (iso) onChange(iso);
   };
 
+  const selected = /^\d{4}-\d{2}-\d{2}$/.test(value || "") ? new Date(`${value}T00:00:00`) : undefined;
+
   return (
-    <Input
-      inputMode="numeric"
-      value={text}
-      onChange={(e) => handleChange(e.target.value)}
-      // Snap back to the canonical display of the committed value on blur so a
-      // partial/invalid entry doesn't linger.
-      onBlur={() => setText(toDisplay(value))}
-      placeholder={placeholder}
-      className={cn("h-8 text-xs", className)}
-    />
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="relative">
+          <Input
+            inputMode="numeric"
+            value={text}
+            onChange={(e) => handleChange(e.target.value)}
+            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
+            // Snap back to the canonical display of the committed value on blur so a
+            // partial/invalid entry doesn't linger.
+            onBlur={() => setText(toDisplay(value))}
+            placeholder={placeholder}
+            className={cn("h-8 pr-7 text-xs", className)}
+          />
+          <CalendarIcon className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        className="w-auto p-0"
+        align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => {
+          if (e.target instanceof Node && e.currentTarget instanceof Node && (e.target as HTMLElement).closest?.("[data-date-anchor]")) e.preventDefault();
+        }}
+      >
+        <Calendar
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          onSelect={(d) => {
+            if (!d) return;
+            const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            onChange(iso);
+            setText(toDisplay(iso));
+            setOpen(false);
+          }}
+          className={cn("p-3 pointer-events-auto")}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
