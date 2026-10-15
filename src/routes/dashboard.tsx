@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,10 @@ const EMPTY_NAMES: Record<string, string> = {};
 const EMPTY_EVENTS: Record<string, PortfolioEvent[]> = {};
 
 export const Route = createFileRoute("/dashboard")({
+  validateSearch: (search: Record<string, unknown>): { owner?: string; section?: string } => ({
+    owner: typeof search.owner === "string" ? search.owner : undefined,
+    section: typeof search.section === "string" ? search.section : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Dashboard — VenturePulse" },
@@ -123,7 +127,29 @@ function DashboardPage() {
   const [investor, setInvestor] = useState("");
   const [sector, setSector] = useState("");
   const [priority, setPriority] = useState("");
-  const [owner, setOwner] = useState("");
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const owner = ACTION_OWNERS.find((o) => o.name === search.owner)?.name || "";
+  const destination = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!owner || !["notes", "workstreams"].includes(search.section || "")) return;
+    const element = destination.current;
+    if (!element) return;
+    // Keep the destination in view while its asynchronously loaded content grows.
+    const scroll = () => element.scrollIntoView({ block: "start" });
+    const observer = new ResizeObserver(scroll);
+    observer.observe(element);
+    const timer = window.setTimeout(scroll, 250);
+    const stop = () => observer.disconnect();
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchstart", stop, { once: true, passive: true });
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchstart", stop);
+    };
+  }, [owner, search.section]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -235,7 +261,7 @@ function DashboardPage() {
                 <Select
                   value={owner || "all"}
                   onValueChange={(v) => {
-                    setOwner(v === "all" ? "" : v);
+                    void navigate({ search: (prev) => ({ ...prev, owner: v === "all" ? undefined : v }) });
                     setSelectedKey(null);
                   }}
                 >
@@ -342,7 +368,8 @@ function DashboardPage() {
 
       {owner && (
         <>
-          <WorkstreamOverview keys={scopeKeys} owner={owner} scopeLabel={scopeLabel} points={points}>
+          <div ref={search.section === "workstreams" ? destination : undefined} className={search.section === "workstreams" ? "scroll-mt-6 min-h-screen" : "scroll-mt-6"}>
+          <WorkstreamOverview key={`${owner}:${search.section}`} initiallyOpen={search.section === "workstreams"} keys={scopeKeys} owner={owner} scopeLabel={scopeLabel} points={points}>
             <WorkstreamSummary
               keys={scopeKeys}
               scopeLabel={scopeLabel}
@@ -350,6 +377,7 @@ function DashboardPage() {
               points={points}
             />
           </WorkstreamOverview>
+          </div>
         </>
       )}
       {scopeKind === "company" && (
@@ -363,7 +391,7 @@ function DashboardPage() {
           <KnowledgePanel company={scopeLabel} />
         </>
       )}
-      {owner && <ReviewInboxes key={owner} owner={owner} points={points} />}
+      {owner && <div ref={search.section === "notes" ? destination : undefined} className={search.section === "notes" ? "scroll-mt-6 min-h-screen" : "scroll-mt-6"}><ReviewInboxes key={`${owner}:${search.section}`} initiallyOpen={search.section === "notes"} owner={owner} points={points} /></div>}
 
       <PortfolioDetail
         company={detailCompany ?? null}
@@ -475,11 +503,11 @@ function SummaryCard({ title, sub, open, onToggle, children }: {
   );
 }
 
-function WorkstreamOverview({ keys, owner, scopeLabel, points, children }: {
+function WorkstreamOverview({ keys, owner, scopeLabel, points, children, initiallyOpen = false }: {
   keys: string[]; owner: string; scopeLabel: string;
-  points: { name: string; website: string }[]; children: ReactNode;
+  points: { name: string; website: string }[]; children: ReactNode; initiallyOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const { workstreams } = useWorkstreams();
   const ws = useMemo(() => {
     const set = new Set(keys);
@@ -509,8 +537,8 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children }: {
   );
 }
 
-function ReviewInboxes({ owner, points }: { owner: string; points: { name: string; website: string }[] }) {
-  const [open, setOpen] = useState(false);
+function ReviewInboxes({ owner, points, initiallyOpen = false }: { owner: string; points: { name: string; website: string }[]; initiallyOpen?: boolean }) {
+  const [open, setOpen] = useState(initiallyOpen);
   const [tab, setTab] = useState<"notes" | "activity">("notes");
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
   const [reviewed, setReviewed] = useState({ notes: 0, activity: 0 });

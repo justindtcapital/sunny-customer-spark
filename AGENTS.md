@@ -12,3 +12,5 @@
 - Home momentum uses a dedicated read-only Sheets/Asana aggregate and pure date/scope helpers; provider failures must never fall back to demo rows because KPI counts must reflect real records.
 - Contact creation uses a shared manual-rating policy and the legacy recalculation endpoint is inert; this prevents imports and sync callers from silently overriding human ratings.
 - Network reminder due dates live on Notes interaction rows; note-created reminder completion lives on Harvested Activities, so calendar counts and completion survive reloads without altering campaign membership.
+
+- Dashboard deep links use validated owner and section search parameters to select the action owner, expand the requested section, and scroll there; URL state keeps homepage navigation and browser history consistent.
