@@ -373,7 +373,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                 ))}
               </section>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" disabled={saving} onClick={skip}>Skip</Button>
                 <Button size="sm" disabled={saving} onClick={save}>
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   Mark reviewed
