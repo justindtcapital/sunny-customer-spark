@@ -45,7 +45,11 @@ function CaptureDialog({ mode, email, onClose }: { mode: Mode; email: string; on
   const ask = useServerFn(submitQuery);
   const client = useQueryClient();
   const [text, setText] = useState("");
-  const [title, setTitle] = useState(`Voice update — ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}`);
+  const [picked, setPicked] = useState<VoiceCategory | null | undefined>(undefined);
+  const category = picked !== undefined ? picked : detectVoiceCategory(text);
+  const [customTitle, setCustomTitle] = useState<string | null>(null);
+  const title = customTitle ?? voiceTitle(category, new Date());
+  const setTitle = (v: string) => setCustomTitle(v);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState<"" | "transcribing" | "saving" | "asking">("");
   const [answer, setAnswer] = useState("");
