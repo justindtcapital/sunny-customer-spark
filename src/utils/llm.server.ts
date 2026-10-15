@@ -570,6 +570,21 @@ TOOLS & TIERS: Read tools (query_contacts, query_portfolio, query_targets, query
 
 Be concise. When you produce a draft, list, or score via a tool, briefly summarize it for the user.`;
 
+/** Static prompt plus today's date, computed fresh on every agent call. */
+function systemPromptWithDate(): string {
+  const today = todayIso(); // YYYY-MM-DD, CRM timezone (America/New_York)
+  const nice = new Intl.DateTimeFormat("en-US", {
+    timeZone: CRM_TIMEZONE,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+  return `${SYSTEM_PROMPT}
+
+CURRENT DATE: Today is ${nice} (YYYY-MM-DD: ${today}, America/New_York). Treat any relative date ("this week", "last month", "next Friday") from this reference. Sheet dates are plain YYYY-MM-DD calendar dates with no timezone offset.`;
+}
+
 // ── Confidentiality: filter CRM rows (future-proof; Asana never reaches here) ──
 function contactLevel(c: Contact): string {
   const lvl = (c as unknown as { confidentiality?: string }).confidentiality;
