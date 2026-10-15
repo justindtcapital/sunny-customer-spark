@@ -1,4 +1,5 @@
 // LLM Query Tab — Gemini function-calling agent over VenturePulse data.
+import { CRM_TIMEZONE, todayIso } from "@/lib/sheet-date";
 // Grounding: the agent answers ONLY from tool results. Asana is confidential and
 // has no tool (it can never reach the model). See VenturePulse_LLM_Query_Tab_Spec.
 //
@@ -569,6 +570,21 @@ CONFIDENTIALITY: Asana data is confidential and is NOT available to you — you 
 TOOLS & TIERS: Read tools (query_contacts, query_portfolio, query_targets, query_signals, query_sheet, apollo_search, apollo_enrich, web_search) run automatically. Draft tools (draft_outreach, propose_invite_list, score_company_dna) produce reviewable output and commit nothing. Write tools each require user approval of a diff before committing: sheets_update_contact (edit an existing contact by email — profile fields, sector, prime, or temperature), sheets_add_contact (add a NEW contact — check with query_contacts first that they're not already in the CRM), sheets_add_note (record a note/interaction on a contact's trail), sheets_add_event (create a NEW event in the app; this does NOT touch Asana), sheets_add_attendees (tag contacts as attendees/invitees of an event — gather their emails with query_contacts or propose_invite_list first), sheets_add_target (add a NEW prospect to the Targeting pipeline — check query_targets for duplicates and always give reasonSurfaced), and sheets_update_target (edit an existing target's stage/sector/title/location/notes). Before adding a contact, enrich with Apollo when useful so the new record is complete. If the user declines a proposed write, accept the decision — do not re-propose the same write. Writing must wait until any clarification is answered.
 
 Be concise. When you produce a draft, list, or score via a tool, briefly summarize it for the user.`;
+
+/** Static prompt plus today's date, computed fresh on every agent call. */
+function systemPromptWithDate(): string {
+  const today = todayIso(); // YYYY-MM-DD, CRM timezone (America/New_York)
+  const nice = new Intl.DateTimeFormat("en-US", {
+    timeZone: CRM_TIMEZONE,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
+  return `${SYSTEM_PROMPT}
+
+CURRENT DATE: Today is ${nice} (YYYY-MM-DD: ${today}, America/New_York). Treat any relative date ("this week", "last month", "next Friday") from this reference. Sheet dates are plain YYYY-MM-DD calendar dates with no timezone offset.`;
+}
 
 // ── Confidentiality: filter CRM rows (future-proof; Asana never reaches here) ──
 function contactLevel(c: Contact): string {
@@ -1292,7 +1308,7 @@ export async function runAgent(
     let resp: GeminiResponse;
     try {
       resp = await geminiGenerate({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: systemPromptWithDate() }] },
         contents: state.messages,
         tools: [{ functionDeclarations: FUNCTION_DECLARATIONS }],
         generationConfig: {
