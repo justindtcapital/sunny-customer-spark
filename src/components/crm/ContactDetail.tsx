@@ -88,7 +88,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Lock, Unlock, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import { daysSinceLastContact } from "@/lib/activity-score";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFilterOptions } from "@/lib/filter-options-context";

@@ -60,6 +60,8 @@ export const ACTIVITY_HEADERS = [
   "Summary",
   "Source URL",
   "Created At",
+  "Resolved",
+  "Resolved At",
 ];
 
 export const SUGGESTED_CONTACT_HEADERS = [
@@ -118,6 +120,8 @@ export interface KnowledgeRecord {
 }
 
 export interface HarvestedActivity {
+  resolved?: boolean;
+  resolvedAt?: string;
   activityId: string;
   recordId: string;
   date: string;
@@ -176,7 +180,7 @@ function rowsToActivities(rows: string[][]): HarvestedActivity[] {
   return rows.slice(1).filter((r) => r[0]).map((r) => ({
     activityId: r[0], recordId: r[1], date: r[2], track: r[3], type: r[4],
     title: r[5], portco: r[6], person: r[7], owner: r[8], summary: r[9],
-    sourceUrl: r[10], createdAt: r[11],
+    sourceUrl: r[10], createdAt: r[11], resolved: r[12]?.toLowerCase() === "true", resolvedAt: r[13] || "",
   }));
 }
 
@@ -287,6 +291,13 @@ async function updateRowById(
   }
   await writeSheetRow(tab, idx + 1, row);
   return true;
+}
+
+export async function resolveHarvestedActivity(activityId: string, resolved: boolean): Promise<boolean> {
+  await ensureHeaderWidth(KNOWLEDGE_TABS.activities, ACTIVITY_HEADERS);
+  return updateRowById(KNOWLEDGE_TABS.activities, ACTIVITY_HEADERS, activityId, {
+    Resolved: resolved ? "TRUE" : "FALSE", "Resolved At": resolved ? new Date().toISOString() : "",
+  });
 }
 
 export function reviewWorkstreamLink(
