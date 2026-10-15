@@ -1,8 +1,7 @@
 import { useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { Mic, Square, Loader2, MessageSquarePlus, Sparkles, ArrowRight } from "lucide-react";
+import { Mic, Square, Loader2, MessageSquarePlus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { transcribeAudioFn } from "@/utils/voice.functions";
 import { uploadNoteFn } from "@/utils/knowledge.functions";
 import { submitQuery } from "@/utils/llm.functions";
-import { teamProfile } from "@/lib/user-ownership";
 import { MarkdownMessage } from "@/components/query/MarkdownMessage";
 import { toast } from "sonner";
 
@@ -84,7 +82,7 @@ function CaptureDialog({ mode, email, onClose }: { mode: Mode; email: string; on
     try {
       const body = text.trim();
       const name = `${title.trim() || "Voice update"}.txt`;
-      await upload({ data: { name, text: body, base64: toBase64(new TextEncoder().encode(body).buffer as ArrayBuffer), mimeType: "text/plain", importedBy: teamProfile(email)?.displayName || email } });
+      await upload({ data: { name, text: body, base64: toBase64(new TextEncoder().encode(body).buffer as ArrayBuffer), mimeType: "text/plain", importedBy: email } });
       await client.invalidateQueries({ queryKey: ["home-momentum"] });
       toast.success("Saved — waiting in Notes & Activity for review");
       onClose();
@@ -124,11 +122,9 @@ function CaptureDialog({ mode, email, onClose }: { mode: Mode; email: string; on
             : <Button disabled={!text.trim() || !!busy || recording} onClick={runAsk}>{busy === "asking" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Ask</Button>}
         </div>
         {!tell && busy === "asking" && <p className="text-xs text-muted-foreground">Searching across Venture Pulse… this can take up to a minute.</p>}
-        {!tell && answer && <div className="rounded-md border border-border bg-muted/40 p-3 text-sm"><MarkdownMessage content={answer} /><p className="mt-3 text-[11px] text-muted-foreground">Ask a follow-up above — it keeps the context.</p></div>}
-        {!tell && <Link to="/" className="hidden" />}
+        {!tell && answer && <div className="rounded-md border border-border bg-muted/40 p-3 text-sm"><MarkdownMessage text={answer} /><p className="mt-3 text-[11px] text-muted-foreground">Ask a follow-up above — it keeps the context.</p></div>}
       </div>
     </DialogContent>
   </Dialog>;
 }
 
-export { ArrowRight };
