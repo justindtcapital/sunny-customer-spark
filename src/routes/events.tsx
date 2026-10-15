@@ -1241,24 +1241,44 @@ function EventDetailSheet({
   const eventCampaigns = (campaignsQ.data?.campaigns || []).filter((c) =>
     (c.events || []).some((n) => n.trim().toLowerCase() === evKey),
   );
-  const prospectList = (list: TargetLead[], empty: string) =>
-    list.length === 0 ? (
-      <p className="text-xs text-muted-foreground">{empty}</p>
-    ) : (
-      <div className="space-y-1.5">
-        {list.map((t) => (
-          <div key={t.id} className="flex items-center justify-between border border-border rounded px-2 py-1.5">
-            <div className="min-w-0">
-              <div className="text-xs font-medium truncate">{t.name}</div>
-              <div className="text-[10px] text-muted-foreground truncate">
-                {[t.title, t.company].filter(Boolean).join(" · ")}
-              </div>
-            </div>
-            <Badge variant="outline" className="text-[9px] shrink-0">{t.stage || "Prospect"}</Badge>
-          </div>
-        ))}
+  // One roster per state: Network contacts and Prospecting leads share the same
+  // Attendees / Invited lists, each row tagged with the list it came from.
+  const contactRow = (c: Contact, alsoAttended = false) => (
+    <AttendeeRow key={c.id} contact={c} onSelect={onSelectContact} tag="Network" attended={alsoAttended} />
+  );
+  const prospectRow = (t: TargetLead, alsoAttended = false) => (
+    <div key={t.id} className="flex items-center justify-between border border-border rounded px-2 py-1.5">
+      <div className="min-w-0">
+        <div className="text-xs font-medium truncate">{t.name}</div>
+        <div className="text-[10px] text-muted-foreground truncate">
+          {[t.title, t.company].filter(Boolean).join(" · ")}
+        </div>
       </div>
-    );
+      <div className="flex items-center gap-1.5 shrink-0">
+        {t.stage && <Badge variant="outline" className="text-[9px]">{t.stage}</Badge>}
+        {alsoAttended && <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0">Attended</Badge>}
+        <SourceTag label="Prospect" />
+      </div>
+    </div>
+  );
+  const attendedNames = new Set(
+    [...attended.map((c) => c.name), ...prospectAttended.map((t) => t.name)]
+      .map((n) => n.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const mergeRows = (net: Contact[], leads: TargetLead[], markAttended: boolean) =>
+    [
+      ...net.map((c) => ({
+        name: c.name,
+        node: contactRow(c, markAttended && attendedNames.has(c.name.trim().toLowerCase())),
+      })),
+      ...leads.map((t) => ({
+        name: t.name,
+        node: prospectRow(t, markAttended && attendedNames.has(t.name.trim().toLowerCase())),
+      })),
+    ].sort((a, b) => a.name.localeCompare(b.name));
+  const attendeeRows = mergeRows(attended, prospectAttended, false);
+  const invitedRows = mergeRows(invited, prospectInvited, true);
 
   const saveSynopsis = async () => {
     setSynopsisBusy(true);
@@ -1429,7 +1449,7 @@ function EventDetailSheet({
             <section>
               <div className="flex items-center justify-between mb-2 gap-2">
                 <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                  Network attendees ({attended.length}
+                  Attendees ({attendeeRows.length}
                   {event.attendeeCount != null ? ` of ${event.attendeeCount.toLocaleString()}` : ""}
                   )
                 </h3>
@@ -1455,23 +1475,20 @@ function EventDetailSheet({
                   </Button>
                 </div>
               </div>
-              {attended.length === 0 ? (
+              {attendeeRows.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No Network contacts logged as attendees yet.
+                  No one logged as attending yet — add Network contacts, or tag prospects to this
+                  event.
                 </p>
               ) : (
-                <div className="space-y-1.5">
-                  {attended.map((c) => (
-                    <AttendeeRow key={c.id} contact={c} onSelect={onSelectContact} />
-                  ))}
-                </div>
+                <div className="space-y-1.5">{attendeeRows.map((r) => r.node)}</div>
               )}
             </section>
 
             <section>
               <div className="flex items-center justify-between mb-2 gap-2">
                 <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                  Invited network ({invited.length})
+                  Invited ({invitedRows.length})
                 </h3>
                 <Button
                   size="sm"
@@ -1485,40 +1502,24 @@ function EventDetailSheet({
                   <Plus className="h-3 w-3 mr-1" /> Invite
                 </Button>
               </div>
-              {invited.length === 0 ? (
+              {invitedRows.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   No one tagged as invited yet. Invite contacts pre-event; uploading the attended
                   list later moves them to Attended automatically.
                 </p>
               ) : (
-                <div className="space-y-1.5">
-                  {invited.map((c) => (
-                    <AttendeeRow key={c.id} contact={c} onSelect={onSelectContact} />
-                  ))}
-                </div>
+                <div className="space-y-1.5">{invitedRows.map((r) => r.node)}</div>
               )}
             </section>
 
             <section>
               <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
-                Prospect attendees ({prospectAttended.length})
+                Campaigns / Outreach ({eventCampaigns.length + emails.length})
               </h3>
-              {prospectList(prospectAttended, evPast ? "No prospects tagged to this event." : "Prospect attendees appear once the event has happened.")}
-            </section>
-
-            <section>
-              <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
-                Invited prospects ({prospectInvited.length})
-              </h3>
-              {prospectList(prospectInvited, evPast ? "Event has passed — tagged prospects are listed as attendees." : "No prospects tagged to this event yet.")}
-            </section>
-
-            <section>
-              <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
-                Campaigns ({eventCampaigns.length})
-              </h3>
-              {eventCampaigns.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No campaigns linked to this event yet.</p>
+              {eventCampaigns.length === 0 && emails.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  No campaigns or outreach emails logged for this event yet.
+                </p>
               ) : (
                 <div className="space-y-1.5">
                   {eventCampaigns.map((c) => (
@@ -1539,35 +1540,30 @@ function EventDetailSheet({
                       </Button>
                     </div>
                   ))}
+                  {emails.length > 0 && (
+                    <>
+                      {eventCampaigns.length > 0 && (
+                        <div className="pt-1 text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                          Outreach emails
+                        </div>
+                      )}
+                      {emails.map((e, i) => (
+                        <div
+                          key={`${e.contactEmail}-${i}`}
+                          className="border border-border rounded px-2 py-1.5"
+                        >
+                          <div className="text-xs font-medium truncate">
+                            {e.subject || "(no subject)"}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {e.contactEmail}
+                            {e.timestamp ? ` · ${e.timestamp.slice(0, 10)}` : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
-              )}
-            </section>
-
-            <section>
-              <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-2">
-                Outreach ({emails.length})
-              </h3>
-              {emails.length > 0 ? (
-                <div className="space-y-1.5">
-                  {emails.map((e, i) => (
-                    <div
-                      key={`${e.contactEmail}-${i}`}
-                      className="border border-border rounded px-2 py-1.5"
-                    >
-                      <div className="text-xs font-medium truncate">
-                        {e.subject || "(no subject)"}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {e.contactEmail}
-                        {e.timestamp ? ` · ${e.timestamp.slice(0, 10)}` : ""}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  No outreach emails logged for this event yet.
-                </p>
               )}
             </section>
           </div>
@@ -1616,12 +1612,35 @@ function EventDetailSheet({
   );
 }
 
+/** Small source chip — "Network" or "Prospect" — shown on every roster row. */
+const SOURCE_DOT: Record<string, string> = {
+  Network: "bg-sky-500",
+  Prospect: "bg-amber-400",
+};
+
+function SourceTag({ label }: { label: string }) {
+  return (
+    <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0 gap-1 shrink-0">
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${SOURCE_DOT[label] ?? "bg-muted-foreground/40"}`}
+      />
+      {label}
+    </Badge>
+  );
+}
+
 function AttendeeRow({
   contact,
   onSelect,
+  tag,
+  attended,
 }: {
   contact: Contact;
   onSelect?: (c: Contact) => void;
+  /** Source label shown on the right, e.g. "Network". */
+  tag?: string;
+  /** Invited row for someone also logged as an attendee. */
+  attended?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between border border-border rounded px-2 py-1.5">
@@ -1642,12 +1661,20 @@ function AttendeeRow({
           {contact.company ? ` · ${contact.company}` : ""}
         </div>
       </div>
-      {contact.location && (
-        <div className="text-[10px] text-muted-foreground flex items-center gap-1 shrink-0">
-          <MapPin className="h-2.5 w-2.5" />
-          {contact.location}
-        </div>
-      )}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {attended && (
+          <Badge variant="outline" className="text-[9px] font-medium px-1.5 py-0">
+            Attended
+          </Badge>
+        )}
+        {tag && <SourceTag label={tag} />}
+        {contact.location && (
+          <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <MapPin className="h-2.5 w-2.5" />
+            {contact.location}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
