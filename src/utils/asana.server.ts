@@ -803,7 +803,7 @@ function mapSubtask(sub: AsanaTask, company: string): Workstream {
   };
 }
 
-async function asanaWrite<T = unknown>(path: string, method: "PUT", body: unknown): Promise<T> {
+async function asanaWrite<T = unknown>(path: string, method: "PUT" | "POST", body: unknown): Promise<T> {
   const token = process.env.ASANA_ACCESS_TOKEN;
   if (!token) throw new Error("ASANA_ACCESS_TOKEN is not configured");
   const res = await fetch(`${ASANA_BASE}${path}`, {
