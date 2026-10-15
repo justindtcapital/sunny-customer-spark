@@ -16,6 +16,7 @@ import {
   type KnowledgeRecord,
 } from "./knowledge.server";
 import { sha256Hex } from "./sha256";
+import { isNetworkTitle, matchesQuery, personInText } from "@/lib/network-notes";
 
 const REVIEW_PREFIX = "review:";
 const NOTE_SOURCES = new Set(["granola", "upload", "drive-doc"]);
@@ -29,6 +30,8 @@ export interface NoteReview {
   /** Activity Review only: confirmed registers the email as activity; skipped keeps it out. */
   status?: "confirmed" | "skipped";
   track?: string;
+  /** Lowercased emails of contacts this note was tagged to. */
+  contacts?: string[];
 }
 
 export type InboxKind = "notes" | "activity";
@@ -158,6 +161,7 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
     }
   }
   const trackOf = (r: KnowledgeRecord) =>
+    (r.sourceType === "gmail-network" || isNetworkTitle(r.title) ? "Network" : "") ||
     actsBy.get(r.recordId)?.track || ({ "gmail-bd": "BD", "gmail-gtm": "GTM", "gmail-workstreams": "Workstream", "gmail-news": "News" } as Record<string, string>)[r.sourceType] || "";
   const out: NoteInboxItem[] = [];
   for (const r of records) {
@@ -219,6 +223,66 @@ export interface ReviewNoteInput {
   followUps: Array<{ action: string; who: string; dueDate: string }>;
   status?: "confirmed" | "skipped";
   track?: string;
+  /** Network/Prospecting people this note is tagged to; each gets a trail entry on confirm. */
+  linkContacts?: Array<{ name: string; email: string; company: string; where: string }>;
+}
+
+export interface PersonMatch { name: string; email: string; company: string; where: "Network" | "Prospecting" }
+
+/** Read people (name/email/company) from the Contacts and Targets tabs by header name. */
+async function peopleDirectory(): Promise<PersonMatch[]> {
+  const out: PersonMatch[] = [];
+  for (const [tab, where] of [["Contacts", "Network"], ["Targets", "Prospecting"]] as const) {
+    try {
+      const rows = await fetchSheetTab(tab);
+      const h = (rows[0] || []).map((x) => (x || "").trim().toLowerCase());
+      const col = (re: RegExp) => h.findIndex((x) => re.test(x));
+      const n = col(/^(full )?name$|^contact name$/), e = col(/e-?mail/), c = col(/^company|organization|employer/);
+      const first = col(/^first name$/), last = col(/^last name$/);
+      for (const r of rows.slice(1)) {
+        const name = (n >= 0 ? r[n] : [first >= 0 ? r[first] : "", last >= 0 ? r[last] : ""].join(" ")) || "";
+        const email = (e >= 0 ? r[e] : "") || "";
+        if (!name.trim() && !email.trim()) continue;
+        out.push({ name: name.trim(), email: email.trim().toLowerCase(), company: ((c >= 0 ? r[c] : "") || "").trim(), where });
+      }
+    } catch { /* missing tab */ }
+  }
+  return out;
+}
+
+/** Contact search for the review cards. */
+export async function searchPeople(q: string): Promise<PersonMatch[]> {
+  if (q.trim().length < 2) return [];
+  const all = await peopleDirectory();
+  return all.filter((p) => matchesQuery(q, [p.name, p.email, p.company])).slice(0, 12);
+}
+
+export interface PersonContextItem {
+  recordId: string; date: string; title: string; source: string; track: string;
+  summary: string; portco: string; sourceUrl: string; workstream: string; workstreamStatus: string; reviewed: boolean;
+}
+
+/** Notes, emails and workstream links that mention or were tagged to this person. */
+export async function personContext(person: { name?: string; email?: string }): Promise<PersonContextItem[]> {
+  const [records, links, reviews] = await Promise.all([listKnowledgeRecords(), listWorkstreamLinks(), reviewMap()]);
+  const linkBy = new Map(links.map((l) => [l.recordId, l]));
+  const email = (person.email || "").toLowerCase();
+  const out: PersonContextItem[] = [];
+  for (const r of records) {
+    const rv = reviews.get(r.recordId);
+    if (rv?.status === "skipped") continue;
+    const tagged = !!email && (rv?.contacts || []).includes(email);
+    if (!tagged && !personInText(person, `${r.participants} ${r.extractedJson}`)) continue;
+    const l = linkBy.get(r.recordId);
+    const ws = l && l.status !== "ignored" ? l : null;
+    out.push({
+      recordId: r.recordId, date: r.date, title: r.title, source: sourceLabel(r),
+      track: rv?.track || (r.sourceType === "gmail-network" || isNetworkTitle(r.title) ? "Network" : ({ "gmail-bd": "BD", "gmail-gtm": "GTM", "gmail-workstreams": "Workstream", "gmail-news": "News" } as Record<string, string>)[r.sourceType] || "Note"),
+      summary: r.summary, portco: r.portco, sourceUrl: r.sourceUrl || (r.textRef ? `https://drive.google.com/file/d/${r.textRef}/view` : ""),
+      workstream: ws?.workstreamName || "", workstreamStatus: ws?.status || "", reviewed: !!rv,
+    });
+  }
+  return out.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 50);
 }
 
 export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
