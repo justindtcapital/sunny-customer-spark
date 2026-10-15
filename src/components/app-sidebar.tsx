@@ -1321,7 +1321,7 @@ export function AppSidebar({
                 )}
                 {bulkField === "status" && (
                   <p className="text-[10px] text-muted-foreground">
-                    Manually setting status locks these contacts from the automatic scorecard.
+                    Relationship status changes only when you select it.
                   </p>
                 )}
               </>

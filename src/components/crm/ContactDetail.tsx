@@ -244,6 +244,7 @@ export function ContactDetail({
     date: "",
     isFollowUp: false,
     followUpComplete: false,
+    followUpDue: "",
   });
   const [savingInteraction, setSavingInteraction] = useState(false);
   const [addPortCoOpen, setAddPortCoOpen] = useState(false);
@@ -264,6 +265,7 @@ export function ContactDetail({
     summary: "",
     isFollowUp: false,
     portCoIntro: "",
+    followUpDue: "",
   });
   const [enriching, setEnriching] = useState(false);
   const [apolloResult, setApolloResult] = useState<ApolloEnrichmentResult | null>(null);
@@ -644,6 +646,7 @@ export function ContactDetail({
       type: newInteraction.type,
       summary: newInteraction.summary,
       isFollowUp: newInteraction.isFollowUp,
+      followUpDue: newInteraction.isFollowUp ? newInteraction.followUpDue : "",
       followUpComplete: false,
     };
     const updatedPortCoIntros =
@@ -658,7 +661,7 @@ export function ContactDetail({
       portCoIntros: updatedPortCoIntros,
     };
     if (onContactUpdate) onContactUpdate(updated);
-    setNewInteraction({ type: "note", summary: "", isFollowUp: false, portCoIntro: "" });
+    setNewInteraction({ type: "note", summary: "", isFollowUp: false, portCoIntro: "", followUpDue: "" });
     setAddInteractionOpen(false);
 
     // Write to Google Sheets
@@ -668,6 +671,7 @@ export function ContactDetail({
           contactEmail: contact.email,
           noteContent: interaction.summary,
           requiresFollowUp: newInteraction.isFollowUp,
+          followUpDue: interaction.followUpDue,
           type: newInteraction.type,
         },
       });
@@ -690,6 +694,7 @@ export function ContactDetail({
       date: interaction.date,
       isFollowUp: interaction.isFollowUp === true,
       followUpComplete: interaction.followUpComplete === true,
+      followUpDue: interaction.followUpDue || "",
     });
   };
 
@@ -704,6 +709,7 @@ export function ContactDetail({
       type: editInteractionData.type,
       summary,
       isFollowUp: editInteractionData.isFollowUp,
+      followUpDue: editInteractionData.isFollowUp ? editInteractionData.followUpDue : "",
       followUpComplete: editInteractionData.isFollowUp
         ? editInteractionData.followUpComplete
         : false,
@@ -729,6 +735,7 @@ export function ContactDetail({
           note: summary,
           type: patch.type,
           requiresFollowUp: patch.isFollowUp,
+          followUpDue: patch.followUpDue,
           resolved: patch.followUpComplete,
         },
       });
@@ -1686,6 +1693,7 @@ export function ContactDetail({
                                     />
                                     Needs follow-up
                                   </label>
+                                  {editInteractionData.isFollowUp && <Input aria-label="Follow-up due date" type="date" value={editInteractionData.followUpDue} onChange={(e) => setEditInteractionData({ ...editInteractionData, followUpDue: e.target.value })} />}
                                   {editInteractionData.isFollowUp && (
                                     <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                       <Checkbox
@@ -1885,6 +1893,7 @@ export function ContactDetail({
                 Schedule as follow-up
               </label>
             </div>
+            {newInteraction.isFollowUp && <div><label htmlFor="new-followup-due" className="text-xs text-muted-foreground">Due date</label><Input id="new-followup-due" type="date" value={newInteraction.followUpDue} onChange={(e) => setNewInteraction({ ...newInteraction, followUpDue: e.target.value })} /></div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddInteractionOpen(false)}>

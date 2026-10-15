@@ -20,13 +20,6 @@ const WEIGHTS = {
   followUp: 5,
 } as const;
 
-// Score → tier cutoffs (aligned with EngagementScore bar bands).
-const TIER_CUTOFFS = {
-  council: 80, // >= 80 → Council
-  hot: 55, // >= 55 → Hot
-  warm: 25, // >= 25 → Warm, else Cold
-} as const;
-
 export interface ActivityScore {
   score: number; // 0–100
   tier: Temperature;
@@ -135,14 +128,7 @@ export function scoreContact(contact: Contact, now: number = Date.now()): Activi
 
   const score = Math.min(100, recency + interactions + events + intros + followUp);
 
-  const tier: Temperature =
-    score >= TIER_CUTOFFS.council
-      ? "Council"
-      : score >= TIER_CUTOFFS.hot
-        ? "Hot"
-        : score >= TIER_CUTOFFS.warm
-          ? "Warm"
-          : "Cold";
+  const tier = contact.temperature;
 
   return { score, tier, drivers };
 }

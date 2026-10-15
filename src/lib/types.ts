@@ -118,6 +118,7 @@ export interface Interaction {
   summary: string;
   isFollowUp?: boolean;
   followUpComplete?: boolean;
+  followUpDue?: string;
   /** Provenance of a synced row: "asana:<gid>" (Asana activity) or
    *  "gmail-<id>" (BD/GTM alias email). Absent for manual entries. */
   sourceRef?: string;

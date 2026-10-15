@@ -1845,6 +1845,7 @@ const INTERACTION_COLS: Record<string, string> = {
   "note content": "summary",
   "requires follow up": "isFollowUp",
   "follow up resolved": "followUpComplete",
+  "follow up due": "followUpDue",
   type: "type",
   "source ref": "sourceRef",
   owner: "owner",
@@ -1878,6 +1879,7 @@ export interface InteractionRowInput {
   sourceRef?: string;
   /** DTC teammate who owned the underlying BD/GTM activity. */
   owner?: string;
+  followUpDue?: string;
 }
 
 // Append one or more interaction rows to the Notes tab in a single batched
@@ -1888,6 +1890,7 @@ export async function appendInteractionRows(rows: InteractionRowInput[]): Promis
   if (rows.length === 0) return;
   await ensureTab(TAB_NAMES.interactions, INTERACTION_HEADERS);
   await ensureColumn(TAB_NAMES.interactions, "Type");
+  if (rows.some((r) => r.followUpDue)) await ensureColumn(TAB_NAMES.interactions, "Follow Up Due");
   if (rows.some((r) => r.sourceRef)) await ensureColumn(TAB_NAMES.interactions, "Source Ref");
   if (rows.some((r) => r.owner)) await ensureColumn(TAB_NAMES.interactions, "Owner");
   const sheetRows = await fetchSheetTab(TAB_NAMES.interactions).catch(() => [] as string[][]);
@@ -1904,6 +1907,7 @@ export async function appendInteractionRows(rows: InteractionRowInput[]): Promis
       type: r.type,
       "source ref": r.sourceRef ?? "",
       owner: r.owner ?? "",
+      "follow up due": r.followUpDue ?? "",
     };
     return headers.length
       ? headers.map((h) => byHeader[h] ?? "")
@@ -2577,6 +2581,7 @@ export async function buildContacts(): Promise<Contact[]> {
         summary: i.summary || "",
         isFollowUp: i.isFollowUp?.toLowerCase() === "true",
         followUpComplete: i.followUpComplete?.toLowerCase() === "true",
+        followUpDue: parseToIsoDate(i.followUpDue) || "",
         sourceRef: i.sourceRef || undefined,
         owner: i.owner || undefined,
       }))

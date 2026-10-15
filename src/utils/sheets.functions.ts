@@ -236,6 +236,8 @@ export const addNote = createServerFn({ method: "POST" })
       contactEmail: string;
       noteContent: string;
       requiresFollowUp: boolean;
+      followUpDue?: string;
+      owner?: string;
       /** Interaction type for the trail entry; defaults to "note". */
       type?: string;
     }) => data,
@@ -249,6 +251,8 @@ export const addNote = createServerFn({ method: "POST" })
         summary: data.noteContent,
         type: normalizeInteractionType(data.type),
         requiresFollowUp: data.requiresFollowUp,
+        followUpDue: data.followUpDue,
+        owner: data.owner,
       },
     ]);
     return { success: true };
@@ -906,9 +910,11 @@ export const updateInteraction = createServerFn({ method: "POST" })
       type?: string;
       requiresFollowUp?: boolean;
       resolved?: boolean;
+      followUpDue?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
+    if (data.followUpDue !== undefined) await ensureColumn(TAB_NAMES.interactions, "Follow Up Due");
     const rows = await fetchSheetTab(TAB_NAMES.interactions);
     if (rows.length < 2) return { success: false };
     const headers = rows[0].map((h) => h.trim().toLowerCase());
@@ -926,6 +932,7 @@ export const updateInteraction = createServerFn({ method: "POST" })
       const idx = headers.indexOf(header);
       if (idx !== -1) writes.push({ range: `${colLetters(idx)}${rowNumber}`, value });
     };
+    if (data.followUpDue !== undefined) push("follow up due", parseToIsoDate(data.followUpDue) || "");
     if (data.note !== undefined) push("note content", data.note);
     if (data.type !== undefined) push("type", data.type);
     if (data.requiresFollowUp !== undefined) {
