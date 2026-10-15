@@ -30,3 +30,40 @@ export const transcribeAudioFn = createServerFn({ method: "POST" })
     const json = (await res.json()) as { text?: string };
     return { text: (json.text || "").trim(), error: "" };
   });
+
+export interface VoiceTags {
+  summary: string;
+  portcos: string[];
+  portcoOptions: string[];
+  contacts: { name: string; email: string; company: string; where: string }[];
+  followUps: { action: string; dueDate: string }[];
+}
+
+/** Suggest PortCo / contact / follow-up tags for a voice or typed update. */
+export const analyzeVoiceFn = createServerFn({ method: "POST" })
+  .inputValidator((input: { text: string }) => ({ text: String(input?.text || "").slice(0, 20_000) }))
+  .handler(async ({ data }): Promise<VoiceTags> => {
+    const { matchCandidates } = await import("./knowledge-harvest.server");
+    const { extractKnowledge } = await import("./knowledge.server");
+    const { searchPeople } = await import("./notes-inbox.server");
+    const cand = await matchCandidates();
+    const ex = await extractKnowledge(data.text, "Voice update", cand.names, cand.workstreams);
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const said = norm(data.text);
+    const portcos = new Set<string>();
+    if (ex.portco) portcos.add(ex.portco);
+    for (const n of cand.names) if (norm(n).length >= 3 && said.includes(norm(n))) portcos.add(n);
+    const contacts: VoiceTags["contacts"] = [];
+    for (const p of ex.people.slice(0, 8)) {
+      const hit = (await searchPeople(p.email || p.name)).find((m) => (p.email && m.email.toLowerCase() === p.email.toLowerCase()) || norm(m.name) === norm(p.name));
+      if (hit && !contacts.some((c) => c.email === hit.email)) contacts.push(hit);
+      else if (!hit) contacts.push({ name: p.name, email: p.email, company: p.company, where: "New" });
+    }
+    return {
+      summary: ex.summary,
+      portcos: [...portcos],
+      portcoOptions: cand.names.sort((a, b) => a.localeCompare(b)),
+      contacts,
+      followUps: ex.nextSteps.map((n) => ({ action: n.action, dueDate: n.dueDate })),
+    };
+  });

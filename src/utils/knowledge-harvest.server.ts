@@ -82,7 +82,7 @@ async function knownEmails(): Promise<Set<string>> {
 }
 
 /** Portfolio company names + workstream names per company (match candidates). */
-async function matchCandidates(): Promise<{ names: string[]; workstreams: Record<string, string[]>; gidByName: Map<string, string> }> {
+export async function matchCandidates(): Promise<{ names: string[]; workstreams: Record<string, string[]>; gidByName: Map<string, string> }> {
   const names = new Set<string>();
   const workstreams: Record<string, string[]> = {};
   const gidByName = new Map<string, string>();
