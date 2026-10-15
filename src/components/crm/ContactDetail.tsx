@@ -99,7 +99,7 @@ import { ActivitySection } from "./ActivitySection";
 import { PersonContextSection } from "./PersonContextSection";
 import { useAsanaActivities } from "@/lib/use-activities";
 import { matchActivitiesToContact } from "@/lib/activity-match";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PersonCampaigns } from "@/components/crm/PersonCampaigns";
 
 interface ContactDetailProps {
@@ -107,6 +107,12 @@ interface ContactDetailProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onContactUpdate?: (contact: Contact) => void;
+  /** Step to the previous contact in the current list (undefined = at start). */
+  onPrev?: () => void;
+  /** Step to the next contact in the current list (undefined = at end). */
+  onNext?: () => void;
+  /** Position label, e.g. "3 of 42". */
+  position?: string;
 }
 
 const TIERS: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
@@ -229,6 +235,9 @@ export function ContactDetail({
   open,
   onOpenChange,
   onContactUpdate,
+  onPrev,
+  onNext,
+  position,
 }: ContactDetailProps) {
   const { options: filterOpts } = useFilterOptions();
   const portfolioCompanies = filterOpts.portfolioCompanies;
@@ -1807,8 +1816,35 @@ export function ContactDetail({
                   </div>
                 </div>
               </section>
-            </div>
+             </div>
           </ScrollArea>
+          {(onPrev || onNext) && (
+            <div className="shrink-0 border-t border-border px-4 py-2 flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] px-2"
+                onClick={onPrev}
+                disabled={!onPrev}
+              >
+                <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                Previous
+              </Button>
+              {position && (
+                <span className="text-[11px] text-muted-foreground">{position}</span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-[11px] px-2"
+                onClick={onNext}
+                disabled={!onNext}
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
 

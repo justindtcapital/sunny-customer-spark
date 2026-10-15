@@ -177,6 +177,12 @@ export function ContactList({
     filtered.length === 0 &&
     localContacts.length > 0;
 
+  // Position of the open contact within the current filtered list, so the
+  // detail pane can step Previous/Next without returning to the list.
+  const selectedIndex = selectedContact
+    ? filtered.findIndex((c) => c.id === selectedContact.id)
+    : -1;
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -233,6 +239,19 @@ export function ContactList({
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onContactUpdate={handleContactUpdate}
+        onPrev={
+          selectedIndex > 0
+            ? () => setSelectedContact(filtered[selectedIndex - 1])
+            : undefined
+        }
+        onNext={
+          selectedIndex >= 0 && selectedIndex < filtered.length - 1
+            ? () => setSelectedContact(filtered[selectedIndex + 1])
+            : undefined
+        }
+        position={
+          selectedIndex >= 0 ? `${selectedIndex + 1} of ${filtered.length}` : undefined
+        }
       />
     </div>
   );
