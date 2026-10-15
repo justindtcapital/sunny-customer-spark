@@ -503,6 +503,7 @@ export const setCampaignFollowUps = createServerFn({ method: "POST" })
           summary: `Follow up on campaign "${data.campaignName}" by ${data.due} (owner: ${data.owner})`,
           type: "follow-up" as const,
           requiresFollowUp: true,
+          followUpDue: data.due,
           owner: data.owner,
         })),
       );

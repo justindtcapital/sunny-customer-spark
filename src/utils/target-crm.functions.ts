@@ -11,6 +11,7 @@ import {
   type InteractionRowInput,
 } from "./sheets.server";
 import { normalizeSource, type OutreachAttempt, type RecordSource } from "@/lib/types";
+import { creationRating } from "@/lib/relationship-rating";
 import { todayIso } from "@/lib/sheet-date";
 
 export interface PromoteTargetInput {
@@ -198,7 +199,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
             location: t.location || "",
             prime: t.prime?.trim() || "",
             sector: t.sector || "",
-            temperature: "Warm",
+            temperature: creationRating(),
             linkedin,
             source,
             sourceContext,

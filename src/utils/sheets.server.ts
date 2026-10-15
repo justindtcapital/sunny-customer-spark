@@ -21,6 +21,7 @@ import type {
   AsanaActivity,
 } from "@/lib/types";
 import { scoreContact } from "@/lib/activity-score";
+import { creationRating } from "@/lib/relationship-rating";
 import { inferInterestAreas } from "@/lib/interest-domains";
 import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
@@ -1215,6 +1216,7 @@ export interface AddContactInput {
   prime: string;
   sector: string;
   temperature: string;
+  ratingExplicitlySelected?: boolean;
   /** Sourced LinkedIn profile URL (written to the "LinkedIn" column). */
   linkedin?: string;
   /** Canonical origin (RecordSource). Written to the "Source" column — callers
@@ -1314,7 +1316,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
     prime: data.prime,
     "industry category": sector,
     sector: sector,
-    "relationship status": data.temperature,
+    "relationship status": creationRating(data.temperature as Temperature, data.ratingExplicitlySelected),
     "follow up flag": data.followUp ? "TRUE" : "FALSE",
     "date added": now,
     // Canonical source — filled only when one of these columns exists.
@@ -1345,7 +1347,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
       data.location,
       data.prime,
       data.sector,
-      data.temperature,
+      creationRating(data.temperature as Temperature, data.ratingExplicitlySelected),
       data.followUp ? "TRUE" : "FALSE",
       now,
     ]);
@@ -1845,6 +1847,7 @@ const INTERACTION_COLS: Record<string, string> = {
   "note content": "summary",
   "requires follow up": "isFollowUp",
   "follow up resolved": "followUpComplete",
+  "follow up due": "followUpDue",
   type: "type",
   "source ref": "sourceRef",
   owner: "owner",
@@ -1878,6 +1881,7 @@ export interface InteractionRowInput {
   sourceRef?: string;
   /** DTC teammate who owned the underlying BD/GTM activity. */
   owner?: string;
+  followUpDue?: string;
 }
 
 // Append one or more interaction rows to the Notes tab in a single batched
@@ -1888,6 +1892,7 @@ export async function appendInteractionRows(rows: InteractionRowInput[]): Promis
   if (rows.length === 0) return;
   await ensureTab(TAB_NAMES.interactions, INTERACTION_HEADERS);
   await ensureColumn(TAB_NAMES.interactions, "Type");
+  if (rows.some((r) => r.followUpDue)) await ensureColumn(TAB_NAMES.interactions, "Follow Up Due");
   if (rows.some((r) => r.sourceRef)) await ensureColumn(TAB_NAMES.interactions, "Source Ref");
   if (rows.some((r) => r.owner)) await ensureColumn(TAB_NAMES.interactions, "Owner");
   const sheetRows = await fetchSheetTab(TAB_NAMES.interactions).catch(() => [] as string[][]);
@@ -1904,6 +1909,7 @@ export async function appendInteractionRows(rows: InteractionRowInput[]): Promis
       type: r.type,
       "source ref": r.sourceRef ?? "",
       owner: r.owner ?? "",
+      "follow up due": r.followUpDue ?? "",
     };
     return headers.length
       ? headers.map((h) => byHeader[h] ?? "")
@@ -2577,6 +2583,7 @@ export async function buildContacts(): Promise<Contact[]> {
         summary: i.summary || "",
         isFollowUp: i.isFollowUp?.toLowerCase() === "true",
         followUpComplete: i.followUpComplete?.toLowerCase() === "true",
+        followUpDue: parseToIsoDate(i.followUpDue) || "",
         sourceRef: i.sourceRef || undefined,
         owner: i.owner || undefined,
       }))
@@ -2724,71 +2731,9 @@ async function setRatingOverride(
   await appendSheetRow(TAB_NAMES.ratingOverrides, newRow);
 }
 
-// Recompute every unlocked contact's tier from activity, write the changed ones
-// back to the Contacts "Relationship Status" column, and log each change.
+// Legacy endpoint is deliberately inert: relationship ratings are manual-only.
 export async function recalculateRatings(): Promise<RecalcResult> {
-  const contacts = await buildContacts();
-  const rows = await fetchSheetTab(TAB_NAMES.contacts);
-  if (rows.length < 2) return { scanned: 0, updated: 0, skippedLocked: 0, changes: [] };
-
-  const headers = rows[0].map((h) => h.trim().toLowerCase());
-  const emailIdx = headers.indexOf("email");
-  const uridIdx = headers.indexOf("urid");
-  const statusIdx = headers.indexOf("relationship status");
-  if (emailIdx === -1 || statusIdx === -1) {
-    throw new Error("Contacts tab is missing the Email or Relationship Status column");
-  }
-
-  // Resolve a contact to its 1-based sheet row by stable urid first, then email.
-  const rowByEmail = new Map<string, number>();
-  const rowByUrid = new Map<string, number>();
-  for (let i = 1; i < rows.length; i++) {
-    const e = (rows[i][emailIdx] || "").trim().toLowerCase();
-    if (e && !rowByEmail.has(e)) rowByEmail.set(e, i + 1);
-    const u = uridIdx !== -1 ? (rows[i][uridIdx] || "").trim().toLowerCase() : "";
-    if (u && !rowByUrid.has(u)) rowByUrid.set(u, i + 1);
-  }
-
-  const statusCol = colLetters(statusIdx);
-  const now = Date.now();
-  const ts = new Date().toISOString();
-  const cellUpdates: { range: string; value: string }[] = [];
-  const historyRows: string[][] = [];
-  const changes: RatingChange[] = [];
-  let skippedLocked = 0;
-
-  for (const c of contacts) {
-    if (c.ratingLocked) {
-      skippedLocked++;
-      continue;
-    }
-    const { score, tier, drivers } = scoreContact(c, now);
-    if (tier === c.temperature) continue;
-    const rowNum =
-      (c.urid ? rowByUrid.get(c.urid.toLowerCase()) : undefined) ||
-      (c.email ? rowByEmail.get(c.email.toLowerCase()) : undefined);
-    if (!rowNum) continue;
-    cellUpdates.push({ range: `${statusCol}${rowNum}`, value: tier });
-    historyRows.push([
-      ts,
-      c.email,
-      c.name,
-      c.temperature,
-      tier,
-      String(score),
-      "auto",
-      drivers.join("; "),
-    ]);
-    changes.push({ email: c.email, name: c.name, from: c.temperature, to: tier, score });
-  }
-
-  if (cellUpdates.length > 0) {
-    await updateSheetCells(TAB_NAMES.contacts, cellUpdates);
-    await ensureTab(TAB_NAMES.ratingHistory, RATING_HISTORY_HEADERS);
-    await appendSheetRows(TAB_NAMES.ratingHistory, historyRows);
-  }
-
-  return { scanned: contacts.length, updated: changes.length, skippedLocked, changes };
+  return { scanned: 0, updated: 0, skippedLocked: 0, changes: [] };
 }
 
 /** Every usable address from a multi-email cell (lowercased). */
@@ -2876,13 +2821,9 @@ export async function setContactRating(
   return { success: false };
 }
 
-// Remove a contact's manual lock so the automatic scorecard governs it again.
-export async function clearContactRatingOverride(
-  email: string,
-  urid?: string,
-): Promise<{ success: boolean }> {
-  await setRatingOverride(email, urid, false, "", new Date().toISOString());
-  return { success: true };
+// Legacy automatic-mode requests cannot change ratings or enable automation.
+export async function clearContactRatingOverride(_email: string, _urid?: string): Promise<{ success: boolean }> {
+  return { success: false };
 }
 
 // ══════════════════════════════════════════════════════════════

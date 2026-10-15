@@ -105,6 +105,8 @@ export interface Workstream {
   owner: string;
   completed: boolean;
   lastActivity: string;
+  createdAt?: string;
+  completedAt?: string;
   url?: string;
 }
 

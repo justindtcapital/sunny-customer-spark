@@ -118,6 +118,7 @@ export interface Interaction {
   summary: string;
   isFollowUp?: boolean;
   followUpComplete?: boolean;
+  followUpDue?: string;
   /** Provenance of a synced row: "asana:<gid>" (Asana activity) or
    *  "gmail-<id>" (BD/GTM alias email). Absent for manual entries. */
   sourceRef?: string;
@@ -454,6 +455,8 @@ export type EventFormat = "in-person" | "virtual" | "hybrid";
 export type EventLead = "DTC" | "PortCo" | "Partner" | "External" | "Other";
 
 export interface AsanaEvent {
+  createdAt?: string;
+  owner?: string;
   gid: string;
   name: string;
   date: string; // YYYY-MM-DD

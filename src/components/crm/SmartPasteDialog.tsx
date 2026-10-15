@@ -238,7 +238,7 @@ export function SmartPasteDialog({ open, onOpenChange, existingEmails = [], onIm
             linkedinUrl: c.linkedinUrl,
             prime: "",
             sector: c.sector,
-            temperature: "Warm",
+            temperature: "Cold",
             source: "Manual Entry",
             headline: c.headline,
             employmentHistory: c.employmentHistory,

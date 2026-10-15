@@ -88,14 +88,8 @@ export async function applyQueryWrite(
             updated++;
             parts.push(`${field}=${value}`);
           }
-          // Temperature goes through the rating path so the manual tier is
-          // locked against the auto-scorecard and logged to Rating History.
-          if (d.temperature !== undefined && d.temperature !== null) {
-            const temp = str(d.temperature);
-            await bulkUpdateContacts([email], "status", temp);
-            updated++;
-            parts.push(`temperature=${temp} (locked)`);
-          }
+          // AI proposals cannot select or change a relationship rating.
+          if (d.temperature !== undefined) parts.push("rating unchanged — select it manually on the contact");
           if (updated === 0) return { ok: false, error: "No writable fields provided" };
           return {
             ok: true,
@@ -205,7 +199,7 @@ export async function applyQueryWrite(
           location: str(d.location),
           prime: str(d.prime),
           sector: str(d.sector),
-          temperature: str(d.temperature) || "Warm",
+          temperature: "Cold",
           source: "Manual Entry",
         });
         return {

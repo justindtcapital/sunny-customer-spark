@@ -1,4 +1,5 @@
 import type { Contact, Temperature } from "@/lib/types";
+import { ratingAfterActivity } from "./relationship-rating";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Automatic network scorecard.
@@ -18,13 +19,6 @@ const WEIGHTS = {
   events: 15,
   intros: 10,
   followUp: 5,
-} as const;
-
-// Score → tier cutoffs (aligned with EngagementScore bar bands).
-const TIER_CUTOFFS = {
-  council: 80, // >= 80 → Council
-  hot: 55, // >= 55 → Hot
-  warm: 25, // >= 25 → Warm, else Cold
 } as const;
 
 export interface ActivityScore {
@@ -135,14 +129,7 @@ export function scoreContact(contact: Contact, now: number = Date.now()): Activi
 
   const score = Math.min(100, recency + interactions + events + intros + followUp);
 
-  const tier: Temperature =
-    score >= TIER_CUTOFFS.council
-      ? "Council"
-      : score >= TIER_CUTOFFS.hot
-        ? "Hot"
-        : score >= TIER_CUTOFFS.warm
-          ? "Warm"
-          : "Cold";
+  const tier = ratingAfterActivity(contact.temperature, score);
 
   return { score, tier, drivers };
 }

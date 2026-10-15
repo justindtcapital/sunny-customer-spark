@@ -10,7 +10,6 @@ import {
   mergeContactFields,
   storeApolloRaw,
   setContactRating,
-  clearContactRatingOverride,
   logOpsEvent,
 } from "@/utils/sheets.functions";
 import { enrichContact } from "@/utils/apollo.functions";
@@ -89,7 +88,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Lock, Unlock, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import { daysSinceLastContact } from "@/lib/activity-score";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFilterOptions } from "@/lib/filter-options-context";
@@ -111,9 +110,7 @@ interface ContactDetailProps {
 
 const TIERS: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
 
-// Rating control in the detail header. Shows the current tier + activity score,
-// lets you manually set the rating (which locks it from auto-scoring), and lets
-// you hand control back to the automatic scorecard.
+// Saved relationship rating; only an explicit manual selection changes it.
 function RatingControl({
   contact,
   onContactUpdate,
@@ -135,28 +132,13 @@ function RatingControl({
       });
       if (res.success) {
         onContactUpdate?.({ ...contact, temperature: tier, ratingLocked: true });
-        toast.success(`Rating set to ${tier} and locked.`);
+        toast.success(`Rating set to ${tier}.`);
       } else {
         toast.warning("Couldn't find this contact's row to save the rating.");
       }
     } catch (e) {
       console.error("setContactRating failed", e);
       toast.error("Failed to save the rating — see console.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const useAuto = async () => {
-    if (!contact.email) return;
-    setBusy(true);
-    try {
-      await clearContactRatingOverride({ data: { email: contact.email, urid: contact.urid } });
-      onContactUpdate?.({ ...contact, ratingLocked: false });
-      toast.success("Switched to automatic — applies on the next recalculation.");
-    } catch (e) {
-      console.error("clearContactRatingOverride failed", e);
-      toast.error("Failed to switch to automatic — see console.");
     } finally {
       setBusy(false);
     }
@@ -185,30 +167,16 @@ function RatingControl({
               </span>
             );
           })()}
-          {contact.ratingLocked ? (
-            <Lock className="h-3 w-3 text-muted-foreground" />
-          ) : (
-            <span className="text-[9px] uppercase tracking-wide text-muted-foreground">auto</span>
-          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel className="text-[10px]">Set rating (locks it)</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[10px]">Set rating</DropdownMenuLabel>
         {TIERS.map((t) => (
           <DropdownMenuItem key={t} onClick={() => setTier(t)}>
             <TemperatureBadge temperature={t} className="mr-2" showLabel={false} />
             {t}
           </DropdownMenuItem>
         ))}
-        {contact.ratingLocked && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={useAuto}>
-              <Unlock className="h-3.5 w-3.5 mr-2" />
-              Use automatic
-            </DropdownMenuItem>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -274,6 +242,7 @@ export function ContactDetail({
     date: "",
     isFollowUp: false,
     followUpComplete: false,
+    followUpDue: "",
   });
   const [savingInteraction, setSavingInteraction] = useState(false);
   const [addPortCoOpen, setAddPortCoOpen] = useState(false);
@@ -294,6 +263,7 @@ export function ContactDetail({
     summary: "",
     isFollowUp: false,
     portCoIntro: "",
+    followUpDue: "",
   });
   const [enriching, setEnriching] = useState(false);
   const [apolloResult, setApolloResult] = useState<ApolloEnrichmentResult | null>(null);
@@ -674,6 +644,7 @@ export function ContactDetail({
       type: newInteraction.type,
       summary: newInteraction.summary,
       isFollowUp: newInteraction.isFollowUp,
+      followUpDue: newInteraction.isFollowUp ? newInteraction.followUpDue : "",
       followUpComplete: false,
     };
     const updatedPortCoIntros =
@@ -688,7 +659,7 @@ export function ContactDetail({
       portCoIntros: updatedPortCoIntros,
     };
     if (onContactUpdate) onContactUpdate(updated);
-    setNewInteraction({ type: "note", summary: "", isFollowUp: false, portCoIntro: "" });
+    setNewInteraction({ type: "note", summary: "", isFollowUp: false, portCoIntro: "", followUpDue: "" });
     setAddInteractionOpen(false);
 
     // Write to Google Sheets
@@ -698,6 +669,7 @@ export function ContactDetail({
           contactEmail: contact.email,
           noteContent: interaction.summary,
           requiresFollowUp: newInteraction.isFollowUp,
+          followUpDue: interaction.followUpDue,
           type: newInteraction.type,
         },
       });
@@ -720,6 +692,7 @@ export function ContactDetail({
       date: interaction.date,
       isFollowUp: interaction.isFollowUp === true,
       followUpComplete: interaction.followUpComplete === true,
+      followUpDue: interaction.followUpDue || "",
     });
   };
 
@@ -734,6 +707,7 @@ export function ContactDetail({
       type: editInteractionData.type,
       summary,
       isFollowUp: editInteractionData.isFollowUp,
+      followUpDue: editInteractionData.isFollowUp ? editInteractionData.followUpDue : "",
       followUpComplete: editInteractionData.isFollowUp
         ? editInteractionData.followUpComplete
         : false,
@@ -759,6 +733,7 @@ export function ContactDetail({
           note: summary,
           type: patch.type,
           requiresFollowUp: patch.isFollowUp,
+          followUpDue: patch.followUpDue,
           resolved: patch.followUpComplete,
         },
       });
@@ -1716,6 +1691,7 @@ export function ContactDetail({
                                     />
                                     Needs follow-up
                                   </label>
+                                  {editInteractionData.isFollowUp && <Input aria-label="Follow-up due date" type="date" value={editInteractionData.followUpDue} onChange={(e) => setEditInteractionData({ ...editInteractionData, followUpDue: e.target.value })} />}
                                   {editInteractionData.isFollowUp && (
                                     <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                       <Checkbox
@@ -1915,6 +1891,7 @@ export function ContactDetail({
                 Schedule as follow-up
               </label>
             </div>
+            {newInteraction.isFollowUp && <div><label htmlFor="new-followup-due" className="text-xs text-muted-foreground">Due date</label><Input id="new-followup-due" type="date" value={newInteraction.followUpDue} onChange={(e) => setNewInteraction({ ...newInteraction, followUpDue: e.target.value })} /></div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddInteractionOpen(false)}>

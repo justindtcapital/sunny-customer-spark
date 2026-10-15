@@ -438,7 +438,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
             linkedinUrl: r.linkedin,
             headline: r.headline,
             employmentHistory: r.employmentHistory,
-            temperature: "Warm",
+            temperature: "Cold",
             source: "CSV Import",
             // Event-tagged imports always get Follow Up; otherwise honor the checkbox.
             followUp: Boolean(evt) || isFlaggedForFollowUp(r.email),

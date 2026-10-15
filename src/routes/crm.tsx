@@ -4,7 +4,6 @@ import {
   fetchContacts,
   fetchPortfolioCompanies,
   fetchOwnershipIndex,
-  recalculateRatings,
   logOpsEvent,
   addContact,
   addEvent as addEventToSheet,
@@ -24,7 +23,7 @@ import { syncGmailCrmTouches } from "@/utils/gmail-crm-sync.functions";
 import { syncEventExposure } from "@/utils/event-exposure.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Gauge, Loader2, Activity, Mail } from "lucide-react";
+import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Activity, Mail } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -132,7 +131,6 @@ function CrmPage() {
   const [addNoteText, setAddNoteText] = useState("");
   const [addFollowUp, setAddFollowUp] = useState(false);
 
-  const [recalcBusy, setRecalcBusy] = useState(false);
   const [asanaSyncBusy, setAsanaSyncBusy] = useState(false);
   const [gmailSyncBusy, setGmailSyncBusy] = useState(false);
   const syncBusy = asanaSyncBusy || gmailSyncBusy;
@@ -206,7 +204,7 @@ function CrmPage() {
           linkedinUrl,
           prime,
           sector,
-          temperature: "Warm",
+          temperature: "Cold",
           source: "Manual Entry",
           skipPortfolioSector: true,
           followUp,
@@ -344,18 +342,6 @@ function CrmPage() {
           `BD/GTM tabs: added ${tracks.bdLogged} BD · ${tracks.gtmLogged} GTM row${tracks.gtmLogged !== 1 ? "s" : ""}.`,
         );
       }
-      if (res.logged > 0 || (exp.ok && exp.engagementsLogged > 0)) {
-        try {
-          const scores = await recalculateRatings();
-          if (scores.updated > 0) {
-            toast.success(
-              `Updated ${scores.updated} rating${scores.updated !== 1 ? "s" : ""} from new activity.`,
-            );
-          }
-        } catch (e) {
-          console.error("post-sync recalculateRatings failed", e);
-        }
-      }
       await router.invalidate();
       await ownershipQuery.refetch();
     } catch (e) {
@@ -440,21 +426,6 @@ function CrmPage() {
         }
         toast.success(`Gmail CRM: ${parts.join(" · ")}.`);
       }
-      if (
-        res.logged > 0 ||
-        (!gmailCrm.skipped && (gmailCrm.logged > 0 || gmailCrm.eventsLogged > 0))
-      ) {
-        try {
-          const scores = await recalculateRatings();
-          if (scores.updated > 0) {
-            toast.success(
-              `Updated ${scores.updated} rating${scores.updated !== 1 ? "s" : ""} from new activity.`,
-            );
-          }
-        } catch (e) {
-          console.error("post-sync recalculateRatings failed", e);
-        }
-      }
       await router.invalidate();
       await ownershipQuery.refetch();
     } catch (e) {
@@ -462,28 +433,6 @@ function CrmPage() {
       toast.error("Gmail sync failed — see console.");
     } finally {
       setGmailSyncBusy(false);
-    }
-  };
-
-  // Recompute every unlocked contact's rating from activity and persist changes.
-  const handleRecalc = async () => {
-    setRecalcBusy(true);
-    try {
-      const res = await recalculateRatings();
-      if (res.updated === 0) {
-        toast.success(`Ratings up to date — no changes across ${res.scanned} contacts.`);
-      } else {
-        toast.success(
-          `Updated ${res.updated} rating${res.updated !== 1 ? "s" : ""}` +
-            (res.skippedLocked > 0 ? ` · ${res.skippedLocked} locked, left as-is.` : "."),
-        );
-      }
-      await router.invalidate();
-    } catch (e) {
-      console.error("recalculateRatings failed", e);
-      toast.error("Could not recalculate ratings — see console.");
-    } finally {
-      setRecalcBusy(false);
     }
   };
 
@@ -606,22 +555,6 @@ function CrmPage() {
               <Mail className="h-3.5 w-3.5 mr-1.5" />
             )}
             {gmailSyncBusy ? "Syncing Gmail…" : "Sync with Gmail"}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs"
-            onClick={handleRecalc}
-            disabled={recalcBusy}
-            title="Recompute Council/Hot/Warm/Cold from activity. Manually-set ratings are left untouched."
-          >
-            {recalcBusy ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Gauge className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {recalcBusy ? "Scoring…" : "Recalculate ratings"}
           </Button>
 
           <DropdownMenu>
