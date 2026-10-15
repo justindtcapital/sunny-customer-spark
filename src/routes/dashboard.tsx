@@ -497,7 +497,7 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children }: {
             <Stat label="Completed" value={done} />
             <Stat label="PortCos" value={new Set(ws.map((w) => w.companyKey)).size} />
           </div>
-          <div className="min-w-[200px] flex-1 space-y-2 self-center">
+          <div className="ml-auto flex w-fit max-w-full flex-col items-end gap-2 self-center pr-1">
             <DotChips counts={tally(statuses)} map={STATUS_DOT} />
             <DotChips counts={tally(ws.map((w) => (w.workstreamPriority || "No priority")))} map={PRIORITY_DOT} />
           </div>
@@ -513,21 +513,29 @@ function ReviewInboxes({ owner, points }: { owner: string; points: { name: strin
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"notes" | "activity">("notes");
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
+  const [reviewed, setReviewed] = useState({ notes: 0, activity: 0 });
   const [acts, setActs] = useState<NoteInboxItem[]>([]);
   const [notes, setNotesItems] = useState<NoteInboxItem[]>([]);
-  const setNotes = useCallback((n: number) => setCounts((c) => ({ ...c, notes: n })), []);
-  const setActivity = useCallback((n: number) => setCounts((c) => ({ ...c, activity: n })), []);
+  const setNotesStats = useCallback((s: { pending: number; reviewed: number }) => {
+    setCounts((c) => ({ ...c, notes: s.pending }));
+    setReviewed((r) => ({ ...r, notes: s.reviewed }));
+  }, []);
+  const setActivityStats = useCallback((s: { pending: number; reviewed: number }) => {
+    setCounts((c) => ({ ...c, activity: s.pending }));
+    setReviewed((r) => ({ ...r, activity: s.reviewed }));
+  }, []);
   const unmatched = [...notes, ...acts].filter((i) => !i.portco).length;
   return (
     <div className="space-y-3">
-      <SummaryCard title="Notes & Activity" sub="Waiting for review" open={open} onToggle={() => setOpen((o) => !o)}>
+      <SummaryCard title="Notes & Activity" sub={`${owner} · Waiting for Review`} open={open} onToggle={() => setOpen((o) => !o)}>
         <div className="flex flex-wrap items-start gap-8">
           <div className="flex flex-wrap gap-8">
+            <Stat label="To Review" value={counts.notes + counts.activity} />
+            <Stat label="Reviewed" value={reviewed.notes + reviewed.activity} />
             <Stat label="Notes" value={counts.notes} />
             <Stat label="Emails" value={counts.activity} />
-            <Stat label="No PortCo" value={unmatched} />
           </div>
-          <div className="min-w-[200px] flex-1 space-y-2 self-center">
+          <div className="ml-auto flex w-fit max-w-full flex-col items-end gap-2 self-center pr-1">
             <DotChips counts={tally(acts.map((i) => i.track || "Untagged"))} />
           </div>
         </div>
@@ -546,8 +554,8 @@ function ReviewInboxes({ owner, points }: { owner: string; points: { name: strin
             </button>
           ))}
         </div>
-        <div className={tab === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onCount={setNotes} onItems={setNotesItems} /></div>
-        <div className={tab === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onCount={setActivity} onItems={setActs} /></div>
+        <div className={tab === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onCount={setNotes} onItems={setNotesItems} onStats={setNotesStats} /></div>
+        <div className={tab === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onCount={setActivity} onItems={setActs} onStats={setActivityStats} /></div>
       </div>
     </div>
   );
