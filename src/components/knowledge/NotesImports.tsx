@@ -179,8 +179,15 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
   const [newName, setNewName] = useState(item.link && !item.link.workstreamGid ? item.link.workstreamName : "");
   const [newSegment, setNewSegment] = useState<"GTM" | "BD">("GTM");
   const [people, setPeople] = useState<Record<string, "add" | "skip" | "">>({});
+  const [edits, setEdits] = useState<Record<string, { name: string; email: string; company: string }>>({});
+  const [editing, setEditing] = useState<Record<string, boolean>>({});
   const [fu, setFu] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
+
+  function editedPerson(p: NoteInboxItem["people"][number]) {
+    const e = edits[p.key];
+    return { name: e?.name ?? p.name, email: e?.email ?? p.email, company: e?.company ?? p.company, suggestionId: p.suggestionId || undefined };
+  }
 
   async function save() {
     setSaving(true);
@@ -196,7 +203,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
         data: {
           recordId: item.recordId, reviewer, portco, workstream,
           addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
-            .map((p) => ({ name: p.name, email: p.email, company: p.company, suggestionId: p.suggestionId || undefined })),
+            .map((p) => editedPerson(p)),
           skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
           followUps: Object.entries(fu).map(([idx, due]) => {
             const n = item.nextSteps[Number(idx)]!;
@@ -216,6 +223,21 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
   async function reopen() {
     setSaving(true);
     try { await reopenNoteFn({ data: { recordId: item.recordId } }); await onDone(); } finally { setSaving(false); }
+  }
+
+  async function skip() {
+    setSaving(true);
+    try {
+      await reviewNoteFn({
+        data: { recordId: item.recordId, reviewer, portco: item.portco || "", addPeople: [], skipContacts: [], followUps: [] },
+      });
+      toast.success("Note skipped.");
+      await onDone();
+    } catch (e) {
+      toast.error(`Skip failed: ${(e as Error).message}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -323,22 +345,36 @@ function NoteRow({ item, open, onToggle, reviewer, onDone }: {
                 {item.people.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No people found in this note.</p>
                 ) : item.people.map((p) => (
-                  <div key={p.key} className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="flex-1">{p.name || p.email} <span className="text-muted-foreground">{p.email}{p.company && ` · ${p.company}`}</span></span>
-                    {p.where !== "New" || p.status.startsWith("approved") ? (
-                      <Badge variant="secondary" className="text-[10px]">{p.where === "New" ? "Added" : `In ${p.where}`}</Badge>
-                    ) : (
-                      <>
-                        <Badge variant="outline" className="text-[10px]">New</Badge>
-                        <Button size="sm" variant={people[p.key] === "add" ? "secondary" : "outline"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "add" ? "" : "add" }))}>Add to contacts</Button>
-                        <Button size="sm" variant={people[p.key] === "skip" ? "secondary" : "ghost"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "skip" ? "" : "skip" }))}>Skip</Button>
-                      </>
+                  <div key={p.key} className="space-y-1 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="flex-1">{p.name || p.email} <span className="text-muted-foreground">{p.email}{p.company && ` · ${p.company}`}</span></span>
+                      {p.where !== "New" || p.status.startsWith("approved") ? (
+                        <Badge variant="secondary" className="text-[10px]">{p.where === "New" ? "Added" : `In ${p.where}`}</Badge>
+                      ) : (
+                        <>
+                          <Badge variant="outline" className="text-[10px]">New</Badge>
+                          <Button size="sm" variant={people[p.key] === "add" ? "secondary" : "outline"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "add" ? "" : "add" }))}>Add to contacts</Button>
+                          <Button size="sm" variant={editing[p.key] ? "secondary" : "outline"} onClick={() => setEditing((s) => ({ ...s, [p.key]: !s[p.key] }))}>Edit</Button>
+                          <Button size="sm" variant={people[p.key] === "skip" ? "secondary" : "ghost"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "skip" ? "" : "skip" }))}>Skip</Button>
+                        </>
+                      )}
+                    </div>
+                    {editing[p.key] && p.where === "New" && !p.status.startsWith("approved") && (
+                      <div className="flex flex-wrap items-center gap-2 pl-2">
+                        <Input className="h-7 w-44 text-xs" placeholder="Name" value={edits[p.key]?.name ?? p.name}
+                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: e.target.value, email: s[p.key]?.email ?? p.email, company: s[p.key]?.company ?? p.company } }))} />
+                        <Input className="h-7 w-52 text-xs" placeholder="Email" value={edits[p.key]?.email ?? p.email}
+                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: s[p.key]?.name ?? p.name, email: e.target.value, company: s[p.key]?.company ?? p.company } }))} />
+                        <Input className="h-7 w-40 text-xs" placeholder="Company" value={edits[p.key]?.company ?? p.company}
+                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: s[p.key]?.name ?? p.name, email: s[p.key]?.email ?? p.email, company: e.target.value } }))} />
+                      </div>
                     )}
                   </div>
                 ))}
               </section>
 
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="ghost" disabled={saving} onClick={skip}>Skip</Button>
                 <Button size="sm" disabled={saving} onClick={save}>
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   Mark reviewed
