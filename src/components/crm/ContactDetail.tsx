@@ -110,9 +110,7 @@ interface ContactDetailProps {
 
 const TIERS: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
 
-// Rating control in the detail header. Shows the current tier + activity score,
-// lets you manually set the rating (which locks it from auto-scoring), and lets
-// you hand control back to the automatic scorecard.
+// Saved relationship rating; only an explicit manual selection changes it.
 function RatingControl({
   contact,
   onContactUpdate,

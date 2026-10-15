@@ -154,6 +154,7 @@ function isOverdue(due?: string): boolean {
 }
 
 export const Route = createFileRoute("/targeting")({
+  validateSearch: (s: Record<string, unknown>): { target?: string } => ({ target: typeof s.target === "string" ? s.target : undefined }),
   head: () => ({
     meta: [
       { title: "Prospecting — VenturePulse" },
@@ -506,6 +507,7 @@ function TargetingPage() {
   const { updateOptions } = useFilterOptions();
   const router = useRouter();
   const loaderData = Route.useLoaderData();
+  const { target: requestedTarget } = Route.useSearch();
   const [targets, setTargets] = useState<TargetLead[]>(loaderData.targets);
   const companies = loaderData.companies;
 
@@ -812,6 +814,12 @@ function TargetingPage() {
     setStrategy(target.connectionPlan ? { ok: true, ...target.connectionPlan } : null);
     setStrategyDirty(false);
   };
+
+  useEffect(() => {
+    if (!requestedTarget) return;
+    const found = targets.find((t) => targetKeyOf(t) === requestedTarget);
+    if (found) openDetail(found);
+  }, [requestedTarget, targets]);
 
   const handleSuggestStrategy = async () => {
     if (!activeTarget) return;

@@ -23,9 +23,16 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     const [contacts, targets, companies] = await Promise.all([
       read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCo", sheets.buildPortfolioCompanies, []),
     ]);
-    const [events, workstreams, campaigns] = await Promise.all([
+    const [eventRows, workstreams, campaigns] = await Promise.all([
       read("Events", asana.fetchAllAsanaEvents, []), read("Workstreams", asana.fetchPortcoWorkstreams, []), read("Campaigns", campaignsStore.listCampaigns, []),
     ]);
+    const uniqueEvents = new Map<string, typeof eventRows[number]>();
+    for (const event of eventRows) {
+      if (event.gid.startsWith("app-") || event.type === "meeting") continue;
+      const key = `${event.name.trim().toLowerCase()}|${event.date.trim()}`;
+      if (!uniqueEvents.has(key)) uniqueEvents.set(key, event);
+    }
+    const events = [...uniqueEvents.values()];
     const index = await read("Ownership", () => sheets.buildOwnershipIndex(data.email), { email: data.email, firstName: "", displayName: "", ownedGids: [] as string[] });
     const members = await read("Campaign reminders", () => campaignsStore.listMembers(), []);
     const owner = data.scope === "mine" ? teamProfile(data.email)?.displayName : undefined;
