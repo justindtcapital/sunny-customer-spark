@@ -141,8 +141,8 @@ async function driveFileExists(fileId: string): Promise<boolean> {
 async function copyNoteToDrive(n: GranolaNote, portco: string): Promise<{ id: string; url: string } | null> {
   const driveId = process.env.GOOGLE_KB_DRIVE_ID;
   if (!driveId) return null;
-  const notesFolder = await findOrCreateFolder("Meeting Notes", driveId, driveId);
-  const coFolder = await findOrCreateFolder(portco || "Unmatched", notesFolder, driveId);
+  void portco; // filed to Meeting Notes/<PortCo> on review
+  const coFolder = await findOrCreateFolder("Unfiled Documents", driveId, driveId);
   const date = n.created_at.slice(0, 10);
   const name = `${date} ${n.title || "Untitled meeting"} (Granola).md`.replace(/[\\/]/g, "-");
   const doc = await uploadDriveFile({
@@ -250,7 +250,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
         out.activities.push({
           activityId: sha256Hex(`${recordId}:${a.type}:${i}`).slice(0, 24),
           recordId, date, track: "Meeting – Granola", type: a.type || "meeting",
-          title: a.title || title, portco, person: a.person, owner: n.owner?.name || "",
+          title: a.title || title, portco, person: a.person, owner: [n.owner?.name, n.owner?.email ? `<${n.owner.email.toLowerCase()}>` : ""].filter(Boolean).join(" ") || "Chris Falloon",
           summary: a.summary, sourceUrl: n.web_url || "", createdAt: now,
         });
       });

@@ -262,6 +262,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   const [track, setTrack] = useState(item.track || "BD");
   const isNews = isActivity && track === "News";
   const isNetwork = track === "Network" || item.track === "Network";
+  const [folder, setFolder] = useState<"portco" | "operations" | "network">(isNetwork ? "network" : "portco");
   // Contacts this note is tagged to — existing Network/Prospecting people start tagged.
   const [linked, setLinked] = useState<PersonMatch[]>(() => item.people
     .filter((p) => p.email && (p.where === "Network" || p.where === "Prospecting"))
@@ -296,6 +297,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
           recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
           ...(isActivity ? { status: "confirmed" as const, track } : isNetwork ? { track: "Network" } : {}),
           linkContacts: linked,
+          ...(!isActivity ? { folder } : {}),
           addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
             .map((p) => editedPerson(p)),
           skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
@@ -346,7 +348,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
           {!isActivity && item.track === "Network" && <Badge variant="secondary" className="shrink-0 text-[10px]">NWK</Badge>}
           <div>
             <div className="text-sm font-medium">{item.title}</div>
-            <div className="text-xs text-muted-foreground">{item.date} · {item.portco || "No PortCo matched"}</div>
+            <div className="text-xs text-muted-foreground">{item.date} · {item.portco || "No PortCo matched"}{item.author ? ` · From ${item.author}` : ""}</div>
           </div>
         </button>
         {!isActivity && <Tick ok={item.saved} label="Saved" />}
@@ -380,6 +382,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
               <span>Reviewed {item.review.reviewedAt.slice(0, 10)} by {item.review.reviewedBy || "—"}</span>
               {item.review.track && <span>Track: {item.review.track}</span>}
+              {item.review.filedTo && <span>Filed to: {item.review.filedTo}</span>}
               <span>Workstream: {item.review.workstream || "—"}</span>
               <span>Contacts added: {item.review.contactsAdded}</span>
               <span>Follow-ups: {item.review.followUps}</span>
@@ -387,6 +390,17 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
             </div>
           ) : (
             <>
+              {!isActivity && item.driveUrl && (
+                <section className="space-y-1.5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">File to</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {([["portco", "PortCo folder"], ["operations", "PortCo Operations"], ["network", "Network Updates"]] as const).map(([k, l]) => (
+                      <Button key={k} size="sm" variant={folder === k ? "default" : "outline"} onClick={() => setFolder(k)}>{l}</Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Waits in Unfiled Documents until you confirm. The original author stays on the file.</p>
+                </section>
+              )}
               {isActivity && (
                 <section className="space-y-1.5">
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Track</h4>
