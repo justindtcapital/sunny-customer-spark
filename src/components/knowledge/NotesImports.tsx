@@ -38,7 +38,7 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(s);
 }
 
-export function NotesImports() {
+export function NotesImports({ actionOwner = "" }: { actionOwner?: string }) {
   const { email } = useAuth();
   const [items, setItems] = useState<NoteInboxItem[]>([]);
   const [granolaConnected, setGranolaConnected] = useState(true);
@@ -52,7 +52,7 @@ export function NotesImports() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetchNotesInboxFn({ data: { history } });
+      const r = await fetchNotesInboxFn({ data: { history, owner: actionOwner || undefined } });
       setItems(r.items);
       setGranolaConnected(r.granolaConnected);
     } catch (e) {
@@ -60,13 +60,13 @@ export function NotesImports() {
     } finally {
       setLoading(false);
     }
-  }, [history]);
+  }, [history, actionOwner]);
   useEffect(() => { void load(); }, [load]);
 
   async function syncGranola() {
     setBusy("granola");
     try {
-      const r = await syncGranolaFn();
+      const r = await syncGranolaFn({ data: { importedBy: email || "" } });
       const errs = r.errors.length;
       toast.success(`${r.granolaNotesAdded} new Granola notes imported${errs ? `, ${errs} problems` : ""}.`);
       await load();
@@ -84,7 +84,7 @@ export function NotesImports() {
       try {
         const buf = await f.arrayBuffer();
         const text = /\.(md|txt|markdown)$/i.test(f.name) || f.type.startsWith("text/") ? new TextDecoder().decode(buf) : "";
-        await uploadNoteFn({ data: { name: f.name, text, base64: toBase64(buf), mimeType: f.type || "text/plain" } });
+        await uploadNoteFn({ data: { name: f.name, text, base64: toBase64(buf), mimeType: f.type || "text/plain", importedBy: email || "" } });
         ok++;
       } catch (e) {
         toast.error(`${f.name}: ${(e as Error).message}`);
