@@ -294,8 +294,10 @@ export function reviewWorkstreamLink(
   status: LinkStatus,
   workstreamGid = "",
   workstreamName = "",
+  portco = "",
 ): Promise<boolean> {
   const patch: Record<string, string> = { Status: status, "Reviewed At": new Date().toISOString() };
+  if (portco) patch.PortCo = portco;
   if (workstreamGid) patch["Workstream GID"] = workstreamGid;
   if (workstreamName) patch["Workstream Name"] = workstreamName;
   return updateRowById(KNOWLEDGE_TABS.workstreamLinks, WORKSTREAM_LINK_HEADERS, linkId, patch);
