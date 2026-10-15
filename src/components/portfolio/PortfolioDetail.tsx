@@ -918,7 +918,7 @@ export function PortfolioDetail({
                                   </span>
                                   <Link
                                     to="/events"
-                                    search={{ event: event.name }}
+                                    search={{ event: event.name, cf: undefined }}
                                     className="ml-auto inline-flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0"
                                   >
                                     Open <ExternalLink className="h-3 w-3" />
@@ -965,7 +965,7 @@ export function PortfolioDetail({
                                   </span>
                                   <Link
                                     to="/events"
-                                    search={{ event: event.name }}
+                                    search={{ event: event.name, cf: undefined }}
                                     className="ml-auto inline-flex items-center gap-1 text-[11px] text-primary hover:underline shrink-0"
                                   >
                                     Open <ExternalLink className="h-3 w-3" />
