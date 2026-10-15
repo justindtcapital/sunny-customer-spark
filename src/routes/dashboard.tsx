@@ -133,9 +133,22 @@ function DashboardPage() {
   const destination = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!owner || !["notes", "workstreams"].includes(search.section || "")) return;
-    // Run after the router restores the previous page position.
-    const timer = window.setTimeout(() => destination.current?.scrollIntoView({ block: "start" }), 250);
-    return () => window.clearTimeout(timer);
+    const element = destination.current;
+    if (!element) return;
+    // Keep the destination in view while its asynchronously loaded content grows.
+    const scroll = () => element.scrollIntoView({ block: "start" });
+    const observer = new ResizeObserver(scroll);
+    observer.observe(element);
+    const timer = window.setTimeout(scroll, 250);
+    const stop = () => observer.disconnect();
+    window.addEventListener("wheel", stop, { once: true, passive: true });
+    window.addEventListener("touchstart", stop, { once: true, passive: true });
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("touchstart", stop);
+    };
   }, [owner, search.section]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [detailKey, setDetailKey] = useState<string | null>(null);
