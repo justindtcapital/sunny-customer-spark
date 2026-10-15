@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -38,8 +39,8 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(s);
 }
 
-export function NotesImports({ actionOwner = "", kind = "notes", onCount }: {
-  actionOwner?: string; kind?: "notes" | "activity"; onCount?: (n: number) => void;
+export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems }: {
+  actionOwner?: string; kind?: "notes" | "activity"; onCount?: (n: number) => void; onItems?: (items: NoteInboxItem[]) => void;
 }) {
   const isActivity = kind === "activity";
   const [trackFilter, setTrackFilter] = useState("all");
@@ -59,14 +60,14 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount }: {
     try {
       const r = await fetchNotesInboxFn({ data: { history, owner: actionOwner || undefined, kind } });
       setItems(r.items);
-      if (!history) onCount?.(r.items.length);
+      if (!history) { onCount?.(r.items.length); onItems?.(r.items); }
       setGranolaConnected(r.granolaConnected);
     } catch (e) {
       toast.error(`Couldn't load notes: ${(e as Error).message}`);
     } finally {
       setLoading(false);
     }
-  }, [history, actionOwner, kind, onCount]);
+  }, [history, actionOwner, kind, onCount, onItems]);
   useEffect(() => { void load(); }, [load]);
 
   async function syncGranola() {
@@ -189,23 +190,40 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount }: {
 
 const TRACKS = ["BD", "GTM", "Workstream", "News"];
 
+/** PortCo names that appear as whole words in the text (case-insensitive). */
+export function detectPortcos(text: string, names: string[]): string[] {
+  const t = ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, " ")} `;
+  return names.filter((n) => {
+    const k = n.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    return k.length >= 3 && t.includes(` ${k} `);
+  });
+}
+
 function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   kind: "notes" | "activity"; item: NoteInboxItem; open: boolean; onToggle: () => void; reviewer: string; onDone: () => Promise<void>;
 }) {
   const { workstreams } = useWorkstreams();
   const portcos = useMemo(() => {
     const set = new Set(workstreams.map((w) => w.company).filter(Boolean));
-    if (item.portco) set.add(item.portco);
+    for (const c of (item.portco || "").split(/\s*[,;]\s*/)) if (c) set.add(c);
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [workstreams, item.portco]);
-  const [portco, setPortco] = useState(item.portco || "");
-  const companyWs = useMemo(
-    () => workstreams.filter((w) => w.company.toLowerCase() === portco.toLowerCase() && !/complete/i.test(w.workstreamStatus || "")),
-    [workstreams, portco],
-  );
-  const suggestedGid = item.link?.workstreamGid && companyWs.some((w) => w.gid === item.link!.workstreamGid) ? item.link.workstreamGid : "";
-  const [wsChoice, setWsChoice] = useState<string>(suggestedGid || (item.link && !item.link.workstreamGid ? "__new" : ""));
-  const [newName, setNewName] = useState(item.link && !item.link.workstreamGid ? item.link.workstreamName : "");
+  // PortCos named in the subject or summary are pre-selected alongside the matched one.
+  const detected = useMemo(() => detectPortcos(`${item.title} ${item.summary}`, portcos), [item.title, item.summary, portcos]);
+  const [selected, setSelected] = useState<string[]>(() =>
+    [...new Set([...(item.portco ? item.portco.split(/\s*[,;]\s*/) : []), ...detectPortcos(`${item.title} ${item.summary}`, [])].filter(Boolean))]);
+  const [touched, setTouched] = useState(false);
+  const chosen = touched ? selected : [...new Set([...selected, ...detected])];
+  const portco = chosen.join(", ");
+  const primary = chosen[0] || "";
+  const companyWs = useMemo(() => {
+    const set = new Set(chosen.map((c) => c.toLowerCase()));
+    return workstreams.filter((w) => set.has(w.company.toLowerCase()) && !/complete/i.test(w.workstreamStatus || ""));
+  }, [workstreams, chosen.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sugg = item.link && item.link.status !== "ignored" ? item.link : null;
+  const suggestedGid = sugg?.workstreamGid && workstreams.some((w) => w.gid === sugg.workstreamGid) ? sugg.workstreamGid : "";
+  const [wsChoice, setWsChoice] = useState<string>(suggestedGid || (sugg && !sugg.workstreamGid ? "__suggested_new" : ""));
+  const [newName, setNewName] = useState(sugg && !sugg.workstreamGid ? sugg.workstreamName : "");
   const [newSegment, setNewSegment] = useState<"GTM" | "BD">("GTM");
   const [people, setPeople] = useState<Record<string, "add" | "skip" | "">>({});
   const [edits, setEdits] = useState<Record<string, { name: string; email: string; company: string }>>({});
@@ -226,10 +244,10 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
     try {
       let workstream: { action: "confirm" | "ignore" | "create"; gid?: string; name?: string; segment?: "GTM" | "BD" } | undefined;
       if (wsChoice === "__ignore") workstream = { action: "ignore" };
-      else if (wsChoice === "__new") {
+      else if (wsChoice === "__new" || wsChoice === "__suggested_new") {
         if (!newName.trim()) throw new Error("Type a name for the new workstream");
         workstream = { action: "create", name: newName.trim(), segment: newSegment };
-      } else if (wsChoice) workstream = { action: "confirm", gid: wsChoice, name: companyWs.find((w) => w.gid === wsChoice)?.name || "" };
+      } else if (wsChoice) workstream = { action: "confirm", gid: wsChoice, name: workstreams.find((w) => w.gid === wsChoice)?.name || "" };
       const byKey = new Map(item.people.map((p) => [p.key, p]));
       await reviewNoteFn({
         data: {
@@ -338,28 +356,49 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
               )}
               <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{isNews ? "PortCo" : "PortCo & workstream"}</h4>
-                {item.link && (
-                  <p className="text-xs text-muted-foreground">Suggested: <b className="text-foreground">{item.link.workstreamName}</b> ({item.link.confidence})</p>
-                )}
                 <div className="flex flex-wrap items-center gap-2">
-                  <Select value={portco || "__none"} onValueChange={(v) => { setPortco(v === "__none" ? "" : v); setWsChoice(""); }}>
-                    <SelectTrigger className="h-8 w-52 text-xs"><SelectValue placeholder="Pick PortCo" /></SelectTrigger>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 w-60 justify-between text-xs font-normal">
+                        <span className="truncate">{chosen.length ? chosen.join(", ") : "Pick PortCos"}</span>
+                        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-1" align="start">
+                      <div className="max-h-72 overflow-y-auto">
+                        {portcos.map((c) => {
+                          const on = chosen.includes(c);
+                          return (
+                            <button key={c} type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
+                              onClick={() => { setTouched(true); setSelected(on ? chosen.filter((x) => x !== c) : [...chosen, c]); }}>
+                              <span className={cn("flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-border", on && "bg-primary text-primary-foreground")}>
+                                {on && <Check className="h-3 w-3" />}
+                              </span>
+                              {c}
+                              {detected.includes(c) && <span className="ml-auto text-[10px] text-muted-foreground">mentioned</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {!isNews && <Select value={wsChoice} onValueChange={setWsChoice} disabled={!primary}>
+                    <SelectTrigger className="h-8 w-80 text-xs"><SelectValue placeholder={primary ? "Pick workstream" : "Pick a PortCo first"} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none">No PortCo</SelectItem>
-                      {portcos.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {!isNews && <Select value={wsChoice} onValueChange={setWsChoice} disabled={!portco}>
-                    <SelectTrigger className="h-8 w-72 text-xs"><SelectValue placeholder={portco ? "Pick workstream" : "Pick a PortCo first"} /></SelectTrigger>
-                    <SelectContent>
-                      {companyWs.map((w) => (
-                        <SelectItem key={w.gid} value={w.gid}>{w.segment} · {w.name}</SelectItem>
+                      {suggestedGid && (
+                        <SelectItem value={suggestedGid}>★ Suggested · {sugg!.workstreamName}</SelectItem>
+                      )}
+                      {sugg && !sugg.workstreamGid && (
+                        <SelectItem value="__suggested_new">★ Suggested (new) · {sugg.workstreamName}</SelectItem>
+                      )}
+                      {companyWs.filter((w) => w.gid !== suggestedGid).map((w) => (
+                        <SelectItem key={w.gid} value={w.gid}>{chosen.length > 1 ? `${w.company} · ` : ""}{w.segment} · {w.name}</SelectItem>
                       ))}
-                      <SelectItem value="__new">+ New workstream (adds to Asana)</SelectItem>
+                      <SelectItem value="__new">+ New workstream (adds to Asana under {primary || "PortCo"})</SelectItem>
                       <SelectItem value="__ignore">Not workstream-related</SelectItem>
                     </SelectContent>
                   </Select>}
-                  {!isNews && wsChoice === "__new" && (
+                  {!isNews && (wsChoice === "__new" || wsChoice === "__suggested_new") && (
                     <>
                       <Select value={newSegment} onValueChange={(v) => setNewSegment(v as "GTM" | "BD")}>
                         <SelectTrigger className="h-8 w-20 text-xs"><SelectValue /></SelectTrigger>

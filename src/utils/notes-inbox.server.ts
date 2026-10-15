@@ -237,7 +237,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     if (ws.action === "create") {
       if (!portco) throw new Error("Pick a PortCo before creating a workstream");
       const { createWorkstream } = await import("./asana.server");
-      const created = await createWorkstream({ company: portco, segment: ws.segment || "GTM", name });
+      const created = await createWorkstream({ company: portco.split(",")[0]!.trim(), segment: ws.segment || "GTM", name });
       gid = created.gid;
       name = created.name;
     }
