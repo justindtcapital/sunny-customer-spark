@@ -205,7 +205,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   const { workstreams } = useWorkstreams();
   const portcos = useMemo(() => {
     const set = new Set(workstreams.map((w) => w.company).filter(Boolean));
-    if (item.portco) set.add(item.portco);
+    for (const c of (item.portco || "").split(/\s*[,;]\s*/)) if (c) set.add(c);
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [workstreams, item.portco]);
   // PortCos named in the subject or summary are pre-selected alongside the matched one.
