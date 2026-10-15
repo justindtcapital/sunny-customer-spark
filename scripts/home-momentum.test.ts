@@ -66,7 +66,7 @@ describe("follow-up calendar", () => {
 
 describe("Mine and Team", () => {
   it("Mine uses recorded owners and Team includes unassigned records", () => {
-    const input = { contacts: [], companies: [], members: [], campaigns: [], ownedGids: [], targets: [{ id: "a", prime: "Chris Falloon" }, { id: "b", prime: "" }], events: [{ gid: "e1", owner: "Chris Falloon" }, { gid: "e2", owner: "Julia Beech" }], workstreams: [{ gid: "w1", owner: "Chris Falloon", company: "Maven" }, { gid: "w2", owner: "Julia Beech", company: "Maven" }] } as Parameters<typeof scopeMomentum>[0];
+    const input = { contacts: [], companies: [], members: [], campaigns: [], ownedGids: [], targets: [{ id: "a", prime: "Chris Falloon" }, { id: "b", prime: "" }], events: [{ gid: "e1", owner: "Chris Falloon", portcos: [] }, { gid: "e2", owner: "Julia Beech", portcos: [] }], workstreams: [{ gid: "w1", owner: "Chris Falloon", company: "Maven" }, { gid: "w2", owner: "Julia Beech", company: "Maven" }] } as Parameters<typeof scopeMomentum>[0];
     expect(scopeMomentum(input, "mine", "chris.falloon@dell.com").targets.map((t) => t.id)).toEqual(["a"]);
     expect(scopeMomentum(input, "mine", "chris.falloon@dell.com").events.map((e) => e.gid)).toEqual(["e1"]);
     expect(scopeMomentum(input, "mine", "chris.falloon@dell.com").workstreams.map((w) => w.gid)).toEqual(["w1"]);
