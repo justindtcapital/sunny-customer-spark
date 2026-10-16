@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { ContactDetail } from "@/components/crm/ContactDetail";
+import { fetchContacts } from "@/utils/sheets.functions";
+import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
+import type { Contact } from "@/lib/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown, ExternalLink, Handshake, Loader2, MapPin, Plus, Search } from "lucide-react";
@@ -135,12 +139,13 @@ function MiniStat({ n, label }: { n: number; label: string }) {
   );
 }
 
-function Stat({ n, label }: { n: number; label: string }) {
+function Stat({ n, label, active, onClick }: { n: number; label: string; active?: boolean; onClick?: () => void }) {
   return (
-    <div className="rounded-md border border-border px-3 py-2">
+    <button type="button" onClick={onClick}
+      className={cn("rounded-md border px-3 py-2 text-left transition-colors hover:border-primary/60", active ? "border-primary bg-primary/5" : "border-border")}>
       <div className="text-2xl font-bold leading-none">{n}</div>
       <div className="mt-1 text-[11px] text-muted-foreground">{label}</div>
-    </div>
+    </button>
   );
 }
 
@@ -168,6 +173,15 @@ function PartnerPane({ name }: { name: string }) {
     return workstreams.filter((w) => detectPartners([w.name, w.dellTargets, w.dellStakeholders, w.nextSteps, w.channel, w.category].join(" "), [p]).length > 0);
   }, [workstreams, d?.partner]);
   const activeWs = ws.filter((w) => !isWorkstreamCompleted(w)).length;
+  const [view, setView] = useState<"contacts" | "workstreams" | "notes" | "emails">("contacts");
+  const contactsQ = useQuery({ queryKey: ["campaign-contacts"], queryFn: () => fetchContacts(), staleTime: 60_000 });
+  const [openContact, setOpenContact] = useState<Contact | null>(null);
+  const openNetwork = (email: string, cname: string) => {
+    const all = contactsQ.data || [];
+    const c = all.find((x) => email && x.email?.toLowerCase() === email.toLowerCase()) || all.find((x) => x.name === cname);
+    if (c) setOpenContact(c);
+    else toast.info("Still loading contacts — try again in a moment.");
+  };
   return (
     <div className="p-4">
         <div className="flex items-center gap-3">
@@ -186,30 +200,38 @@ function PartnerPane({ name }: { name: string }) {
             {d.partner?.summary ? <p className="text-sm">{d.partner.summary}</p> : <p className="text-xs text-muted-foreground">No summary yet{d.partner?.website ? "" : " — add a website to generate one"}.</p>}
             {d.partner?.notes && <p className="text-sm text-muted-foreground">{d.partner.notes}</p>}
             <div className="grid grid-cols-4 gap-2">
-              <Stat n={d.contacts.length} label="Contacts" />
-              <Stat n={activeWs} label="Active workstreams" />
-              <Stat n={d.activity.filter((a) => a.source === "Note").length} label="Notes" />
-              <Stat n={d.activity.filter((a) => a.source === "Email").length} label="BD/GTM emails" />
+              <Stat n={d.contacts.length} label="Contacts" active={view === "contacts"} onClick={() => setView("contacts")} />
+              <Stat n={activeWs} label="Active workstreams" active={view === "workstreams"} onClick={() => setView("workstreams")} />
+              <Stat n={d.activity.filter((a) => a.source === "Note").length} label="Notes" active={view === "notes"} onClick={() => setView("notes")} />
+              <Stat n={d.activity.filter((a) => a.source === "Email").length} label="BD/GTM emails" active={view === "emails"} onClick={() => setView("emails")} />
             </div>
-            <Collapsible title="Key contacts" count={d.contacts.length}>
+            {view === "contacts" && <Collapsible title="Key contacts" count={d.contacts.length}>
               <p className="mb-2 text-xs text-muted-foreground">{net} in Network · {d.contacts.length - net} in Prospecting. They stay on those pages too.</p>
               {d.contacts.length === 0 ? <p className="text-xs text-muted-foreground">No contacts at {name} yet. They'll show up here as soon as one is uploaded or added.</p> : (
                 <ul className="divide-y divide-border">
                   {d.contacts.map((c) => (
                     <li key={`${c.where}:${c.email || c.name}`} className="flex items-center gap-2 py-1.5 text-sm">
-                      <span className="flex-1 truncate">{c.name || c.email} <span className="text-xs text-muted-foreground">{c.email}</span></span>
+                      <span className="flex-1 truncate">
+                        {c.where === "Network" ? (
+                          <button type="button" className="font-medium text-primary hover:underline" onClick={() => openNetwork(c.email, c.name)}>{c.name || c.email}</button>
+                        ) : (
+                          <Link to="/targeting" search={{ target: c.email || `${c.name.toLowerCase()}|${c.company.toLowerCase()}` }} className="font-medium text-primary hover:underline">{c.name || c.email}</Link>
+                        )}{" "}
+                        <span className="text-xs text-muted-foreground">{c.email}</span>
+                      </span>
                       <Badge variant="outline" className="text-[10px]">{c.where}</Badge>
                     </li>
                   ))}
                 </ul>
               )}
-            </Collapsible>
-            <Collapsible title="Workstreams" count={ws.length} defaultOpen={ws.length > 0}>
+            </Collapsible>}
+            {view === "workstreams" && <Collapsible title="Workstreams" count={ws.length}>
               {ws.length === 0 ? <p className="text-xs text-muted-foreground">No PortCo workstreams mention {name} yet.</p> : (
                 <ul className="divide-y divide-border">
                   {ws.map((w) => (
                     <li key={w.gid} className="py-1.5 text-sm">
-                      <div className="truncate">{w.name}</div>
+                      <Link to="/my-actions" search={{ tab: "workstreams", ws: w.gid, owner: ACTION_OWNERS.find((o) => ownerMatches(w.owner, o.name))?.name }}
+                        className="block truncate font-medium text-primary hover:underline" title="Open in My Actions">{w.name}</Link>
                       <div className="mt-0.5 flex justify-end gap-1.5">
                         <Badge variant="outline" className="text-[10px]">{w.company}</Badge>
                         <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
@@ -219,11 +241,11 @@ function PartnerPane({ name }: { name: string }) {
                   ))}
                 </ul>
               )}
-            </Collapsible>
-            <Collapsible title="BD / GTM activity & notes" count={d.activity.length}>
-              {d.activity.length === 0 ? <p className="text-xs text-muted-foreground">Nothing tagged yet. Tag {name} when reviewing notes or activity in My Actions.</p> : (
+            </Collapsible>}
+            {(view === "notes" || view === "emails") && <Collapsible title={view === "notes" ? "Notes" : "BD / GTM emails"} count={d.activity.filter((a) => a.source === (view === "notes" ? "Note" : "Email")).length}>
+              {d.activity.filter((a) => a.source === (view === "notes" ? "Note" : "Email")).length === 0 ? <p className="text-xs text-muted-foreground">Nothing tagged yet. Tag {name} when reviewing notes or activity in My Actions.</p> : (
                 <ul className="space-y-2">
-                  {d.activity.map((a) => (
+                  {d.activity.filter((a) => a.source === (view === "notes" ? "Note" : "Email")).map((a) => (
                     <li key={a.recordId} className="rounded-md bg-muted/30 p-2 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">{a.date.slice(0, 10)}</span>
