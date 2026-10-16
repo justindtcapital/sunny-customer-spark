@@ -25,7 +25,13 @@ export const fetchKnowledgeDataFn = createServerFn({ method: "GET" }).handler(as
     try { ex = JSON.parse(r.extractedJson || "{}"); } catch { /* ignore */ }
     return { ...r, extractedJson: JSON.stringify({ ...ex, nextSteps: steps }) };
   });
-  return { records: withSteps, activities: registered, links, suggested };
+  // Notes reviewed as BD and/or GTM count once per chosen track (follow-ups keep theirs).
+  const tracked = registered.flatMap((a) => {
+    const t = reviews.get(a.recordId)?.activityTracks;
+    if (!t?.length || a.type === "follow-up") return [a];
+    return t.map((track, i) => ({ ...a, track, activityId: i ? `${a.activityId}:${track}` : a.activityId }));
+  });
+  return { records: withSteps, activities: tracked, links, suggested };
 });
 
 export const reviewWorkstreamLinkFn = createServerFn({ method: "POST" })

@@ -37,6 +37,8 @@ export interface NoteReview {
   filedTo?: string;
   /** Next steps with the person each was assigned to on review (informational, not follow-ups). */
   nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
+  /** Notes: BD and/or GTM activity tracks chosen on review. */
+  activityTracks?: string[];
 }
 
 export type InboxKind = "notes" | "activity";
@@ -249,6 +251,8 @@ export interface ReviewNoteInput {
   folder?: "portco" | "operations" | "network";
   /** All next steps with their assigned person; only followUps become tracked follow-ups. */
   nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
+  /** Notes: BD and/or GTM activity tracks chosen on review. */
+  activityTracks?: string[];
 }
 
 export interface PersonMatch { name: string; email: string; company: string; where: "Network" | "Prospecting" }
@@ -435,6 +439,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     ...(input.track ? { track: input.track } : {}),
     ...(tagged.size ? { contacts: [...tagged.keys()] } : {}),
     ...(input.nextSteps?.length && input.status !== "skipped" ? { nextSteps: input.nextSteps } : {}),
+    ...(input.activityTracks?.length && input.status !== "skipped" ? { activityTracks: input.activityTracks } : {}),
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
   return review;

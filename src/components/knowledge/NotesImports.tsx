@@ -265,6 +265,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   const label = (r: RosterRow) => r.match?.name || r.edit.name || r.heard;
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
+  const [actTracks, setActTracks] = useState<string[]>(() => (item.track === "BD" || item.track === "GTM" ? [item.track] : []));
   type Step = { action: string; who: string; other: string; dueDate: string; track: boolean };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
@@ -307,7 +308,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
           recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
           ...(isActivity ? { status: "confirmed" as const, track } : isNetwork ? { track: "Network" } : {}),
           linkContacts: live.filter((r) => r.status === "linked" && r.match?.email).map((r) => r.match!),
-          ...(!isActivity ? { folder } : {}),
+          ...(!isActivity ? { folder, activityTracks: actTracks } : {}),
           addPeople: live.filter((r) => r.status === "add").map((r) => ({ ...r.edit, suggestionId: r.suggestionId || undefined })),
           skipContacts: roster.filter((r) => r.status === "skip" && r.suggestionId).map((r) => r.suggestionId),
           nextSteps: stepOut.map(({ track: _t, ...s }) => s),
@@ -406,6 +407,18 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">Waits in Unfiled Documents until you confirm. The original author stays on the file.</p>
+                </section>
+              )}
+              {!isActivity && (
+                <section className="space-y-1.5">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Activity tracking</h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["BD", "GTM"] as const).map((t) => (
+                      <Button key={t} size="sm" variant={actTracks.includes(t) ? "default" : "outline"}
+                        onClick={() => setActTracks((x) => (x.includes(t) ? x.filter((y) => y !== t) : [...x, t]))}>{t}</Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Counts this meeting as BD and/or GTM activity for its PortCo. Pick both if it was both.</p>
                 </section>
               )}
               {isActivity && (
@@ -543,7 +556,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
 
               {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Track as my follow-up" go on your calendar.</p>
+                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Assigned to me" go on your calendar.</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
                 {steps.map((s, i) => (
                   <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
@@ -558,7 +571,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
                     </Select>
                     {s.who === "__other" && <Input className="h-7 w-32 text-xs" placeholder="Name" value={s.other} onChange={(e) => setStep(i, { other: e.target.value })} />}
                     <Input className="h-7 min-w-[220px] flex-1 text-xs" value={s.action} onChange={(e) => setStep(i, { action: e.target.value })} />
-                    <Button size="sm" variant={s.track ? "secondary" : "outline"} onClick={() => setStep(i, { track: !s.track })}>{s.track ? <Check className="h-3.5 w-3.5" /> : null}Track as my follow-up</Button>
+                    <Button size="sm" variant={s.track ? "secondary" : "outline"} onClick={() => setStep(i, { track: !s.track })}>{s.track ? <Check className="h-3.5 w-3.5" /> : null}Assigned to me</Button>
                     {s.track && <Input type="date" className="h-7 w-36 text-xs" value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
                     <button type="button" aria-label="Remove next step" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   </div>
