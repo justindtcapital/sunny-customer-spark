@@ -1,5 +1,10 @@
 # Roadmap
 
+## Bulk relationship changes
+- [ ] Add confirmed bulk promotion/demotion controls in Network list view
+- [ ] Preserve contact data when moving Network contacts to Prospecting
+- [ ] Test transition rules and verify the selected-contact flow
+
 ## Homepage momentum and manual ratings
 - [x] Enforce Cold promotions and manual-only saved ratings; remove auto-rating controls
 - [x] Project Asana creation/completion dates and event owners
