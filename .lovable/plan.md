@@ -36,13 +36,13 @@ Every inbox item gets an **Action Now** button that opens a side pane:
 1. **Prefilled context:** PortCos, recipients (from the meeting roster / workstream contacts), the source note or workstream summary, and the next step.
 2. **Pre-written follow-up:** when the pane opens, a draft is already written for you. It builds on whatever created the action: the triggering email thread (what they said, what was asked), the meeting notes and their next steps, or the workstream's latest updates. It also uses recent history with those contacts. The tone is warm, simple and specific: thank them, recap the key points, confirm the next steps with owners and dates, and close with one clear ask. A small "Based on: <source>" line shows what it read. You can edit it freely, use **Regenerate** with a quick nudge (shorter, more formal, add a PortCo intro), or clear it and write your own.
 3. **Email builder:** the same one used in Campaigns, with the PortCo blurb and company-site links.
-3. **Tags:** PortCo multi-select, BD/GTM, contacts (searchable).
-4. **Send:** opens an Outlook compose window with to/cc/subject/body filled in. At the same moment Venture Pulse:
+4. **Tags:** PortCo multi-select, BD/GTM, contacts (searchable).
+5. **Send:** opens an Outlook compose window with to/cc/subject/body filled in. At the same moment Venture Pulse:
    - records an Interaction Trail entry for each tagged contact (linked to the source note or workstream),
    - counts it as a BD/GTM activity for the tagged PortCos,
    - marks the follow-up complete (or confirms the note if it was still waiting for review),
    - moves the item to Done.
-5. **Undo / Reopen** from the Done tab if the email was never actually sent.
+6. **Undo / Reopen** from the Done tab if the email was never actually sent.
 
 Note: Outlook doesn't report back whether the email was sent. Venture Pulse treats clicking Send as done, and Undo is there to fix mistakes.
 
