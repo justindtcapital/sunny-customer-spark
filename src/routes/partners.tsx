@@ -259,9 +259,10 @@ function PartnerPane({ name }: { name: string }) {
                   ))}
                 </ul>
               )}
-            </Collapsible>
+            </Collapsible>}
           </div>
         )}
+      <ContactDetail contact={openContact} open={!!openContact} onOpenChange={(o) => !o && setOpenContact(null)} onContactUpdate={setOpenContact} />
     </div>
   );
 }
