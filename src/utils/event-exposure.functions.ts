@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { fetchAllAsanaEvents } from "./asana.server";
 import {
   buildContacts,
@@ -57,7 +57,7 @@ export const fetchPortcoExposures = createServerFn({ method: "GET" }).handler(
 // Idempotent: company exposures dedupe on company|event; attendee engagements
 // dedupe on email|portco (an existing event-exposure engagement to that company
 // is never re-written). No Asana write-back — Asana stays the source of truth.
-export async function runSyncEventExposure(): Promise<SyncExposureResult> {
+export const runSyncEventExposure = createServerOnlyFn(async (): Promise<SyncExposureResult> => {
   try {
     const [asanaEvents, appEvents, contacts] = await Promise.all([
       fetchAllAsanaEvents().catch(() => [] as AsanaEvent[]),
@@ -224,7 +224,7 @@ export async function runSyncEventExposure(): Promise<SyncExposureResult> {
     });
     return { ...EMPTY, ok: false, error: message };
   }
-}
+});
 
 export const syncEventExposure = createServerFn({ method: "POST" }).handler(
   async (): Promise<SyncExposureResult> => runSyncEventExposure(),
