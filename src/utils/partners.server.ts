@@ -89,7 +89,7 @@ export interface PartnerActivity { recordId: string; date: string; title: string
 export interface PartnerSummary { name: string; contacts: number }
 
 /** Contact counts per partner for the list page. */
-export async function partnerSummaries(): Promise<{ partners: Partner[]; counts: Record<string, number> }> {
+export async function partnerSummaries(): Promise<{ partners: Partner[]; counts: Record<string, number>; activity: Record<string, number> }> {
   const [partners, { peopleDirectory }] = await Promise.all([listPartners(), import("./notes-inbox.server")]);
   const people = await peopleDirectory();
   const counts: Record<string, number> = {};
@@ -97,7 +97,17 @@ export async function partnerSummaries(): Promise<{ partners: Partner[]; counts:
     const m = matchPartner(p.company, partners);
     if (m) counts[m.name] = (counts[m.name] || 0) + 1;
   }
-  return { partners, counts };
+  // Reviewed notes/emails tagged to each partner (directly or on a next step).
+  const activity: Record<string, number> = {};
+  try {
+    const { reviewMap } = await import("./notes-inbox.server");
+    for (const rv of (await reviewMap()).values()) {
+      if (rv.status === "skipped") continue;
+      const names = new Set([...(rv.partners || []), ...(rv.nextSteps || []).map((x) => (x as { partner?: string }).partner || "")].filter(Boolean));
+      for (const n of names) activity[n] = (activity[n] || 0) + 1;
+    }
+  } catch { /* review state unavailable */ }
+  return { partners, counts, activity };
 }
 
 export async function partnerDetail(name: string): Promise<{ partner: Partner | null; contacts: PartnerContact[]; activity: PartnerActivity[] }> {
