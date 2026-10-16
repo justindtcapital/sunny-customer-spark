@@ -847,11 +847,21 @@ export async function updateWorkstream(input: {
     `/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS},parent.name`,
   );
   const current = new Map(((before.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
+  let catalog: Map<string, WorkstreamFieldMeta> | null = null;
   for (const c of input.changes) {
-    const m = current.get(c.gid);
-    if (!m) throw new Error("A field no longer exists on this Asana task — refresh and try again.");
+    let m = current.get(c.gid);
+    if (!m) {
+      // Field not on the task yet — allow it when it's a known project field and still empty.
+      catalog = catalog || (await fetchWorkstreamFieldCatalog());
+      const cat = catalog.get(c.gid);
+      if (!cat) throw new Error("A field no longer exists on this Asana task — refresh and try again.");
+      if (!sameValue(cat.value, c.original)) {
+        throw new Error(`"${cat.name}" already has a value in Asana — refresh and try again.`);
+      }
+      m = cat;
+    }
     if (!m.editable) throw new Error(`"${m.name}" can't be edited.`);
-    if (!sameValue(m.value, c.original)) {
+    if (current.has(c.gid) && !sameValue(m.value, c.original)) {
       throw new Error(`"${m.name}" was changed in Asana since you opened it — refresh and try again.`);
     }
     if (m.type === "enum" || m.type === "multi_enum") {
