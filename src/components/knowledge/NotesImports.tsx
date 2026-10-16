@@ -25,6 +25,7 @@ import {
 } from "@/utils/knowledge.functions";
 import type { NoteInboxItem, PersonMatch } from "@/utils/notes-inbox.server";
 import { resolveWho } from "@/lib/meeting-roster";
+import { teamProfile } from "@/lib/user-ownership";
 
 function Tick({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -254,14 +255,15 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   const [wsChoice, setWsChoice] = useState<string>(suggestedGid || (sugg && !sugg.workstreamGid ? "__suggested_new" : ""));
   const [newName, setNewName] = useState(sugg && !sugg.workstreamGid ? sugg.workstreamName : "");
   const [newSegment, setNewSegment] = useState<"GTM" | "BD">("GTM");
-  type RosterRow = { key: string; heard: string; where: string; suggestionId: string; status: "linked" | "add" | "guest" | "skip" | "pending"; match?: PersonMatch; suggestions: PersonMatch[]; edit: { name: string; email: string; company: string }; editing?: boolean };
+  type RosterRow = { key: string; heard: string; where: string; suggestionId: string; status: "linked" | "add" | "guest" | "skip" | "pending" | "team"; match?: PersonMatch; suggestions: PersonMatch[]; edit: { name: string; email: string; company: string }; editing?: boolean };
   const [roster, setRoster] = useState<RosterRow[]>(() => item.people.map((p) => {
     const known = !!p.email && (p.where === "Network" || p.where === "Prospecting");
     return { key: p.key, heard: p.name || p.email, where: p.where, suggestionId: p.suggestionId, suggestions: p.suggestions || [],
-      status: known || p.status.startsWith("approved") ? "linked" : "pending",
+      status: p.where === "Team" ? "team" : known || p.status.startsWith("approved") ? "linked" : "pending",
       match: known ? { name: p.name, email: p.email, company: p.company, where: p.where as PersonMatch["where"] } : undefined,
       edit: { name: p.name, email: p.email, company: p.company } };
   }));
+  const me = teamProfile(reviewer)?.displayName || reviewer;
   const label = (r: RosterRow) => r.match?.name || r.edit.name || r.heard;
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
@@ -269,7 +271,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   type Step = { action: string; who: string; other: string; dueDate: string; track: boolean };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
-    return { action: n.action, who: i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false };
+    const mine = i >= 0 && item.people[i]!.where === "Team" && item.people[i]!.email === teamProfile(reviewer)?.email;
+    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false };
   }));
   const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const [saving, setSaving] = useState(false);
@@ -301,7 +304,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
       const live = roster.filter((r) => r.status !== "skip");
       const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
         const r = roster.find((x) => x.key === s.who);
-        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? reviewer : s.who === "__other" ? s.other.trim() : "", whoEmail: r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track };
+        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: s.who === "__me" ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track };
       });
       await reviewNoteFn({
         data: {
@@ -503,15 +506,16 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
                         {r.match ? <span className="text-muted-foreground"> {r.match.company && `· ${r.match.company}`}</span> : r.edit.email && <span className="text-muted-foreground"> {r.edit.email}</span>}
                         {r.match && r.heard && r.heard.toLowerCase() !== r.match.name.toLowerCase() && <span className="text-muted-foreground"> (heard as "{r.heard}")</span>}
                       </span>
+                      {r.status === "team" && <Badge variant="secondary" className="text-[10px]">{label(r) === me ? "You" : "Team"}</Badge>}
                       {r.status === "linked" && <Badge variant="secondary" className="text-[10px]">{r.match?.where || "Added"}</Badge>}
                       {r.status === "add" && <Badge variant="secondary" className="text-[10px]">Will add to contacts</Badge>}
                       {r.status === "guest" && <Badge variant="outline" className="text-[10px]">Guest</Badge>}
                       {r.status === "skip" && <Badge variant="outline" className="text-[10px]">Skipped</Badge>}
                       {r.status === "pending" && <Badge variant="outline" className="text-[10px]">Not matched</Badge>}
-                      <Button size="sm" variant={linking === r.key ? "secondary" : "outline"} onClick={() => { setLinking(linking === r.key ? null : r.key); setPq(r.status === "pending" && !/^speaker/i.test(r.heard) ? r.heard : ""); }}>{r.status === "linked" ? "Change" : "Search"}</Button>
+                      {r.status !== "team" && <><Button size="sm" variant={linking === r.key ? "secondary" : "outline"} onClick={() => { setLinking(linking === r.key ? null : r.key); setPq(r.status === "pending" && !/^speaker/i.test(r.heard) ? r.heard : ""); }}>{r.status === "linked" ? "Change" : "Search"}</Button>
                       {r.status !== "linked" && <Button size="sm" variant={r.status === "add" || r.editing ? "secondary" : "outline"} onClick={() => patch(r.key, { editing: !r.editing, status: r.editing ? r.status : "add" })}>Add to contacts</Button>}
                       {r.status !== "guest" && <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: "guest", match: undefined, editing: false })}>Guest</Button>}
-                      <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: r.status === "skip" ? "pending" : "skip", editing: false })}>{r.status === "skip" ? "Undo" : "Skip"}</Button>
+                      <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: r.status === "skip" ? "pending" : "skip", editing: false })}>{r.status === "skip" ? "Undo" : "Skip"}</Button></>}
                     </div>
                     {r.status === "pending" && r.suggestions.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 pl-2">
@@ -564,8 +568,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
                       <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Who" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">Unassigned</SelectItem>
-                        {reviewer && <SelectItem value={`__me`}>{reviewer} (me)</SelectItem>}
-                        {roster.filter((r) => r.status !== "skip").map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
+                        {reviewer && <SelectItem value={`__me`}>{me} (me)</SelectItem>}
+                        {roster.filter((r) => r.status !== "skip" && label(r) !== me).map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
                         <SelectItem value="__other">Other…</SelectItem>
                       </SelectContent>
                     </Select>
