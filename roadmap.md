@@ -1,5 +1,10 @@
 # Roadmap
 
+## Team next-step ownership
+- [ ] Make four core teammates searchable with canonical identity matching
+- [ ] Support teammate due dates and persist next steps to each assignee's My Actions
+- [ ] Test identity/date rules and verify the review and assignee flows
+
 ## Bulk relationship changes
 - [x] Add confirmed bulk promotion/demotion controls in Network list view and sidebar
 - [x] Preserve contact data when moving Network contacts to Prospecting
