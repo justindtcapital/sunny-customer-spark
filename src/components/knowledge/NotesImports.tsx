@@ -3,7 +3,7 @@
 // move to History. Granola is pulled only when "Import from Granola" is clicked.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -304,11 +304,12 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
   const [actTracks, setActTracks] = useState<string[]>(() => (item.track === "BD" || item.track === "GTM" ? [item.track] : []));
-  type Step = { action: string; who: string; other: string; dueDate: string; track: boolean; portco: string };
+  type Step = { action: string; who: string; other: string; dueDate: string; portco: string; whoGuess: boolean };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
     const mine = i >= 0 && item.people[i]!.where === "Team" && item.people[i]!.email === teamProfile(reviewer)?.email;
-    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false, portco: "" };
+    // Auto-populated owners start as guesses (yellow ?) until the reviewer picks the name.
+    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, portco: "", whoGuess: !!n.who };
   }));
   const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const [saving, setSaving] = useState(false);
@@ -351,7 +352,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
       const live = roster.filter((r) => r.status !== "skip");
       const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
         const r = roster.find((x) => x.key === s.who);
-        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: s.who === "__me" ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track, portco: s.portco };
+        const mine = s.who === "__me" || (!!r && r.status === "team" && label(r) === me);
+        return { action: s.action.trim(), who: r ? label(r) : mine ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: mine ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: mine, portco: s.portco };
       });
       await reviewNoteFn({
         data: {
@@ -575,6 +577,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         {r.match ? <span className="text-muted-foreground"> {r.match.company && `· ${r.match.company}`}</span> : r.edit.email && <span className="text-muted-foreground"> {r.edit.email}</span>}
                         {r.match && r.heard && r.heard.toLowerCase() !== r.match.name.toLowerCase() && <span className="text-muted-foreground"> (heard as "{r.heard}")</span>}
                       </span>
+                      {(r.status === "team" || r.status === "linked") && <Check className="h-3.5 w-3.5 text-green-600" aria-label="Confirmed" />}
+                      {r.status === "pending" && <HelpCircle className="h-3.5 w-3.5 text-yellow-500" aria-label="Needs matching" />}
                       {r.status === "team" && <Badge variant="secondary" className="text-[10px]">{label(r) === me ? "You" : "Team"}</Badge>}
                       {r.status === "linked" && <Badge variant="secondary" className="text-[10px]">{r.match?.where || "Added"}</Badge>}
                       {r.status === "add" && <Badge variant="secondary" className="text-[10px]">Will add to contacts</Badge>}
@@ -592,7 +596,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         <span className="text-muted-foreground">Did you mean</span>
                         {r.suggestions.map((s) => (
                           <Button key={s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => patch(r.key, { status: "linked", match: s })}>
-                            <Check className="h-3 w-3" /> {s.name}{s.company && ` · ${s.company}`}
+                            <HelpCircle className="h-3 w-3 text-yellow-500" /> {s.name}{s.company && ` · ${s.company}`}
                           </Button>
                         ))}
                       </div>
@@ -632,10 +636,16 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
 
               {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Assigned to me" go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
+                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Steps assigned to you go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
-                {steps.map((s, i) => (
+                {steps.map((s, i) => {
+                  const confirmed = roster.filter((r) => (r.status === "linked" || r.status === "team") && label(r) !== me);
+                  const guessedKey = s.whoGuess && s.who && s.who !== "__me" && s.who !== "__other" ? s.who : "";
+                  const guessedRow = guessedKey ? roster.find((r) => r.key === guessedKey) : undefined;
+                  const options = guessedRow && !confirmed.some((r) => r.key === guessedRow.key) ? [...confirmed, guessedRow] : confirmed;
+                  return (
                   <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                    <Input className="h-7 min-w-[220px] flex-1 text-xs" title={s.action} value={s.action} onChange={(e) => setStep(i, { action: e.target.value })} />
                     {!isActivity && (folder !== "portco" || chosen.length > 1) && (
                       <Select value={s.portco || "__none"} onValueChange={(v) => setStep(i, { portco: v === "__none" ? "" : v })}>
                         <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="PortCo" /></SelectTrigger>
@@ -645,23 +655,29 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         </SelectContent>
                       </Select>
                     )}
-                    <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v })}>
-                      <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Who" /></SelectTrigger>
+                    <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v, whoGuess: false })}>
+                      <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Assigned" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">Unassigned</SelectItem>
                         {reviewer && <SelectItem value={`__me`}>{me} (me)</SelectItem>}
-                        {roster.filter((r) => r.status !== "skip" && label(r) !== me).map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
+                        {options.map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
                         <SelectItem value="__other">Other…</SelectItem>
                       </SelectContent>
                     </Select>
+                    {s.who && s.who !== "__none" && (s.whoGuess ? (
+                      <button type="button" title="Guessed from the notes — click to confirm" onClick={() => setStep(i, { whoGuess: false })}>
+                        <HelpCircle className="h-3.5 w-3.5 text-yellow-500" />
+                      </button>
+                    ) : (
+                      <Check className="h-3.5 w-3.5 text-green-600" aria-label="Confirmed" />
+                    ))}
                     {s.who === "__other" && <Input className="h-7 w-32 text-xs" placeholder="Name" value={s.other} onChange={(e) => setStep(i, { other: e.target.value })} />}
-                    <Input className="h-7 min-w-[220px] flex-1 text-xs" value={s.action} onChange={(e) => setStep(i, { action: e.target.value })} />
-                    <Button size="sm" variant={s.track ? "secondary" : "outline"} onClick={() => setStep(i, { track: !s.track })}>{s.track ? <Check className="h-3.5 w-3.5" /> : null}Assigned to me</Button>
-                    {s.track && <Input type="date" className="h-7 w-36 text-xs" value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
+                    {s.who === "__me" && <Input type="date" className="h-7 w-36 text-xs" title="Due date — goes on your calendar" value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
                     <button type="button" aria-label="Remove next step" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   </div>
-                ))}
-                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", track: false, portco: "" }])}>+ Next step</Button>
+                  );
+                })}
+                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", portco: "", whoGuess: false }])}>+ Next step</Button>
               </section>}
 
               <div className="flex justify-end gap-2">
