@@ -58,7 +58,7 @@ const PRIMES = ["Julia", "Hillock", "Falloon", "Shane"] as const;
 // Persists the change to the Contacts sheet (bulkUpdateContacts) and reflects it
 // locally via the selection context's onBulkUpdate.
 export function BulkEditBar() {
-  const { selectedContacts, selectedIds, clearSelection, onBulkUpdate, onBulkDelete } =
+  const { selectedContacts, selectedIds, clearSelection, onBulkUpdate, onBulkDelete, relationshipChange: levelChange, setRelationshipChange: setLevelChange } =
     useSelection();
   const router = useRouter();
   const [field, setField] = useState<BulkEditField>("status");
@@ -69,7 +69,6 @@ export function BulkEditBar() {
   // Which mass action is currently running ("" = none). Disables the whole bar.
   const [action, setAction] = useState<"" | "enrich" | "interests" | "tech">("");
   const [techConfirmOpen, setTechConfirmOpen] = useState(false);
-  const [levelChange, setLevelChange] = useState<RelationshipChange | null>(null);
   const [changingLevel, setChangingLevel] = useState(false);
   const changeLevels = useServerFn(bulkChangeRelationshipLevels);
 

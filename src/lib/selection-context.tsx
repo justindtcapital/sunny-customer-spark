@@ -1,7 +1,10 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import type { Contact, Interaction } from "@/lib/types";
+import type { RelationshipChange } from "@/lib/relationship-rating";
 
 interface SelectionContextType {
+  relationshipChange: RelationshipChange | null;
+  setRelationshipChange: (change: RelationshipChange | null) => void;
   selectedIds: Set<string>;
   selectedContacts: Contact[];
   allFilteredContacts: Contact[];
@@ -16,6 +19,8 @@ interface SelectionContextType {
 }
 
 const SelectionContext = createContext<SelectionContextType>({
+  relationshipChange: null,
+  setRelationshipChange: () => {},
   selectedIds: new Set(),
   selectedContacts: [],
   allFilteredContacts: [],
@@ -28,6 +33,7 @@ const SelectionContext = createContext<SelectionContextType>({
 });
 
 export function SelectionProvider({ children }: { children: ReactNode }) {
+  const [relationshipChange, setRelationshipChange] = useState<RelationshipChange | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [allFilteredContacts, setAllFilteredContacts] = useState<Contact[]>([]);
   const [onBulkUpdate, setOnBulkUpdateState] = useState<((updatedContacts: Contact[]) => void) | undefined>();
@@ -70,6 +76,8 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
   return (
     <SelectionContext.Provider
       value={{
+        relationshipChange,
+        setRelationshipChange,
         selectedIds,
         selectedContacts,
         allFilteredContacts,
