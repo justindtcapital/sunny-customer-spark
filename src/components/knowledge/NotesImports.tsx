@@ -304,11 +304,11 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
   const [actTracks, setActTracks] = useState<string[]>(() => (item.track === "BD" || item.track === "GTM" ? [item.track] : []));
-  type Step = { action: string; who: string; other: string; dueDate: string; track: boolean };
+  type Step = { action: string; who: string; other: string; dueDate: string; track: boolean; portco: string };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
     const mine = i >= 0 && item.people[i]!.where === "Team" && item.people[i]!.email === teamProfile(reviewer)?.email;
-    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false };
+    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false, portco: "" };
   }));
   const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const [saving, setSaving] = useState(false);
@@ -316,7 +316,17 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const [track, setTrack] = useState(item.track || "BD");
   const isNews = isActivity && track === "News";
   const isNetwork = track === "Network" || item.track === "Network";
-  const [folder, setFolder] = useState<"portco" | "operations" | "network">(isNetwork ? "network" : "portco");
+  const [folder, setFolder] = useState<"portco" | "operations" | "network" | "investor">(isNetwork ? "network" : "portco");
+  const [investor, setInvestor] = useState("");
+  const [invQ, setInvQ] = useState("");
+  const [invResults, setInvResults] = useState<PersonMatch[]>([]);
+  useEffect(() => {
+    const q = invQ.trim();
+    if (q.length < 2) { setInvResults([]); return; }
+    let live = true;
+    const t = setTimeout(() => { void searchPeopleFn({ data: { q } }).then((r) => { if (live) setInvResults(r); }).catch(() => {}); }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [invQ]);
   const [pq, setPq] = useState("");
   const [results, setResults] = useState<PersonMatch[]>([]);
   useEffect(() => {
