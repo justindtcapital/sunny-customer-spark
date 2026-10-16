@@ -43,6 +43,8 @@ const completeInput = z.object({
   followUpActivityId: z.string().max(100).optional(),
   mode: z.enum(["email", "log"]).optional(),
   note: z.string().max(4000).optional(),
+  /** Optional further follow-up to schedule when this action completes. */
+  nextFollowUp: z.object({ date: z.string().min(8).max(20), note: z.string().max(500) }).optional(),
 });
 
 /** Action Now completion: registers the sent follow-up as activity, closes the follow-up, logs Ops. */
@@ -69,6 +71,15 @@ export const completeActionFn = createServerFn({ method: "POST" })
       sourceUrl: "", createdAt: now,
     })));
     if (data.followUpActivityId) await k.resolveHarvestedActivity(data.followUpActivityId, true);
+    if (data.nextFollowUp?.date) {
+      await k.saveHarvestedActivities([{
+        activityId: `followup:${base}`,
+        recordId: data.sourceId, date: data.nextFollowUp.date, track: "Follow-up", type: "follow-up",
+        title: data.nextFollowUp.note || `Follow up: ${data.subject}`, portco: data.portcos.join(", "), person: people, owner,
+        summary: `Follow-up set from Action Now (${data.sourceKind}): ${data.nextFollowUp.note || data.subject}`,
+        sourceUrl: "", createdAt: now,
+      }]);
+    }
     await logOpsEvent({ action: "edit", source: "My Actions", status: "ok", summary: `Action Now: ${data.subject}`, records: data.recipients.length, details: { owner, source: data.sourceId }, items: data.recipients.map((r) => r.email) });
     return { ok: true, actionId: `action:${base}` };
   });
