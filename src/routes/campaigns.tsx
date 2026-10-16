@@ -25,6 +25,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AppendPortcoListButton } from "@/components/actions/AppendPortcoListButton";
+import { appendPortcoList } from "@/lib/portco-list";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -1865,6 +1867,7 @@ function ActionSteps({
               <>
                 <Input placeholder="Subject" value={template.subject} onChange={(e) => setTemplate({ ...template, subject: e.target.value })} />
                 <Textarea rows={10} placeholder="Email body" value={template.body} onChange={(e) => setTemplate({ ...template, body: e.target.value })} />
+                <AppendPortcoListButton preselected={campaign.portcos || []} onAppend={(t) => setTemplate({ ...template, body: appendPortcoList(template.body, t) })} />
               </>
             )}
             {channel !== "email" && (
@@ -1896,6 +1899,7 @@ function ActionSteps({
                       <>
                         <Input className="h-8" value={d.subject} onChange={(e) => setDrafts({ ...drafts, [m.personKey]: { ...d, subject: e.target.value } })} />
                         <Textarea rows={6} value={d.body} onChange={(e) => setDrafts({ ...drafts, [m.personKey]: { ...d, body: e.target.value } })} />
+                        <AppendPortcoListButton preselected={campaign.portcos || []} onAppend={(t) => setDrafts({ ...drafts, [m.personKey]: { ...d, body: appendPortcoList(d.body, t) } })} />
                       </>
                     )}
                     {channel !== "email" && (

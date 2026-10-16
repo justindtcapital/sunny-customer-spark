@@ -552,6 +552,51 @@ export async function draftEmail(input: EmailDraftInput): Promise<EmailDraftResu
   }
 }
 
+export interface FollowUpDraftInput {
+  sourceKind: string;
+  sourceTitle: string;
+  sourceText: string;
+  nextSteps?: string[];
+  recipients: string[];
+  portcos?: string[];
+  history?: string[];
+  senderName?: string;
+  nudge?: string;
+}
+
+/** Follow-up email built from the email/notes/workstream that created the action. */
+export async function draftFollowUpEmail(input: FollowUpDraftInput): Promise<EmailDraftResult> {
+  if (!isGeminiConfigured()) return { found: false, error: "GOOGLE_CLOUD_PROJECT is not configured" };
+  const system = `You write follow-up emails for a venture investor at DT Capital (Dell Technologies Capital).
+Style: warm, simple, specific and short (under 170 words). Thank them, recap the 2-3 key points that actually came up, confirm next steps with owners and dates when known, and close with one clear ask.
+Build only on the provided source; never invent facts, numbers, dates or commitments. No placeholders. Do not list portfolio companies with links (the user appends those separately).
+Output ONLY JSON: {"subject": "...", "body": "..."} with real newlines between paragraphs. Sign off with the sender's first name if given.`;
+  const prompt = [
+    `Source (${input.sourceKind}): ${input.sourceTitle}`,
+    input.sourceText.slice(0, 8000),
+    input.nextSteps?.length ? `Next steps:\n- ${input.nextSteps.join("\n- ")}` : "",
+    `Recipients: ${input.recipients.join(", ") || "unknown"}`,
+    input.portcos?.length ? `PortCos involved: ${input.portcos.join(", ")}` : "",
+    input.history?.length ? `Recent history with them:\n- ${input.history.slice(0, 6).join("\n- ")}` : "",
+    input.senderName ? `Sender: ${input.senderName}` : "",
+    input.nudge ? `Adjustment requested: ${input.nudge}` : "",
+  ].filter(Boolean).join("\n\n");
+  const r = await callGeminiRaw({
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: genConfig(1200, 1024, { responseMimeType: "application/json" }),
+  });
+  if (!r.ok) return { found: false, error: r.error };
+  const text = responseText(r.data).replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  if (!text) return { found: false, error: "Gemini returned an empty response" };
+  try {
+    const p = JSON.parse(text) as { subject?: string; body?: string };
+    return { found: true, subject: (p.subject || "").trim(), body: (p.body || "").trim() };
+  } catch {
+    return { found: true, subject: "", body: text };
+  }
+}
+
 // ── Generic JSON completion ──────────────────────────────────────
 export interface GeminiJSONResult<T> {
   ok: boolean;

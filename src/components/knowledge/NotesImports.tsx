@@ -3,7 +3,7 @@
 // move to History. Granola is pulled only when "Import from Granola" is clicked.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink, History, Loader2, RefreshCw, Upload, X } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,9 +43,11 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(s);
 }
 
-export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems, onStats }: {
+export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems, onStats, onActionNow }: {
   actionOwner?: string; kind?: "notes" | "activity"; onCount?: (n: number) => void; onItems?: (items: NoteInboxItem[]) => void;
   onStats?: (stats: { pending: number; reviewed: number }) => void;
+  /** My Actions: show an Action Now button per item. */
+  onActionNow?: (item: NoteInboxItem) => void;
 }) {
   const isActivity = kind === "activity";
   const [trackFilter, setTrackFilter] = useState("all");
@@ -209,6 +211,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
               open={openId === i.recordId}
               onToggle={() => setOpenId((o) => (o === i.recordId ? null : i.recordId))}
               reviewer={email || ""}
+              onActionNow={onActionNow}
               onDone={async () => { setOpenId(null); await load(); }}
             />
           ))}
@@ -229,8 +232,9 @@ export function detectPortcos(text: string, names: string[]): string[] {
   });
 }
 
-function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
+function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: {
   kind: "notes" | "activity"; item: NoteInboxItem; open: boolean; onToggle: () => void; reviewer: string; onDone: () => Promise<void>;
+  onActionNow?: (item: NoteInboxItem) => void;
 }) {
   const { workstreams } = useWorkstreams();
   const portcos = useMemo(() => {
@@ -383,6 +387,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
             </a>
           )}
         </div>
+        {onActionNow && <Button size="sm" variant="outline" className="h-7" onClick={() => onActionNow(item)}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>}
       </div>
 
       {open && (
