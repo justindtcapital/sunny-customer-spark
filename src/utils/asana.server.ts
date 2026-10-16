@@ -491,26 +491,6 @@ export async function fetchActivities(): Promise<AsanaActivity[]> {
   ];
   // Newest first; undated activities sink to the bottom.
   out.sort((a, b) => compareIsoDatesDesc(a.date || "", b.date || ""));
-  // #region agent log
-  fetch("http://127.0.0.1:7724/ingest/5184a65b-0c76-4274-b203-81774fe31d23", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "3375d3" },
-    body: JSON.stringify({
-      sessionId: "3375d3",
-      hypothesisId: "D",
-      location: "asana.server.ts:fetchActivities",
-      message: "Asana activity date coverage",
-      data: {
-        n: out.length,
-        dated: out.filter((a) => a.date).length,
-        undated: out.filter((a) => !a.date).length,
-        isoOk: out.filter((a) => /^\d{4}-\d{2}-\d{2}$/.test(a.date || "")).length,
-        samples: out.slice(0, 8).map((a) => a.date || ""),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   return out;
 }
 

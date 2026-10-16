@@ -224,13 +224,6 @@ function parseAddr(v: string): { name: string; email: string } {
 function toLabel(ms: number): string {
   const ny = msToIsoDay(ms);
   const utc = msToIsoDay(ms, "UTC");
-  // #region agent log
-  gmailDateDbg.calls++;
-  if (ny && utc && ny !== utc) {
-    gmailDateDbg.shifted++;
-    if (gmailDateDbg.samples.length < 5) gmailDateDbg.samples.push({ ny, utc });
-  }
-  // #endregion
   return ny;
 }
 
@@ -730,30 +723,6 @@ export async function fetchAliasActivities(): Promise<AsanaActivity[]> {
     out.push(a);
   }
   out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  // #region agent log
-  fetch("http://127.0.0.1:7724/ingest/5184a65b-0c76-4274-b203-81774fe31d23", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "3375d3" },
-    body: JSON.stringify({
-      sessionId: "3375d3",
-      hypothesisId: "C",
-      location: "gmail.server.ts:fetchAliasActivities",
-      message: "Gmail NY vs UTC calendar day",
-      data: {
-        activities: out.length,
-        dated: out.filter((a) => a.date).length,
-        toLabelCalls: gmailDateDbg.calls,
-        utcShifted: gmailDateDbg.shifted,
-        shiftSamples: gmailDateDbg.samples,
-        dateSamples: out.slice(0, 8).map((a) => a.date || ""),
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  gmailDateDbg.calls = 0;
-  gmailDateDbg.shifted = 0;
-  gmailDateDbg.samples = [];
-  // #endregion
   return out;
 }
 
