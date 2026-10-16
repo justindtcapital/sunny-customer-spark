@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth-context";
 import { teamMemberFor, teamProfile } from "@/lib/user-ownership";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
 import { useWorkstreams } from "@/lib/use-workstreams";
-import { workstreamBarStatus } from "@/lib/workstream-parse";
+import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-parse";
 import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";

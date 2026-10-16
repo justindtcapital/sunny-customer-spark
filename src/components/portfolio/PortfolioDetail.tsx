@@ -70,7 +70,7 @@ import { EditPortfolioCompanyDialog } from "./EditPortfolioCompanyDialog";
 import { PortcoSignalsPanel } from "./PortcoSignalsPanel";
 import { StatSection } from "./StatSection";
 import { PortcoCampaigns } from "./PortcoCampaigns";
-import { workstreamBarStatus } from "@/lib/workstream-parse";
+import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-parse";
 import { portcoMatches, useKnowledge } from "@/lib/use-knowledge";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
