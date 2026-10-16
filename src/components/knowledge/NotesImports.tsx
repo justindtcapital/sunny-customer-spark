@@ -597,12 +597,14 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         ))}
                       </div>
                     )}
-                    {r.editing && r.status === "add" && (
+                    {r.editing && (
                       <div className="flex flex-wrap items-center gap-2 pl-2">
                         {(["name", "email", "company"] as const).map((f) => (
                           <Input key={f} className="h-7 w-44 text-xs" placeholder={f[0]!.toUpperCase() + f.slice(1)} value={r.edit[f]}
                             onChange={(e) => patch(r.key, { edit: { ...r.edit, [f]: e.target.value } })} />
                         ))}
+                        <Button size="sm" variant="outline" className="h-7" disabled={!r.edit.name.trim()}
+                          onClick={() => { setLinking(r.key); setPq(r.edit.name.trim()); }}>Search this name</Button>
                       </div>
                     )}
                   </div>
