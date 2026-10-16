@@ -138,12 +138,18 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
           );
         })}
       </div>
+      {(w.segment === "BD" || w.segment === "GTM") && (
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-muted-foreground">Stakeholders &amp; contacts</p>
+          <StakeholderPicker value={stakeholders} onChange={setStakeholders} />
+        </div>
+      )}
       <label className="flex items-center gap-1.5 text-[11px]">
         <Checkbox checked={completed} onCheckedChange={(c) => setCompleted(c === true)} />
         Mark subtask complete in Asana
       </label>
-      {(!inline || Object.keys(draft).length > 0 || completed !== w.completed) && <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { if (inline) { setDraft({}); setCompleted(w.completed); } else onCancel(); }} disabled={saving}>
+      {(!inline || Object.keys(draft).length > 0 || completed !== w.completed || stakeholders.map((s) => s.name).join(", ") !== String(w.dellStakeholders || "")) && <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { if (inline) { setDraft({}); setCompleted(w.completed); setStakeholders(parseStakeholders(String(w.dellStakeholders || ""))); } else onCancel(); }} disabled={saving}>
           Cancel
         </Button>
         <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving}>
