@@ -142,21 +142,41 @@ async function describePartner(p: Partner): Promise<{ summary: string; location:
     const html = await res.text();
     text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 8000);
   } catch { /* site unreachable — model falls back to what it knows */ }
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: { "Lovable-API-Key": key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", "X-Lovable-AIG-SDK": "fetch" },
     body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: 'Return JSON {"summary": string, "location": string}. summary: 2 plain sentences on what the company does and who it serves. location: headquarters as "City, State/Country", or "" if unknown. No marketing fluff.' },
-        { role: "user", content: `Company: ${p.name} (${p.website})\nHomepage text:\n${text || "(unavailable)"}` },
-      ],
+      model: "openai/gpt-6-astra",
+      stream: true,
+      store: false,
+      reasoning: { effort: "low" },
+      instructions: "Describe the company in JSON. summary: 2 plain sentences on what it does and who it serves, no marketing fluff. location: headquarters as 'City, State/Country', or empty string if unknown.",
+      input: `Company: ${p.name} (${p.website})\nHomepage text:\n${text || "(unavailable)"}`,
+      text: { format: { type: "json_schema", name: "partner_profile", strict: true, schema: {
+        type: "object", additionalProperties: false, required: ["summary", "location"],
+        properties: { summary: { type: "string" }, location: { type: "string" } },
+      } } },
     }),
   });
-  if (!res.ok) throw new Error(`AI ${res.status}: ${await res.text()}`);
-  const j = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-  const out = JSON.parse(j.choices?.[0]?.message?.content || "{}") as { summary?: string; location?: string };
+  if (!res.ok || !res.body) throw new Error(`AI ${res.status}: ${await res.text()}`);
+  let raw = "", buf = "";
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line.startsWith("data:")) continue;
+      try {
+        const ev = JSON.parse(line.slice(5).trim()) as { type?: string; delta?: string };
+        if (ev.type === "response.output_text.delta" && ev.delta) raw += ev.delta;
+      } catch { /* [DONE] or keepalive */ }
+    }
+  }
+  const out = JSON.parse(raw || "{}") as { summary?: string; location?: string };
   const summary = (out.summary || "").trim(), location = (out.location || "").trim();
   if (!summary) return null;
   const rows = await fetchSheetTab(TAB);
