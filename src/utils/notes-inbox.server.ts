@@ -18,6 +18,7 @@ import {
 import { sha256Hex } from "./sha256";
 import { isNetworkTitle, matchesQuery, personInText } from "@/lib/network-notes";
 import { suggestPeople } from "@/lib/meeting-roster";
+import { teamMemberFor } from "@/lib/user-ownership";
 
 const REVIEW_PREFIX = "review:";
 const NOTE_SOURCES = new Set(["granola", "upload", "drive-doc"]);
@@ -57,7 +58,7 @@ export interface NotePerson {
   email: string;
   company: string;
   /** Where this person already lives, or "New". */
-  where: "Network" | "Prospecting" | "New";
+  where: "Network" | "Prospecting" | "New" | "Team";
   status: string;
   /** Likely CRM contacts for first-name-only or unrecognized people. */
   suggestions: PersonMatch[];
@@ -205,6 +206,12 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
       people: (() => {
         const map = new Map<string, NotePerson>();
         const put = (name: string, email: string, company: string, suggestionId = "", status = "") => {
+          // Teammates collapse to one person whichever address or name was used.
+          const tm = teamMemberFor(email) || teamMemberFor(name);
+          if (tm) {
+            map.set(tm.email, { key: tm.email, suggestionId: "", name: tm.displayName, email: tm.email, company: "DT Capital", where: "Team", status: "", suggestions: [] });
+            return;
+          }
           const key = (email || name).toLowerCase();
           if (!key) return;
           const prev = map.get(key);
