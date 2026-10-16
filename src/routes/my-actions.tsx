@@ -1,7 +1,7 @@
 import type React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Plus, Undo2, Zap } from "lucide-react";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
@@ -29,7 +29,8 @@ const TABS = ["workstreams", "notes", "followups", "done"] as const;
 type Tab = (typeof TABS)[number];
 
 export const Route = createFileRoute("/my-actions")({
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab; owner?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab; owner?: string; ws?: string } => ({
+    ws: typeof s.ws === "string" ? s.ws : undefined,
     tab: TABS.includes(s.tab as Tab) ? (s.tab as Tab) : undefined,
     owner: typeof s.owner === "string" ? s.owner : undefined,
   }),
@@ -89,7 +90,7 @@ function MyActionsPage() {
       </div>
 
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <>
-        {tab === "workstreams" && <WorkstreamsTab owner={owner} onAction={setCtx} />}
+        {tab === "workstreams" && <WorkstreamsTab owner={owner} onAction={setCtx} focusGid={search.ws} />}
         {tab === "notes" && <NotesTab owner={owner} onAction={setCtx} onCounts={setCounts} />}
         {tab === "followups" && <FollowUpsTab owner={owner} onAction={setCtx} />}
         {tab === "done" && <DoneTab owner={owner} />}
@@ -136,12 +137,19 @@ function Logo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   return <span className={size === "sm" ? "[&>span]:h-6 [&>span]:w-6 [&_img]:h-full [&_img]:w-full" : ""}><CompanyLogo name={name} website={website} /></span>;
 }
 
-function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
+function WorkstreamsTab({ owner, onAction, focusGid }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string }) {
   const { workstreams, loading, refresh } = useWorkstreams();
   const [showDone, setShowDone] = useState(false);
   const [priority, setPriority] = useState("");
   const [creating, setCreating] = useState(false);
-  const [selId, setSelId] = useState("");
+  const [selId, setSelId] = useState(focusGid || "");
+  // Deep link (?ws=gid): select it, and show completed ones too if that's where it lives.
+  useEffect(() => {
+    if (!focusGid) return;
+    setSelId(focusGid);
+    const w = workstreams.find((x) => x.gid === focusGid);
+    if (w && isWorkstreamCompleted(w)) setShowDone(true);
+  }, [focusGid, workstreams]);
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
   const isDone = (w: (typeof mine)[number]) => isWorkstreamCompleted(w);
   const openCount = mine.filter((w) => !isDone(w)).length;
