@@ -103,10 +103,10 @@ export function PersonContextSection({ name, email }: { name: string; email: str
               <div key={`${w.portco}:${w.name}`} className="flex items-center gap-2 rounded border border-border px-2 py-1.5 text-xs">
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{w.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{w.portco || "No PortCo"} · last mention {w.last}</div>
+                  <div className="text-[10px] text-muted-foreground">{w.portco || "No PortCo"} · {w.stakeholder ? "stakeholder" : `last mention ${w.last}`}</div>
                 </div>
                 {w.status && <Badge variant="outline" className="text-[9px]">{w.status === "create-new" ? "New" : w.status}</Badge>}
-                <Link to="/dashboard" search={{ section: "workstreams" }} className="text-[11px] text-primary hover:underline">Open</Link>
+                <Link to="/my-actions" search={{ tab: "workstreams" }} className="text-[11px] text-primary hover:underline">Open</Link>
               </div>
             ))}
           </div>
