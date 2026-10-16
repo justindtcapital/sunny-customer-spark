@@ -137,31 +137,46 @@ function Logo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
 }
 
 function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
-  const { workstreams, loading } = useWorkstreams();
+  const { workstreams, loading, refresh } = useWorkstreams();
   const [showDone, setShowDone] = useState(false);
+  const [priority, setPriority] = useState("");
+  const [creating, setCreating] = useState(false);
   const [selId, setSelId] = useState("");
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
   const isDone = (w: (typeof mine)[number]) => isWorkstreamCompleted(w);
   const openCount = mine.filter((w) => !isDone(w)).length;
-  const list = useMemo(() => mine.filter((w) => showDone || !isDone(w))
-    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  const priorities = useMemo(() => [...new Set(mine.map((w) => w.workstreamPriority).filter(Boolean))].sort(), [mine]);
+  const list = useMemo(() => mine.filter((w) => (showDone || !isDone(w)) && (!priority || w.workstreamPriority.toLowerCase() === priority.toLowerCase()))
+    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, priority]); // eslint-disable-line react-hooks/exhaustive-deps
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const groups = useMemo(() => {
     const m = new Map<string, typeof list>();
     for (const w of list) m.set(w.company, [...(m.get(w.company) || []), w]);
     return [...m.entries()];
   }, [list]);
+  const companies = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [workstreams]);
   const sel = list.find((w) => w.gid === selId) || list[0];
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>Major workstreams · {openCount} active · {mine.length - openCount} complete</span>
-        <div className="inline-flex rounded-md border border-border p-0.5">
-          {[false, true].map((v) => (
-            <button key={String(v)} onClick={() => setShowDone(v)} className={`rounded px-2.5 py-1 ${showDone === v ? "bg-secondary text-secondary-foreground" : ""}`}>{v ? "All" : "Active"}</button>
-          ))}
+        <div className="flex items-center gap-2">
+          {priorities.length > 0 && (
+            <div className="inline-flex rounded-md border border-border p-0.5">
+              {["", ...priorities].map((p) => (
+                <button key={p || "all"} onClick={() => setPriority(p)} className={`rounded px-2.5 py-1 ${priority === p ? "bg-secondary text-secondary-foreground" : ""}`}>{p || "All priorities"}</button>
+              ))}
+            </div>
+          )}
+          <div className="inline-flex rounded-md border border-border p-0.5">
+            {[false, true].map((v) => (
+              <button key={String(v)} onClick={() => setShowDone(v)} className={`rounded px-2.5 py-1 ${showDone === v ? "bg-secondary text-secondary-foreground" : ""}`}>{v ? "All" : "Active"}</button>
+            ))}
+          </div>
+          <Button size="sm" variant="outline" className="h-7" onClick={() => setCreating((c) => !c)}><Plus className="h-3.5 w-3.5 mr-1" />New workstream</Button>
         </div>
       </div>
+      {creating && <NewWorkstreamForm companies={companies} onDone={(gid) => { setCreating(false); if (gid) { void refresh().then(() => setSelId(gid)); } }} />}
       {loading && <p className="text-sm text-muted-foreground">Loading workstreams…</p>}
       {!loading && !list.length && <p className="text-sm text-muted-foreground">No workstreams for {owner}.</p>}
       {list.length > 0 && <SplitPane
