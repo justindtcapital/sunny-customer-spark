@@ -107,8 +107,9 @@ export const uploadNoteFn = createServerFn({ method: "POST" })
 export const reviewNoteFn = createServerFn({ method: "POST" })
   .inputValidator((input: import("./notes-inbox.server").ReviewNoteInput) => input)
   .handler(async ({ data }) => {
+    const { withDeadline } = await import("./request-deadline.server");
     const { reviewNote } = await import("./notes-inbox.server");
-    return reviewNote(data);
+    return withDeadline(`review ${data.recordId}`, 55_000, (step) => reviewNote(data, step));
   });
 
 /** Contact search (Network + Prospecting) for tagging notes and activity. */

@@ -1951,37 +1951,6 @@ export async function appendInteractionRows(rows: InteractionRowInput[]): Promis
   };
 
   await appendSheetRows(TAB_NAMES.interactions, rows.map(toValues));
-  // #region agent log
-  {
-    const samples = rows.slice(0, 8).map((r) => {
-      const out = isoToSheetDate(r.date) || r.date;
-      const ref = r.sourceRef || "";
-      return {
-        inDate: r.date,
-        outDate: out,
-        isoIn: /^\d{4}-\d{2}-\d{2}$/.test(r.date || ""),
-        wroteIso: /^\d{4}-\d{2}-\d{2}$/.test(out || ""),
-        origin: ref.startsWith("gmail") ? "gmail" : ref.startsWith("asana") ? "asana" : "other",
-      };
-    });
-    fetch("http://127.0.0.1:7724/ingest/5184a65b-0c76-4274-b203-81774fe31d23", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "3375d3" },
-      body: JSON.stringify({
-        sessionId: "3375d3",
-        hypothesisId: "A",
-        location: "sheets.server.ts:appendInteractionRows",
-        message: "Notes timestamp write format",
-        data: {
-          n: rows.length,
-          wroteIsoCount: samples.filter((s) => s.wroteIso).length,
-          samples,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
 }
 
 const TARGET_COLS: Record<string, string> = {
@@ -2502,36 +2471,6 @@ export async function buildContacts(): Promise<Contact[]> {
   );
 
   const rawInteractions = mapRows<Record<string, string>>(interactionRows, INTERACTION_COLS);
-  // #region agent log
-  {
-    const stats = { n: 0, empty: 0, iso: 0, mdy: 0, serial: 0, parseFail: 0, samples: [] as string[] };
-    for (const i of rawInteractions) {
-      const raw = (i.date || "").trim();
-      stats.n++;
-      if (!raw) {
-        stats.empty++;
-        continue;
-      }
-      if (stats.samples.length < 8) stats.samples.push(raw);
-      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) stats.iso++;
-      else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(raw)) stats.mdy++;
-      else if (/^\d+(\.\d+)?$/.test(raw)) stats.serial++;
-      if (!parseToIsoDate(raw)) stats.parseFail++;
-    }
-    fetch("http://127.0.0.1:7724/ingest/5184a65b-0c76-4274-b203-81774fe31d23", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "3375d3" },
-      body: JSON.stringify({
-        sessionId: "3375d3",
-        hypothesisId: "E",
-        location: "sheets.server.ts:buildContacts",
-        message: "Notes timestamp formats on read",
-        data: stats,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }
-  // #endregion
 
   // Children join to a contact by stable urid when present, else by email
   // (transition fallback). Each child row lands in exactly ONE bucket, so a

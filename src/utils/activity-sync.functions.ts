@@ -467,41 +467,6 @@ export const syncAsanaActivities = createServerFn({ method: "POST" })
           `[activity] logged ${targetLog.logged} outreach entries across ${targetLog.targetsTouched} targets`,
         );
       }
-      // #region agent log
-      fetch("http://127.0.0.1:7724/ingest/5184a65b-0c76-4274-b203-81774fe31d23", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "3375d3" },
-        body: JSON.stringify({
-          sessionId: "3375d3",
-          hypothesisId: "B",
-          location: "activity-sync.functions.ts:sync",
-          message: "Trail row dates vs today fallback",
-          data: {
-            today,
-            queued: rows.length,
-            skipped,
-            skippedGmailTwins,
-            usedToday: rows.filter((r) => r.date === today).length,
-            usedParsed: rows.filter((r) => r.date && r.date !== today).length,
-            undatedInput: rows.filter((r) => !r.date).length,
-            byOrigin: {
-              gmail: rows.filter((r) => (r.sourceRef || "").startsWith("gmail")).length,
-              asana: rows.filter((r) => (r.sourceRef || "").startsWith("asana")).length,
-            },
-            samples: rows.slice(0, 8).map((r) => ({
-              date: r.date,
-              usedToday: r.date === today,
-              origin: (r.sourceRef || "").startsWith("gmail")
-                ? "gmail"
-                : (r.sourceRef || "").startsWith("asana")
-                  ? "asana"
-                  : "other",
-            })),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       console.log(
         `[activity] PortCo intros: ${portcoFills.length} candidate fills from ${tagActivities.length} activities`,
       );
