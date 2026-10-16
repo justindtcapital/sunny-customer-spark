@@ -26,7 +26,8 @@ import {
 } from "@/utils/knowledge.functions";
 import type { NoteInboxItem, PersonMatch } from "@/utils/notes-inbox.server";
 import { resolveWho } from "@/lib/meeting-roster";
-import { teamProfile } from "@/lib/user-ownership";
+import { CORE_TEAM, teamMemberFor, teamProfile } from "@/lib/user-ownership";
+import { coreAssignee, normalizeAssignedStep } from "@/lib/team-next-steps";
 import { usePartners } from "@/lib/use-partners";
 import { detectPartners } from "@/lib/partners";
 
@@ -313,11 +314,16 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   type Step = { action: string; who: string; other: string; dueDate: string; portco: string; partner: string; whoGuess: boolean };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
-    const mine = i >= 0 && item.people[i]!.where === "Team" && item.people[i]!.email === teamProfile(reviewer)?.email;
+    const person = i >= 0 ? item.people[i] : undefined;
+    const teammate = coreAssignee(person?.email) || coreAssignee(n.who);
     // Auto-populated owners start as guesses (yellow ?) until the reviewer picks the name.
-    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, portco: "", partner: "", whoGuess: !!n.who };
+    return { action: n.action, who: teammate ? `team:${teammate.email}` : person ? person.key : n.who ? "__other" : "", other: person ? "" : n.who, dueDate: n.dueDate, portco: "", partner: "", whoGuess: !!n.who };
   }));
   const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
+  const assignee = (s: Step) => {
+    const r = roster.find((x) => x.key === s.who && x.status !== "skip");
+    return coreAssignee(s.who.startsWith("team:") ? s.who.slice(5) : s.who === "__me" ? reviewer : r?.match?.email || r?.edit.email) || (r?.status === "team" ? coreAssignee(label(r)) : undefined);
+  };
   const [saving, setSaving] = useState(false);
   const isActivity = kind === "activity";
   const [track, setTrack] = useState(item.track || "BD");
@@ -358,20 +364,21 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
       const live = roster.filter((r) => r.status !== "skip");
       const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
         const r = roster.find((x) => x.key === s.who);
-        const mine = s.who === "__me" || (!!r && r.status === "team" && label(r) === me);
-        return { action: s.action.trim(), who: r ? label(r) : mine ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: mine ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: mine, portco: s.portco, partner: s.partner };
+        const teammate = assignee(s);
+        if (teammate && s.whoGuess) throw new Error(`Confirm ${teammate.name} as the next-step owner`);
+        return { ...normalizeAssignedStep({ action: s.action.trim(), who: teammate?.name || (r && r.status !== "skip" ? label(r) : s.who === "__other" ? s.other.trim() : ""), whoEmail: teammate?.email || r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, portco: s.portco, partner: s.partner }), track: !!teammate };
       });
       await reviewNoteFn({
         data: {
           recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
           ...(isActivity ? { status: "confirmed" as const, track } : isNetwork ? { track: "Network" } : {}),
-          linkContacts: live.filter((r) => r.status === "linked" && r.match?.email).map((r) => r.match!),
+          linkContacts: live.flatMap((r) => r.status === "linked" && r.match?.email && r.match.where !== "Team" ? [r.match] : []),
           ...(!isActivity ? { folder, activityTracks: actTracks, ...(folder === "investor" ? { investor: investor.trim() } : {}) } : {}),
           addPeople: live.filter((r) => r.status === "add").map((r) => ({ ...r.edit, suggestionId: r.suggestionId || undefined })),
           skipContacts: roster.filter((r) => r.status === "skip" && r.suggestionId).map((r) => r.suggestionId),
           nextSteps: stepOut.map(({ track: _t, partner, ...s }) => ({ ...s, ...(partner ? { partner } : {}) })),
           partners: chosenPartners,
-          followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, dueDate: s.dueDate, portco: s.portco || undefined })),
+          followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, whoEmail: s.whoEmail, dueDate: s.dueDate, portco: s.portco || undefined })),
         },
       });
       toast.success(isActivity ? (isNews ? "Saved as PortCo news." : "Activity registered.") : "Note reviewed.");
@@ -633,7 +640,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                       <div className="flex flex-wrap items-center gap-1.5 pl-2">
                         <span className="text-muted-foreground">Did you mean</span>
                         {r.suggestions.map((s) => (
-                          <Button key={s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => patch(r.key, { status: "linked", match: s })}>
+                          <Button key={s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => patch(r.key, { status: s.where === "Team" ? "team" : "linked", match: s, edit: { name: s.name, email: s.email, company: s.company } })}>
                             <HelpCircle className="h-3 w-3 text-yellow-500" /> {s.name}{s.company && ` · ${s.company}`}
                           </Button>
                         ))}
@@ -652,15 +659,15 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                   </div>
                 ))}
                 <div className="relative w-80">
-                  <Input className="h-8 text-xs" placeholder={linking ? `Find who "${roster.find((x) => x.key === linking)?.heard}" is…` : "Add someone: search Network & Prospecting"} value={pq} onChange={(e) => setPq(e.target.value)} />
+                  <Input className="h-8 text-xs" aria-label="Search people and teammates" placeholder={linking ? `Find who "${roster.find((x) => x.key === linking)?.heard}" is…` : "Search team, Network & Prospecting"} value={pq} onChange={(e) => setPq(e.target.value)} />
                   {results.length > 0 && (
                     <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">
                       {results.map((m) => (
                         <button key={`${m.where}:${m.email || m.name}`} type="button" disabled={!m.email}
                           className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
                           onClick={() => {
-                            if (linking) patch(linking, { status: "linked", match: m, editing: false });
-                            else if (!roster.some((x) => x.match?.email === m.email)) setRoster((rs) => [...rs, { key: `added:${m.email}`, heard: m.name, where: m.where, suggestionId: "", suggestions: [], status: "linked", match: m, edit: { name: m.name, email: m.email, company: m.company } }]);
+                            if (linking) patch(linking, { status: m.where === "Team" ? "team" : "linked", match: m, edit: { name: m.name, email: m.email, company: m.company }, editing: false });
+                            else if (!roster.some((x) => (x.match?.email || x.edit.email) === m.email)) setRoster((rs) => [...rs, { key: `added:${m.email}`, heard: m.name, where: m.where, suggestionId: "", suggestions: [], status: m.where === "Team" ? "team" : "linked", match: m, edit: { name: m.name, email: m.email, company: m.company } }]);
                             setLinking(null); setPq(""); setResults([]);
                           }}>
                           <span className="flex-1 truncate">{m.name || m.email} <span className="text-muted-foreground">{m.company}</span></span>
@@ -674,10 +681,10 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
 
               {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Steps assigned to you go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
+                <p className="text-xs text-muted-foreground">Team accountabilities · Contact next steps</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
                 {steps.map((s, i) => {
-                  const confirmed = roster.filter((r) => (r.status === "linked" || r.status === "team" || r.status === "add") && label(r) !== me);
+                  const confirmed = roster.filter((r) => (r.status === "linked" || r.status === "add") && !coreAssignee(r.match?.email || r.edit.email) && !coreAssignee(label(r)));
                   const guessedKey = s.whoGuess && s.who && s.who !== "__me" && s.who !== "__other" ? s.who : "";
                   const guessedRow = guessedKey ? roster.find((r) => r.key === guessedKey) : undefined;
                   const options = guessedRow && !confirmed.some((r) => r.key === guessedRow.key) ? [...confirmed, guessedRow] : confirmed;
@@ -702,11 +709,11 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         </SelectContent>
                       </Select>
                     )}
-                    <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v, whoGuess: false })}>
-                      <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Assigned" /></SelectTrigger>
+                    <Select value={assignee(s) ? `team:${assignee(s)?.email}` : s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v, whoGuess: false, dueDate: v.startsWith("team:") ? s.dueDate : "" })}>
+                      <SelectTrigger aria-label={`Assigned next step ${i + 1}`} className="h-7 w-44 text-xs"><SelectValue placeholder="Assigned" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">Unassigned</SelectItem>
-                        {reviewer && <SelectItem value={`__me`}>{me} (me)</SelectItem>}
+                        {CORE_TEAM.map((t) => <SelectItem key={t.email} value={`team:${t.email}`}>{t.name}{t.email === teamMemberFor(reviewer)?.email ? " (me)" : " · Team"}</SelectItem>)}
                         {options.map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
                         <SelectItem value="__other">Other…</SelectItem>
                       </SelectContent>
@@ -719,7 +726,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                       <Check className="h-3.5 w-3.5 text-green-600" aria-label="Confirmed" />
                     ))}
                     {s.who === "__other" && <Input className="h-7 w-32 text-xs" placeholder="Name" value={s.other} onChange={(e) => setStep(i, { other: e.target.value })} />}
-                    {s.who === "__me" && <Input type="date" className="h-7 w-36 text-xs" title="Due date — goes on your calendar" value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
+                    {assignee(s) && <Input type="date" required aria-label={`Due date for next step ${i + 1}`} className="h-7 w-36 text-xs" title={`Due date for ${assignee(s)?.name}`} value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
                     <button type="button" aria-label="Remove next step" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   </div>
                   );

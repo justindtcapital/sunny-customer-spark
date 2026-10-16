@@ -18,12 +18,13 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
   "chris.falloon@dell.com": {
     displayName: "Chris Falloon",
     firstName: "Chris",
-    aliases: ["falloon, chris", "c. falloon"],
-    emails: ["chrisf@dt-capital.net"],
+    aliases: ["falloon, chris", "c. falloon", "chris f", "chris", "chrisf", "chris f @", "chris f@"],
+    emails: ["chrisf@dt-capital.net", "chris.falloon@del.com"],
   },
   "julia.beech@dell.com": {
     displayName: "Julia Beech",
     firstName: "Julia",
+    aliases: ["julia beach", "julia"],
     emails: ["julia@dt-capital.net", "juliab@dt-capital.net"],
   },
   "chris.hillock@dell.com": {
@@ -32,8 +33,11 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
     aliases: ["hillock, chris"],
     emails: ["chrish@dt-capital.net"],
   },
-  "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane", emails: ["shane@dt-capital.net"] },
+  "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane", aliases: ["shane early", "shane"], emails: ["shane@dt-capital.net", "shane@dt-capital.com"] },
 };
+
+/** Core action owners only; identity aliases do not create extra contact records. */
+export const CORE_TEAM = Object.entries(TEAM).filter(([, t]) => t.displayName !== "Justin Adorante").map(([email, t]) => ({ email, name: t.displayName, company: "DT Capital", where: "Team" as const, searchTerms: [email, t.displayName, ...(t.aliases || []), ...(t.emails || [])] }));
 
 /** Lowercased teammate emails (all addresses) — always treated as internal for activity attribution. */
 export const TEAM_MEMBER_EMAILS: string[] = Object.entries(TEAM).flatMap(([e, t]) => [e, ...(t.emails || [])]);
@@ -101,6 +105,8 @@ export function ownerMatches(
 ): boolean {
   const raw = (ownerField || "").trim().toLowerCase();
   if (!raw) return false;
+  const canonical = teamMemberFor(ownerField);
+  if (canonical) return canonical.email === profile.email;
   // Exact email / token hit, or the Owner string contains the full display name / email.
   if (profile.nameTokens.some((t) => t.length >= 3 && (raw === t || raw.includes(t)))) {
     // Guard: single common first names ("chris") alone are too weak unless Owner is short
