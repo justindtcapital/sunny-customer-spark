@@ -9,6 +9,8 @@ export const ACTION_OWNERS: { name: string; test: RegExp }[] = [
 
 export function ownerMatches(owner: string, selected: string): boolean {
   if (!selected) return true;
+  const canonical = teamMemberFor(owner);
+  if (canonical) return canonical.displayName === (teamMemberFor(selected)?.displayName || selected);
   const o = ACTION_OWNERS.find((a) => a.name === selected);
   if (!o) return (owner || "").toLowerCase() === selected.toLowerCase();
   // Any of a teammate's addresses (dell.com or DT Capital) identify them.

@@ -18,7 +18,8 @@ import {
 import { sha256Hex } from "./sha256";
 import { emailMatchesName, extractEmails, isNetworkTitle, matchesQuery, personInText } from "@/lib/network-notes";
 import { suggestPeople } from "@/lib/meeting-roster";
-import { teamMemberFor } from "@/lib/user-ownership";
+import { CORE_TEAM, teamMemberFor } from "@/lib/user-ownership";
+import { coreAssignee, normalizeAssignedStep } from "@/lib/team-next-steps";
 
 const REVIEW_PREFIX = "review:";
 const NOTE_SOURCES = new Set(["granola", "upload", "drive-doc"]);
@@ -264,7 +265,7 @@ export interface ReviewNoteInput {
   workstream?: { action: "confirm" | "ignore" | "create"; gid?: string; name?: string; segment?: "GTM" | "BD" };
   addPeople: Array<{ name: string; email: string; company: string; suggestionId?: string }>;
   skipContacts: string[];
-  followUps: Array<{ action: string; who: string; dueDate: string; portco?: string }>;
+  followUps: Array<{ action: string; who: string; whoEmail?: string; dueDate: string; portco?: string }>;
   status?: "confirmed" | "skipped";
   track?: string;
   /** Network/Prospecting people this note is tagged to; each gets a trail entry on confirm. */
@@ -281,7 +282,7 @@ export interface ReviewNoteInput {
   partners?: string[];
 }
 
-export interface PersonMatch { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" }
+export interface PersonMatch { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" | "Team" }
 
 /** Read people (name/email/company) from the Contacts and Targets tabs by header name. */
 export async function peopleDirectory(): Promise<PersonMatch[]> {
@@ -309,7 +310,8 @@ export async function peopleDirectory(): Promise<PersonMatch[]> {
 export async function searchPeople(q: string): Promise<PersonMatch[]> {
   if (q.trim().length < 2) return [];
   const all = await peopleDirectory();
-  return all.filter((p) => matchesQuery(q, [p.name, p.email, p.company])).slice(0, 12);
+  const team = CORE_TEAM.filter((p) => matchesQuery(q, p.searchTerms)).map(({ searchTerms: _terms, ...p }) => p);
+  return [...team, ...all.filter((p) => !coreAssignee(p.email) && !coreAssignee(p.name) && matchesQuery(q, [p.name, p.email, p.company]))].slice(0, 12);
 }
 
 export interface PersonContextItem {
@@ -341,6 +343,10 @@ export async function personContext(person: { name?: string; email?: string }): 
 }
 
 export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
+  if (input.status !== "skipped") {
+    input.nextSteps = input.nextSteps?.map(normalizeAssignedStep);
+    input.followUps = (input.nextSteps || input.followUps).filter((s) => coreAssignee(s.whoEmail) || coreAssignee(s.who)).map(normalizeAssignedStep);
+  }
   const records = await listKnowledgeRecords();
   const r = records.find((x) => x.recordId === input.recordId);
   if (!r) throw new Error("Note not found");
@@ -399,7 +405,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     await saveHarvestedActivities(input.followUps.map((f, i) => ({
       activityId: sha256Hex(`${r.recordId}:followup:${f.action}:${i}`).slice(0, 24),
       recordId: r.recordId, date: f.dueDate || now.slice(0, 10), track: "Follow-up", type: "follow-up",
-      title: f.action.slice(0, 140), portco: f.portco || r.portco, person: f.who, owner: input.reviewer,
+      title: f.action.slice(0, 140), portco: f.portco || r.portco, person: f.who, owner: coreAssignee(f.whoEmail || f.who)?.email || input.reviewer,
       summary: `Follow-up from "${r.title}"${f.dueDate ? ` — due ${f.dueDate}` : ""}`, sourceUrl: r.sourceUrl, createdAt: now,
     })));
   }
@@ -425,7 +431,8 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     const isNwk = (input.track || "") === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
     const allSteps = input.nextSteps?.length ? input.nextSteps : input.followUps;
     const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.portco ? ` [${f.portco}]` : ""}${"partner" in f && f.partner ? ` [${f.partner}]` : ""}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
-    const due = input.followUps.map((f) => f.dueDate).filter(Boolean).sort()[0] || "";
+    // Next-step accountability is tracked once per assignee, not as a duplicate contact reminder.
+    const due = "";
     const summary = `${isNwk ? "[NWK] " : ""}${r.title}${r.summary ? ` — ${r.summary}` : ""}${steps ? `\nNext steps:\n${steps}` : ""}`.slice(0, 4000);
     await appendInteractionRows([...tagged.keys()].filter((e) => !existing.has(e)).map((email) => ({
       email, date: r.date || now.slice(0, 10), summary,
