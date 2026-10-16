@@ -278,6 +278,14 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             <Label className={LABEL}>What happened</Label>
             <Textarea className="h-40 text-sm" placeholder="What you did, outcome, next step…" value={logNote} onChange={(e) => setLogNote(e.target.value)} />
           </div>
+          <div className="space-y-1 rounded-md border border-border p-2">
+            <Label className={LABEL}>Set a further follow-up (optional)</Label>
+            <div className="flex gap-2">
+              <Input type="date" className="h-8 w-40 text-sm" value={fuDate} onChange={(e) => setFuDate(e.target.value)} />
+              <Input className="h-8 flex-1 text-sm" placeholder="Follow-up note, e.g. check in on pilot progress" value={fuNote} onChange={(e) => setFuNote(e.target.value)} />
+            </div>
+            {fuDate && <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><CalendarPlus className="h-3 w-3" />This completes the action and adds a follow-up to your Follow-ups tab for {fuDate}.</p>}
+          </div>
           <div className="flex justify-end gap-2 border-t border-border pt-3">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button disabled={!!busy || !logNote.trim()} onClick={() => void logIt()}>{busy === "send" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}Log &amp; complete</Button>
@@ -302,6 +310,14 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void run(nudge)}>{busy === "draft" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}{body ? "Regenerate" : "Draft with AI"}</Button>
             <AppendPortcoListButton preselected={portcos} onAppend={(t) => setBody((b) => appendPortcoList(b, t))} />
             <Button size="sm" variant="ghost" onClick={() => setBody("")}>Clear</Button>
+          </div>
+          <div className="space-y-1 rounded-md border border-border p-2">
+            <Label className={LABEL}>Set a further follow-up (optional)</Label>
+            <div className="flex gap-2">
+              <Input type="date" className="h-8 w-40 text-sm" value={fuDate} onChange={(e) => setFuDate(e.target.value)} />
+              <Input className="h-8 flex-1 text-sm" placeholder="Follow-up note, e.g. check in on pilot progress" value={fuNote} onChange={(e) => setFuNote(e.target.value)} />
+            </div>
+            {fuDate && <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><CalendarPlus className="h-3 w-3" />This completes the action and adds a follow-up to your Follow-ups tab for {fuDate}.</p>}
           </div>
           <div className="flex justify-end gap-2 border-t border-border pt-3">
             <Button variant="outline" onClick={onClose}>Cancel</Button>
