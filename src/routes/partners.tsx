@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { PARTNER_CATEGORIES, detectPartners, partnerLogoUrl, type Partner, type PartnerCategory } from "@/lib/partners";
+import { personInText } from "@/lib/network-notes";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { loadPartners } from "@/lib/use-partners";
@@ -210,7 +211,7 @@ function PartnerPane({ name }: { name: string }) {
               {d.contacts.length === 0 ? <p className="text-xs text-muted-foreground">No contacts at {name} yet. They'll show up here as soon as one is uploaded or added.</p> : (
                 <ul className="divide-y divide-border">
                   {d.contacts.map((c) => (
-                    <li key={`${c.where}:${c.email || c.name}`} className="flex items-center gap-2 py-1.5 text-sm">
+                    <li key={`${c.where}:${c.email || c.name}`} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
                       <span className="flex-1 truncate">
                         {c.where === "Network" ? (
                           <button type="button" className="font-medium text-primary hover:underline" onClick={() => openNetwork(c.email, c.name)}>{c.name || c.email}</button>
@@ -221,6 +222,12 @@ function PartnerPane({ name }: { name: string }) {
                         <span className="text-xs text-muted-foreground">{c.email}</span>
                       </span>
                       <Badge variant="outline" className="text-[10px]">{c.where}</Badge>
+                      {(() => { const linked = workstreams.filter((w) => w.dellStakeholders && personInText({ name: c.name, email: c.email }, w.dellStakeholders)); return linked.length > 0 && (
+                        <div className="basis-full flex flex-wrap gap-1 pl-1">
+                          {linked.map((w) => (
+                            <Link key={w.gid} to="/my-actions" search={{ tab: "workstreams", ws: w.gid, owner: ACTION_OWNERS.find((o) => ownerMatches(w.owner, o.name))?.name }} className="rounded border border-border px-1.5 py-0.5 text-[10px] text-primary hover:underline">{w.company} · {w.name || w.rawName}</Link>
+                          ))}
+                        </div>); })()}
                     </li>
                   ))}
                 </ul>
