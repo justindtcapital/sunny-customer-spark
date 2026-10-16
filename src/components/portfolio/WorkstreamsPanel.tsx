@@ -149,12 +149,14 @@ export function WorkstreamRow({
   w: initial,
   showCompany = false,
   showSegment = false,
+  defaultOpen = false,
 }: {
   w: Workstream;
   showCompany?: boolean;
   showSegment?: boolean;
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState<Workstream | null>(null);
   const w = saved && saved.gid === initial.gid ? saved : initial;

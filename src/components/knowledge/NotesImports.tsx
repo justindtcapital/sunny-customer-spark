@@ -43,11 +43,13 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(s);
 }
 
-export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems, onStats, onActionNow }: {
+export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems, onStats, onActionNow, split = false }: {
   actionOwner?: string; kind?: "notes" | "activity"; onCount?: (n: number) => void; onItems?: (items: NoteInboxItem[]) => void;
   onStats?: (stats: { pending: number; reviewed: number }) => void;
   /** My Actions: show an Action Now button per item. */
   onActionNow?: (item: NoteInboxItem) => void;
+  /** My Actions: inbox list on the left, selected item's review pane on the right. */
+  split?: boolean;
 }) {
   const isActivity = kind === "activity";
   const [trackFilter, setTrackFilter] = useState("all");
@@ -202,6 +204,32 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
               : history ? "No reviewed notes yet." : "Nothing to review. Import from Granola or upload notes."}
           </p>
         )}
+        {split ? (() => {
+          const sel = shown.find((i) => i.recordId === openId) || shown[0];
+          return shown.length > 0 && (
+            <div className="grid gap-3 lg:grid-cols-[minmax(280px,2fr)_3fr]">
+              <div className="max-h-[75vh] divide-y divide-border overflow-y-auto rounded-md border border-border">
+                {shown.map((i) => (
+                  <button key={i.recordId} onClick={() => setOpenId(i.recordId)}
+                    className={cn("block w-full px-3 py-2 text-left hover:bg-muted/40", sel?.recordId === i.recordId && "bg-secondary/60")}>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="shrink-0 text-[10px]">{isActivity ? i.track || "Email" : i.source}</Badge>
+                      {!isActivity && i.track === "Network" && <Badge variant="secondary" className="shrink-0 text-[10px]">NWK</Badge>}
+                      <span className="truncate text-sm font-medium">{i.title}</span>
+                    </div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{i.date} · {i.portco || "No PortCo matched"}{i.author ? ` · From ${i.author}` : ""}</div>
+                  </button>
+                ))}
+              </div>
+              <div className="max-h-[75vh] overflow-y-auto rounded-md border border-border lg:sticky lg:top-4">
+                {sel && (
+                  <NoteRow kind={kind} key={sel.recordId} item={sel} open onToggle={() => {}} reviewer={email || ""}
+                    onActionNow={onActionNow} onDone={async () => { setOpenId(null); await load(); }} />
+                )}
+              </div>
+            </div>
+          );
+        })() : (
         <div className="divide-y divide-border rounded-md border border-border">
           {shown.map((i) => (
             <NoteRow
@@ -216,6 +244,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
             />
           ))}
         </div>
+        )}
       </CardContent>
     </Card>
   );
