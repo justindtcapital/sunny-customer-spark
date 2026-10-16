@@ -17,6 +17,7 @@ import {
 } from "./knowledge.server";
 import { sha256Hex } from "./sha256";
 import { isNetworkTitle, matchesQuery, personInText } from "@/lib/network-notes";
+import { suggestPeople } from "@/lib/meeting-roster";
 
 const REVIEW_PREFIX = "review:";
 const NOTE_SOURCES = new Set(["granola", "upload", "drive-doc"]);
@@ -34,6 +35,8 @@ export interface NoteReview {
   contacts?: string[];
   /** Drive folder the file was moved into on review. */
   filedTo?: string;
+  /** Next steps with the person each was assigned to on review (informational, not follow-ups). */
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
 }
 
 export type InboxKind = "notes" | "activity";
@@ -54,6 +57,8 @@ export interface NotePerson {
   /** Where this person already lives, or "New". */
   where: "Network" | "Prospecting" | "New";
   status: string;
+  /** Likely CRM contacts for first-name-only or unrecognized people. */
+  suggestions: PersonMatch[];
 }
 
 export interface NoteInboxItem {
@@ -142,6 +147,7 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
   const [records, links, contacts, reviews, dir, importers] = await Promise.all([
     listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(), directory(), importedByMap(),
   ]);
+  const people = await peopleDirectory();
   const ownerKey = (owner || "").trim().toLowerCase();
   const whereOf = (email: string, name: string): NotePerson["where"] => {
     const keys = [email, name.toLowerCase()].filter(Boolean);
@@ -204,11 +210,20 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
             key, suggestionId: suggestionId || prev?.suggestionId || "", name: name || prev?.name || "",
             email: email || prev?.email || "", company: company || prev?.company || "",
             where: whereOf(email || prev?.email || "", name || prev?.name || ""), status: status || prev?.status || "",
+            suggestions: [],
           });
         };
         for (const p of parseParticipants(r.participants)) put(p.name, p.email, "");
         for (const p of ex.people || []) put(p.name, (p.email || "").toLowerCase(), p.company);
         for (const c of contacts.filter((c) => c.recordId === r.recordId)) put(c.name, c.email, c.company, c.suggestionId, c.status);
+        // Names only heard in next steps ("Brent to send contract") join the roster too.
+        const known = [...map.values()].map((p) => p.name.toLowerCase());
+        for (const n of ex.nextSteps || []) {
+          const who = (n.who || "").replace(/\(.*?\)/g, "").trim();
+          if (who && !known.some((k) => k === who.toLowerCase() || k.split(" ")[0] === who.toLowerCase())) { put(who, "", ""); known.push(who.toLowerCase()); }
+        }
+        const hints = [r.portco, ...[...map.values()].map((p) => p.company), ...[...map.values()].map((p) => p.email.split("@")[1] || "")].filter(Boolean);
+        for (const p of map.values()) if (p.where === "New") p.suggestions = suggestPeople(p, people, hints) as PersonMatch[];
         return [...map.values()];
       })(),
       review,
@@ -232,6 +247,8 @@ export interface ReviewNoteInput {
   linkContacts?: Array<{ name: string; email: string; company: string; where: string }>;
   /** Where to file the Drive copy on confirm (default: PortCo, or Network Updates for NWK). */
   folder?: "portco" | "operations" | "network";
+  /** All next steps with their assigned person; only followUps become tracked follow-ups. */
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
 }
 
 export interface PersonMatch { name: string; email: string; company: string; where: "Network" | "Prospecting" }
@@ -375,7 +392,8 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
       if (ei >= 0 && si >= 0) for (const row of rows.slice(1)) if (row[si] === sourceRef) existing.add((row[ei] || "").toLowerCase());
     } catch { /* tab missing */ }
     const isNwk = (input.track || "") === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
-    const steps = input.followUps.map((f) => `• ${f.action}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
+    const allSteps = input.nextSteps?.length ? input.nextSteps : input.followUps;
+    const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
     const due = input.followUps.map((f) => f.dueDate).filter(Boolean).sort()[0] || "";
     const summary = `${isNwk ? "[NWK] " : ""}${r.title}${r.summary ? ` — ${r.summary}` : ""}${steps ? `\nNext steps:\n${steps}` : ""}`.slice(0, 4000);
     await appendInteractionRows([...tagged.keys()].filter((e) => !existing.has(e)).map((email) => ({
@@ -416,6 +434,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     ...(input.status ? { status: input.status } : {}),
     ...(input.track ? { track: input.track } : {}),
     ...(tagged.size ? { contacts: [...tagged.keys()] } : {}),
+    ...(input.nextSteps?.length && input.status !== "skipped" ? { nextSteps: input.nextSteps } : {}),
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
   return review;
