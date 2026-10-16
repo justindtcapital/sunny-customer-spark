@@ -229,6 +229,40 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
   );
 }
 
+/** Blank-sheet workstream creator: PortCo, segment and name — the rest is filled in via the detail editor. */
+function NewWorkstreamForm({ companies, onDone }: { companies: string[]; onDone: (gid?: string) => void }) {
+  const create = useServerFn(createWorkstreamFn);
+  const [company, setCompany] = useState(companies[0] || "");
+  const [segment, setSegment] = useState<"GTM" | "BD">("GTM");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!company || !name.trim()) return;
+    setBusy(true);
+    const res = await create({ data: { company, segment, name: name.trim() } }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+    setBusy(false);
+    if (!res.ok) { toast.error(res.error); return; }
+    toast.success(`Created "${res.workstream.rawName}" in Asana`);
+    onDone(res.workstream.gid);
+  };
+  return (
+    <Card><CardContent className="flex flex-wrap items-center gap-2 p-3">
+      <Select value={company} onValueChange={setCompany}>
+        <SelectTrigger className="h-8 w-48 text-xs"><SelectValue placeholder="PortCo" /></SelectTrigger>
+        <SelectContent>{companies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+      </Select>
+      <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
+        {(["GTM", "BD"] as const).map((s) => (
+          <button key={s} onClick={() => setSegment(s)} className={`rounded px-2.5 py-1 ${segment === s ? "bg-secondary text-secondary-foreground" : ""}`}>{s}</button>
+        ))}
+      </div>
+      <Input className="h-8 min-w-[220px] flex-1 text-xs" placeholder="Workstream name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Button size="sm" className="h-8" disabled={busy || !company || !name.trim()} onClick={submit}>Create in Asana</Button>
+      <Button size="sm" variant="ghost" className="h-8" disabled={busy} onClick={() => onDone()}>Cancel</Button>
+    </CardContent></Card>
+  );
+}
+
 function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
   const ownerEmail = teamMemberFor(owner)?.email || "";
   const fetchHome = useServerFn(fetchHomeMomentum);
