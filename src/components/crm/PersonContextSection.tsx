@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { fetchPersonContextFn } from "@/utils/knowledge.functions";
 import type { PersonContextItem } from "@/utils/notes-inbox.server";
+import { useWorkstreams } from "@/lib/use-workstreams";
+import { personInText } from "@/lib/network-notes";
 
 const cache = new Map<string, PersonContextItem[]>();
 
@@ -26,15 +28,24 @@ export function PersonContextSection({ name, email }: { name: string; email: str
     return () => { live = false; };
   }, [key, name, email]);
 
+  const { workstreams: allWorkstreams } = useWorkstreams();
   const workstreams = useMemo(() => {
-    const m = new Map<string, { name: string; portco: string; status: string; last: string }>();
+    const m = new Map<string, { name: string; portco: string; status: string; last: string; stakeholder?: boolean }>();
     for (const i of items || []) {
       if (!i.workstream) continue;
       const k = `${i.portco}::${i.workstream}`;
       if (!m.has(k)) m.set(k, { name: i.workstream, portco: i.portco, status: i.workstreamStatus, last: i.date });
     }
+    // Workstreams where this person is listed under Stakeholders & contacts.
+    for (const w of allWorkstreams) {
+      if (!w.dellStakeholders || !personInText({ name, email }, w.dellStakeholders)) continue;
+      const k = `${w.company}::${w.name || w.rawName}`;
+      const existing = m.get(k);
+      if (existing) existing.stakeholder = true;
+      else m.set(k, { name: w.name || w.rawName, portco: w.company, status: w.workstreamStatus, last: w.lastActivity || "", stakeholder: true });
+    }
     return [...m.values()];
-  }, [items]);
+  }, [items, allWorkstreams, name, email]);
 
   const shown = showAll ? items || [] : (items || []).slice(0, 3);
   const nwk = (items || []).filter((i) => i.track === "Network").length;
@@ -92,10 +103,10 @@ export function PersonContextSection({ name, email }: { name: string; email: str
               <div key={`${w.portco}:${w.name}`} className="flex items-center gap-2 rounded border border-border px-2 py-1.5 text-xs">
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{w.name}</div>
-                  <div className="text-[10px] text-muted-foreground">{w.portco || "No PortCo"} · last mention {w.last}</div>
+                  <div className="text-[10px] text-muted-foreground">{w.portco || "No PortCo"} · {w.stakeholder ? "stakeholder" : `last mention ${w.last}`}</div>
                 </div>
                 {w.status && <Badge variant="outline" className="text-[9px]">{w.status === "create-new" ? "New" : w.status}</Badge>}
-                <Link to="/dashboard" search={{ section: "workstreams" }} className="text-[11px] text-primary hover:underline">Open</Link>
+                <Link to="/my-actions" search={{ tab: "workstreams" }} className="text-[11px] text-primary hover:underline">Open</Link>
               </div>
             ))}
           </div>

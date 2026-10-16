@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Workstream } from "@/lib/workstream-parse";
 import { PROGRAM_FIELDS, workstreamBarStatus, initialsOf } from "@/lib/workstream-parse";
+import { StakeholderPicker, parseStakeholders, type Stakeholder } from "./StakeholderPicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -75,9 +76,11 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
   const keys: Array<[string, EditKey]> = [
     ["Work stream status", "workstreamStatus"],
     ["Work stream priority", "workstreamPriority"],
-    ...PROGRAM_FIELDS[w.segment],
+    // Stakeholders get a dedicated people picker below, not the free-text editor.
+    ...PROGRAM_FIELDS[w.segment].filter(([, k]) => k !== "dellStakeholders"),
   ];
   const [draft, setDraft] = useState<Record<string, string | string[]>>({});
+  const [stakeholders, setStakeholders] = useState<Stakeholder[]>(() => parseStakeholders(String(w.dellStakeholders || "")));
   const [completed, setCompleted] = useState(w.completed);
   const [saving, setSaving] = useState(false);
 
@@ -89,6 +92,11 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
       if (!sameValue(draft[key]!, m.value))
         changes.push({ gid: m.gid, type: m.type, original: m.value, value: draft[key]! });
     }
+    // Stakeholders are stored back to Asana as a comma-separated name list.
+    const sm = w.editable?.["dellStakeholders" as EditKey];
+    const stakeholderNames = stakeholders.map((s) => s.name).join(", ");
+    if (sm && stakeholderNames !== String(w.dellStakeholders || "") && !sameValue(stakeholderNames, sm.value))
+      changes.push({ gid: sm.gid, type: sm.type, original: sm.value, value: stakeholderNames });
     const completedChanged = completed !== w.completed;
     if (!changes.length && !completedChanged) return onCancel();
     setSaving(true);
@@ -130,12 +138,18 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
           );
         })}
       </div>
+      {(w.segment === "BD" || w.segment === "GTM") && (
+        <div className="space-y-0.5">
+          <p className="text-[10px] text-muted-foreground">Stakeholders &amp; contacts</p>
+          <StakeholderPicker value={stakeholders} onChange={setStakeholders} />
+        </div>
+      )}
       <label className="flex items-center gap-1.5 text-[11px]">
         <Checkbox checked={completed} onCheckedChange={(c) => setCompleted(c === true)} />
         Mark subtask complete in Asana
       </label>
-      {(!inline || Object.keys(draft).length > 0 || completed !== w.completed) && <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { if (inline) { setDraft({}); setCompleted(w.completed); } else onCancel(); }} disabled={saving}>
+      {(!inline || Object.keys(draft).length > 0 || completed !== w.completed || stakeholders.map((s) => s.name).join(", ") !== String(w.dellStakeholders || "")) && <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { if (inline) { setDraft({}); setCompleted(w.completed); setStakeholders(parseStakeholders(String(w.dellStakeholders || ""))); } else onCancel(); }} disabled={saving}>
           Cancel
         </Button>
         <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving}>
