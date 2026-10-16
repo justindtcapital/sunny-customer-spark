@@ -174,7 +174,7 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
     if (!ctx || !logNote.trim()) { toast.error("Describe what you did."); return; }
     setBusy("send");
     try {
-      await complete({ data: { sourceKind: ctx.sourceKind, sourceId: ctx.sourceId, subject: subject || logNote.trim().slice(0, 120), recipients: to, portcos, tracks, actor: email || "", followUpActivityId: ctx.followUpActivityId, mode: "log", note: logNote.trim() } });
+      await complete({ data: { sourceKind: ctx.sourceKind, sourceId: ctx.sourceId, subject: subject || logNote.trim().slice(0, 120), recipients: to, portcos, tracks, actor: email || "", followUpActivityId: ctx.followUpActivityId, mode: "log", note: logNote.trim(), nextFollowUp } });
       toast.success("Action logged and marked done");
       onDone?.(); onClose();
     } catch (e) { console.error(e); toast.error("Logging failed."); }
