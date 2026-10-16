@@ -36,10 +36,19 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
   const { email } = useAuth();
   const draft = useServerFn(draftFollowUpFn);
   const complete = useServerFn(completeActionFn);
+  const searchPeople = useServerFn(searchPeopleFn);
+  const transcribe = useServerFn(transcribeAudioFn);
   const { workstreams } = useWorkstreams();
   const portcoOptions = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort(), [workstreams]);
   const [to, setTo] = useState<{ name: string; email: string }[]>([]);
   const [addr, setAddr] = useState("");
+  const [personQ, setPersonQ] = useState("");
+  const [personResults, setPersonResults] = useState<{ name: string; email: string; company: string; where: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [addingNew, setAddingNew] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newCompany, setNewCompany] = useState("");
   const [portcos, setPortcos] = useState<string[]>([]);
   const [tracks, setTracks] = useState<("BD" | "GTM")[]>([]);
   const [subject, setSubject] = useState("");
@@ -48,6 +57,11 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
   const [busy, setBusy] = useState<"" | "draft" | "send">("");
   const [mode, setMode] = useState<"" | "email" | "log">("");
   const [logNote, setLogNote] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [fuDate, setFuDate] = useState("");
+  const [fuNote, setFuNote] = useState("");
+  const rec = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
   // Only pre-write when the source makes the follow-up obvious (notes/emails/follow-ups with content).
   const obvious = (c: ActionContext) => c.sourceKind !== "workstream" && !!(c.text?.trim() || c.nextSteps?.length);
   const me = teamMemberFor(email);
