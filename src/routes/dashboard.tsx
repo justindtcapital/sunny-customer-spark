@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -55,6 +55,11 @@ export const Route = createFileRoute("/dashboard")({
     owner: typeof search.owner === "string" ? search.owner : undefined,
     section: typeof search.section === "string" ? search.section : undefined,
   }),
+  beforeLoad: ({ search }) => {
+    // Managing workstreams and notes moved to My Actions; keep old deep links working.
+    if (search.section === "notes" || search.section === "workstreams")
+      throw redirect({ to: "/my-actions", search: { tab: search.section, owner: search.owner } });
+  },
   head: () => ({
     meta: [
       { title: "Dashboard — VenturePulse" },
@@ -482,8 +487,8 @@ function tally(xs: string[]): Record<string, number> {
   return o;
 }
 
-function SummaryCard({ title, sub, open, onToggle, children }: {
-  title: string; sub: string; open: boolean; onToggle: () => void; children: ReactNode;
+function SummaryCard({ title, sub, onManage, children }: {
+  title: string; sub: string; onManage: () => void; children: ReactNode;
 }) {
   return (
     <Card className="border-border">
@@ -493,8 +498,8 @@ function SummaryCard({ title, sub, open, onToggle, children }: {
             <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>
             <p className="text-xs text-muted-foreground">{sub}</p>
           </div>
-          <Button size="sm" variant={open ? "secondary" : "outline"} onClick={onToggle}>
-            {open ? "Close" : "Manage"}
+          <Button size="sm" variant="outline" onClick={onManage}>
+            Manage
           </Button>
         </div>
         <div className="mt-3 space-y-3">{children}</div>
@@ -507,7 +512,8 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children, initial
   keys: string[]; owner: string; scopeLabel: string;
   points: { name: string; website: string }[]; children: ReactNode; initiallyOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(initiallyOpen);
+  void initiallyOpen; void children;
+  const go = useNavigate();
   const { workstreams } = useWorkstreams();
   const ws = useMemo(() => {
     const set = new Set(keys);
@@ -517,7 +523,7 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children, initial
   const done = statuses.filter((s) => /complete/i.test(s)).length;
   return (
     <div className="space-y-3">
-      <SummaryCard title="Workstreams" sub={scopeLabel} open={open} onToggle={() => setOpen((o) => !o)}>
+      <SummaryCard title="Workstreams" sub={scopeLabel} onManage={() => void go({ to: "/my-actions", search: { tab: "workstreams", owner } })}>
         <div className="flex flex-wrap items-start gap-8">
           <div className="flex flex-wrap gap-8">
             <Stat label="Streams" value={ws.length} />
@@ -532,13 +538,13 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children, initial
         </div>
         <LogoCounts counts={tally(ws.map((w) => w.company))} points={points} />
       </SummaryCard>
-      {open && children}
     </div>
   );
 }
 
 function ReviewInboxes({ owner, points, initiallyOpen = false }: { owner: string; points: { name: string; website: string }[]; initiallyOpen?: boolean }) {
-  const [open, setOpen] = useState(initiallyOpen);
+  void initiallyOpen;
+  const go = useNavigate();
   const [tab, setTab] = useState<"notes" | "activity">("notes");
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
   const [reviewed, setReviewed] = useState({ notes: 0, activity: 0 });
@@ -554,7 +560,7 @@ function ReviewInboxes({ owner, points, initiallyOpen = false }: { owner: string
   }, []);
   return (
     <div className="space-y-3">
-      <SummaryCard title="Notes & Activity" sub={`${owner} · Waiting for Review`} open={open} onToggle={() => setOpen((o) => !o)}>
+      <SummaryCard title="Notes & Activity" sub={`${owner} · Waiting for Review`} onManage={() => void go({ to: "/my-actions", search: { tab: "notes", owner } })}>
         <div className="flex flex-wrap items-start gap-8">
           <div className="flex flex-wrap gap-8">
             <Stat label="To Review" value={counts.notes + counts.activity} />
@@ -568,7 +574,8 @@ function ReviewInboxes({ owner, points, initiallyOpen = false }: { owner: string
         </div>
         <LogoCounts counts={tally([...notes, ...acts].map((i) => i.portco).filter(Boolean))} points={points} />
       </SummaryCard>
-      <div className={open ? "space-y-2" : "hidden"}>
+      {/* Hidden: still mounted to feed the counts above; managing happens on My Actions. */}
+      <div className="hidden">
         <div className="inline-flex rounded-md border border-border p-0.5">
           {(["notes", "activity"] as const).map((k) => (
             <button

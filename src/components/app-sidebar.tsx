@@ -12,6 +12,7 @@ import {
   Loader2,
   ScrollText,
   Megaphone,
+  Inbox,
 } from "lucide-react";
 import {
   HomeIcon,
@@ -88,6 +89,7 @@ const navItems = [
   { title: "Home", url: "/", icon: HomeIcon },
   { title: "Network", url: "/crm", icon: NetworkIcon },
   { title: "Prospecting", url: "/targeting", icon: TargetingIcon },
+  { title: "My Actions", url: "/my-actions", icon: Inbox },
   { title: "Events", url: "/events", icon: EventsIcon },
   { title: "PortCo", url: "/portfolio", icon: PortCoIcon },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
