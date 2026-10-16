@@ -710,7 +710,7 @@ const WORKSTREAM_FIELD_PATTERNS: Array<[keyof Workstream, RegExp[]]> = [
   ["targets", [/^targets?$/i, /dell\s*targets?/i]],
   ["sageTapStatus", [/sage\s*tap/i]],
   ["lastPitchReviewed", [/last\s*pitch/i]],
-  ["gtmMaturity", [/(gtm|go[\s-]*to[\s-]*market).*maturity/i]],
+  ["gtmMaturity", [/(gtm|go[\s-]*to[\s-]*market).*maturity/i, /sell[\s-]*with[\s-]*dell.*maturity/i]],
   ["salesMaturity", [/sales.*maturity/i]],
 ];
 
@@ -847,18 +847,21 @@ export async function updateWorkstream(input: {
     `/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS},parent.name`,
   );
   const current = new Map(((before.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
-  let catalog: Map<string, WorkstreamFieldMeta> | null = null;
+  let catalog: Map<string, WorkstreamFieldMeta & { projectGid: string }> | null = null;
   for (const c of input.changes) {
     let m = current.get(c.gid);
     if (!m) {
-      // Field not on the task yet — allow it when it's a known project field and still empty.
+      // Field not on the task yet — attach it via its owning project, then write.
       catalog = catalog || (await fetchWorkstreamFieldCatalog());
       const cat = catalog.get(c.gid);
       if (!cat) throw new Error("A field no longer exists on this Asana task — refresh and try again.");
       if (!sameValue(cat.value, c.original)) {
         throw new Error(`"${cat.name}" already has a value in Asana — refresh and try again.`);
       }
-      m = cat;
+      await asanaWrite(`/tasks/${input.gid}/addProject`, "POST", { data: { project: cat.projectGid } });
+      const re: { data: AsanaTask } = await asanaFetch(`/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS}`);
+      const fresh = new Map(((re.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
+      m = fresh.get(c.gid) || cat;
     }
     if (!m.editable) throw new Error(`"${m.name}" can't be edited.`);
     if (current.has(c.gid) && !sameValue(m.value, c.original)) {
