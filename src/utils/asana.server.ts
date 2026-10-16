@@ -888,6 +888,42 @@ async function mapWithConcurrency<T, R>(
 }
 
 
+/** Project-level custom field catalog (fields a subtask may not carry yet), keyed by field gid. */
+export async function fetchWorkstreamFieldCatalog(): Promise<Map<string, WorkstreamFieldMeta>> {
+  const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
+  if (!projectGid) return new Map();
+  const cacheKey = `ws-field-catalog:${projectGid}`;
+  const cached = getCached<Array<[string, WorkstreamFieldMeta]>>(cacheKey);
+  if (cached) return new Map(cached);
+  const json: { data: { custom_field?: RichField }[] } = await asanaFetch(
+    `/projects/${projectGid}/custom_field_settings?opt_fields=custom_field.gid,custom_field.name,custom_field.resource_subtype,custom_field.type,custom_field.is_formula_field,custom_field.enum_options.gid,custom_field.enum_options.name,custom_field.enum_options.enabled&limit=100`,
+  );
+  const map = new Map<string, WorkstreamFieldMeta>();
+  for (const s of json.data || []) {
+    const f = s.custom_field;
+    if (!f?.gid) continue;
+    const meta = fieldMeta({ ...f, enum_value: undefined, multi_enum_values: undefined, text_value: undefined, number_value: undefined, date_value: undefined });
+    map.set(f.gid, meta);
+  }
+  setCached(cacheKey, [...map.entries()]);
+  return map;
+}
+
+/** Attach editable metadata (empty value) for project fields a subtask doesn't carry yet. */
+function attachCatalogFields(w: Workstream, catalogByName: Record<string, WorkstreamFieldMeta>): Workstream {
+  const editable = { ...(w.editable || {}) };
+  let added = false;
+  for (const [key, res] of WORKSTREAM_FIELD_PATTERNS) {
+    if (editable[key]) continue;
+    const m = findByPatterns(catalogByName, res);
+    if (m && m.editable) {
+      editable[key] = { ...m, value: m.type === "multi_enum" ? [] : "" };
+      added = true;
+    }
+  }
+  return added ? { ...w, editable } : w;
+}
+
 export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
   if (!projectGid) return [];
@@ -910,7 +946,15 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
     }
   });
 
-  const flat = results.flat();
+  let flat = results.flat();
+  try {
+    const catalog = await fetchWorkstreamFieldCatalog();
+    const byName: Record<string, WorkstreamFieldMeta> = {};
+    for (const m of catalog.values()) byName[m.name] = m;
+    flat = flat.map((w) => attachCatalogFields(w, byName));
+  } catch (err) {
+    console.error("[asana] field catalog failed (fields not on a task stay read-only):", err);
+  }
   setCached(cacheKey, flat);
   return flat;
 }
