@@ -64,6 +64,8 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
   const [drag, setDrag] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const cbRef = useRef({ onCount, onItems, onStats });
+  cbRef.current = { onCount, onItems, onStats };
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -73,9 +75,9 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
       ]);
       setItems(r.items);
       if (!history) {
-        onCount?.(r.items.length);
-        onItems?.(r.items);
-        onStats?.({ pending: r.items.length, reviewed: h ? h.items.length : 0 });
+        cbRef.current.onCount?.(r.items.length);
+        cbRef.current.onItems?.(r.items);
+        cbRef.current.onStats?.({ pending: r.items.length, reviewed: h ? h.items.length : 0 });
       }
       setGranolaConnected(r.granolaConnected);
     } catch (e) {
@@ -83,7 +85,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
     } finally {
       setLoading(false);
     }
-  }, [history, actionOwner, kind, onCount, onItems, onStats]);
+  }, [history, actionOwner, kind]);
   useEffect(() => { void load(); }, [load]);
 
   async function syncGranola() {
