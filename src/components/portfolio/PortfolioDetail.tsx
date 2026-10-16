@@ -855,8 +855,8 @@ export function PortfolioDetail({
                 title="Workstreams"
                 stats={[
                   { label: "Streams", value: workstreamsLoading ? "…" : companyWorkstreams.length },
-                  { label: "Active", value: companyWorkstreams.filter((w) => !/complete/i.test(workstreamBarStatus(w))).length },
-                  { label: "Completed", value: companyWorkstreams.filter((w) => /complete/i.test(workstreamBarStatus(w))).length },
+                  { label: "Active", value: companyWorkstreams.filter((w) => !isWorkstreamCompleted(w)).length },
+                  { label: "Completed", value: companyWorkstreams.filter((w) => isWorkstreamCompleted(w)).length },
                 ]}
                 dots={companyWorkstreams.reduce<Record<string, number>>((o, w) => { const k = w.segment || "Other"; o[k] = (o[k] || 0) + 1; return o; }, {})}
               >

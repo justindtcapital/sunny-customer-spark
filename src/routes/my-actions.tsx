@@ -139,7 +139,7 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
   const [showDone, setShowDone] = useState(false);
   const [selId, setSelId] = useState("");
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
-  const isDone = (w: (typeof mine)[number]) => w.completed || /complete/i.test(workstreamBarStatus(w));
+  const isDone = (w: (typeof mine)[number]) => isWorkstreamCompleted(w);
   const openCount = mine.filter((w) => !isDone(w)).length;
   const list = useMemo(() => mine.filter((w) => showDone || !isDone(w))
     .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone]); // eslint-disable-line react-hooks/exhaustive-deps
