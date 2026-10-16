@@ -835,6 +835,16 @@ export function PortfolioDetail({
                         </div>
                         <div className="text-[10px] text-muted-foreground truncate">{r.date?.slice(0, 10)}{r.participants ? ` · ${r.participants}` : ""}</div>
                         {r.summary && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-3">{r.summary}</p>}
+                        {noteSteps(r.extractedJson).length > 0 && (
+                          <ul className="mt-1 space-y-0.5">
+                            {noteSteps(r.extractedJson).slice(0, 5).map((n, i) => (
+                              <li key={i} className="text-[11px] text-foreground">
+                                <span className="text-muted-foreground">→ </span>{n.who && <span className="font-medium">{n.who}: </span>}{n.action}
+                                {n.dueDate && <span className="text-muted-foreground"> · {n.dueDate}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1884,4 +1894,12 @@ function PortcoIntelPanel({ company }: { company: PortfolioCompany }) {
       )}
     </div>
   );
+}
+
+/** Next steps captured in a note (reviewed assignments when present). Read-only context. */
+function noteSteps(json: string): Array<{ who: string; action: string; dueDate: string }> {
+  try {
+    const ex = JSON.parse(json || "{}") as { nextSteps?: Array<{ who?: string; action?: string; dueDate?: string }> };
+    return (ex.nextSteps || []).filter((n) => n.action).map((n) => ({ who: n.who || "", action: n.action || "", dueDate: n.dueDate || "" }));
+  } catch { return []; }
 }
