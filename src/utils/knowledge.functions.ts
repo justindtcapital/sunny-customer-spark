@@ -17,7 +17,15 @@ export const fetchKnowledgeDataFn = createServerFn({ method: "GET" }).handler(as
   const reviews = await reviewMap();
   const typeOf = new Map(records.map((r) => [r.recordId, r.sourceType]));
   const registered = activities.filter((a) => isRegisteredActivity(typeOf.get(a.recordId) || "", reviews.get(a.recordId)));
-  return { records, activities: registered, links, suggested };
+  // Reviewed next-step assignments replace the raw extracted "who" names.
+  const withSteps = records.map((r) => {
+    const steps = reviews.get(r.recordId)?.nextSteps;
+    if (!steps?.length) return r;
+    let ex: Record<string, unknown> = {};
+    try { ex = JSON.parse(r.extractedJson || "{}"); } catch { /* ignore */ }
+    return { ...r, extractedJson: JSON.stringify({ ...ex, nextSteps: steps }) };
+  });
+  return { records: withSteps, activities: registered, links, suggested };
 });
 
 export const reviewWorkstreamLinkFn = createServerFn({ method: "POST" })
