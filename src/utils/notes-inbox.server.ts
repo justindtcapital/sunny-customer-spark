@@ -285,8 +285,8 @@ export interface ReviewNoteInput {
 export interface PersonMatch { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" | "Team" }
 
 /** Read people (name/email/company) from the Contacts and Targets tabs by header name. */
-export async function peopleDirectory(): Promise<PersonMatch[]> {
-  const out: PersonMatch[] = [];
+export async function peopleDirectory(): Promise<Array<PersonMatch & { where: "Network" | "Prospecting" }>> {
+  const out: Array<PersonMatch & { where: "Network" | "Prospecting" }> = [];
   for (const [tab, where] of [["Contacts", "Network"], ["Targets", "Prospecting"]] as const) {
     try {
       const rows = await fetchSheetTab(tab);
