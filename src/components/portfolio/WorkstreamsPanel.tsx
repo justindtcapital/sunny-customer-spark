@@ -70,7 +70,7 @@ function FieldGrid({ items }: { items: Array<[string, string]> }) {
 
 type EditKey = keyof Workstream;
 
-function EditView({ w, onSaved, onCancel }: { w: Workstream; onSaved: (w: Workstream) => void; onCancel: () => void }) {
+function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onSaved: (w: Workstream) => void; onCancel: () => void; inline?: boolean }) {
   const save = useServerFn(updateWorkstreamFn);
   const keys: Array<[string, EditKey]> = [
     ["Work stream status", "workstreamStatus"],
@@ -102,6 +102,7 @@ function EditView({ w, onSaved, onCancel }: { w: Workstream; onSaved: (w: Workst
     }
     patchWorkstreamCache(res.workstream);
     toast.success("Saved to Asana");
+    setDraft({});
     onSaved(res.workstream);
   };
 
@@ -133,14 +134,14 @@ function EditView({ w, onSaved, onCancel }: { w: Workstream; onSaved: (w: Workst
         <Checkbox checked={completed} onCheckedChange={(c) => setCompleted(c === true)} />
         Mark subtask complete in Asana
       </label>
-      <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={onCancel} disabled={saving}>
+      {(!inline || Object.keys(draft).length > 0 || completed !== w.completed) && <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { if (inline) { setDraft({}); setCompleted(w.completed); } else onCancel(); }} disabled={saving}>
           Cancel
         </Button>
         <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving}>
-          {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save
+          {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save{inline ? " changes to Asana" : ""}
         </Button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -345,6 +346,27 @@ export function WorkstreamsPanel({
       ) : (
         <WorkstreamGroups workstreams={workstreams} />
       )}
+    </div>
+  );
+}
+
+/** Always-open workstream editor for My Actions: fields are directly editable, Save appears once something changes. */
+export function WorkstreamDetail({ w: initial }: { w: Workstream }) {
+  const [saved, setSaved] = useState<Workstream | null>(null);
+  const w = saved && saved.gid === initial.gid ? saved : initial;
+  return (
+    <div className="space-y-3">
+      <EditView key={w.gid} w={w} inline onCancel={() => {}} onSaved={setSaved} />
+      {w.notes && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Detail</p>
+          <p className="text-[11px] whitespace-pre-wrap text-foreground/90">{w.notes}</p>
+        </div>
+      )}
+      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+        <span>{w.lastActivity ? `Updated ${w.lastActivity}` : ""}</span>
+        {w.url && <a href={w.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Asana <ExternalLink className="h-3 w-3" /></a>}
+      </div>
     </div>
   );
 }
