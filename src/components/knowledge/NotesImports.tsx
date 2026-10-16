@@ -629,10 +629,19 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
 
               {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Assigned to me" go on your calendar.</p>
+                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Assigned to me" go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
                 {steps.map((s, i) => (
                   <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                    {!isActivity && (folder !== "portco" || chosen.length > 1) && (
+                      <Select value={s.portco || "__none"} onValueChange={(v) => setStep(i, { portco: v === "__none" ? "" : v })}>
+                        <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="PortCo" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No PortCo</SelectItem>
+                          {(chosen.length ? chosen : portcos).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v })}>
                       <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Who" /></SelectTrigger>
                       <SelectContent>
