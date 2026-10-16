@@ -292,12 +292,13 @@ export async function peopleDirectory(): Promise<PersonMatch[]> {
       const h = (rows[0] || []).map((x) => (x || "").trim().toLowerCase());
       const col = (re: RegExp) => h.findIndex((x) => re.test(x));
       const n = col(/^(full )?name$|^contact name$/), e = col(/e-?mail/), c = col(/^company|organization|employer/);
+      const t = col(/^(job )?title$|^position$|^role$/);
       const first = col(/^first name$/), last = col(/^last name$/);
       for (const r of rows.slice(1)) {
         const name = (n >= 0 ? r[n] : [first >= 0 ? r[first] : "", last >= 0 ? r[last] : ""].join(" ")) || "";
         const email = (e >= 0 ? r[e] : "") || "";
         if (!name.trim() && !email.trim()) continue;
-        out.push({ name: name.trim(), email: email.trim().toLowerCase(), company: ((c >= 0 ? r[c] : "") || "").trim(), where });
+        out.push({ name: name.trim(), email: email.trim().toLowerCase(), company: ((c >= 0 ? r[c] : "") || "").trim(), title: ((t >= 0 ? r[t] : "") || "").trim(), where });
       }
     } catch { /* missing tab */ }
   }
