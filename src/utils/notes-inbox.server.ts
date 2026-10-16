@@ -257,9 +257,11 @@ export interface ReviewNoteInput {
   /** Network/Prospecting people this note is tagged to; each gets a trail entry on confirm. */
   linkContacts?: Array<{ name: string; email: string; company: string; where: string }>;
   /** Where to file the Drive copy on confirm (default: PortCo, or Network Updates for NWK). */
-  folder?: "portco" | "operations" | "network";
+  folder?: "portco" | "operations" | "network" | "investor";
+  /** Investor name when folder is "investor" — filed to Investor Updates/<investor>. */
+  investor?: string;
   /** All next steps with their assigned person; only followUps become tracked follow-ups. */
-  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string }>;
   /** Notes: BD and/or GTM activity tracks chosen on review. */
   activityTracks?: string[];
 }
@@ -381,7 +383,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     await saveHarvestedActivities(input.followUps.map((f, i) => ({
       activityId: sha256Hex(`${r.recordId}:followup:${f.action}:${i}`).slice(0, 24),
       recordId: r.recordId, date: f.dueDate || now.slice(0, 10), track: "Follow-up", type: "follow-up",
-      title: f.action.slice(0, 140), portco: r.portco, person: f.who, owner: input.reviewer,
+      title: f.action.slice(0, 140), portco: f.portco || r.portco, person: f.who, owner: input.reviewer,
       summary: `Follow-up from "${r.title}"${f.dueDate ? ` — due ${f.dueDate}` : ""}`, sourceUrl: r.sourceUrl, createdAt: now,
     })));
   }
