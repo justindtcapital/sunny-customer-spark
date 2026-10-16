@@ -175,6 +175,13 @@ function PartnerPane({ name }: { name: string }) {
   }, [workstreams, d?.partner]);
   const activeWs = ws.filter((w) => !isWorkstreamCompleted(w)).length;
   const [view, setView] = useState<"contacts" | "workstreams" | "notes" | "emails">("contacts");
+  const [onlyWithWs, setOnlyWithWs] = useState(false);
+  const contactRows = useMemo(() => (d?.contacts || []).map((c) => {
+    const linked = workstreams.filter((w) => w.dellStakeholders && personInText({ name: c.name, email: c.email }, w.dellStakeholders));
+    return { c, linked, active: linked.filter((w) => !isWorkstreamCompleted(w)).length };
+  }), [workstreams, d?.contacts]);
+  const withActive = useMemo(() => contactRows.filter((r) => r.active > 0), [contactRows]);
+  const shownContacts = onlyWithWs ? withActive : contactRows;
   const contactsQ = useQuery({ queryKey: ["campaign-contacts"], queryFn: () => fetchContacts(), staleTime: 60_000 });
   const [openContact, setOpenContact] = useState<Contact | null>(null);
   const openNetwork = (email: string, cname: string) => {
@@ -206,11 +213,21 @@ function PartnerPane({ name }: { name: string }) {
               <Stat n={d.activity.filter((a) => a.source === "Note").length} label="Notes" active={view === "notes"} onClick={() => setView("notes")} />
               <Stat n={d.activity.filter((a) => a.source === "Email").length} label="BD/GTM emails" active={view === "emails"} onClick={() => setView("emails")} />
             </div>
-            {view === "contacts" && <Collapsible title="Key contacts" count={d.contacts.length}>
+            {view === "contacts" && <Collapsible title="Key contacts" count={shownContacts.length}>
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <button type="button" onClick={() => setOnlyWithWs(false)}
+                  className={cn("rounded-full border px-2.5 py-1 text-[11px] transition-colors", !onlyWithWs ? "border-primary bg-primary/10 font-medium text-primary" : "border-border text-muted-foreground hover:border-primary/50")}>
+                  All contacts ({contactRows.length})
+                </button>
+                <button type="button" onClick={() => setOnlyWithWs(true)}
+                  className={cn("rounded-full border px-2.5 py-1 text-[11px] transition-colors", onlyWithWs ? "border-primary bg-primary/10 font-medium text-primary" : "border-border text-muted-foreground hover:border-primary/50")}>
+                  Only with active workstreams ({withActive.length})
+                </button>
+              </div>
               <p className="mb-2 text-xs text-muted-foreground">{net} in Network · {d.contacts.length - net} in Prospecting. They stay on those pages too.</p>
-              {d.contacts.length === 0 ? <p className="text-xs text-muted-foreground">No contacts at {name} yet. They'll show up here as soon as one is uploaded or added.</p> : (
+              {shownContacts.length === 0 ? <p className="text-xs text-muted-foreground">{contactRows.length === 0 ? `No contacts at ${name} yet. They'll show up here as soon as one is uploaded or added.` : `No contact at ${name} sits on an active workstream yet.`}</p> : (
                 <ul className="divide-y divide-border">
-                  {d.contacts.map((c) => (
+                  {shownContacts.map(({ c, linked }) => (
                     <li key={`${c.where}:${c.email || c.name}`} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
                       <span className="flex-1 truncate">
                         {c.where === "Network" ? (
@@ -222,12 +239,12 @@ function PartnerPane({ name }: { name: string }) {
                         <span className="text-xs text-muted-foreground">{c.email}</span>
                       </span>
                       <Badge variant="outline" className="text-[10px]">{c.where}</Badge>
-                      {(() => { const linked = workstreams.filter((w) => w.dellStakeholders && personInText({ name: c.name, email: c.email }, w.dellStakeholders)); return linked.length > 0 && (
+                      {linked.length > 0 && (
                         <div className="basis-full flex flex-wrap gap-1 pl-1">
                           {linked.map((w) => (
                             <Link key={w.gid} to="/my-actions" search={{ tab: "workstreams", ws: w.gid, owner: ACTION_OWNERS.find((o) => ownerMatches(w.owner, o.name))?.name }} className="rounded border border-border px-1.5 py-0.5 text-[10px] text-primary hover:underline">{w.company} · {w.name || w.rawName}</Link>
                           ))}
-                        </div>); })()}
+                        </div>)}
                     </li>
                   ))}
                 </ul>
