@@ -658,7 +658,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                     <button type="button" aria-label="Remove next step" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   </div>
                 ))}
-                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", track: false }])}>+ Next step</Button>
+                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", track: false, portco: "" }])}>+ Next step</Button>
               </section>}
 
               <div className="flex justify-end gap-2">
