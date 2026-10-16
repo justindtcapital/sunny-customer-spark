@@ -24,6 +24,7 @@ import {
   uploadNoteFn,
 } from "@/utils/knowledge.functions";
 import type { NoteInboxItem, PersonMatch } from "@/utils/notes-inbox.server";
+import { resolveWho } from "@/lib/meeting-roster";
 
 function Tick({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -253,20 +254,29 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
   const [wsChoice, setWsChoice] = useState<string>(suggestedGid || (sugg && !sugg.workstreamGid ? "__suggested_new" : ""));
   const [newName, setNewName] = useState(sugg && !sugg.workstreamGid ? sugg.workstreamName : "");
   const [newSegment, setNewSegment] = useState<"GTM" | "BD">("GTM");
-  const [people, setPeople] = useState<Record<string, "add" | "skip" | "">>({});
-  const [edits, setEdits] = useState<Record<string, { name: string; email: string; company: string }>>({});
-  const [editing, setEditing] = useState<Record<string, boolean>>({});
-  const [fu, setFu] = useState<Record<number, { due?: string; action?: string; who?: string }>>({});
+  type RosterRow = { key: string; heard: string; where: string; suggestionId: string; status: "linked" | "add" | "guest" | "skip" | "pending"; match?: PersonMatch; suggestions: PersonMatch[]; edit: { name: string; email: string; company: string }; editing?: boolean };
+  const [roster, setRoster] = useState<RosterRow[]>(() => item.people.map((p) => {
+    const known = !!p.email && (p.where === "Network" || p.where === "Prospecting");
+    return { key: p.key, heard: p.name || p.email, where: p.where, suggestionId: p.suggestionId, suggestions: p.suggestions || [],
+      status: known || p.status.startsWith("approved") ? "linked" : "pending",
+      match: known ? { name: p.name, email: p.email, company: p.company, where: p.where as PersonMatch["where"] } : undefined,
+      edit: { name: p.name, email: p.email, company: p.company } };
+  }));
+  const label = (r: RosterRow) => r.match?.name || r.edit.name || r.heard;
+  const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
+  const [linking, setLinking] = useState<string | null>(null);
+  type Step = { action: string; who: string; other: string; dueDate: string; track: boolean };
+  const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
+    const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
+    return { action: n.action, who: i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false };
+  }));
+  const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const [saving, setSaving] = useState(false);
   const isActivity = kind === "activity";
   const [track, setTrack] = useState(item.track || "BD");
   const isNews = isActivity && track === "News";
   const isNetwork = track === "Network" || item.track === "Network";
   const [folder, setFolder] = useState<"portco" | "operations" | "network">(isNetwork ? "network" : "portco");
-  // Contacts this note is tagged to — existing Network/Prospecting people start tagged.
-  const [linked, setLinked] = useState<PersonMatch[]>(() => item.people
-    .filter((p) => p.email && (p.where === "Network" || p.where === "Prospecting"))
-    .map((p) => ({ name: p.name, email: p.email, company: p.company, where: p.where as PersonMatch["where"] })));
   const [pq, setPq] = useState("");
   const [results, setResults] = useState<PersonMatch[]>([]);
   useEffect(() => {
@@ -277,10 +287,6 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
     return () => { live = false; clearTimeout(t); };
   }, [pq]);
 
-  function editedPerson(p: NoteInboxItem["people"][number]) {
-    const e = edits[p.key];
-    return { name: e?.name ?? p.name, email: e?.email ?? p.email, company: e?.company ?? p.company, suggestionId: p.suggestionId || undefined };
-  }
 
   async function save() {
     setSaving(true);
@@ -291,20 +297,21 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
         if (!newName.trim()) throw new Error("Type a name for the new workstream");
         workstream = { action: "create", name: newName.trim(), segment: newSegment };
       } else if (wsChoice) workstream = { action: "confirm", gid: wsChoice, name: workstreams.find((w) => w.gid === wsChoice)?.name || "" };
-      const byKey = new Map(item.people.map((p) => [p.key, p]));
+      const live = roster.filter((r) => r.status !== "skip");
+      const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
+        const r = roster.find((x) => x.key === s.who);
+        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? reviewer : s.who === "__other" ? s.other.trim() : "", whoEmail: r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track };
+      });
       await reviewNoteFn({
         data: {
           recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
           ...(isActivity ? { status: "confirmed" as const, track } : isNetwork ? { track: "Network" } : {}),
-          linkContacts: linked,
+          linkContacts: live.filter((r) => r.status === "linked" && r.match?.email).map((r) => r.match!),
           ...(!isActivity ? { folder } : {}),
-          addPeople: Object.entries(people).filter(([, v]) => v === "add").map(([k]) => byKey.get(k)!).filter(Boolean)
-            .map((p) => editedPerson(p)),
-          skipContacts: Object.entries(people).filter(([, v]) => v === "skip").map(([k]) => byKey.get(k)?.suggestionId || "").filter(Boolean),
-          followUps: Object.entries(fu).map(([idx, f]) => {
-            const n = item.nextSteps[Number(idx)]!;
-            return { action: f.action?.trim() || n.action, who: f.who?.trim() || n.who, dueDate: f.due || n.dueDate };
-          }),
+          addPeople: live.filter((r) => r.status === "add").map((r) => ({ ...r.edit, suggestionId: r.suggestionId || undefined })),
+          skipContacts: roster.filter((r) => r.status === "skip" && r.suggestionId).map((r) => r.suggestionId),
+          nextSteps: stepOut.map(({ track: _t, ...s }) => s),
+          followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, dueDate: s.dueDate })),
         },
       });
       toast.success(isActivity ? (isNews ? "Saved as PortCo news." : "Activity registered.") : "Note reviewed.");
@@ -472,95 +479,91 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind }: {
               </section>
 
               {!isNews && <section className="space-y-1.5">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                {item.nextSteps.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">None found.</p>
-                ) : item.nextSteps.map((n, idx) => (
-                  <div key={idx} className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="flex-1">{n.action}{n.who && <span className="text-muted-foreground"> — {n.who}</span>}{n.dueDate && <span className="text-muted-foreground"> · due {n.dueDate}</span>}</span>
-                    {idx in fu ? (
-                      <>
-                        <Input className="h-7 w-56 text-xs" placeholder="Next step" value={fu[idx]?.action ?? n.action}
-                          onChange={(e) => setFu((s) => ({ ...s, [idx]: { ...s[idx], action: e.target.value } }))} />
-                        <Input className="h-7 w-36 text-xs" placeholder="Who" value={fu[idx]?.who ?? n.who}
-                          onChange={(e) => setFu((s) => ({ ...s, [idx]: { ...s[idx], who: e.target.value } }))} />
-                        <Input type="date" className="h-7 w-36 text-xs" value={fu[idx]?.due || n.dueDate}
-                          onChange={(e) => setFu((s) => ({ ...s, [idx]: { ...s[idx], due: e.target.value } }))} />
-                        <Button size="sm" variant="ghost" onClick={() => setFu((s) => { const c = { ...s }; delete c[idx]; return c; })}>Cancel</Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button size="sm" variant="outline" onClick={() => setFu((s) => ({ ...s, [idx]: { due: n.dueDate } }))}>Create follow-up</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setFu((s) => ({ ...s, [idx]: { due: n.dueDate } }))}>Edit</Button>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </section>}
-
-              <section className="space-y-1.5">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">People</h4>
-                {item.people.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No people found in this note.</p>
-                ) : item.people.map((p) => (
-                  <div key={p.key} className="space-y-1 text-xs">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">People in this meeting</h4>
+                <p className="text-xs text-muted-foreground">Linked people get this {isActivity ? "email" : "note"} on their contact card{isNetwork ? " as a Network conversation" : ""} and can be assigned next steps.</p>
+                {roster.length === 0 && <p className="text-xs text-muted-foreground">No people found — search below to add someone.</p>}
+                {roster.map((r) => (
+                  <div key={r.key} className={`space-y-1 rounded border border-border px-2 py-1.5 text-xs ${r.status === "skip" ? "opacity-50" : ""}`}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="flex-1">{p.name || p.email} <span className="text-muted-foreground">{p.email}{p.company && ` · ${p.company}`}</span></span>
-                      {p.where !== "New" || p.status.startsWith("approved") ? (
-                        <Badge variant="secondary" className="text-[10px]">{p.where === "New" ? "Added" : `In ${p.where}`}</Badge>
-                      ) : (
-                        <>
-                          <Badge variant="outline" className="text-[10px]">New</Badge>
-                          <Button size="sm" variant={people[p.key] === "add" ? "secondary" : "outline"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "add" ? "" : "add" }))}>Add to contacts</Button>
-                          <Button size="sm" variant={editing[p.key] ? "secondary" : "outline"} onClick={() => setEditing((s) => ({ ...s, [p.key]: !s[p.key] }))}>Edit</Button>
-                          <Button size="sm" variant={people[p.key] === "skip" ? "secondary" : "ghost"} onClick={() => setPeople((s) => ({ ...s, [p.key]: s[p.key] === "skip" ? "" : "skip" }))}>Skip</Button>
-                        </>
-                      )}
+                      <span className="flex-1">
+                        <span className="font-medium">{label(r)}</span>
+                        {r.match ? <span className="text-muted-foreground"> {r.match.company && `· ${r.match.company}`}</span> : r.edit.email && <span className="text-muted-foreground"> {r.edit.email}</span>}
+                        {r.match && r.heard && r.heard.toLowerCase() !== r.match.name.toLowerCase() && <span className="text-muted-foreground"> (heard as "{r.heard}")</span>}
+                      </span>
+                      {r.status === "linked" && <Badge variant="secondary" className="text-[10px]">{r.match?.where || "Added"}</Badge>}
+                      {r.status === "add" && <Badge variant="secondary" className="text-[10px]">Will add to contacts</Badge>}
+                      {r.status === "guest" && <Badge variant="outline" className="text-[10px]">Guest</Badge>}
+                      {r.status === "skip" && <Badge variant="outline" className="text-[10px]">Skipped</Badge>}
+                      {r.status === "pending" && <Badge variant="outline" className="text-[10px]">Not matched</Badge>}
+                      <Button size="sm" variant={linking === r.key ? "secondary" : "outline"} onClick={() => { setLinking(linking === r.key ? null : r.key); setPq(r.status === "pending" && !/^speaker/i.test(r.heard) ? r.heard : ""); }}>{r.status === "linked" ? "Change" : "Search"}</Button>
+                      {r.status !== "linked" && <Button size="sm" variant={r.status === "add" || r.editing ? "secondary" : "outline"} onClick={() => patch(r.key, { editing: !r.editing, status: r.editing ? r.status : "add" })}>Add to contacts</Button>}
+                      {r.status !== "guest" && <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: "guest", match: undefined, editing: false })}>Guest</Button>}
+                      <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: r.status === "skip" ? "pending" : "skip", editing: false })}>{r.status === "skip" ? "Undo" : "Skip"}</Button>
                     </div>
-                    {editing[p.key] && p.where === "New" && !p.status.startsWith("approved") && (
+                    {r.status === "pending" && r.suggestions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pl-2">
+                        <span className="text-muted-foreground">Did you mean</span>
+                        {r.suggestions.map((s) => (
+                          <Button key={s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => patch(r.key, { status: "linked", match: s })}>
+                            <Check className="h-3 w-3" /> {s.name}{s.company && ` · ${s.company}`}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    {r.editing && r.status === "add" && (
                       <div className="flex flex-wrap items-center gap-2 pl-2">
-                        <Input className="h-7 w-44 text-xs" placeholder="Name" value={edits[p.key]?.name ?? p.name}
-                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: e.target.value, email: s[p.key]?.email ?? p.email, company: s[p.key]?.company ?? p.company } }))} />
-                        <Input className="h-7 w-52 text-xs" placeholder="Email" value={edits[p.key]?.email ?? p.email}
-                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: s[p.key]?.name ?? p.name, email: e.target.value, company: s[p.key]?.company ?? p.company } }))} />
-                        <Input className="h-7 w-40 text-xs" placeholder="Company" value={edits[p.key]?.company ?? p.company}
-                          onChange={(e) => setEdits((s) => ({ ...s, [p.key]: { name: s[p.key]?.name ?? p.name, email: s[p.key]?.email ?? p.email, company: e.target.value } }))} />
+                        {(["name", "email", "company"] as const).map((f) => (
+                          <Input key={f} className="h-7 w-44 text-xs" placeholder={f[0]!.toUpperCase() + f.slice(1)} value={r.edit[f]}
+                            onChange={(e) => patch(r.key, { edit: { ...r.edit, [f]: e.target.value } })} />
+                        ))}
                       </div>
                     )}
                   </div>
                 ))}
-              </section>
-
-              {!isNews && <section className="space-y-1.5">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Tag to contacts</h4>
-                <p className="text-xs text-muted-foreground">Tagged people get this {isActivity ? "email" : "note"} on their contact card{isNetwork ? " as a Network conversation" : ""}.</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {linked.length === 0 && <span className="text-xs text-muted-foreground">No contacts tagged yet.</span>}
-                  {linked.map((c) => (
-                    <Badge key={c.email} variant="secondary" className="gap-1 text-[11px]">
-                      {c.name || c.email} <span className="text-muted-foreground">· {c.where}</span>
-                      <button type="button" aria-label={`Remove ${c.name || c.email}`} onClick={() => setLinked((l) => l.filter((x) => x.email !== c.email))}><X className="h-3 w-3" /></button>
-                    </Badge>
-                  ))}
-                </div>
                 <div className="relative w-80">
-                  <Input className="h-8 text-xs" placeholder="Search Network & Prospecting by name, email, company" value={pq} onChange={(e) => setPq(e.target.value)} />
+                  <Input className="h-8 text-xs" placeholder={linking ? `Find who "${roster.find((x) => x.key === linking)?.heard}" is…` : "Add someone: search Network & Prospecting"} value={pq} onChange={(e) => setPq(e.target.value)} />
                   {results.length > 0 && (
                     <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">
-                      {results.map((r) => {
-                        const on = linked.some((x) => x.email && x.email === r.email);
-                        return (
-                          <button key={`${r.where}:${r.email || r.name}`} type="button" disabled={!r.email}
-                            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
-                            onClick={() => { if (!on) setLinked((l) => [...l, r]); setPq(""); setResults([]); }}>
-                            <span className="flex-1 truncate">{r.name || r.email} <span className="text-muted-foreground">{r.company}</span></span>
-                            <Badge variant="outline" className="text-[10px]">{on ? "Tagged" : r.email ? r.where : "No email"}</Badge>
-                          </button>
-                        );
-                      })}
+                      {results.map((m) => (
+                        <button key={`${m.where}:${m.email || m.name}`} type="button" disabled={!m.email}
+                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
+                          onClick={() => {
+                            if (linking) patch(linking, { status: "linked", match: m, editing: false });
+                            else if (!roster.some((x) => x.match?.email === m.email)) setRoster((rs) => [...rs, { key: `added:${m.email}`, heard: m.name, where: m.where, suggestionId: "", suggestions: [], status: "linked", match: m, edit: { name: m.name, email: m.email, company: m.company } }]);
+                            setLinking(null); setPq(""); setResults([]);
+                          }}>
+                          <span className="flex-1 truncate">{m.name || m.email} <span className="text-muted-foreground">{m.company}</span></span>
+                          <Badge variant="outline" className="text-[10px]">{m.email ? m.where : "No email"}</Badge>
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
+              </section>}
+
+              {!isNews && <section className="space-y-1.5">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
+                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Track as my follow-up" go on your calendar.</p>
+                {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
+                {steps.map((s, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                    <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v })}>
+                      <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Who" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">Unassigned</SelectItem>
+                        {reviewer && <SelectItem value={`__me`}>{reviewer} (me)</SelectItem>}
+                        {roster.filter((r) => r.status !== "skip").map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
+                        <SelectItem value="__other">Other…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {s.who === "__other" && <Input className="h-7 w-32 text-xs" placeholder="Name" value={s.other} onChange={(e) => setStep(i, { other: e.target.value })} />}
+                    <Input className="h-7 min-w-[220px] flex-1 text-xs" value={s.action} onChange={(e) => setStep(i, { action: e.target.value })} />
+                    <Button size="sm" variant={s.track ? "secondary" : "outline"} onClick={() => setStep(i, { track: !s.track })}>{s.track ? <Check className="h-3.5 w-3.5" /> : null}Track as my follow-up</Button>
+                    {s.track && <Input type="date" className="h-7 w-36 text-xs" value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
+                    <button type="button" aria-label="Remove next step" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                  </div>
+                ))}
+                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", track: false }])}>+ Next step</Button>
               </section>}
 
               <div className="flex justify-end gap-2">
