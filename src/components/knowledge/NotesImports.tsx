@@ -636,10 +636,16 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
 
               {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Assigned to me" go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
+                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Steps assigned to you go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
-                {steps.map((s, i) => (
+                {steps.map((s, i) => {
+                  const confirmed = roster.filter((r) => (r.status === "linked" || r.status === "team") && label(r) !== me);
+                  const guessedKey = s.whoGuess && s.who && s.who !== "__me" && s.who !== "__other" ? s.who : "";
+                  const guessedRow = guessedKey ? roster.find((r) => r.key === guessedKey) : undefined;
+                  const options = guessedRow && !confirmed.some((r) => r.key === guessedRow.key) ? [...confirmed, guessedRow] : confirmed;
+                  return (
                   <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                    <Input className="h-7 min-w-[220px] flex-1 text-xs" title={s.action} value={s.action} onChange={(e) => setStep(i, { action: e.target.value })} />
                     {!isActivity && (folder !== "portco" || chosen.length > 1) && (
                       <Select value={s.portco || "__none"} onValueChange={(v) => setStep(i, { portco: v === "__none" ? "" : v })}>
                         <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="PortCo" /></SelectTrigger>
@@ -649,23 +655,29 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         </SelectContent>
                       </Select>
                     )}
-                    <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v })}>
-                      <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Who" /></SelectTrigger>
+                    <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v, whoGuess: false })}>
+                      <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Assigned" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none">Unassigned</SelectItem>
                         {reviewer && <SelectItem value={`__me`}>{me} (me)</SelectItem>}
-                        {roster.filter((r) => r.status !== "skip" && label(r) !== me).map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
+                        {options.map((r) => <SelectItem key={r.key} value={r.key}>{label(r)}</SelectItem>)}
                         <SelectItem value="__other">Other…</SelectItem>
                       </SelectContent>
                     </Select>
+                    {s.who && s.who !== "__none" && (s.whoGuess ? (
+                      <button type="button" title="Guessed from the notes — click to confirm" onClick={() => setStep(i, { whoGuess: false })}>
+                        <HelpCircle className="h-3.5 w-3.5 text-yellow-500" />
+                      </button>
+                    ) : (
+                      <Check className="h-3.5 w-3.5 text-green-600" aria-label="Confirmed" />
+                    ))}
                     {s.who === "__other" && <Input className="h-7 w-32 text-xs" placeholder="Name" value={s.other} onChange={(e) => setStep(i, { other: e.target.value })} />}
-                    <Input className="h-7 min-w-[220px] flex-1 text-xs" value={s.action} onChange={(e) => setStep(i, { action: e.target.value })} />
-                    <Button size="sm" variant={s.track ? "secondary" : "outline"} onClick={() => setStep(i, { track: !s.track })}>{s.track ? <Check className="h-3.5 w-3.5" /> : null}Assigned to me</Button>
-                    {s.track && <Input type="date" className="h-7 w-36 text-xs" value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
+                    {s.who === "__me" && <Input type="date" className="h-7 w-36 text-xs" title="Due date — goes on your calendar" value={s.dueDate} onChange={(e) => setStep(i, { dueDate: e.target.value })} />}
                     <button type="button" aria-label="Remove next step" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   </div>
-                ))}
-                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", track: false, portco: "" }])}>+ Next step</Button>
+                  );
+                })}
+                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", portco: "", whoGuess: false }])}>+ Next step</Button>
               </section>}
 
               <div className="flex justify-end gap-2">
