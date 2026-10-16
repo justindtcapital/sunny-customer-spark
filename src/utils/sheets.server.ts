@@ -240,19 +240,32 @@ export async function appendSheetRows(tabName: string, rows: string[][]): Promis
 }
 
 // ── Ensure a tab exists (creating it with a header row if not) ─
+// Tabs confirmed to exist; checked once per server instance so page loads don't
+// spend Sheets read quota on repeated metadata lookups.
+const knownTabs = new Set<string>();
+let tabTitlesInflight: Promise<string[] | null> | null = null;
+
 export async function ensureTab(tabName: string, headers: string[]): Promise<void> {
+  if (knownTabs.has(tabName)) return;
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
 
-  // Is the tab already present?
-  const metaRes = await sheetsFetch(`${base}?fields=sheets.properties.title`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (metaRes.ok) {
-    const meta = (await metaRes.json()) as { sheets?: Array<{ properties?: { title?: string } }> };
-    const titles = (meta.sheets || []).map((s) => s.properties?.title);
-    if (titles.includes(tabName)) return;
+  // Is the tab already present? (one shared metadata request for concurrent callers)
+  if (!tabTitlesInflight) {
+    tabTitlesInflight = (async () => {
+      const metaRes = await sheetsFetch(`${base}?fields=sheets.properties.title`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!metaRes.ok) return null;
+      const meta = (await metaRes.json()) as { sheets?: Array<{ properties?: { title?: string } }> };
+      return (meta.sheets || []).map((s) => s.properties?.title || "");
+    })().finally(() => { tabTitlesInflight = null; });
+  }
+  const titles = await tabTitlesInflight;
+  if (titles) {
+    titles.forEach((t) => t && knownTabs.add(t));
+    if (knownTabs.has(tabName)) return;
   }
 
   // Create the tab.
