@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Mail, RefreshCw, Sparkles, X } from "lucide-react";
+import { ClipboardCheck, Loader2, Mail, RefreshCw, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,10 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
   const [body, setBody] = useState("");
   const [nudge, setNudge] = useState("");
   const [busy, setBusy] = useState<"" | "draft" | "send">("");
+  const [mode, setMode] = useState<"" | "email" | "log">("");
+  const [logNote, setLogNote] = useState("");
+  // Only pre-write when the source makes the follow-up obvious (notes/emails/follow-ups with content).
+  const obvious = (c: ActionContext) => c.sourceKind !== "workstream" && !!(c.text?.trim() || c.nextSteps?.length);
   const me = teamMemberFor(email);
 
   const run = async (n?: string) => {
@@ -67,8 +71,8 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
     setTo(ctx.people.filter((p) => p.email && !teamMemberFor(p.email)));
     setPortcos(ctx.portcos.filter(Boolean));
     setTracks(ctx.tracks || []);
-    setSubject(""); setBody(""); setNudge("");
-    void run();
+    setSubject(""); setBody(""); setNudge(""); setLogNote("");
+    if (obvious(ctx)) { setMode("email"); void run(); } else setMode("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
 
@@ -84,6 +88,17 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
       onDone?.();
       onClose();
     } catch (e) { console.error(e); toast.error("Opened Outlook, but logging failed."); }
+    finally { setBusy(""); }
+  };
+
+  const logIt = async () => {
+    if (!ctx || !logNote.trim()) { toast.error("Describe what you did."); return; }
+    setBusy("send");
+    try {
+      await complete({ data: { sourceKind: ctx.sourceKind, sourceId: ctx.sourceId, subject: subject || logNote.trim().slice(0, 120), recipients: to, portcos, tracks, actor: email || "", followUpActivityId: ctx.followUpActivityId, mode: "log", note: logNote.trim() } });
+      toast.success("Action logged and marked done");
+      onDone?.(); onClose();
+    } catch (e) { console.error(e); toast.error("Logging failed."); }
     finally { setBusy(""); }
   };
 
@@ -103,7 +118,21 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
         </SheetHeader>
         <div className="mt-4 space-y-4">
           <div className="space-y-1">
-            <Label className={LABEL}>To</Label>
+            <Label className={LABEL}>What do you want to do?</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant={mode === "email" ? "secondary" : "outline"} className="h-auto flex-col items-start gap-0.5 py-2 text-left" onClick={() => setMode("email")}>
+                <span className="flex items-center gap-1.5 text-sm"><Mail className="h-4 w-4" />Write an email</span>
+                <span className="text-[11px] font-normal text-muted-foreground">Draft and send via Outlook</span>
+              </Button>
+              <Button variant={mode === "log" ? "secondary" : "outline"} className="h-auto flex-col items-start gap-0.5 py-2 text-left" onClick={() => setMode("log")}>
+                <span className="flex items-center gap-1.5 text-sm"><ClipboardCheck className="h-4 w-4" />Log an action</span>
+                <span className="text-[11px] font-normal text-muted-foreground">Call, meeting, intro or update</span>
+              </Button>
+            </div>
+          </div>
+          {mode && <>
+          <div className="space-y-1">
+            <Label className={LABEL}>{mode === "log" ? "Who was involved" : "To"}</Label>
             <div className="flex flex-wrap gap-1">
               {to.map((t) => <Badge key={t.email} variant="secondary" className="gap-1 font-normal">{t.name || t.email}<button type="button" aria-label={`Remove ${t.email}`} onClick={() => setTo((x) => x.filter((y) => y.email !== t.email))}><X className="h-3 w-3" /></button></Badge>)}
             </div>
@@ -131,6 +160,20 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             </div>
           </div>
 
+          {mode === "log" ? <>
+          <div className="space-y-1">
+            <Label className={LABEL}>Title</Label>
+            <Input className="h-8 text-sm" placeholder="e.g. Intro call with Dell security team" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label className={LABEL}>What happened</Label>
+            <Textarea className="h-40 text-sm" placeholder="What you did, outcome, next step…" value={logNote} onChange={(e) => setLogNote(e.target.value)} />
+          </div>
+          <div className="flex justify-end gap-2 border-t border-border pt-3">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button disabled={!!busy || !logNote.trim()} onClick={() => void logIt()}>{busy === "send" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}Log &amp; complete</Button>
+          </div>
+          </> : <>
           <div className="space-y-1">
             <Label className={LABEL}>Subject</Label>
             <Input className="h-8 text-sm" value={subject} onChange={(e) => setSubject(e.target.value)} />
@@ -138,11 +181,11 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
           <div className="space-y-1">
             <Label className={LABEL}>Email</Label>
             {busy === "draft" && !body ? <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Writing a follow-up from the source…</p>
-              : <Textarea className="h-72 text-sm" value={body} onChange={(e) => setBody(e.target.value)} />}
+              : <Textarea className="h-72 text-sm" placeholder="Write your email, or use Draft with AI below." value={body} onChange={(e) => setBody(e.target.value)} />}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input className="h-8 min-w-[180px] flex-1 text-xs" placeholder="Nudge: shorter, more formal, add a PortCo intro…" value={nudge} onChange={(e) => setNudge(e.target.value)} />
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void run(nudge)}>{busy === "draft" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}Regenerate</Button>
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void run(nudge)}>{busy === "draft" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}{body ? "Regenerate" : "Draft with AI"}</Button>
             <AppendPortcoListButton preselected={portcos} onAppend={(t) => setBody((b) => appendPortcoList(b, t))} />
             <Button size="sm" variant="ghost" onClick={() => setBody("")}>Clear</Button>
           </div>
@@ -150,6 +193,8 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             <Button variant="outline" onClick={onClose}>Cancel</Button>
             <Button disabled={!!busy || !to.length || !body.trim()} onClick={() => void send()}>{busy === "send" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}Send via Outlook &amp; complete</Button>
           </div>
+          </>}
+          </>}
         </div>
       </SheetContent>
     </Sheet>

@@ -41,6 +41,8 @@ const completeInput = z.object({
   tracks: z.array(z.enum(["BD", "GTM"])).max(2),
   actor: z.string().max(200),
   followUpActivityId: z.string().max(100).optional(),
+  mode: z.enum(["email", "log"]).optional(),
+  note: z.string().max(4000).optional(),
 });
 
 /** Action Now completion: registers the sent follow-up as activity, closes the follow-up, logs Ops. */
@@ -59,9 +61,11 @@ export const completeActionFn = createServerFn({ method: "POST" })
     const base = sha256Hex(`${data.sourceId}:${today}:${data.subject}`).slice(0, 16);
     await k.saveHarvestedActivities(tracks.map((track) => ({
       activityId: `action:${base}${track ? `:${track}` : ""}`,
-      recordId: data.sourceId, date: today, track, type: "follow-up",
-      title: data.subject || "Follow-up email", portco: data.portcos.join(", "), person: people, owner,
-      summary: `Action Now (${data.sourceKind}): follow-up emailed to ${people || "contacts"}`,
+      recordId: data.sourceId, date: today, track, type: data.mode === "log" ? "logged-action" : "follow-up",
+      title: data.subject || (data.mode === "log" ? "Logged action" : "Follow-up email"), portco: data.portcos.join(", "), person: people, owner,
+      summary: data.mode === "log"
+        ? `Action Now (${data.sourceKind}): logged action${people ? ` with ${people}` : ""}${data.note ? ` — ${data.note}` : ""}`
+        : `Action Now (${data.sourceKind}): follow-up emailed to ${people || "contacts"}`,
       sourceUrl: "", createdAt: now,
     })));
     if (data.followUpActivityId) await k.resolveHarvestedActivity(data.followUpActivityId, true);
