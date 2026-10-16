@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ClipboardCheck, Loader2, Mail, RefreshCw, Sparkles, X } from "lucide-react";
+import { CalendarPlus, ClipboardCheck, Loader2, Mail, Mic, RefreshCw, Sparkles, Square, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,9 @@ import { teamMemberFor } from "@/lib/user-ownership";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { appendPortcoList } from "@/lib/portco-list";
 import { completeActionFn, draftFollowUpFn } from "@/utils/actions.functions";
-import { recordEmailSent } from "@/utils/sheets.functions";
+import { addContact, recordEmailSent } from "@/utils/sheets.functions";
+import { searchPeopleFn } from "@/utils/knowledge.functions";
+import { transcribeAudioFn } from "@/utils/voice.functions";
 import { AppendPortcoListButton } from "./AppendPortcoListButton";
 
 export interface ActionContext {
