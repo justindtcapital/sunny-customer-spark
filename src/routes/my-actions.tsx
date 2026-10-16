@@ -3,7 +3,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ExternalLink, Undo2, Zap } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Undo2, Zap } from "lucide-react";
+import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
+import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +17,7 @@ import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { workstreamBarStatus } from "@/lib/workstream-parse";
 import { NotesImports } from "@/components/knowledge/NotesImports";
-import { WorkstreamRow } from "@/components/portfolio/WorkstreamsPanel";
+import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { fetchHomeMomentum } from "@/utils/home.functions";
 import { listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -126,6 +128,12 @@ function SplitPane({ list, detail }: { list: React.ReactNode; detail: React.Reac
 
 const rowCls = (on: boolean) => `block w-full px-3 py-2 text-left hover:bg-muted/40 ${on ? "bg-secondary/60" : ""}`;
 
+function Logo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
+  const { data = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
+  const website = data.find((p) => p.name.toLowerCase().replace(/\s+/g, "") === name.toLowerCase().replace(/\s+/g, ""))?.website || "";
+  return <span className={size === "sm" ? "[&>span]:h-6 [&>span]:w-6 [&_img]:h-full [&_img]:w-full" : ""}><CompanyLogo name={name} website={website} /></span>;
+}
+
 function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
   const { workstreams, loading } = useWorkstreams();
   const [showDone, setShowDone] = useState(false);
@@ -135,6 +143,12 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
   const openCount = mine.filter((w) => !isDone(w)).length;
   const list = useMemo(() => mine.filter((w) => showDone || !isDone(w))
     .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const groups = useMemo(() => {
+    const m = new Map<string, typeof list>();
+    for (const w of list) m.set(w.company, [...(m.get(w.company) || []), w]);
+    return [...m.entries()];
+  }, [list]);
   const sel = list.find((w) => w.gid === selId) || list[0];
   return (
     <div className="space-y-2">
@@ -149,20 +163,40 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
       {loading && <p className="text-sm text-muted-foreground">Loading workstreams…</p>}
       {!loading && !list.length && <p className="text-sm text-muted-foreground">No workstreams for {owner}.</p>}
       {list.length > 0 && <SplitPane
-        list={<div className="divide-y divide-border">{list.map((w) => (
-          <button key={w.gid} onClick={() => setSelId(w.gid)} className={rowCls(sel?.gid === w.gid)}>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="shrink-0 text-[10px]">{w.segment}</Badge>
-              <span className="truncate text-sm font-medium">{w.company} · {w.name}</span>
+        list={<div className="divide-y divide-border">{groups.map(([company, items]) => {
+          const isClosed = closed.has(company);
+          return (
+            <div key={company}>
+              <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(company)) n.delete(company); else n.add(company); return n; })}
+                className="flex w-full items-center gap-2 bg-muted/20 px-3 py-2 text-left hover:bg-muted/40">
+                {isClosed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                <Logo name={company} size="sm" />
+                <span className="flex-1 truncate text-sm font-semibold">{company || "No PortCo"}</span>
+                <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{items.length}</span>
+              </button>
+              {!isClosed && <div className="divide-y divide-border">{items.map((w) => (
+                <button key={w.gid} onClick={() => setSelId(w.gid)} className={`${rowCls(sel?.gid === w.gid)} pl-10`}>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="shrink-0 text-[10px]">{w.segment}</Badge>
+                    <span className="truncate text-sm">{w.name || w.rawName}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
+                    {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
+                  </div>
+                </button>
+              ))}</div>}
             </div>
-            <div className="mt-0.5 truncate text-xs text-muted-foreground">{workstreamBarStatus(w)}{w.workstreamPriority ? ` · ${w.workstreamPriority}` : ""}</div>
-          </button>
-        ))}</div>}
+          );
+        })}</div>}
         detail={sel && <div className="space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <div className="font-display text-base font-semibold">{sel.company} · {sel.name}</div>
-              {sel.nextSteps && <p className="mt-1 text-sm text-muted-foreground">Next: {sel.nextSteps}</p>}
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Logo name={sel.company} />
+              <div className="min-w-0">
+                <div className="font-display text-base font-semibold">{sel.name || sel.rawName}</div>
+                <div className="text-xs text-muted-foreground">{sel.company} · {sel.segment}{sel.owner ? ` · ${sel.owner}` : ""}</div>
+              </div>
             </div>
             <Button size="sm" className="h-8 shrink-0" onClick={() => onAction({
               sourceKind: "workstream", sourceId: `ws:${sel.gid}`, title: `${sel.company} – ${sel.name}`,
@@ -171,7 +205,7 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
               tracks: sel.segment === "BD" || sel.segment === "GTM" ? [sel.segment] : [],
             })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
           </div>
-          <WorkstreamRow key={sel.gid} w={sel} showSegment defaultOpen />
+          <WorkstreamDetail key={sel.gid} w={sel} />
         </div>}
       />}
     </div>
