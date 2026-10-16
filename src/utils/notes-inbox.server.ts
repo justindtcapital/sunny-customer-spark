@@ -425,12 +425,17 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     const isNwk = input.track === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
     const dest = input.folder || (isNwk ? "network" : "portco");
     const primary = portco.split(",")[0]!.trim();
+    const investor = (input.investor || "").trim();
     try {
       const { findOrCreateFolder } = await import("./granola.server");
       const { moveDriveFile } = await import("./drive-notes.server");
       let folderId = "";
       if (dest === "network") { folderId = await findOrCreateFolder("Network Updates", kb, kb); filedTo = "Network Updates"; }
       else if (dest === "operations") { folderId = await findOrCreateFolder("PortCo Operations", kb, kb); filedTo = "PortCo Operations"; }
+      else if (dest === "investor" && investor) {
+        folderId = await findOrCreateFolder(investor, await findOrCreateFolder("Investor Updates", kb, kb), kb);
+        filedTo = `Investor Updates/${investor}`;
+      }
       else if (primary) {
         folderId = await findOrCreateFolder(primary, await findOrCreateFolder("Meeting Notes", kb, kb), kb);
         filedTo = `Meeting Notes/${primary}`;
