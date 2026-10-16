@@ -1,3 +1,4 @@
+import type React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
@@ -14,7 +15,7 @@ import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { workstreamBarStatus } from "@/lib/workstream-parse";
 import { NotesImports } from "@/components/knowledge/NotesImports";
-import { WorkstreamSummary } from "@/components/dashboard/WorkstreamSummary";
+import { WorkstreamRow } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { fetchHomeMomentum } from "@/utils/home.functions";
 import { listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -62,7 +63,7 @@ function MyActionsPage() {
   const set = (p: { tab?: Tab; owner?: string }) => navigate({ search: (s) => ({ ...s, ...p }), replace: true });
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 p-6">
+    <div className="mx-auto max-w-[1600px] space-y-4 p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold">My Actions</h1>
@@ -108,41 +109,71 @@ function NotesTab({ owner, onAction, onCounts }: { owner: string; onAction: (c: 
           </button>
         ))}
       </div>
-      <div className={sub === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onStats={(s) => update("notes", s.pending)} onActionNow={(i) => onAction(fromNote(i, "note"))} /></div>
-      <div className={sub === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onStats={(s) => update("activity", s.pending)} onActionNow={(i) => onAction(fromNote(i, "activity"))} /></div>
+      <div className={sub === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onStats={(s) => update("notes", s.pending)} onActionNow={(i) => onAction(fromNote(i, "note"))} split /></div>
+      <div className={sub === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onStats={(s) => update("activity", s.pending)} onActionNow={(i) => onAction(fromNote(i, "activity"))} split /></div>
     </div>
   );
 }
 
+function SplitPane({ list, detail }: { list: React.ReactNode; detail: React.ReactNode }) {
+  return (
+    <div className="grid gap-3 lg:grid-cols-[minmax(280px,2fr)_3fr]">
+      <Card><CardContent className="max-h-[75vh] overflow-y-auto p-0">{list}</CardContent></Card>
+      <Card className="lg:sticky lg:top-4 self-start w-full"><CardContent className="max-h-[75vh] overflow-y-auto p-4">{detail}</CardContent></Card>
+    </div>
+  );
+}
+
+const rowCls = (on: boolean) => `block w-full px-3 py-2 text-left hover:bg-muted/40 ${on ? "bg-secondary/60" : ""}`;
+
 function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
   const { workstreams, loading } = useWorkstreams();
+  const [showDone, setShowDone] = useState(false);
+  const [selId, setSelId] = useState("");
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
-  const open = mine.filter((w) => !/complete/i.test(workstreamBarStatus(w)));
-  const keys = useMemo(() => [...new Set(mine.map((w) => w.companyKey))], [mine]);
+  const isDone = (w: (typeof mine)[number]) => w.completed || /complete/i.test(workstreamBarStatus(w));
+  const openCount = mine.filter((w) => !isDone(w)).length;
+  const list = useMemo(() => mine.filter((w) => showDone || !isDone(w))
+    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sel = list.find((w) => w.gid === selId) || list[0];
   return (
-    <div className="space-y-4">
-      <Card><CardContent className="p-0">
-        <div className="border-b border-border px-4 py-2 text-xs font-semibold text-muted-foreground">Open workstreams ({open.length})</div>
-        {loading && <p className="p-4 text-sm text-muted-foreground">Loading workstreams…</p>}
-        <div className="divide-y divide-border">
-          {open.map((w) => (
-            <div key={w.gid} className="flex flex-wrap items-center gap-3 px-4 py-2">
-              <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
-              <div className="min-w-[220px] flex-1">
-                <div className="text-sm font-medium">{w.company} · {w.name}</div>
-                <div className="text-xs text-muted-foreground">{workstreamBarStatus(w)}{w.workstreamPriority ? ` · ${w.workstreamPriority}` : ""}{w.nextSteps ? ` · Next: ${w.nextSteps.slice(0, 90)}` : ""}</div>
-              </div>
-              <Button size="sm" variant="outline" className="h-7" onClick={() => onAction({
-                sourceKind: "workstream", sourceId: `ws:${w.gid}`, title: `${w.company} – ${w.name}`,
-                text: [w.notes, w.traction, w.dellStakeholders && `Dell stakeholders: ${w.dellStakeholders}`, w.lastActivity && `Last activity: ${w.lastActivity}`].filter(Boolean).join("\n"),
-                nextSteps: w.nextSteps ? [w.nextSteps] : [], people: [], portcos: [w.company],
-                tracks: w.segment === "BD" || w.segment === "GTM" ? [w.segment] : [],
-              })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
-            </div>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>Major workstreams · {openCount} active · {mine.length - openCount} complete</span>
+        <div className="inline-flex rounded-md border border-border p-0.5">
+          {[false, true].map((v) => (
+            <button key={String(v)} onClick={() => setShowDone(v)} className={`rounded px-2.5 py-1 ${showDone === v ? "bg-secondary text-secondary-foreground" : ""}`}>{v ? "All" : "Active"}</button>
           ))}
         </div>
-      </CardContent></Card>
-      {keys.length > 0 && <WorkstreamSummary keys={keys} scopeLabel={owner} actionOwner={owner} points={[]} />}
+      </div>
+      {loading && <p className="text-sm text-muted-foreground">Loading workstreams…</p>}
+      {!loading && !list.length && <p className="text-sm text-muted-foreground">No workstreams for {owner}.</p>}
+      {list.length > 0 && <SplitPane
+        list={<div className="divide-y divide-border">{list.map((w) => (
+          <button key={w.gid} onClick={() => setSelId(w.gid)} className={rowCls(sel?.gid === w.gid)}>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="shrink-0 text-[10px]">{w.segment}</Badge>
+              <span className="truncate text-sm font-medium">{w.company} · {w.name}</span>
+            </div>
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">{workstreamBarStatus(w)}{w.workstreamPriority ? ` · ${w.workstreamPriority}` : ""}</div>
+          </button>
+        ))}</div>}
+        detail={sel && <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="font-display text-base font-semibold">{sel.company} · {sel.name}</div>
+              {sel.nextSteps && <p className="mt-1 text-sm text-muted-foreground">Next: {sel.nextSteps}</p>}
+            </div>
+            <Button size="sm" className="h-8 shrink-0" onClick={() => onAction({
+              sourceKind: "workstream", sourceId: `ws:${sel.gid}`, title: `${sel.company} – ${sel.name}`,
+              text: [sel.notes, sel.traction, sel.dellStakeholders && `Dell stakeholders: ${sel.dellStakeholders}`, sel.lastActivity && `Last activity: ${sel.lastActivity}`].filter(Boolean).join("\n"),
+              nextSteps: sel.nextSteps ? [sel.nextSteps] : [], people: [], portcos: [sel.company],
+              tracks: sel.segment === "BD" || sel.segment === "GTM" ? [sel.segment] : [],
+            })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
+          </div>
+          <WorkstreamRow key={sel.gid} w={sel} showSegment defaultOpen />
+        </div>}
+      />}
     </div>
   );
 }
@@ -150,31 +181,43 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
 function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
   const ownerEmail = teamMemberFor(owner)?.email || "";
   const fetchHome = useServerFn(fetchHomeMomentum);
+  const [selId, setSelId] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const rows = [...(data?.reminders || [])].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
   if (!ownerEmail) return <p className="text-sm text-muted-foreground">No email on file for {owner}.</p>;
+  if (isLoading) return <p className="text-sm text-muted-foreground">Loading follow-ups…</p>;
+  if (!rows.length) return <p className="text-sm text-muted-foreground">No open follow-ups.</p>;
+  const r = rows.find((x) => x.id === selId) || rows[0]!;
   return (
-    <Card><CardContent className="p-0">
-      {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading follow-ups…</p>}
-      {!isLoading && !rows.length && <p className="p-4 text-sm text-muted-foreground">No open follow-ups.</p>}
-      <div className="divide-y divide-border">
-        {rows.map((r) => (
-          <div key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-2">
-            <Badge variant="outline" className="text-[10px]">{r.source}</Badge>
-            <div className="min-w-[220px] flex-1">
-              <div className="text-sm font-medium">{r.person}{r.company ? ` · ${r.company}` : ""}</div>
-              <div className="text-xs text-muted-foreground">{r.due ? `Due ${r.due}` : "No date"} · {r.summary}</div>
-            </div>
-            {r.campaignId && <Button asChild size="sm" variant="ghost" className="h-7"><Link to="/campaigns">Campaign <ExternalLink className="h-3 w-3 ml-1" /></Link></Button>}
-            <Button size="sm" variant="outline" className="h-7" onClick={() => onAction({
+    <SplitPane
+      list={<div className="divide-y divide-border">{rows.map((x) => (
+        <button key={x.id} onClick={() => setSelId(x.id)} className={rowCls(r.id === x.id)}>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="shrink-0 text-[10px]">{x.source}</Badge>
+            <span className="truncate text-sm font-medium">{x.person}{x.company ? ` · ${x.company}` : ""}</span>
+          </div>
+          <div className="mt-0.5 truncate text-xs text-muted-foreground">{x.due ? `Due ${x.due}` : "No date"} · {x.summary}</div>
+        </button>
+      ))}</div>}
+      detail={<div className="space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="font-display text-base font-semibold">{r.person}{r.company ? ` · ${r.company}` : ""}</div>
+            <div className="text-xs text-muted-foreground">{r.source} · {r.due ? `Due ${r.due}` : "No date"}{r.email ? ` · ${r.email}` : ""}</div>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {r.campaignId && <Button asChild size="sm" variant="ghost" className="h-8"><Link to="/campaigns">Campaign <ExternalLink className="h-3 w-3 ml-1" /></Link></Button>}
+            <Button size="sm" className="h-8" onClick={() => onAction({
               sourceKind: "followup", sourceId: r.activityId || r.id, title: r.summary || `Follow-up with ${r.person}`,
               text: r.originalNote || r.summary, people: [{ name: r.person, email: r.email || "" }],
               portcos: r.source === "Notes" && r.company ? r.company.split(/\s*,\s*/) : [], followUpActivityId: r.activityId,
             })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
           </div>
-        ))}
-      </div>
-    </CardContent></Card>
+        </div>
+        {r.summary && <p className="text-sm">{r.summary}</p>}
+        {r.originalNote && r.originalNote !== r.summary && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{r.originalNote}</div>}
+      </div>}
+    />
   );
 }
 
