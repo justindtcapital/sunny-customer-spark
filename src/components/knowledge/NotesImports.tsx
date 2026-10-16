@@ -352,7 +352,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
       const live = roster.filter((r) => r.status !== "skip");
       const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
         const r = roster.find((x) => x.key === s.who);
-        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: s.who === "__me" ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track, portco: s.portco };
+        const mine = s.who === "__me" || (!!r && r.status === "team" && label(r) === me);
+        return { action: s.action.trim(), who: r ? label(r) : mine ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: mine ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: mine, portco: s.portco };
       });
       await reviewNoteFn({
         data: {
