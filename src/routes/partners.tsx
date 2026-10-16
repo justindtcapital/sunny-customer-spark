@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronDown, ExternalLink, Handshake, Loader2, Plus, Search } from "lucide-react";
+import { ChevronDown, ExternalLink, Handshake, Loader2, MapPin, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { PARTNER_CATEGORIES, type PartnerCategory } from "@/lib/partners";
+import { PARTNER_CATEGORIES, detectPartners, partnerLogoUrl, type Partner, type PartnerCategory } from "@/lib/partners";
+import { useWorkstreams } from "@/lib/use-workstreams";
+import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { loadPartners } from "@/lib/use-partners";
 import { addPartnerFn, fetchPartnerDetailFn, fetchPartnersFn } from "@/utils/partners.functions";
 
@@ -74,7 +76,7 @@ function PartnersPage() {
                 {list.map((p) => (
                   <button key={p.name} type="button" onClick={() => setOpen(p.name)}
                     className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left hover:border-primary/50">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{p.name.slice(0, 2).toUpperCase()}</span>
+                    <PartnerLogo partner={p} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{p.name}</span>
                       <span className="block text-xs text-muted-foreground">{counts[p.name] || 0} contacts</span>
@@ -88,6 +90,27 @@ function PartnersPage() {
       )}
       <PartnerPane name={open} onClose={() => setOpen(null)} />
       <AddPartnerDialog open={adding} onOpenChange={setAdding} onAdded={async () => { await loadPartners(true); await qc.invalidateQueries({ queryKey: ["partners"] }); }} />
+    </div>
+  );
+}
+
+function PartnerLogo({ partner, size = 36 }: { partner: Pick<Partner, "name" | "website">; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  const src = partnerLogoUrl(partner.website);
+  return src && !failed ? (
+    <span className="flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-background" style={{ width: size, height: size }}>
+      <img src={src} alt={`${partner.name} logo`} className="h-3/5 w-3/5 object-contain" onError={() => setFailed(true)} />
+    </span>
+  ) : (
+    <span className="flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary" style={{ width: size, height: size }}>{partner.name.slice(0, 2).toUpperCase()}</span>
+  );
+}
+
+function Stat({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <div className="text-2xl font-bold leading-none">{n}</div>
+      <div className="mt-1 text-[11px] text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -109,10 +132,22 @@ function PartnerPane({ name, onClose }: { name: string | null; onClose: () => vo
   const q = useQuery({ queryKey: ["partner", name], queryFn: () => fetchPartnerDetailFn({ data: { name: name! } }), enabled: !!name });
   const d = q.data;
   const net = d?.contacts.filter((c) => c.where === "Network").length || 0;
+  const { workstreams } = useWorkstreams();
+  const ws = useMemo(() => {
+    if (!d?.partner) return [];
+    const p = d.partner;
+    return workstreams.filter((w) => detectPartners([w.name, w.dellTargets, w.dellStakeholders, w.nextSteps, w.channel, w.category].join(" "), [p]).length > 0);
+  }, [workstreams, d?.partner]);
+  const activeWs = ws.filter((w) => !isWorkstreamCompleted(w)).length;
   return (
     <Sheet open={!!name} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader><SheetTitle>{name}</SheetTitle></SheetHeader>
+        <SheetHeader>
+          <div className="flex items-center gap-3">
+            {d?.partner ? <PartnerLogo partner={d.partner} size={44} /> : null}
+            <SheetTitle>{name}</SheetTitle>
+          </div>
+        </SheetHeader>
         {q.isLoading || !d ? (
           <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
         ) : (
@@ -121,7 +156,15 @@ function PartnerPane({ name, onClose }: { name: string | null; onClose: () => vo
               <Badge variant="secondary">{d.partner?.category}</Badge>
               {d.partner?.website && <a href={d.partner.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Website <ExternalLink className="h-3 w-3" /></a>}
             </div>
+            {d.partner?.location && <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3 w-3" />{d.partner.location}</p>}
+            {d.partner?.summary ? <p className="text-sm">{d.partner.summary}</p> : <p className="text-xs text-muted-foreground">No summary yet{d.partner?.website ? "" : " — add a website to generate one"}.</p>}
             {d.partner?.notes && <p className="text-sm text-muted-foreground">{d.partner.notes}</p>}
+            <div className="grid grid-cols-4 gap-2">
+              <Stat n={d.contacts.length} label="Contacts" />
+              <Stat n={activeWs} label="Active workstreams" />
+              <Stat n={d.activity.filter((a) => a.source === "Note").length} label="Notes" />
+              <Stat n={d.activity.filter((a) => a.source === "Email").length} label="BD/GTM emails" />
+            </div>
             <Collapsible title="Key contacts" count={d.contacts.length}>
               <p className="mb-2 text-xs text-muted-foreground">{net} in Network · {d.contacts.length - net} in Prospecting. They stay on those pages too.</p>
               {d.contacts.length === 0 ? <p className="text-xs text-muted-foreground">No contacts at {name} yet. They'll show up here as soon as one is uploaded or added.</p> : (
@@ -130,6 +173,22 @@ function PartnerPane({ name, onClose }: { name: string | null; onClose: () => vo
                     <li key={`${c.where}:${c.email || c.name}`} className="flex items-center gap-2 py-1.5 text-sm">
                       <span className="flex-1 truncate">{c.name || c.email} <span className="text-xs text-muted-foreground">{c.email}</span></span>
                       <Badge variant="outline" className="text-[10px]">{c.where}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Collapsible>
+            <Collapsible title="Workstreams" count={ws.length} defaultOpen={ws.length > 0}>
+              {ws.length === 0 ? <p className="text-xs text-muted-foreground">No PortCo workstreams mention {name} yet.</p> : (
+                <ul className="divide-y divide-border">
+                  {ws.map((w) => (
+                    <li key={w.gid} className="py-1.5 text-sm">
+                      <div className="truncate">{w.name}</div>
+                      <div className="mt-0.5 flex justify-end gap-1.5">
+                        <Badge variant="outline" className="text-[10px]">{w.company}</Badge>
+                        <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
+                        {w.workstreamStatus && <Badge variant="secondary" className="text-[10px]">{isWorkstreamCompleted(w) ? "Completed" : w.workstreamStatus}</Badge>}
+                      </div>
                     </li>
                   ))}
                 </ul>
