@@ -347,21 +347,22 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
         if (!newName.trim()) throw new Error("Type a name for the new workstream");
         workstream = { action: "create", name: newName.trim(), segment: newSegment };
       } else if (wsChoice) workstream = { action: "confirm", gid: wsChoice, name: workstreams.find((w) => w.gid === wsChoice)?.name || "" };
+      if (folder === "investor" && !investor.trim()) throw new Error("Pick or type the investor this call was with");
       const live = roster.filter((r) => r.status !== "skip");
       const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
         const r = roster.find((x) => x.key === s.who);
-        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: s.who === "__me" ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track };
+        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: s.who === "__me" ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track, portco: s.portco };
       });
       await reviewNoteFn({
         data: {
           recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
           ...(isActivity ? { status: "confirmed" as const, track } : isNetwork ? { track: "Network" } : {}),
           linkContacts: live.filter((r) => r.status === "linked" && r.match?.email).map((r) => r.match!),
-          ...(!isActivity ? { folder, activityTracks: actTracks } : {}),
+          ...(!isActivity ? { folder, activityTracks: actTracks, ...(folder === "investor" ? { investor: investor.trim() } : {}) } : {}),
           addPeople: live.filter((r) => r.status === "add").map((r) => ({ ...r.edit, suggestionId: r.suggestionId || undefined })),
           skipContacts: roster.filter((r) => r.status === "skip" && r.suggestionId).map((r) => r.suggestionId),
           nextSteps: stepOut.map(({ track: _t, ...s }) => s),
-          followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, dueDate: s.dueDate })),
+          followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, dueDate: s.dueDate, portco: s.portco || undefined })),
         },
       });
       toast.success(isActivity ? (isNews ? "Saved as PortCo news." : "Activity registered.") : "Note reviewed.");
