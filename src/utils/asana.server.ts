@@ -898,22 +898,38 @@ async function mapWithConcurrency<T, R>(
 }
 
 
+/** Projects whose custom fields appear on workstream subtasks (PortCo project + the GTM/BD program projects). */
+const FIELD_SOURCE_PROJECTS = () =>
+  [
+    process.env.ASANA_PORTCO_PROJECT_GID,
+    "1210697150461755", // DTC - GTM - PMF / Pitch / Messaging
+    "1210697150461758", // DTC - BD - Sell To Dell
+    "1210708709863068", // DTC - BD - Sell With Dell
+    "1211712303489566", // DTC - GTM Strategy & Dell GTM Leverage
+  ].filter(Boolean) as string[];
+
+type CatalogEntry = WorkstreamFieldMeta & { projectGid: string };
+
 /** Project-level custom field catalog (fields a subtask may not carry yet), keyed by field gid. */
-export async function fetchWorkstreamFieldCatalog(): Promise<Map<string, WorkstreamFieldMeta>> {
-  const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
-  if (!projectGid) return new Map();
-  const cacheKey = `ws-field-catalog:${projectGid}`;
-  const cached = getCached<Array<[string, WorkstreamFieldMeta]>>(cacheKey);
+export async function fetchWorkstreamFieldCatalog(): Promise<Map<string, CatalogEntry>> {
+  const cacheKey = "ws-field-catalog:v2";
+  const cached = getCached<Array<[string, CatalogEntry]>>(cacheKey);
   if (cached) return new Map(cached);
-  const json: { data: { custom_field?: RichField }[] } = await asanaFetch(
-    `/projects/${projectGid}/custom_field_settings?opt_fields=custom_field.gid,custom_field.name,custom_field.resource_subtype,custom_field.type,custom_field.is_formula_field,custom_field.enum_options.gid,custom_field.enum_options.name,custom_field.enum_options.enabled&limit=100`,
-  );
-  const map = new Map<string, WorkstreamFieldMeta>();
-  for (const s of json.data || []) {
-    const f = s.custom_field;
-    if (!f?.gid) continue;
-    const meta = fieldMeta({ ...f, enum_value: undefined, multi_enum_values: undefined, text_value: undefined, number_value: undefined, date_value: undefined });
-    map.set(f.gid, meta);
+  const map = new Map<string, CatalogEntry>();
+  for (const projectGid of FIELD_SOURCE_PROJECTS()) {
+    try {
+      const json: { data: { custom_field?: RichField }[] } = await asanaFetch(
+        `/projects/${projectGid}/custom_field_settings?opt_fields=custom_field.gid,custom_field.name,custom_field.resource_subtype,custom_field.type,custom_field.is_formula_field,custom_field.enum_options.gid,custom_field.enum_options.name,custom_field.enum_options.enabled&limit=100`,
+      );
+      for (const s of json.data || []) {
+        const f = s.custom_field;
+        if (!f?.gid || map.has(f.gid)) continue;
+        const meta = fieldMeta({ ...f, enum_value: undefined, multi_enum_values: undefined, text_value: undefined, number_value: undefined, date_value: undefined });
+        map.set(f.gid, { ...meta, projectGid });
+      }
+    } catch (err) {
+      console.error(`[asana] field catalog failed for project ${projectGid}:`, err);
+    }
   }
   setCached(cacheKey, [...map.entries()]);
   return map;
