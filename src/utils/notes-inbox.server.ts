@@ -37,7 +37,9 @@ export interface NoteReview {
   /** Drive folder the file was moved into on review. */
   filedTo?: string;
   /** Next steps with the person each was assigned to on review (informational, not follow-ups). */
-  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string }>;
+  /** Investor the note was filed under (Investor Updates/<name>). */
+  investor?: string;
   /** Notes: BD and/or GTM activity tracks chosen on review. */
   activityTracks?: string[];
 }
@@ -249,7 +251,7 @@ export interface ReviewNoteInput {
   workstream?: { action: "confirm" | "ignore" | "create"; gid?: string; name?: string; segment?: "GTM" | "BD" };
   addPeople: Array<{ name: string; email: string; company: string; suggestionId?: string }>;
   skipContacts: string[];
-  followUps: Array<{ action: string; who: string; dueDate: string }>;
+  followUps: Array<{ action: string; who: string; dueDate: string; portco?: string }>;
   status?: "confirmed" | "skipped";
   track?: string;
   /** Network/Prospecting people this note is tagged to; each gets a trail entry on confirm. */
