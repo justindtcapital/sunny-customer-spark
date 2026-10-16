@@ -12,4 +12,11 @@ describe("team identity", () => {
     expect(ownerMatches("chrisf@dt-capital.net", "Chris Falloon")).toBe(true);
     expect(ownerMatches("shane@dt-capital.net", "Chris Falloon")).toBe(false);
   });
+  it("recognizes Julia's two DT Capital addresses and Chris Hillock's DT Capital address", () => {
+    expect(teamMemberFor("julia@dt-capital.net")?.displayName).toBe("Julia Beech");
+    expect(teamMemberFor("juliab@dt-capital.net")?.displayName).toBe("Julia Beech");
+    expect(teamProfile("juliab@dt-capital.net")?.email).toBe("julia.beech@dell.com");
+    expect(teamMemberFor("chrish@dt-capital.net")?.displayName).toBe("Chris Hillock");
+    expect(teamProfile("chrish@dt-capital.net")?.email).toBe("chris.hillock@dell.com");
+  });
 });
