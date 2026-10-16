@@ -3,6 +3,7 @@ import { z } from "zod";
 import { scopeMomentum, dedupeReminders, type HomeReminder } from "@/lib/home-momentum";
 import { targetKeyOf } from "@/lib/types";
 import { ownerMatches, teamProfile } from "@/lib/user-ownership";
+import { coreAssignee } from "@/lib/team-next-steps";
 
 const input = z.object({ email: z.string().email(), scope: z.enum(["mine", "team"]) });
 
@@ -75,9 +76,10 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     }
     const sources = new Map(records.map((r) => [r.recordId, r.sourceType]));
     for (const a of activities) {
-      if (a.track !== "Follow-up" || a.resolved || !matches(a.owner)) continue;
+      const assignedOwner = coreAssignee(a.person)?.email || a.owner;
+      if (a.track !== "Follow-up" || a.resolved || !matches(assignedOwner)) continue;
       if (!inbox.isRegisteredActivity(sources.get(a.recordId) || "", reviews.get(a.recordId))) continue;
-      reminders.push({ id: a.activityId, activityId: a.activityId, person: a.person || a.title, company: a.portco, owner: a.owner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl });
+      reminders.push({ id: a.activityId, activityId: a.activityId, person: a.person || a.title, company: a.portco, owner: assignedOwner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl });
     }
     const recordDates = new Map(records.map((r) => [r.recordId, r.createdAt]));
     return { ...scoped, notes: notes.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), emails: emails.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), history: [...noteHistory, ...emailHistory].filter((n) => n.review?.status !== "skipped").map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), reminders: dedupeReminders(reminders), errors, asOf: new Date().toISOString() };

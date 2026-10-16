@@ -681,7 +681,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
 
               {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Steps assigned to you go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
+                <p className="text-xs text-muted-foreground">Team accountabilities · Contact next steps</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
                 {steps.map((s, i) => {
                   const confirmed = roster.filter((r) => (r.status === "linked" || r.status === "add") && !coreAssignee(r.match?.email || r.edit.email) && !coreAssignee(label(r)));
