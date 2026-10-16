@@ -455,6 +455,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     ...(input.track ? { track: input.track } : {}),
     ...(tagged.size ? { contacts: [...tagged.keys()] } : {}),
     ...(input.nextSteps?.length && input.status !== "skipped" ? { nextSteps: input.nextSteps } : {}),
+    ...(input.investor?.trim() && input.status !== "skipped" ? { investor: input.investor.trim() } : {}),
     ...(input.activityTracks?.length && input.status !== "skipped" ? { activityTracks: input.activityTracks } : {}),
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
