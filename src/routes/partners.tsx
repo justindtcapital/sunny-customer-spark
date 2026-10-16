@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -40,11 +39,21 @@ function PartnersPage() {
   const [adding, setAdding] = useState(false);
   const partners = q.data?.partners || [];
   const counts = q.data?.counts || {};
+  const acts = q.data?.activity || {};
+  const { workstreams } = useWorkstreams();
+  const wsCount = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const w of workstreams) {
+      if (isWorkstreamCompleted(w)) continue;
+      for (const n of detectPartners([w.name, w.dellTargets, w.dellStakeholders, w.nextSteps, w.channel, w.category].join(" "), partners)) out[n] = (out[n] || 0) + 1;
+    }
+    return out;
+  }, [workstreams, partners]);
   const shown = useMemo(() => partners.filter((p) =>
     (cat === "all" || p.category === cat) && (!search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()))), [partners, cat, search]);
 
   return (
-    <div className="p-6 max-w-[1200px] mx-auto space-y-4">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-lg font-bold text-foreground"><Handshake className="h-5 w-5 text-primary" />Partners</h1>
         <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4 mr-1" />Add partner</Button>
@@ -61,6 +70,8 @@ function PartnersPage() {
           <Input className="h-9 pl-7 text-sm" placeholder="Search partners" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(360px,440px)_1fr]">
+      <div className="space-y-3 lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto lg:pr-1">
       {q.isLoading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading partners…</div>
       ) : q.isError ? (
@@ -72,14 +83,17 @@ function PartnersPage() {
           return (
             <section key={c} className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{c}</h2>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1">
                 {list.map((p) => (
                   <button key={p.name} type="button" onClick={() => setOpen(p.name)}
-                    className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left hover:border-primary/50">
-                    <PartnerLogo partner={p} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{p.name}</span>
-                      <span className="block text-xs text-muted-foreground">{counts[p.name] || 0} contacts</span>
+                    className={cn("flex w-full items-center gap-2.5 rounded-md border bg-card px-2.5 py-1.5 text-left hover:border-primary/50",
+                      open === p.name ? "border-primary bg-primary/5" : "border-border")}>
+                    <PartnerLogo partner={p} size={26} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.name}</span>
+                    <span className="flex shrink-0 gap-3 text-right">
+                      <MiniStat n={counts[p.name] || 0} label="Contacts" />
+                      <MiniStat n={wsCount[p.name] || 0} label="Streams" />
+                      <MiniStat n={acts[p.name] || 0} label="Activity" />
                     </span>
                   </button>
                 ))}
@@ -88,7 +102,13 @@ function PartnersPage() {
           );
         })
       )}
-      <PartnerPane name={open} onClose={() => setOpen(null)} />
+      </div>
+      <div className="rounded-lg border border-border bg-card lg:max-h-[calc(100vh-180px)] lg:overflow-y-auto">
+        {open ? <PartnerPane name={open} /> : (
+          <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">Select a partner to see its details.</div>
+        )}
+      </div>
+      </div>
       <AddPartnerDialog open={adding} onOpenChange={setAdding} onAdded={async () => { await loadPartners(true); await qc.invalidateQueries({ queryKey: ["partners"] }); }} />
     </div>
   );
@@ -103,6 +123,15 @@ function PartnerLogo({ partner, size = 36 }: { partner: Pick<Partner, "name" | "
     </span>
   ) : (
     <span className="flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary" style={{ width: size, height: size }}>{partner.name.slice(0, 2).toUpperCase()}</span>
+  );
+}
+
+function MiniStat({ n, label }: { n: number; label: string }) {
+  return (
+    <span className="w-12">
+      <span className={cn("block text-sm font-semibold leading-none", n === 0 && "text-muted-foreground")}>{n}</span>
+      <span className="block text-[9px] uppercase tracking-wide text-muted-foreground">{label}</span>
+    </span>
   );
 }
 
@@ -128,8 +157,8 @@ function Collapsible({ title, count, children, defaultOpen = true }: { title: st
   );
 }
 
-function PartnerPane({ name, onClose }: { name: string | null; onClose: () => void }) {
-  const q = useQuery({ queryKey: ["partner", name], queryFn: () => fetchPartnerDetailFn({ data: { name: name! } }), enabled: !!name });
+function PartnerPane({ name }: { name: string }) {
+  const q = useQuery({ queryKey: ["partner", name], queryFn: () => fetchPartnerDetailFn({ data: { name } }) });
   const d = q.data;
   const net = d?.contacts.filter((c) => c.where === "Network").length || 0;
   const { workstreams } = useWorkstreams();
@@ -140,14 +169,11 @@ function PartnerPane({ name, onClose }: { name: string | null; onClose: () => vo
   }, [workstreams, d?.partner]);
   const activeWs = ws.filter((w) => !isWorkstreamCompleted(w)).length;
   return (
-    <Sheet open={!!name} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader>
-          <div className="flex items-center gap-3">
-            {d?.partner ? <PartnerLogo partner={d.partner} size={44} /> : null}
-            <SheetTitle>{name}</SheetTitle>
-          </div>
-        </SheetHeader>
+    <div className="p-4">
+        <div className="flex items-center gap-3">
+          {d?.partner ? <PartnerLogo partner={d.partner} size={44} /> : null}
+          <h2 className="text-lg font-semibold">{name}</h2>
+        </div>
         {q.isLoading || !d ? (
           <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
         ) : (
@@ -214,8 +240,7 @@ function PartnerPane({ name, onClose }: { name: string | null; onClose: () => vo
             </Collapsible>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+    </div>
   );
 }
 
