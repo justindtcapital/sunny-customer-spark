@@ -281,7 +281,7 @@ export interface ReviewNoteInput {
   partners?: string[];
 }
 
-export interface PersonMatch { name: string; email: string; company: string; where: "Network" | "Prospecting" }
+export interface PersonMatch { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" }
 
 /** Read people (name/email/company) from the Contacts and Targets tabs by header name. */
 export async function peopleDirectory(): Promise<PersonMatch[]> {
