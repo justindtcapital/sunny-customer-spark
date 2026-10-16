@@ -37,7 +37,9 @@ export interface NoteReview {
   /** Drive folder the file was moved into on review. */
   filedTo?: string;
   /** Next steps with the person each was assigned to on review (informational, not follow-ups). */
-  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string }>;
+  /** Investor the note was filed under (Investor Updates/<name>). */
+  investor?: string;
   /** Notes: BD and/or GTM activity tracks chosen on review. */
   activityTracks?: string[];
 }
@@ -249,15 +251,17 @@ export interface ReviewNoteInput {
   workstream?: { action: "confirm" | "ignore" | "create"; gid?: string; name?: string; segment?: "GTM" | "BD" };
   addPeople: Array<{ name: string; email: string; company: string; suggestionId?: string }>;
   skipContacts: string[];
-  followUps: Array<{ action: string; who: string; dueDate: string }>;
+  followUps: Array<{ action: string; who: string; dueDate: string; portco?: string }>;
   status?: "confirmed" | "skipped";
   track?: string;
   /** Network/Prospecting people this note is tagged to; each gets a trail entry on confirm. */
   linkContacts?: Array<{ name: string; email: string; company: string; where: string }>;
   /** Where to file the Drive copy on confirm (default: PortCo, or Network Updates for NWK). */
-  folder?: "portco" | "operations" | "network";
+  folder?: "portco" | "operations" | "network" | "investor";
+  /** Investor name when folder is "investor" — filed to Investor Updates/<investor>. */
+  investor?: string;
   /** All next steps with their assigned person; only followUps become tracked follow-ups. */
-  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string }>;
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string }>;
   /** Notes: BD and/or GTM activity tracks chosen on review. */
   activityTracks?: string[];
 }
@@ -379,7 +383,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     await saveHarvestedActivities(input.followUps.map((f, i) => ({
       activityId: sha256Hex(`${r.recordId}:followup:${f.action}:${i}`).slice(0, 24),
       recordId: r.recordId, date: f.dueDate || now.slice(0, 10), track: "Follow-up", type: "follow-up",
-      title: f.action.slice(0, 140), portco: r.portco, person: f.who, owner: input.reviewer,
+      title: f.action.slice(0, 140), portco: f.portco || r.portco, person: f.who, owner: input.reviewer,
       summary: `Follow-up from "${r.title}"${f.dueDate ? ` — due ${f.dueDate}` : ""}`, sourceUrl: r.sourceUrl, createdAt: now,
     })));
   }
@@ -404,7 +408,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     } catch { /* tab missing */ }
     const isNwk = (input.track || "") === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
     const allSteps = input.nextSteps?.length ? input.nextSteps : input.followUps;
-    const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
+    const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.portco ? ` [${f.portco}]` : ""}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
     const due = input.followUps.map((f) => f.dueDate).filter(Boolean).sort()[0] || "";
     const summary = `${isNwk ? "[NWK] " : ""}${r.title}${r.summary ? ` — ${r.summary}` : ""}${steps ? `\nNext steps:\n${steps}` : ""}`.slice(0, 4000);
     await appendInteractionRows([...tagged.keys()].filter((e) => !existing.has(e)).map((email) => ({
@@ -421,12 +425,17 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     const isNwk = input.track === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
     const dest = input.folder || (isNwk ? "network" : "portco");
     const primary = portco.split(",")[0]!.trim();
+    const investor = (input.investor || "").trim();
     try {
       const { findOrCreateFolder } = await import("./granola.server");
       const { moveDriveFile } = await import("./drive-notes.server");
       let folderId = "";
       if (dest === "network") { folderId = await findOrCreateFolder("Network Updates", kb, kb); filedTo = "Network Updates"; }
       else if (dest === "operations") { folderId = await findOrCreateFolder("PortCo Operations", kb, kb); filedTo = "PortCo Operations"; }
+      else if (dest === "investor" && investor) {
+        folderId = await findOrCreateFolder(investor, await findOrCreateFolder("Investor Updates", kb, kb), kb);
+        filedTo = `Investor Updates/${investor}`;
+      }
       else if (primary) {
         folderId = await findOrCreateFolder(primary, await findOrCreateFolder("Meeting Notes", kb, kb), kb);
         filedTo = `Meeting Notes/${primary}`;
@@ -446,6 +455,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     ...(input.track ? { track: input.track } : {}),
     ...(tagged.size ? { contacts: [...tagged.keys()] } : {}),
     ...(input.nextSteps?.length && input.status !== "skipped" ? { nextSteps: input.nextSteps } : {}),
+    ...(input.investor?.trim() && input.status !== "skipped" ? { investor: input.investor.trim() } : {}),
     ...(input.activityTracks?.length && input.status !== "skipped" ? { activityTracks: input.activityTracks } : {}),
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));

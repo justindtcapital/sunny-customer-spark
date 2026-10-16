@@ -304,11 +304,11 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
   const [actTracks, setActTracks] = useState<string[]>(() => (item.track === "BD" || item.track === "GTM" ? [item.track] : []));
-  type Step = { action: string; who: string; other: string; dueDate: string; track: boolean };
+  type Step = { action: string; who: string; other: string; dueDate: string; track: boolean; portco: string };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
     const mine = i >= 0 && item.people[i]!.where === "Team" && item.people[i]!.email === teamProfile(reviewer)?.email;
-    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false };
+    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false, portco: "" };
   }));
   const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const [saving, setSaving] = useState(false);
@@ -316,7 +316,17 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const [track, setTrack] = useState(item.track || "BD");
   const isNews = isActivity && track === "News";
   const isNetwork = track === "Network" || item.track === "Network";
-  const [folder, setFolder] = useState<"portco" | "operations" | "network">(isNetwork ? "network" : "portco");
+  const [folder, setFolder] = useState<"portco" | "operations" | "network" | "investor">(isNetwork ? "network" : "portco");
+  const [investor, setInvestor] = useState("");
+  const [invQ, setInvQ] = useState("");
+  const [invResults, setInvResults] = useState<PersonMatch[]>([]);
+  useEffect(() => {
+    const q = invQ.trim();
+    if (q.length < 2) { setInvResults([]); return; }
+    let live = true;
+    const t = setTimeout(() => { void searchPeopleFn({ data: { q } }).then((r) => { if (live) setInvResults(r); }).catch(() => {}); }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [invQ]);
   const [pq, setPq] = useState("");
   const [results, setResults] = useState<PersonMatch[]>([]);
   useEffect(() => {
@@ -337,21 +347,22 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
         if (!newName.trim()) throw new Error("Type a name for the new workstream");
         workstream = { action: "create", name: newName.trim(), segment: newSegment };
       } else if (wsChoice) workstream = { action: "confirm", gid: wsChoice, name: workstreams.find((w) => w.gid === wsChoice)?.name || "" };
+      if (folder === "investor" && !investor.trim()) throw new Error("Pick or type the investor this call was with");
       const live = roster.filter((r) => r.status !== "skip");
       const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
         const r = roster.find((x) => x.key === s.who);
-        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: s.who === "__me" ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track };
+        return { action: s.action.trim(), who: r ? label(r) : s.who === "__me" ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: s.who === "__me" ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: s.track, portco: s.portco };
       });
       await reviewNoteFn({
         data: {
           recordId: item.recordId, reviewer, portco, workstream: isNews ? undefined : workstream,
           ...(isActivity ? { status: "confirmed" as const, track } : isNetwork ? { track: "Network" } : {}),
           linkContacts: live.filter((r) => r.status === "linked" && r.match?.email).map((r) => r.match!),
-          ...(!isActivity ? { folder, activityTracks: actTracks } : {}),
+          ...(!isActivity ? { folder, activityTracks: actTracks, ...(folder === "investor" ? { investor: investor.trim() } : {}) } : {}),
           addPeople: live.filter((r) => r.status === "add").map((r) => ({ ...r.edit, suggestionId: r.suggestionId || undefined })),
           skipContacts: roster.filter((r) => r.status === "skip" && r.suggestionId).map((r) => r.suggestionId),
           nextSteps: stepOut.map(({ track: _t, ...s }) => s),
-          followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, dueDate: s.dueDate })),
+          followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, dueDate: s.dueDate, portco: s.portco || undefined })),
         },
       });
       toast.success(isActivity ? (isNews ? "Saved as PortCo news." : "Activity registered.") : "Note reviewed.");
@@ -442,10 +453,31 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                 <section className="space-y-1.5">
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">File to</h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {([["portco", "PortCo folder"], ["operations", "PortCo Operations"], ["network", "Network Updates"]] as const).map(([k, l]) => (
+                    {([["portco", "PortCo folder"], ["operations", "PortCo Operations"], ["network", "Network Updates"], ["investor", "Investor Call"]] as const).map(([k, l]) => (
                       <Button key={k} size="sm" variant={folder === k ? "default" : "outline"} onClick={() => setFolder(k)}>{l}</Button>
                     ))}
                   </div>
+                  {folder === "investor" && (
+                    <div className="relative flex flex-wrap items-center gap-2">
+                      <Input className="h-8 w-64 text-xs" placeholder="Investor name — search or type" value={investor || invQ}
+                        onChange={(e) => { setInvestor(""); setInvQ(e.target.value); }} />
+                      {investor && <Badge variant="secondary" className="text-[10px]">Files to Investor Updates/{investor}</Badge>}
+                      {!investor && invResults.length > 0 && (
+                        <div className="absolute z-20 top-8 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">
+                          {invResults.map((m) => (
+                            <button key={`inv:${m.email || m.name}`} type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
+                              onClick={() => { setInvestor(m.name || m.email); setInvQ(""); setInvResults([]); }}>
+                              <span className="flex-1 truncate">{m.name || m.email} <span className="text-muted-foreground">{m.company}</span></span>
+                              <Badge variant="outline" className="text-[10px]">{m.where}</Badge>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {!investor && invQ.trim().length >= 2 && (
+                        <Button size="sm" variant="outline" className="h-7" onClick={() => { setInvestor(invQ.trim()); setInvQ(""); setInvResults([]); }}>Use "{invQ.trim()}"</Button>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">Waits in Unfiled Documents until you confirm. The original author stays on the file.</p>
                 </section>
               )}
@@ -550,7 +582,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                       {r.status === "skip" && <Badge variant="outline" className="text-[10px]">Skipped</Badge>}
                       {r.status === "pending" && <Badge variant="outline" className="text-[10px]">Not matched</Badge>}
                       {r.status !== "team" && <><Button size="sm" variant={linking === r.key ? "secondary" : "outline"} onClick={() => { setLinking(linking === r.key ? null : r.key); setPq(r.status === "pending" && !/^speaker/i.test(r.heard) ? r.heard : ""); }}>{r.status === "linked" ? "Change" : "Search"}</Button>
-                      {r.status !== "linked" && <Button size="sm" variant={r.status === "add" || r.editing ? "secondary" : "outline"} onClick={() => patch(r.key, { editing: !r.editing, status: r.editing ? r.status : "add" })}>Add to contacts</Button>}
+                      {r.status !== "linked" && <Button size="sm" variant={r.status === "add" ? "secondary" : "outline"} onClick={() => patch(r.key, { status: r.status === "add" ? "pending" : "add", editing: r.status !== "add" })}>Add to contacts</Button>}
+                      <Button size="sm" variant={r.editing ? "secondary" : "ghost"} onClick={() => patch(r.key, { editing: !r.editing })}>Edit</Button>
                       {r.status !== "guest" && <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: "guest", match: undefined, editing: false })}>Guest</Button>}
                       <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: r.status === "skip" ? "pending" : "skip", editing: false })}>{r.status === "skip" ? "Undo" : "Skip"}</Button></>}
                     </div>
@@ -564,12 +597,14 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         ))}
                       </div>
                     )}
-                    {r.editing && r.status === "add" && (
+                    {r.editing && (
                       <div className="flex flex-wrap items-center gap-2 pl-2">
                         {(["name", "email", "company"] as const).map((f) => (
                           <Input key={f} className="h-7 w-44 text-xs" placeholder={f[0]!.toUpperCase() + f.slice(1)} value={r.edit[f]}
                             onChange={(e) => patch(r.key, { edit: { ...r.edit, [f]: e.target.value } })} />
                         ))}
+                        <Button size="sm" variant="outline" className="h-7" disabled={!r.edit.name.trim()}
+                          onClick={() => { setLinking(r.key); setPq(r.edit.name.trim()); }}>Search this name</Button>
                       </div>
                     )}
                   </div>
@@ -597,10 +632,19 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
 
               {!isNews && <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Next steps</h4>
-                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Assigned to me" go on your calendar.</p>
+                <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Only ones marked "Assigned to me" go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
                 {steps.map((s, i) => (
                   <div key={i} className="flex flex-wrap items-center gap-2 text-xs">
+                    {!isActivity && (folder !== "portco" || chosen.length > 1) && (
+                      <Select value={s.portco || "__none"} onValueChange={(v) => setStep(i, { portco: v === "__none" ? "" : v })}>
+                        <SelectTrigger className="h-7 w-40 text-xs"><SelectValue placeholder="PortCo" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No PortCo</SelectItem>
+                          {(chosen.length ? chosen : portcos).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v })}>
                       <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Who" /></SelectTrigger>
                       <SelectContent>
@@ -617,7 +661,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                     <button type="button" aria-label="Remove next step" onClick={() => setSteps((x) => x.filter((_, j) => j !== i))}><X className="h-3.5 w-3.5 text-muted-foreground" /></button>
                   </div>
                 ))}
-                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", track: false }])}>+ Next step</Button>
+                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", track: false, portco: "" }])}>+ Next step</Button>
               </section>}
 
               <div className="flex justify-end gap-2">
