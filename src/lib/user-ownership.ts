@@ -21,11 +21,16 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
     aliases: ["falloon, chris", "c. falloon"],
     emails: ["chrisf@dt-capital.net"],
   },
-  "julia.beech@dell.com": { displayName: "Julia Beech", firstName: "Julia" },
+  "julia.beech@dell.com": {
+    displayName: "Julia Beech",
+    firstName: "Julia",
+    emails: ["julia@dt-capital.net", "juliab@dt-capital.net"],
+  },
   "chris.hillock@dell.com": {
     displayName: "Chris Hillock",
     firstName: "Chris",
     aliases: ["hillock, chris"],
+    emails: ["chrish@dt-capital.net"],
   },
   "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane", emails: ["shane@dt-capital.net"] },
 };
