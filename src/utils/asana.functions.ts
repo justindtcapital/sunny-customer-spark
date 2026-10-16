@@ -100,6 +100,26 @@ export const refreshAsanaCacheFn = createServerFn({ method: "POST" }).handler(as
 
 const fieldValue = z.union([z.string().max(5000), z.array(z.string().max(64)).max(100)]);
 
+// Creates a new workstream subtask ("<GTM|BD> -> name") under a PortCo's Asana task.
+export const createWorkstreamFn = createServerFn({ method: "POST" })
+  .inputValidator((data) =>
+    z
+      .object({
+        company: z.string().min(1).max(200),
+        segment: z.enum(["GTM", "BD"]),
+        name: z.string().min(1).max(200),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }): Promise<{ ok: true; workstream: Workstream } | { ok: false; error: string }> => {
+    try {
+      const { createWorkstream } = await import("./asana.server");
+      return { ok: true, workstream: await createWorkstream(data) };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
 // Writes workstream edits back to the Asana subtask (only changed fields).
 export const updateWorkstreamFn = createServerFn({ method: "POST" })
   .inputValidator((data) =>

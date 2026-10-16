@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Undo2, Zap } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Plus, Undo2, Zap } from "lucide-react";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { toast } from "sonner";
@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { createWorkstreamFn } from "@/utils/asana.functions";
 import { useAuth } from "@/lib/auth-context";
 import { teamMemberFor, teamProfile } from "@/lib/user-ownership";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
@@ -135,31 +137,46 @@ function Logo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
 }
 
 function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
-  const { workstreams, loading } = useWorkstreams();
+  const { workstreams, loading, refresh } = useWorkstreams();
   const [showDone, setShowDone] = useState(false);
+  const [priority, setPriority] = useState("");
+  const [creating, setCreating] = useState(false);
   const [selId, setSelId] = useState("");
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
   const isDone = (w: (typeof mine)[number]) => isWorkstreamCompleted(w);
   const openCount = mine.filter((w) => !isDone(w)).length;
-  const list = useMemo(() => mine.filter((w) => showDone || !isDone(w))
-    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone]); // eslint-disable-line react-hooks/exhaustive-deps
+  const priorities = useMemo(() => [...new Set(mine.map((w) => w.workstreamPriority).filter(Boolean))].sort(), [mine]);
+  const list = useMemo(() => mine.filter((w) => (showDone || !isDone(w)) && (!priority || w.workstreamPriority.toLowerCase() === priority.toLowerCase()))
+    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, priority]); // eslint-disable-line react-hooks/exhaustive-deps
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const groups = useMemo(() => {
     const m = new Map<string, typeof list>();
     for (const w of list) m.set(w.company, [...(m.get(w.company) || []), w]);
     return [...m.entries()];
   }, [list]);
+  const companies = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [workstreams]);
   const sel = list.find((w) => w.gid === selId) || list[0];
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>Major workstreams · {openCount} active · {mine.length - openCount} complete</span>
-        <div className="inline-flex rounded-md border border-border p-0.5">
-          {[false, true].map((v) => (
-            <button key={String(v)} onClick={() => setShowDone(v)} className={`rounded px-2.5 py-1 ${showDone === v ? "bg-secondary text-secondary-foreground" : ""}`}>{v ? "All" : "Active"}</button>
-          ))}
+        <div className="flex items-center gap-2">
+          {priorities.length > 0 && (
+            <div className="inline-flex rounded-md border border-border p-0.5">
+              {["", ...priorities].map((p) => (
+                <button key={p || "all"} onClick={() => setPriority(p)} className={`rounded px-2.5 py-1 ${priority === p ? "bg-secondary text-secondary-foreground" : ""}`}>{p || "All priorities"}</button>
+              ))}
+            </div>
+          )}
+          <div className="inline-flex rounded-md border border-border p-0.5">
+            {[false, true].map((v) => (
+              <button key={String(v)} onClick={() => setShowDone(v)} className={`rounded px-2.5 py-1 ${showDone === v ? "bg-secondary text-secondary-foreground" : ""}`}>{v ? "All" : "Active"}</button>
+            ))}
+          </div>
+          <Button size="sm" variant="outline" className="h-7" onClick={() => setCreating((c) => !c)}><Plus className="h-3.5 w-3.5 mr-1" />New workstream</Button>
         </div>
       </div>
+      {creating && <NewWorkstreamForm companies={companies} onDone={(gid) => { setCreating(false); if (gid) { void refresh().then(() => setSelId(gid)); } }} />}
       {loading && <p className="text-sm text-muted-foreground">Loading workstreams…</p>}
       {!loading && !list.length && <p className="text-sm text-muted-foreground">No workstreams for {owner}.</p>}
       {list.length > 0 && <SplitPane
@@ -209,6 +226,40 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
         </div>}
       />}
     </div>
+  );
+}
+
+/** Blank-sheet workstream creator: PortCo, segment and name — the rest is filled in via the detail editor. */
+function NewWorkstreamForm({ companies, onDone }: { companies: string[]; onDone: (gid?: string) => void }) {
+  const create = useServerFn(createWorkstreamFn);
+  const [company, setCompany] = useState(companies[0] || "");
+  const [segment, setSegment] = useState<"GTM" | "BD">("GTM");
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!company || !name.trim()) return;
+    setBusy(true);
+    const res = await create({ data: { company, segment, name: name.trim() } }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
+    setBusy(false);
+    if (!res.ok) { toast.error(res.error); return; }
+    toast.success(`Created "${res.workstream.rawName}" in Asana`);
+    onDone(res.workstream.gid);
+  };
+  return (
+    <Card><CardContent className="flex flex-wrap items-center gap-2 p-3">
+      <Select value={company} onValueChange={setCompany}>
+        <SelectTrigger className="h-8 w-48 text-xs"><SelectValue placeholder="PortCo" /></SelectTrigger>
+        <SelectContent>{companies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+      </Select>
+      <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
+        {(["GTM", "BD"] as const).map((s) => (
+          <button key={s} onClick={() => setSegment(s)} className={`rounded px-2.5 py-1 ${segment === s ? "bg-secondary text-secondary-foreground" : ""}`}>{s}</button>
+        ))}
+      </div>
+      <Input className="h-8 min-w-[220px] flex-1 text-xs" placeholder="Workstream name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Button size="sm" className="h-8" disabled={busy || !company || !name.trim()} onClick={submit}>Create in Asana</Button>
+      <Button size="sm" variant="ghost" className="h-8" disabled={busy} onClick={() => onDone()}>Cancel</Button>
+    </CardContent></Card>
   );
 }
 

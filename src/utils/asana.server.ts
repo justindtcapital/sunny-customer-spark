@@ -710,7 +710,7 @@ const WORKSTREAM_FIELD_PATTERNS: Array<[keyof Workstream, RegExp[]]> = [
   ["targets", [/^targets?$/i, /dell\s*targets?/i]],
   ["sageTapStatus", [/sage\s*tap/i]],
   ["lastPitchReviewed", [/last\s*pitch/i]],
-  ["gtmMaturity", [/(gtm|go[\s-]*to[\s-]*market).*maturity/i]],
+  ["gtmMaturity", [/(gtm|go[\s-]*to[\s-]*market).*maturity/i, /sell[\s-]*with[\s-]*dell.*maturity/i]],
   ["salesMaturity", [/sales.*maturity/i]],
 ];
 
@@ -847,11 +847,24 @@ export async function updateWorkstream(input: {
     `/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS},parent.name`,
   );
   const current = new Map(((before.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
+  let catalog: Map<string, WorkstreamFieldMeta & { projectGid: string }> | null = null;
   for (const c of input.changes) {
-    const m = current.get(c.gid);
-    if (!m) throw new Error("A field no longer exists on this Asana task — refresh and try again.");
+    let m = current.get(c.gid);
+    if (!m) {
+      // Field not on the task yet — attach it via its owning project, then write.
+      catalog = catalog || (await fetchWorkstreamFieldCatalog());
+      const cat = catalog.get(c.gid);
+      if (!cat) throw new Error("A field no longer exists on this Asana task — refresh and try again.");
+      if (!sameValue(cat.value, c.original)) {
+        throw new Error(`"${cat.name}" already has a value in Asana — refresh and try again.`);
+      }
+      await asanaWrite(`/tasks/${input.gid}/addProject`, "POST", { data: { project: cat.projectGid } });
+      const re: { data: AsanaTask } = await asanaFetch(`/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS}`);
+      const fresh = new Map(((re.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
+      m = fresh.get(c.gid) || cat;
+    }
     if (!m.editable) throw new Error(`"${m.name}" can't be edited.`);
-    if (!sameValue(m.value, c.original)) {
+    if (current.has(c.gid) && !sameValue(m.value, c.original)) {
       throw new Error(`"${m.name}" was changed in Asana since you opened it — refresh and try again.`);
     }
     if (m.type === "enum" || m.type === "multi_enum") {
@@ -888,6 +901,58 @@ async function mapWithConcurrency<T, R>(
 }
 
 
+/** Projects whose custom fields appear on workstream subtasks (PortCo project + the GTM/BD program projects). */
+const FIELD_SOURCE_PROJECTS = () =>
+  [
+    process.env.ASANA_PORTCO_PROJECT_GID,
+    "1210697150461755", // DTC - GTM - PMF / Pitch / Messaging
+    "1210697150461758", // DTC - BD - Sell To Dell
+    "1210708709863068", // DTC - BD - Sell With Dell
+    "1211712303489566", // DTC - GTM Strategy & Dell GTM Leverage
+  ].filter(Boolean) as string[];
+
+type CatalogEntry = WorkstreamFieldMeta & { projectGid: string };
+
+/** Project-level custom field catalog (fields a subtask may not carry yet), keyed by field gid. */
+export async function fetchWorkstreamFieldCatalog(): Promise<Map<string, CatalogEntry>> {
+  const cacheKey = "ws-field-catalog:v2";
+  const cached = getCached<Array<[string, CatalogEntry]>>(cacheKey);
+  if (cached) return new Map(cached);
+  const map = new Map<string, CatalogEntry>();
+  for (const projectGid of FIELD_SOURCE_PROJECTS()) {
+    try {
+      const json: { data: { custom_field?: RichField }[] } = await asanaFetch(
+        `/projects/${projectGid}/custom_field_settings?opt_fields=custom_field.gid,custom_field.name,custom_field.resource_subtype,custom_field.type,custom_field.is_formula_field,custom_field.enum_options.gid,custom_field.enum_options.name,custom_field.enum_options.enabled&limit=100`,
+      );
+      for (const s of json.data || []) {
+        const f = s.custom_field;
+        if (!f?.gid || map.has(f.gid)) continue;
+        const meta = fieldMeta({ ...f, enum_value: undefined, multi_enum_values: undefined, text_value: undefined, number_value: undefined, date_value: undefined });
+        map.set(f.gid, { ...meta, projectGid });
+      }
+    } catch (err) {
+      console.error(`[asana] field catalog failed for project ${projectGid}:`, err);
+    }
+  }
+  setCached(cacheKey, [...map.entries()]);
+  return map;
+}
+
+/** Attach editable metadata (empty value) for project fields a subtask doesn't carry yet. */
+function attachCatalogFields(w: Workstream, catalogByName: Record<string, WorkstreamFieldMeta>): Workstream {
+  const editable = { ...(w.editable || {}) };
+  let added = false;
+  for (const [key, res] of WORKSTREAM_FIELD_PATTERNS) {
+    if (editable[key]) continue;
+    const m = findByPatterns(catalogByName, res);
+    if (m && m.editable) {
+      editable[key] = { ...m, value: m.type === "multi_enum" ? [] : "" };
+      added = true;
+    }
+  }
+  return added ? { ...w, editable } : w;
+}
+
 export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
   if (!projectGid) return [];
@@ -910,7 +975,15 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
     }
   });
 
-  const flat = results.flat();
+  let flat = results.flat();
+  try {
+    const catalog = await fetchWorkstreamFieldCatalog();
+    const byName: Record<string, WorkstreamFieldMeta> = {};
+    for (const m of catalog.values()) byName[m.name] = m;
+    flat = flat.map((w) => attachCatalogFields(w, byName));
+  } catch (err) {
+    console.error("[asana] field catalog failed (fields not on a task stay read-only):", err);
+  }
   setCached(cacheKey, flat);
   return flat;
 }
