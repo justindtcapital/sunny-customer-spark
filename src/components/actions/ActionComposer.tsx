@@ -88,9 +88,72 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
     setPortcos(ctx.portcos.filter(Boolean));
     setTracks(ctx.tracks || []);
     setSubject(""); setBody(""); setNudge(""); setLogNote("");
+    setPersonQ(""); setPersonResults([]); setAddingNew(false); setFuDate(""); setFuNote("");
     if (obvious(ctx)) { setMode("email"); void run(); } else setMode("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
+
+  // People search across Network + Prospecting.
+  useEffect(() => {
+    const q = personQ.trim();
+    if (q.length < 2) { setPersonResults([]); return; }
+    let live = true;
+    setSearching(true);
+    const t = setTimeout(() => {
+      void searchPeople({ data: { q } })
+        .then((r) => { if (live) setPersonResults(r.filter((p) => !to.some((x) => x.email && x.email === p.email))); })
+        .catch(() => {})
+        .finally(() => { if (live) setSearching(false); });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [personQ, to, searchPeople]);
+
+  const pickPerson = (p: { name: string; email: string }) => {
+    setTo((x) => (x.some((t) => t.email === p.email) ? x : [...x, { name: p.name, email: p.email }]));
+    setPersonQ(""); setPersonResults([]);
+  };
+
+  const addNewContact = async () => {
+    if (!newName.trim()) { toast.error("Enter a name."); return; }
+    try {
+      await addContact({ data: { name: newName.trim(), role: "", company: newCompany.trim(), email: newEmail.trim(), phone: "", location: "", prime: "", sector: "", temperature: "Cold", source: "Action Now" } });
+      pickPerson({ name: newName.trim(), email: newEmail.trim() });
+      setAddingNew(false); setNewName(""); setNewEmail(""); setNewCompany("");
+      toast.success("Contact added to Network");
+    } catch (e) { console.error(e); toast.error("Couldn't add the contact."); }
+  };
+
+  // Voice dictate: transcribe, then draft the email from what was said.
+  const startDictation = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const r = new MediaRecorder(stream);
+      chunks.current = [];
+      r.ondataavailable = (e) => { if (e.data.size) chunks.current.push(e.data); };
+      r.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks.current, { type: r.mimeType || "audio/webm" });
+        if (!blob.size) return;
+        setBusy("draft");
+        try {
+          const buf = await blob.arrayBuffer();
+          let bin = ""; const bytes = new Uint8Array(buf);
+          for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          const res = await transcribe({ data: { base64: btoa(bin), mimeType: blob.type } });
+          if (res.error) { toast.error(res.error); return; }
+          setNudge(res.text);
+          void run(`Say this: ${res.text}`);
+        } catch { toast.error("Couldn't transcribe the recording"); }
+        finally { setBusy(""); }
+      };
+      r.start();
+      rec.current = r;
+      setRecording(true);
+    } catch { toast.error("Microphone access was blocked"); }
+  };
+  const stopDictation = () => { rec.current?.stop(); setRecording(false); };
+
+  const nextFollowUp = fuDate ? { date: fuDate, note: fuNote.trim() } : undefined;
 
   const send = async () => {
     if (!ctx || !to.length) { toast.error("Add at least one recipient."); return; }
@@ -99,7 +162,7 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
     setBusy("send");
     try {
       await Promise.all(to.map((t) => recordEmailSent({ data: { contactEmail: t.email, contactName: t.name, subject, emailType: portcos.length ? "PortCo" : "General", linkedPortcos: portcos } }).catch((e) => console.error(e))));
-      await complete({ data: { sourceKind: ctx.sourceKind, sourceId: ctx.sourceId, subject, recipients: to, portcos, tracks, actor: email || "", followUpActivityId: ctx.followUpActivityId } });
+      await complete({ data: { sourceKind: ctx.sourceKind, sourceId: ctx.sourceId, subject, recipients: to, portcos, tracks, actor: email || "", followUpActivityId: ctx.followUpActivityId, nextFollowUp } });
       toast.success("Opened Outlook · logged and marked done");
       onDone?.();
       onClose();
