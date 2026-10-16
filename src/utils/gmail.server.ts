@@ -222,12 +222,8 @@ function parseAddr(v: string): { name: string; email: string } {
 }
 
 function toLabel(ms: number): string {
-  const ny = msToIsoDay(ms);
-  const utc = msToIsoDay(ms, "UTC");
-  return ny;
+  return msToIsoDay(ms);
 }
-
-const gmailDateDbg = { calls: 0, shifted: 0, samples: [] as { ny: string; utc: string }[] };
 
 async function getMessage(token: string, id: string, mailbox?: string): Promise<GmailMessage | null> {
   let res: Response;
@@ -701,9 +697,6 @@ async function fetchTrackFromAliases(
 // records so they flow through the same sheet + contact-match pipeline as Asana.
 // Requires the aliases to deliver into the Google mailbox backing GOOGLE_REFRESH_TOKEN.
 export async function fetchAliasActivities(): Promise<AsanaActivity[]> {
-  gmailDateDbg.calls = 0;
-  gmailDateDbg.shifted = 0;
-  gmailDateDbg.samples = [];
   const bd = parseAliasList(process.env.GMAIL_BD_ALIAS);
   const gtm = parseAliasList(process.env.GMAIL_GTM_ALIAS);
   // Still run when aliases are empty: subject classifier (DTC:/GTM Discussion)
