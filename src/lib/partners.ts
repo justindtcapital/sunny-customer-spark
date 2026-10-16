@@ -11,20 +11,30 @@ export interface Partner {
   notes: string;
   /** Extra company spellings that identify this partner (comma-separated in the sheet). */
   aliases: string[];
+  /** One-paragraph description, generated once from the website. */
+  summary?: string;
+  location?: string;
+}
+
+/** Favicon/logo URL for a partner website (Google's favicon service). */
+export function partnerLogoUrl(website: string): string {
+  const host = (website || "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  return host ? `https://www.google.com/s2/favicons?domain=${host}&sz=128` : "";
 }
 
 export const SEED_PARTNERS: Array<Pick<Partner, "name" | "category" | "website"> & { aliases?: string[] }> = [
   { name: "Dell", category: "Dell", website: "https://www.dell.com", aliases: ["Dell Technologies", "Dell Inc"] },
   { name: "Trace3", category: "Resellers & Integrators", website: "https://www.trace3.com" },
   { name: "Redesign Group", category: "Resellers & Integrators", website: "https://www.redesign-group.com" },
-  { name: "Arctic", category: "Resellers & Integrators", website: "" },
+  { name: "Arctiq", category: "Resellers & Integrators", website: "https://arctiq.com", aliases: ["Arctic"] },
+  { name: "Crush Security", category: "Resellers & Integrators", website: "https://www.crushsecurity.com", aliases: ["Crush"] },
   { name: "WWT", category: "Resellers & Integrators", website: "https://www.wwt.com", aliases: ["World Wide Technology"] },
   { name: "NVIDIA", category: "Tech Partners", website: "https://www.nvidia.com" },
   { name: "Intel", category: "Tech Partners", website: "https://www.intel.com", aliases: ["Intel Corporation"] },
   { name: "AWS", category: "Tech Partners", website: "https://aws.amazon.com", aliases: ["Amazon Web Services"] },
-  { name: "Vation", category: "Vendors", website: "" },
+  { name: "Vation", category: "Vendors", website: "https://www.vationventures.com", aliases: ["Vation Ventures"] },
   { name: "GetProven", category: "Vendors", website: "https://www.getproven.com" },
-  { name: "GBI Impact", category: "Vendors", website: "" },
+  { name: "GBI Impact", category: "Vendors", website: "https://www.gbiimpact.com" },
 ];
 
 export function normalizeCategory(v: string): PartnerCategory {
