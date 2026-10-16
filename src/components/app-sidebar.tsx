@@ -12,6 +12,7 @@ import {
   Loader2,
   ScrollText,
   Megaphone,
+  Handshake,
   Inbox,
 } from "lucide-react";
 import {
