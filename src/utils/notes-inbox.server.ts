@@ -408,7 +408,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     } catch { /* tab missing */ }
     const isNwk = (input.track || "") === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
     const allSteps = input.nextSteps?.length ? input.nextSteps : input.followUps;
-    const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
+    const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.portco ? ` [${f.portco}]` : ""}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
     const due = input.followUps.map((f) => f.dueDate).filter(Boolean).sort()[0] || "";
     const summary = `${isNwk ? "[NWK] " : ""}${r.title}${r.summary ? ` — ${r.summary}` : ""}${steps ? `\nNext steps:\n${steps}` : ""}`.slice(0, 4000);
     await appendInteractionRows([...tagged.keys()].filter((e) => !existing.has(e)).map((email) => ({
