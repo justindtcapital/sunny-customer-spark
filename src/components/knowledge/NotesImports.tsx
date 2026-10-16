@@ -566,7 +566,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
               </section>
 
               {!isNews && <section className="space-y-1.5">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">People in this meeting</h4>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{isActivity ? "People in this email" : "People in this meeting"}</h4>
                 <p className="text-xs text-muted-foreground">Linked people get this {isActivity ? "email" : "note"} on their contact card{isNetwork ? " as a Network conversation" : ""} and can be assigned next steps.</p>
                 {roster.length === 0 && <p className="text-xs text-muted-foreground">No people found — search below to add someone.</p>}
                 {roster.map((r) => (
