@@ -577,6 +577,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         {r.match ? <span className="text-muted-foreground"> {r.match.company && `· ${r.match.company}`}</span> : r.edit.email && <span className="text-muted-foreground"> {r.edit.email}</span>}
                         {r.match && r.heard && r.heard.toLowerCase() !== r.match.name.toLowerCase() && <span className="text-muted-foreground"> (heard as "{r.heard}")</span>}
                       </span>
+                      {(r.status === "team" || r.status === "linked") && <Check className="h-3.5 w-3.5 text-green-600" aria-label="Confirmed" />}
+                      {r.status === "pending" && <HelpCircle className="h-3.5 w-3.5 text-yellow-500" aria-label="Needs matching" />}
                       {r.status === "team" && <Badge variant="secondary" className="text-[10px]">{label(r) === me ? "You" : "Team"}</Badge>}
                       {r.status === "linked" && <Badge variant="secondary" className="text-[10px]">{r.match?.where || "Added"}</Badge>}
                       {r.status === "add" && <Badge variant="secondary" className="text-[10px]">Will add to contacts</Badge>}
