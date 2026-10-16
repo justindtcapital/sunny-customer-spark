@@ -425,7 +425,7 @@ const STATUS_DOT: [RegExp, string][] = [
   [/stalled|blocked/i, "bg-red-500"],
   [/early|not started|on hold/i, "bg-zinc-400"],
   [/working|progress|active/i, "bg-emerald-500"],
-  [/complete|done/i, "bg-sky-500"],
+  [/^(completed?|done)$/i, "bg-sky-500"],
 ];
 const PRIORITY_DOT: [RegExp, string][] = [
   [/high|needle/i, "bg-red-500"],
@@ -520,7 +520,7 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children, initial
     return workstreams.filter((w) => set.has(w.companyKey) && (!owner || ownerMatches(w.owner, owner)));
   }, [workstreams, keys, owner]);
   const statuses = ws.map((w) => workstreamBarStatus(w));
-  const done = statuses.filter((s) => /complete/i.test(s)).length;
+  const done = statuses.filter((s) => s === "Completed").length;
   return (
     <div className="space-y-3">
       <SummaryCard title="Workstreams" sub={scopeLabel} onManage={() => void go({ to: "/my-actions", search: { tab: "workstreams", owner } })}>

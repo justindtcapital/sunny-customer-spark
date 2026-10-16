@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useWorkstreams } from "@/lib/use-workstreams";
+import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import {
   fetchNotesInboxFn,
   reopenNoteFn,
@@ -283,7 +284,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const primary = chosen[0] || "";
   const companyWs = useMemo(() => {
     const set = new Set(chosen.map((c) => c.toLowerCase()));
-    return workstreams.filter((w) => set.has(w.company.toLowerCase()) && !/complete/i.test(w.workstreamStatus || ""));
+    return workstreams.filter((w) => set.has(w.company.toLowerCase()) && !isWorkstreamCompleted(w));
   }, [workstreams, chosen.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
   const sugg = item.link && item.link.status !== "ignored" ? item.link : null;
   const suggestedGid = sugg?.workstreamGid && workstreams.some((w) => w.gid === sugg.workstreamGid) ? sugg.workstreamGid : "";

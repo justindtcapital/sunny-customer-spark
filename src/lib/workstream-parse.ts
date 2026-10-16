@@ -153,6 +153,11 @@ export function workstreamBarStatus(w: Pick<Workstream, "completed" | "workstrea
   return w.completed || /^(complete|completed)$/i.test(status) ? "Completed" : status || "Not set";
 }
 
+/** True only when the workstream is actually completed — "Working to Complete" is still active. */
+export function isWorkstreamCompleted(w: Pick<Workstream, "completed" | "workstreamStatus">): boolean {
+  return workstreamBarStatus(w) === "Completed";
+}
+
 export function initialsOf(name: string): string {
   const parts = (name || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "";

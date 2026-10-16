@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth-context";
 import { teamMemberFor, teamProfile } from "@/lib/user-ownership";
 import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
 import { useWorkstreams } from "@/lib/use-workstreams";
-import { workstreamBarStatus } from "@/lib/workstream-parse";
+import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-parse";
 import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
@@ -139,7 +139,7 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
   const [showDone, setShowDone] = useState(false);
   const [selId, setSelId] = useState("");
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
-  const isDone = (w: (typeof mine)[number]) => w.completed || /complete/i.test(workstreamBarStatus(w));
+  const isDone = (w: (typeof mine)[number]) => isWorkstreamCompleted(w);
   const openCount = mine.filter((w) => !isDone(w)).length;
   const list = useMemo(() => mine.filter((w) => showDone || !isDone(w))
     .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone]); // eslint-disable-line react-hooks/exhaustive-deps

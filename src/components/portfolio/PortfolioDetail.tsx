@@ -70,7 +70,7 @@ import { EditPortfolioCompanyDialog } from "./EditPortfolioCompanyDialog";
 import { PortcoSignalsPanel } from "./PortcoSignalsPanel";
 import { StatSection } from "./StatSection";
 import { PortcoCampaigns } from "./PortcoCampaigns";
-import { workstreamBarStatus } from "@/lib/workstream-parse";
+import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-parse";
 import { portcoMatches, useKnowledge } from "@/lib/use-knowledge";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
@@ -855,8 +855,8 @@ export function PortfolioDetail({
                 title="Workstreams"
                 stats={[
                   { label: "Streams", value: workstreamsLoading ? "…" : companyWorkstreams.length },
-                  { label: "Active", value: companyWorkstreams.filter((w) => !/complete/i.test(workstreamBarStatus(w))).length },
-                  { label: "Completed", value: companyWorkstreams.filter((w) => /complete/i.test(workstreamBarStatus(w))).length },
+                  { label: "Active", value: companyWorkstreams.filter((w) => !isWorkstreamCompleted(w)).length },
+                  { label: "Completed", value: companyWorkstreams.filter((w) => isWorkstreamCompleted(w)).length },
                 ]}
                 dots={companyWorkstreams.reduce<Record<string, number>>((o, w) => { const k = w.segment || "Other"; o[k] = (o[k] || 0) + 1; return o; }, {})}
               >
