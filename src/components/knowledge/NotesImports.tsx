@@ -453,10 +453,31 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                 <section className="space-y-1.5">
                   <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">File to</h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {([["portco", "PortCo folder"], ["operations", "PortCo Operations"], ["network", "Network Updates"]] as const).map(([k, l]) => (
+                    {([["portco", "PortCo folder"], ["operations", "PortCo Operations"], ["network", "Network Updates"], ["investor", "Investor Call"]] as const).map(([k, l]) => (
                       <Button key={k} size="sm" variant={folder === k ? "default" : "outline"} onClick={() => setFolder(k)}>{l}</Button>
                     ))}
                   </div>
+                  {folder === "investor" && (
+                    <div className="relative flex flex-wrap items-center gap-2">
+                      <Input className="h-8 w-64 text-xs" placeholder="Investor name — search or type" value={investor || invQ}
+                        onChange={(e) => { setInvestor(""); setInvQ(e.target.value); }} />
+                      {investor && <Badge variant="secondary" className="text-[10px]">Files to Investor Updates/{investor}</Badge>}
+                      {!investor && invResults.length > 0 && (
+                        <div className="absolute z-20 top-8 max-h-56 w-64 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">
+                          {invResults.map((m) => (
+                            <button key={`inv:${m.email || m.name}`} type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
+                              onClick={() => { setInvestor(m.name || m.email); setInvQ(""); setInvResults([]); }}>
+                              <span className="flex-1 truncate">{m.name || m.email} <span className="text-muted-foreground">{m.company}</span></span>
+                              <Badge variant="outline" className="text-[10px]">{m.where}</Badge>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {!investor && invQ.trim().length >= 2 && (
+                        <Button size="sm" variant="outline" className="h-7" onClick={() => { setInvestor(invQ.trim()); setInvQ(""); setInvResults([]); }}>Use "{invQ.trim()}"</Button>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">Waits in Unfiled Documents until you confirm. The original author stays on the file.</p>
                 </section>
               )}
