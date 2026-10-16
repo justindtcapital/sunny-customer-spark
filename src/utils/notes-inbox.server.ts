@@ -342,17 +342,21 @@ export async function personContext(person: { name?: string; email?: string }): 
   return out.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 50);
 }
 
-export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
+export async function reviewNote(input: ReviewNoteInput, step: (name: string) => void = () => {}): Promise<NoteReview> {
   if (input.status !== "skipped") {
     input.nextSteps = input.nextSteps?.map(normalizeAssignedStep);
     input.followUps = (input.nextSteps || input.followUps).filter((s) => coreAssignee(s.whoEmail) || coreAssignee(s.who)).map(normalizeAssignedStep);
   }
+  step("reading the note");
   const records = await listKnowledgeRecords();
   const r = records.find((x) => x.recordId === input.recordId);
   if (!r) throw new Error("Note not found");
   const portco = (input.portco || "").trim();
+  step("updating PortCo and track tags");
   if (portco !== r.portco) await retagPortco(r.recordId, portco);
   if (input.track) await retagTrack(r.recordId, input.track);
+
+  step("linking the workstream");
 
   const links = await listWorkstreamLinks();
   const link = links.find((l) => l.recordId === r.recordId);
@@ -382,6 +386,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
   }
 
   let added = 0;
+  step("adding contacts");
   if (input.addPeople.length) {
     const { addContactRow } = await import("./sheets.server");
     for (const c of input.addPeople) {
@@ -401,6 +406,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
   for (const id of input.skipContacts) await reviewSuggestedContact(id, "ignored");
 
   const now = new Date().toISOString();
+  step("saving follow-ups");
   if (input.followUps.length) {
     await saveHarvestedActivities(input.followUps.map((f, i) => ({
       activityId: sha256Hex(`${r.recordId}:followup:${f.action}:${i}`).slice(0, 24),
@@ -419,6 +425,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     }
   }
   if (tagged.size) {
+    step("updating contact trails");
     const { appendInteractionRows } = await import("./sheets.server");
     const sourceRef = `kb:${r.recordId}`;
     const existing = new Set<string>();
@@ -449,6 +456,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     const dest = input.folder || (isNwk ? "network" : "portco");
     const primary = portco.split(",")[0]!.trim();
     const investor = (input.investor || "").trim();
+    step("filing the Drive copy");
     try {
       const { findOrCreateFolder } = await import("./granola.server");
       const { moveDriveFile } = await import("./drive-notes.server");
@@ -482,7 +490,9 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     ...(input.activityTracks?.length && input.status !== "skipped" ? { activityTracks: input.activityTracks } : {}),
     ...(input.partners?.length && input.status !== "skipped" ? { partners: input.partners } : {}),
   };
+  step("recording the review");
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
+  step("done");
   return review;
 }
 
