@@ -1,7 +1,7 @@
 import type React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Plus, Undo2, Zap } from "lucide-react";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
