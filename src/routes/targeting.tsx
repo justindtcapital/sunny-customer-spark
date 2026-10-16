@@ -1,3 +1,4 @@
+import { PartnerChip } from "@/components/crm/PartnerChip";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useFilterOptions } from "@/lib/filter-options-context";
@@ -1964,6 +1965,7 @@ function TargetingPage() {
                         {activeTarget.title || "No title"} · {activeTarget.company || "No company"}{" "}
                         · {activeTarget.location || "No location"}
                       </SheetDescription>
+                      <PartnerChip company={activeTarget.company || ""} />
                     </div>
                   </div>
                   <Badge

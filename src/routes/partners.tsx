@@ -1,0 +1,200 @@
+import { useMemo, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ChevronDown, ExternalLink, Handshake, Loader2, Plus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import { PARTNER_CATEGORIES, type PartnerCategory } from "@/lib/partners";
+import { loadPartners } from "@/lib/use-partners";
+import { addPartnerFn, fetchPartnerDetailFn, fetchPartnersFn } from "@/utils/partners.functions";
+
+export const Route = createFileRoute("/partners")({
+  head: () => ({
+    meta: [
+      { title: "Partners — VenturePulse" },
+      { name: "description", content: "Dell, resellers and integrators, tech partners and vendors, with their contacts and tagged activity." },
+      { property: "og:title", content: "Partners — VenturePulse" },
+      { property: "og:description", content: "Dell, resellers and integrators, tech partners and vendors, with their contacts and tagged activity." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: PartnersPage,
+});
+
+function PartnersPage() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["partners"], queryFn: () => fetchPartnersFn(), staleTime: 30_000 });
+  const [cat, setCat] = useState<PartnerCategory | "all">("all");
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const partners = q.data?.partners || [];
+  const counts = q.data?.counts || {};
+  const shown = useMemo(() => partners.filter((p) =>
+    (cat === "all" || p.category === cat) && (!search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()))), [partners, cat, search]);
+
+  return (
+    <div className="p-6 max-w-[1200px] mx-auto space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="flex items-center gap-2 text-lg font-bold text-foreground"><Handshake className="h-5 w-5 text-primary" />Partners</h1>
+        <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4 mr-1" />Add partner</Button>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {(["all", ...PARTNER_CATEGORIES] as const).map((c) => (
+          <Button key={c} size="sm" variant={cat === c ? "default" : "outline"} onClick={() => setCat(c)}>
+            {c === "all" ? "All" : c}
+            <span className="ml-1.5 text-xs opacity-70">{c === "all" ? partners.length : partners.filter((p) => p.category === c).length}</span>
+          </Button>
+        ))}
+        <div className="relative ml-auto w-64">
+          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input className="h-9 pl-7 text-sm" placeholder="Search partners" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+      </div>
+      {q.isLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading partners…</div>
+      ) : q.isError ? (
+        <p className="text-sm text-destructive">Couldn't load partners: {(q.error as Error).message}</p>
+      ) : (
+        PARTNER_CATEGORIES.filter((c) => cat === "all" || c === cat).map((c) => {
+          const list = shown.filter((p) => p.category === c);
+          if (!list.length) return null;
+          return (
+            <section key={c} className="space-y-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{c}</h2>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {list.map((p) => (
+                  <button key={p.name} type="button" onClick={() => setOpen(p.name)}
+                    className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left hover:border-primary/50">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{p.name.slice(0, 2).toUpperCase()}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{p.name}</span>
+                      <span className="block text-xs text-muted-foreground">{counts[p.name] || 0} contacts</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          );
+        })
+      )}
+      <PartnerPane name={open} onClose={() => setOpen(null)} />
+      <AddPartnerDialog open={adding} onOpenChange={setAdding} onAdded={async () => { await loadPartners(true); await qc.invalidateQueries({ queryKey: ["partners"] }); }} />
+    </div>
+  );
+}
+
+function Collapsible({ title, count, children, defaultOpen = true }: { title: string; count: number; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="rounded-lg border border-border">
+      <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-left" onClick={() => setOpen(!open)}>
+        <span className="text-sm font-semibold">{title}</span>
+        <span className="flex items-center gap-2 text-2xl font-bold">{count}<ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} /></span>
+      </button>
+      {open && <div className="border-t border-border p-3">{children}</div>}
+    </section>
+  );
+}
+
+function PartnerPane({ name, onClose }: { name: string | null; onClose: () => void }) {
+  const q = useQuery({ queryKey: ["partner", name], queryFn: () => fetchPartnerDetailFn({ data: { name: name! } }), enabled: !!name });
+  const d = q.data;
+  const net = d?.contacts.filter((c) => c.where === "Network").length || 0;
+  return (
+    <Sheet open={!!name} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetHeader><SheetTitle>{name}</SheetTitle></SheetHeader>
+        {q.isLoading || !d ? (
+          <div className="mt-6 flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading…</div>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant="secondary">{d.partner?.category}</Badge>
+              {d.partner?.website && <a href={d.partner.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Website <ExternalLink className="h-3 w-3" /></a>}
+            </div>
+            {d.partner?.notes && <p className="text-sm text-muted-foreground">{d.partner.notes}</p>}
+            <Collapsible title="Key contacts" count={d.contacts.length}>
+              <p className="mb-2 text-xs text-muted-foreground">{net} in Network · {d.contacts.length - net} in Prospecting. They stay on those pages too.</p>
+              {d.contacts.length === 0 ? <p className="text-xs text-muted-foreground">No contacts at {name} yet. They'll show up here as soon as one is uploaded or added.</p> : (
+                <ul className="divide-y divide-border">
+                  {d.contacts.map((c) => (
+                    <li key={`${c.where}:${c.email || c.name}`} className="flex items-center gap-2 py-1.5 text-sm">
+                      <span className="flex-1 truncate">{c.name || c.email} <span className="text-xs text-muted-foreground">{c.email}</span></span>
+                      <Badge variant="outline" className="text-[10px]">{c.where}</Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Collapsible>
+            <Collapsible title="BD / GTM activity & notes" count={d.activity.length}>
+              {d.activity.length === 0 ? <p className="text-xs text-muted-foreground">Nothing tagged yet. Tag {name} when reviewing notes or activity in My Actions.</p> : (
+                <ul className="space-y-2">
+                  {d.activity.map((a) => (
+                    <li key={a.recordId} className="rounded-md bg-muted/30 p-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{a.date.slice(0, 10)}</span>
+                        <span className="flex-1 truncate font-medium">{a.title}</span>
+                        <Badge variant="outline" className="text-[10px]">{a.track}</Badge>
+                        {a.url && <a href={a.url} target="_blank" rel="noreferrer" aria-label="Open source"><ExternalLink className="h-3.5 w-3.5 text-primary" /></a>}
+                      </div>
+                      {a.summary && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{a.summary}</p>}
+                      {a.nextSteps.length > 0 && <ul className="mt-1 list-disc pl-4 text-xs">{a.nextSteps.slice(0, 4).map((s, i) => <li key={i}>{s}</li>)}</ul>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Collapsible>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function AddPartnerDialog({ open, onOpenChange, onAdded }: { open: boolean; onOpenChange: (o: boolean) => void; onAdded: () => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<PartnerCategory>("Resellers & Integrators");
+  const [website, setWebsite] = useState("");
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function save() {
+    setBusy(true);
+    try {
+      await addPartnerFn({ data: { name, category, website, notes } });
+      toast.success(`${name.trim()} added to Partners.`);
+      await onAdded();
+      setName(""); setWebsite(""); setNotes(""); onOpenChange(false);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally { setBusy(false); }
+  }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Add partner</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <Input placeholder="Company name" value={name} onChange={(e) => setName(e.target.value)} />
+          <Select value={category} onValueChange={(v) => setCategory(v as PartnerCategory)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>{PARTNER_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+          </Select>
+          <Input placeholder="Website (optional)" value={website} onChange={(e) => setWebsite(e.target.value)} />
+          <Textarea placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button disabled={busy || !name.trim()} onClick={save}>{busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Add</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

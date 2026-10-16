@@ -16,6 +16,7 @@ import { Route as CrmRouteImport } from './routes/crm'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as MyActionsRouteImport } from './routes/my-actions'
+import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as TargetingRouteImport } from './routes/targeting'
 import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activity-sync'
@@ -59,6 +60,11 @@ const EventsRoute = EventsRouteImport.update({
 const MyActionsRoute = MyActionsRouteImport.update({
   id: '/my-actions',
   path: '/my-actions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartnersRoute = PartnersRouteImport.update({
+  id: '/partners',
+  path: '/partners',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioRoute = PortfolioRouteImport.update({
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
+  '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
@@ -135,6 +142,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
+  '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
@@ -154,6 +162,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
+  '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
@@ -174,6 +183,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/my-actions'
+    | '/partners'
     | '/portfolio'
     | '/targeting'
     | '/api/cron/activity-sync'
@@ -192,6 +202,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/my-actions'
+    | '/partners'
     | '/portfolio'
     | '/targeting'
     | '/api/cron/activity-sync'
@@ -210,6 +221,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/events'
     | '/my-actions'
+    | '/partners'
     | '/portfolio'
     | '/targeting'
     | '/api/cron/activity-sync'
@@ -229,6 +241,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
   MyActionsRoute: typeof MyActionsRoute
+  PartnersRoute: typeof PartnersRoute
   PortfolioRoute: typeof PortfolioRoute
   TargetingRoute: typeof TargetingRoute
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
@@ -289,6 +302,13 @@ declare module '@tanstack/react-router' {
       path: '/my-actions'
       fullPath: '/my-actions'
       preLoaderRoute: typeof MyActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partners': {
+      id: '/partners'
+      path: '/partners'
+      fullPath: '/partners'
+      preLoaderRoute: typeof PartnersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
@@ -365,6 +385,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
   MyActionsRoute: MyActionsRoute,
+  PartnersRoute: PartnersRoute,
   PortfolioRoute: PortfolioRoute,
   TargetingRoute: TargetingRoute,
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,

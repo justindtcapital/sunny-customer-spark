@@ -37,11 +37,13 @@ export interface NoteReview {
   /** Drive folder the file was moved into on review. */
   filedTo?: string;
   /** Next steps with the person each was assigned to on review (informational, not follow-ups). */
-  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string }>;
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string; partner?: string }>;
   /** Investor the note was filed under (Investor Updates/<name>). */
   investor?: string;
   /** Notes: BD and/or GTM activity tracks chosen on review. */
   activityTracks?: string[];
+  /** Partners tagged on review (separate from PortCo). */
+  partners?: string[];
 }
 
 export type InboxKind = "notes" | "activity";
@@ -272,15 +274,17 @@ export interface ReviewNoteInput {
   /** Investor name when folder is "investor" — filed to Investor Updates/<investor>. */
   investor?: string;
   /** All next steps with their assigned person; only followUps become tracked follow-ups. */
-  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string }>;
+  nextSteps?: Array<{ who: string; whoEmail?: string; action: string; dueDate: string; portco?: string; partner?: string }>;
   /** Notes: BD and/or GTM activity tracks chosen on review. */
   activityTracks?: string[];
+  /** Partners tagged on review (separate from PortCo). */
+  partners?: string[];
 }
 
 export interface PersonMatch { name: string; email: string; company: string; where: "Network" | "Prospecting" }
 
 /** Read people (name/email/company) from the Contacts and Targets tabs by header name. */
-async function peopleDirectory(): Promise<PersonMatch[]> {
+export async function peopleDirectory(): Promise<PersonMatch[]> {
   const out: PersonMatch[] = [];
   for (const [tab, where] of [["Contacts", "Network"], ["Targets", "Prospecting"]] as const) {
     try {
@@ -419,7 +423,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     } catch { /* tab missing */ }
     const isNwk = (input.track || "") === "Network" || r.sourceType === "gmail-network" || isNetworkTitle(r.title);
     const allSteps = input.nextSteps?.length ? input.nextSteps : input.followUps;
-    const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.portco ? ` [${f.portco}]` : ""}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
+    const steps = allSteps.map((f) => `• ${f.who ? `${f.who}: ` : ""}${f.action}${f.portco ? ` [${f.portco}]` : ""}${"partner" in f && f.partner ? ` [${f.partner}]` : ""}${f.dueDate ? ` (due ${f.dueDate})` : ""}`).join("\n");
     const due = input.followUps.map((f) => f.dueDate).filter(Boolean).sort()[0] || "";
     const summary = `${isNwk ? "[NWK] " : ""}${r.title}${r.summary ? ` — ${r.summary}` : ""}${steps ? `\nNext steps:\n${steps}` : ""}`.slice(0, 4000);
     await appendInteractionRows([...tagged.keys()].filter((e) => !existing.has(e)).map((email) => ({
@@ -468,6 +472,7 @@ export async function reviewNote(input: ReviewNoteInput): Promise<NoteReview> {
     ...(input.nextSteps?.length && input.status !== "skipped" ? { nextSteps: input.nextSteps } : {}),
     ...(input.investor?.trim() && input.status !== "skipped" ? { investor: input.investor.trim() } : {}),
     ...(input.activityTracks?.length && input.status !== "skipped" ? { activityTracks: input.activityTracks } : {}),
+    ...(input.partners?.length && input.status !== "skipped" ? { partners: input.partners } : {}),
   };
   await setHarvestState(`${REVIEW_PREFIX}${r.recordId}`, JSON.stringify(review));
   return review;

@@ -1,3 +1,4 @@
+import { PartnerChip } from "@/components/crm/PartnerChip";
 import { useState } from "react";
 import {
   addNote,
@@ -1007,6 +1008,7 @@ export function ContactDetail({
                     <Briefcase className="h-3 w-3" />
                     {contact.title} · {contact.company}
                   </SheetDescription>
+                  <PartnerChip company={contact.company || ""} />
                 </div>
               </div>
               <div className="flex items-center gap-2">

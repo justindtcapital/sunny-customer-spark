@@ -27,6 +27,8 @@ import {
 import type { NoteInboxItem, PersonMatch } from "@/utils/notes-inbox.server";
 import { resolveWho } from "@/lib/meeting-roster";
 import { teamProfile } from "@/lib/user-ownership";
+import { usePartners } from "@/lib/use-partners";
+import { detectPartners } from "@/lib/partners";
 
 function Tick({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -303,13 +305,17 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const label = (r: RosterRow) => r.match?.name || r.edit.name || r.heard;
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
+  const partnerList = usePartners();
+  const detectedPartners = useMemo(() => detectPartners(`${item.title} ${item.summary}`, partnerList), [item.title, item.summary, partnerList]);
+  const [partnerSel, setPartnerSel] = useState<string[] | null>(null);
+  const chosenPartners = partnerSel ?? detectedPartners;
   const [actTracks, setActTracks] = useState<string[]>(() => (item.track === "BD" || item.track === "GTM" ? [item.track] : []));
-  type Step = { action: string; who: string; other: string; dueDate: string; portco: string; whoGuess: boolean };
+  type Step = { action: string; who: string; other: string; dueDate: string; portco: string; partner: string; whoGuess: boolean };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
     const mine = i >= 0 && item.people[i]!.where === "Team" && item.people[i]!.email === teamProfile(reviewer)?.email;
     // Auto-populated owners start as guesses (yellow ?) until the reviewer picks the name.
-    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, portco: "", whoGuess: !!n.who };
+    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, portco: "", partner: "", whoGuess: !!n.who };
   }));
   const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const [saving, setSaving] = useState(false);
@@ -353,7 +359,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
       const stepOut = steps.filter((s) => s.action.trim()).map((s) => {
         const r = roster.find((x) => x.key === s.who);
         const mine = s.who === "__me" || (!!r && r.status === "team" && label(r) === me);
-        return { action: s.action.trim(), who: r ? label(r) : mine ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: mine ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: mine, portco: s.portco };
+        return { action: s.action.trim(), who: r ? label(r) : mine ? me : s.who === "__other" ? s.other.trim() : "", whoEmail: mine ? teamProfile(reviewer)?.email || reviewer : r?.match?.email || r?.edit.email || "", dueDate: s.dueDate, track: mine, portco: s.portco, partner: s.partner };
       });
       await reviewNoteFn({
         data: {
@@ -363,7 +369,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
           ...(!isActivity ? { folder, activityTracks: actTracks, ...(folder === "investor" ? { investor: investor.trim() } : {}) } : {}),
           addPeople: live.filter((r) => r.status === "add").map((r) => ({ ...r.edit, suggestionId: r.suggestionId || undefined })),
           skipContacts: roster.filter((r) => r.status === "skip" && r.suggestionId).map((r) => r.suggestionId),
-          nextSteps: stepOut.map(({ track: _t, ...s }) => s),
+          nextSteps: stepOut.map(({ track: _t, partner, ...s }) => ({ ...s, ...(partner ? { partner } : {}) })),
+          partners: chosenPartners,
           followUps: stepOut.filter((s) => s.track).map((s) => ({ action: s.action, who: s.who, dueDate: s.dueDate, portco: s.portco || undefined })),
         },
       });
@@ -444,6 +451,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
               <span>Reviewed {item.review.reviewedAt.slice(0, 10)} by {item.review.reviewedBy || "—"}</span>
               {item.review.track && <span>Track: {item.review.track}</span>}
               {item.review.filedTo && <span>Filed to: {item.review.filedTo}</span>}
+              {item.review.partners?.length ? <span>Partners: {item.review.partners.join(", ")}</span> : null}
               <span>Workstream: {item.review.workstream || "—"}</span>
               <span>Contacts added: {item.review.contactsAdded}</span>
               <span>Follow-ups: {item.review.followUps}</span>
@@ -506,6 +514,36 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                   {isNews && <p className="text-xs text-muted-foreground">News is saved as PortCo knowledge, not activity. Just confirm the PortCo.</p>}
                 </section>
               )}
+              <section className="space-y-1.5">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Partners</h4>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 w-60 justify-between text-xs font-normal">
+                      <span className="truncate">{chosenPartners.length ? chosenPartners.join(", ") : "Tag partners (optional)"}</span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-1" align="start">
+                    <div className="max-h-72 overflow-y-auto">
+                      {partnerList.length === 0 && <p className="px-2 py-1.5 text-xs text-muted-foreground">No partners yet.</p>}
+                      {partnerList.map((p) => {
+                        const on = chosenPartners.includes(p.name);
+                        return (
+                          <button key={p.name} type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
+                            onClick={() => setPartnerSel(on ? chosenPartners.filter((x) => x !== p.name) : [...chosenPartners, p.name])}>
+                            <span className={cn("flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-border", on && "bg-primary text-primary-foreground")}>
+                              {on && <Check className="h-3 w-3" />}
+                            </span>
+                            {p.name}
+                            <span className="ml-auto text-[10px] text-muted-foreground">{detectedPartners.includes(p.name) ? "mentioned" : p.category}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">Kept separate from PortCos. Shows on the partner's page once saved.</p>
+              </section>
               <section className="space-y-1.5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{isNews ? "PortCo" : "PortCo & workstream"}</h4>
                 <div className="flex flex-wrap items-center gap-2">
@@ -655,6 +693,15 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         </SelectContent>
                       </Select>
                     )}
+                    {chosenPartners.length > 0 && (
+                      <Select value={s.partner || "__none"} onValueChange={(v) => setStep(i, { partner: v === "__none" ? "" : v })}>
+                        <SelectTrigger className="h-7 w-36 text-xs"><SelectValue placeholder="Partner" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">No partner</SelectItem>
+                          {chosenPartners.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Select value={s.who || "__none"} onValueChange={(v) => setStep(i, { who: v === "__none" ? "" : v, whoGuess: false })}>
                       <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Assigned" /></SelectTrigger>
                       <SelectContent>
@@ -677,7 +724,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                   </div>
                   );
                 })}
-                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", portco: "", whoGuess: false }])}>+ Next step</Button>
+                <Button size="sm" variant="ghost" onClick={() => setSteps((x) => [...x, { action: "", who: "", other: "", dueDate: "", portco: "", partner: "", whoGuess: false }])}>+ Next step</Button>
               </section>}
 
               <div className="flex justify-end gap-2">

@@ -22,3 +22,4 @@
 - My Actions (/my-actions) is the only place to manage workstreams, notes and follow-ups; Dashboard summary boxes link there and old ?section deep links redirect — one inbox avoids duplicate review UIs.
 - PortCo bullets in emails come only from the newest Drive "PortCo List" sheet (name, website, first sentence of Summary; PORTCO_LIST_FILE_ID overrides), never AI — keeps approved wording and links exact.
 - Action Now completions are Harvested Activities with activityId "action:<hash>[:track]", undone via Harvest State "action-undone" — reuses activity counting without a new store.
+- Partners are a separate entity from PortCos ("Partners" sheet tab, own review tag fields); contacts are linked to a partner by company match at read time and never moved or edited — keeps Network/Prospecting records intact while every upload auto-tags.

@@ -12,6 +12,7 @@ import {
   Loader2,
   ScrollText,
   Megaphone,
+  Handshake,
   Inbox,
 } from "lucide-react";
 import {
@@ -92,6 +93,7 @@ const navItems = [
   { title: "My Actions", url: "/my-actions", icon: Inbox },
   { title: "Events", url: "/events", icon: EventsIcon },
   { title: "PortCo", url: "/portfolio", icon: PortCoIcon },
+  { title: "Partners", url: "/partners", icon: Handshake },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
   { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
   { title: "Activity", url: "/activity", icon: ScrollText },
