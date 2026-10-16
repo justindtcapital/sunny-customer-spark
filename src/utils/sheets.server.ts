@@ -37,6 +37,7 @@ import {
   parseEngagementSources,
 } from "@/lib/engagement-source";
 import { getGoogleOAuthCreds, requireSpreadsheetId } from "./google.server";
+import { createRequestState } from "./request-state.server";
 import {
   compareIsoDatesDesc,
   isoToSheetDate,
@@ -74,6 +75,7 @@ export async function getAccessToken(): Promise<string> {
   }
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
+    signal: AbortSignal.timeout(15_000),
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -109,8 +111,12 @@ export async function getAccessToken(): Promise<string> {
 const WRITE_MIN_SPACING_MS = 1_100;
 const MAX_SHEETS_RETRIES = 5;
 
-let writeChain: Promise<unknown> = Promise.resolve();
-let lastWriteAt = 0;
+const sheetsRequestState = createRequestState(() => ({
+  writeChain: Promise.resolve() as Promise<unknown>,
+  lastWriteAt: 0,
+  inflightTabs: new Map<string, Promise<string[][]>>(),
+  tabTitlesInflight: null as Promise<string[] | null> | null,
+}));
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -122,7 +128,9 @@ async function runSheetsRequest(url: string, init: RequestInit): Promise<Respons
   const capMs = isRead ? 1_200 : 30_000;
   let attempt = 0;
   for (;;) {
-    const res = await fetch(url, init);
+    const timeout = AbortSignal.timeout(20_000);
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    const res = await fetch(url, { ...init, signal });
     const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
     if (!retryable || attempt >= maxRetries) return res;
     const backoff = Math.min(capMs, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 300);
@@ -140,29 +148,29 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
   const method = (init.method || "GET").toUpperCase();
   if (method === "GET") return runSheetsRequest(url, init);
 
-  const run = writeChain.then(async () => {
-    const wait = WRITE_MIN_SPACING_MS - (Date.now() - lastWriteAt);
+  const state = sheetsRequestState();
+  const run = state.writeChain.then(async () => {
+    const wait = WRITE_MIN_SPACING_MS - (Date.now() - state.lastWriteAt);
     if (wait > 0) await sleep(wait);
     try {
       return await runSheetsRequest(url, init);
     } finally {
-      lastWriteAt = Date.now();
+      state.lastWriteAt = Date.now();
     }
   });
   // Keep the chain alive even if this request rejects.
-  writeChain = run.catch(() => undefined);
+  state.writeChain = run.catch(() => undefined);
   return run;
 }
 
 // ── Fetch a single sheet tab ─────────────────────────────────
-// Several loaders ask for the same tab at once; one in-flight request is shared
-// so a page load can't burst past the Sheets read quota.
-const inflightTabs = new Map<string, Promise<string[][]>>();
+// Share pending reads only within the current request. Completed rows stay cached.
 
 export async function fetchSheetTab(tabName: string): Promise<string[][]> {
   const cached = getCached(tabName);
   if (cached) return cached;
 
+  const { inflightTabs } = sheetsRequestState();
   const existing = inflightTabs.get(tabName);
   if (existing) return existing;
 
@@ -243,7 +251,6 @@ export async function appendSheetRows(tabName: string, rows: string[][]): Promis
 // Tabs confirmed to exist; checked once per server instance so page loads don't
 // spend Sheets read quota on repeated metadata lookups.
 const knownTabs = new Set<string>();
-let tabTitlesInflight: Promise<string[] | null> | null = null;
 
 export async function ensureTab(tabName: string, headers: string[]): Promise<void> {
   if (knownTabs.has(tabName)) return;
@@ -252,17 +259,18 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
   const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
 
   // Is the tab already present? (one shared metadata request for concurrent callers)
-  if (!tabTitlesInflight) {
-    tabTitlesInflight = (async () => {
+  const state = sheetsRequestState();
+  if (!state.tabTitlesInflight) {
+    state.tabTitlesInflight = (async () => {
       const metaRes = await sheetsFetch(`${base}?fields=sheets.properties.title`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!metaRes.ok) return null;
       const meta = (await metaRes.json()) as { sheets?: Array<{ properties?: { title?: string } }> };
       return (meta.sheets || []).map((s) => s.properties?.title || "");
-    })().finally(() => { tabTitlesInflight = null; });
+    })().finally(() => { state.tabTitlesInflight = null; });
   }
-  const titles = await tabTitlesInflight;
+  const titles = await state.tabTitlesInflight;
   if (titles) {
     titles.forEach((t) => t && knownTabs.add(t));
     if (knownTabs.has(tabName)) return;

@@ -1,5 +1,7 @@
 # Project rules
 
+- Keep pending Sheets reads, metadata checks, write queues and partner reconciliation scoped to the originating HTTP request; cache only settled data across requests because Worker request cancellation can strand shared promises.
+
 - Keep workstream bar status and priority separate from segment-specific program fields so GTM and BD share the same Asana bar mapping without replacing their detail fields.- Workstream edits write only changed Asana custom fields, typed from Asana's own field metadata (enum by option gid), after a server re-read conflict check — avoids clobbering concurrent Asana edits.
 
 - Campaign membership lives in the "Campaign Members" sheet tab, one append-only row per (campaign, person); adding existing Network/Prospecting people never edits their records — so people can join many campaigns without data loss.

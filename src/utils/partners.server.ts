@@ -4,6 +4,7 @@
 
 import { appendSheetRow, appendSheetRows, ensureColumn, ensureTab, fetchSheetTab, updateSheetCells } from "./sheets.server";
 import { SEED_PARTNERS, matchPartner, normalizeCategory, type Partner, type PartnerCategory } from "@/lib/partners";
+import { createRequestState } from "./request-state.server";
 
 const TAB = "Partners";
 const HEADERS = ["Name", "Category", "Website", "Notes", "Aliases", "Created", "Summary", "Location"];
@@ -15,11 +16,14 @@ function colLetter(i: number): string {
   return out;
 }
 
-let reconciled: Promise<void> | null = null;
+let reconciled = false;
+const reconciliationState = createRequestState(() => ({ pending: null as Promise<void> | null }));
 /** Bring sheet rows up to date with the seed list: renames, blank websites, new partners. Never overwrites a filled cell. */
 function reconcile(rows: string[][]): Promise<void> {
-  if (reconciled) return reconciled;
-  reconciled = (async () => {
+  if (reconciled) return Promise.resolve();
+  const state = reconciliationState();
+  if (state.pending) return state.pending;
+  state.pending = (async () => {
     await ensureColumn(TAB, "Summary");
     await ensureColumn(TAB, "Location");
     const h = (rows[0] || []).map((x) => (x || "").trim().toLowerCase());
@@ -41,8 +45,10 @@ function reconcile(rows: string[][]): Promise<void> {
       const now = new Date().toISOString();
       await appendSheetRows(TAB, missing.map((p) => [p.name, p.category, p.website, "", (p.aliases || []).join(", "), now]));
     }
-  })().catch((e) => { reconciled = null; console.error("[partners] reconcile failed:", e); });
-  return reconciled;
+    reconciled = true;
+  })().catch((e) => { console.error("[partners] reconcile failed:", e); })
+    .finally(() => { state.pending = null; });
+  return state.pending;
 }
 
 export async function listPartners(): Promise<Partner[]> {
