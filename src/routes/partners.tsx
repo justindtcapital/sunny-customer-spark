@@ -234,9 +234,9 @@ function PartnerPane({ name }: { name: string }) {
                           <button type="button" className="font-medium text-primary hover:underline" onClick={() => openNetwork(c.email, c.name)}>{c.name || c.email}</button>
                         ) : (
                           <Link to="/targeting" search={{ target: c.email || `${c.name.toLowerCase()}|${c.company.toLowerCase()}` }} className="font-medium text-primary hover:underline">{c.name || c.email}</Link>
-                        )}{" "}
-                        {c.title && <span className="text-muted-foreground">, {c.title}</span>}{" "}
-                        <span className="text-xs text-muted-foreground">{c.email}</span>
+                        )}
+                        {c.title && <span className="text-muted-foreground">, {c.title}</span>}
+                        {c.email && <span className="text-xs text-muted-foreground">, {c.email}</span>}
                       </span>
                       <Badge variant="outline" className="text-[10px]">{c.where}</Badge>
                       {linked.length > 0 && (
