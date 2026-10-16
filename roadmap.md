@@ -16,3 +16,10 @@
 - [x] Move deep search (technology/industry/company/product/keywords) into Detailed search on Network and Prospecting
 - [x] Remove the standalone Network Search box
 - [x] Verify both panes signed-in
+
+## Partners
+- [x] Partners page + menu item below PortCo, four categories, seeded list, Add partner
+- [x] Contacts at partner companies show in Network/Prospecting and on the partner page (Partner chip)
+- [x] Partner tagging (and per-next-step partner) in Notes review and Activity review
+- [ ] Partner filter in Network/Prospecting Detailed search
+- [ ] Partner campaigns panel
