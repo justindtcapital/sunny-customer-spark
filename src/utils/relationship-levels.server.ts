@@ -18,8 +18,10 @@ async function moveToProspecting(headers: string[], source: string[]): Promise<b
   const fields: Record<string, string> = Object.fromEntries(headers.map((h, i) => [h, source[i] || ""]));
   Object.assign(fields, {
     "first name": names[0] || "", "last name": names.slice(1).join(" "),
-    role: cell(headers, source, "title"), stage: "Prospecting",
-    "network profile": snapshot, prime: cell(headers, source, "contact prime") || cell(headers, source, "prime"),
+    role: cell(headers, source, "role") || cell(headers, source, "title"), stage: "Prospecting",
+    "network profile": snapshot, prime: cell(headers, source, "relationship prime") || cell(headers, source, "prime"),
+    phone: cell(headers, source, "phone number") || cell(headers, source, "phone"),
+    sector: cell(headers, source, "industry category") || cell(headers, source, "sector"),
     "research purpose": cell(headers, source, "source context"),
   });
   const existing = targets.slice(1).find((r) => cell(targetHeaders, r, "urid") === urid ||
@@ -49,7 +51,7 @@ export async function changeRelationshipLevels(input: { contacts: { urid?: strin
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const source = rows.slice(1).find((r) => selected.urid ? cell(headers, r, "urid") === selected.urid : norm(cell(headers, r, "email")) === norm(selected.email));
-    const current = source ? cell(headers, source, "status") as Temperature : undefined;
+    const current = source ? cell(headers, source, "relationship status") as Temperature : undefined;
     if (!source || !current || current !== selected.temperature) { result.skipped++; continue; }
     const next = nextRelationshipLevel(current, input.change);
     if (!next) { result.skipped++; continue; }
