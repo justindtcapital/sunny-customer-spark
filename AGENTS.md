@@ -1,6 +1,6 @@
 # Project rules
 
-- Keep pending Sheets reads, metadata checks, write queues and partner reconciliation scoped to the originating HTTP request; cache only settled data across requests because Worker request cancellation can strand shared promises.
+- Scope pending Sheets work to the originating request and run review saves under withDeadline named steps; Workers kill stranded/idle waits as "hung".
 - Wrap request-context access and exported server helpers in createServerOnlyFn when reachable through client-imported function modules; filename suffixes alone do not prevent server imports entering the browser graph.
 
 - Keep workstream bar status and priority separate from segment-specific program fields so GTM and BD share the same Asana bar mapping without replacing their detail fields.- Workstream edits write only changed Asana custom fields, typed from Asana's own field metadata (enum by option gid), after a server re-read conflict check — avoids clobbering concurrent Asana edits.
