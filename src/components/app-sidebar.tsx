@@ -14,6 +14,8 @@ import {
   Megaphone,
   Handshake,
   Inbox,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import {
   HomeIcon,
@@ -124,7 +126,7 @@ export function AppSidebar({
   const collapsed = state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
-  const { selectedContacts, selectedIds, clearSelection, onBulkUpdate } = useSelection();
+  const { selectedContacts, selectedIds, clearSelection, onBulkUpdate, setRelationshipChange } = useSelection();
   const {
     selectedTargets,
     selectedIds: targetSelectedIds,
@@ -1121,6 +1123,12 @@ export function AppSidebar({
                   >
                     <Pencil className="h-3.5 w-3.5 mr-2" />
                     Bulk Edit
+                  </Button>
+                  <Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => setRelationshipChange("promote")}>
+                    <ArrowUp className="h-3.5 w-3.5 mr-2" /> Bulk Promote
+                  </Button>
+                  <Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start" onClick={() => setRelationshipChange("demote")}>
+                    <ArrowDown className="h-3.5 w-3.5 mr-2" /> Bulk Demote
                   </Button>
                 </SidebarGroupContent>
               </SidebarGroup>

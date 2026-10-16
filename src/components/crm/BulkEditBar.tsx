@@ -14,7 +14,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, ChevronDown, Cpu, Loader2, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Cpu, Loader2, Sparkles, Tag, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "@tanstack/react-router";
 import { useSelection } from "@/lib/selection-context";
@@ -31,6 +31,9 @@ import {
 import { bulkUpdateContacts, bulkDeleteContacts, bulkEnrichContacts, bulkLoadInterests } from "@/utils/sheets.functions";
 import { bulkLoadTechStack } from "@/utils/sumble.functions";
 import { RECORD_SOURCES, CONTACT_TYPES, type BulkEditField, type Temperature, type Contact } from "@/lib/types";
+import { useServerFn } from "@tanstack/react-start";
+import { bulkChangeRelationshipLevels } from "@/utils/relationship-levels.functions";
+import { nextRelationshipLevel, type RelationshipChange } from "@/lib/relationship-rating";
 
 // Fields the bulk-edit bar can set, in display order. Mirrors the BulkEditField
 // union; each maps to a Contacts-sheet column via bulkUpdateContacts.
@@ -55,7 +58,7 @@ const PRIMES = ["Julia", "Hillock", "Falloon", "Shane"] as const;
 // Persists the change to the Contacts sheet (bulkUpdateContacts) and reflects it
 // locally via the selection context's onBulkUpdate.
 export function BulkEditBar() {
-  const { selectedContacts, selectedIds, clearSelection, onBulkUpdate, onBulkDelete } =
+  const { selectedContacts, selectedIds, clearSelection, onBulkUpdate, onBulkDelete, relationshipChange: levelChange, setRelationshipChange: setLevelChange } =
     useSelection();
   const router = useRouter();
   const [field, setField] = useState<BulkEditField>("status");
@@ -66,11 +69,41 @@ export function BulkEditBar() {
   // Which mass action is currently running ("" = none). Disables the whole bar.
   const [action, setAction] = useState<"" | "enrich" | "interests" | "tech">("");
   const [techConfirmOpen, setTechConfirmOpen] = useState(false);
+  const [changingLevel, setChangingLevel] = useState(false);
+  const changeLevels = useServerFn(bulkChangeRelationshipLevels);
 
   if (selectedIds.size === 0) return null;
 
   const count = selectedIds.size;
-  const anyBusy = busy || deleting || action !== "";
+  const anyBusy = busy || deleting || changingLevel || action !== "";
+  const levelPreview = selectedContacts.reduce<Record<string, number>>((summary, contact) => {
+    if (!levelChange) return summary;
+    const next = nextRelationshipLevel(contact.temperature, levelChange);
+    const label = next ? `${contact.temperature} → ${next}` : `${contact.temperature} unchanged`;
+    summary[label] = (summary[label] || 0) + 1;
+    return summary;
+  }, {});
+  const applyLevelChange = async () => {
+    if (!levelChange) return;
+    setChangingLevel(true);
+    try {
+      const result = await changeLevels({ data: {
+        contacts: selectedContacts.map((c) => ({ urid: c.urid, email: c.email, temperature: c.temperature })),
+        change: levelChange,
+      } });
+      toast.success(`${result.updated} level${result.updated === 1 ? "" : "s"} changed · ${result.moved} moved to Prospecting`);
+      if (result.skipped) toast.warning(`${result.skipped} unchanged — already at the limit, changed by a teammate, or couldn't be safely moved.`);
+      clearSelection();
+      await router.invalidate();
+      setLevelChange(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change the selected contacts.");
+      // Some writes may have succeeded; always read the current saved state.
+      await router.invalidate();
+    } finally {
+      setChangingLevel(false);
+    }
+  };
 
   // Mass Apollo enrichment: fill blank fields + headline/employment/sector for
   // every selected contact, non-destructively. Refreshes the list from the sheet.
@@ -315,6 +348,12 @@ export function BulkEditBar() {
 
       {/* Mass actions — operations over the selection (not a single field set). */}
       <div className="mx-1 h-5 w-px bg-border" />
+      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setLevelChange("promote")} disabled={anyBusy}>
+        <ArrowUp className="mr-1 h-3.5 w-3.5" /> Bulk promote
+      </Button>
+      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setLevelChange("demote")} disabled={anyBusy}>
+        <ArrowDown className="mr-1 h-3.5 w-3.5" /> Bulk demote
+      </Button>
       <Button size="sm" variant="outline" className="h-8 text-xs" onClick={runEnrich} disabled={anyBusy}>
         {action === "enrich" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
         Enrich w/ Apollo
@@ -340,6 +379,32 @@ export function BulkEditBar() {
       <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearSelection} disabled={anyBusy}>
         <X className="h-3.5 w-3.5 mr-1" /> Clear
       </Button>
+
+      <AlertDialog open={levelChange !== null} onOpenChange={(open) => { if (!open && !changingLevel) setLevelChange(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{levelChange === "promote" ? "Promote" : "Demote"} {count} selected contact{count === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {levelChange === "promote" ? "Move each selected contact up one level. Hot and Council remain unchanged." : "Move each selected contact down one level. Cold contacts move to Prospecting; Council remains unchanged."}
+              {levelChange !== "promote" && " Contact details and existing history are retained."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {levelChange !== "promote" && <Select value={levelChange || "demote"} onValueChange={(v) => setLevelChange(v as RelationshipChange)} disabled={changingLevel}>
+            <SelectTrigger aria-label="Demotion destination"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="demote">Down one level</SelectItem>
+              <SelectItem value="prospecting">Move directly to Prospecting</SelectItem>
+            </SelectContent>
+          </Select>}
+          <div className="space-y-2 text-sm">{Object.entries(levelPreview).map(([label, total]) => <div key={label} className="flex justify-between"><span>{label}</span><span className="font-semibold tabular-nums">{total}</span></div>)}</div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={changingLevel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={changingLevel} onClick={(event) => { event.preventDefault(); void applyLevelChange(); }}>
+              {changingLevel && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirm {levelChange === "promote" ? "promotion" : "demotion"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={techConfirmOpen} onOpenChange={setTechConfirmOpen}>
         <AlertDialogContent>
