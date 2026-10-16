@@ -83,7 +83,7 @@ export async function addPartner(input: { name: string; category: PartnerCategor
   return p;
 }
 
-export interface PartnerContact { name: string; email: string; company: string; where: "Network" | "Prospecting" }
+export interface PartnerContact { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" }
 export interface PartnerActivity { recordId: string; date: string; title: string; summary: string; track: string; source: string; url: string; nextSteps: string[] }
 
 export interface PartnerSummary { name: string; contacts: number }
