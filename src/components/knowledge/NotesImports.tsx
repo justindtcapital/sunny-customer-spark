@@ -596,7 +596,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                         <span className="text-muted-foreground">Did you mean</span>
                         {r.suggestions.map((s) => (
                           <Button key={s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => patch(r.key, { status: "linked", match: s })}>
-                            <Check className="h-3 w-3" /> {s.name}{s.company && ` · ${s.company}`}
+                            <HelpCircle className="h-3 w-3 text-yellow-500" /> {s.name}{s.company && ` · ${s.company}`}
                           </Button>
                         ))}
                       </div>
