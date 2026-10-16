@@ -166,7 +166,11 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
 // ── Fetch a single sheet tab ─────────────────────────────────
 // Share pending reads only within the current request. Completed rows stay cached.
 
-export async function fetchSheetTab(tabName: string): Promise<string[][]> {
+export async function fetchSheetTab(tabName: string, fresh = false): Promise<string[][]> {
+  if (fresh) {
+    cache.delete(tabName);
+    sheetsRequestState().inflightTabs.delete(tabName);
+  }
   const cached = getCached(tabName);
   if (cached) return cached;
 
