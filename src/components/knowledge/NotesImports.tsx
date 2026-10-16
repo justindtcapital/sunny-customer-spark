@@ -582,7 +582,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                       {r.status === "skip" && <Badge variant="outline" className="text-[10px]">Skipped</Badge>}
                       {r.status === "pending" && <Badge variant="outline" className="text-[10px]">Not matched</Badge>}
                       {r.status !== "team" && <><Button size="sm" variant={linking === r.key ? "secondary" : "outline"} onClick={() => { setLinking(linking === r.key ? null : r.key); setPq(r.status === "pending" && !/^speaker/i.test(r.heard) ? r.heard : ""); }}>{r.status === "linked" ? "Change" : "Search"}</Button>
-                      {r.status !== "linked" && <Button size="sm" variant={r.status === "add" || r.editing ? "secondary" : "outline"} onClick={() => patch(r.key, { editing: !r.editing, status: r.editing ? r.status : "add" })}>Add to contacts</Button>}
+                      {r.status !== "linked" && <Button size="sm" variant={r.status === "add" ? "secondary" : "outline"} onClick={() => patch(r.key, { status: r.status === "add" ? "pending" : "add", editing: r.status !== "add" })}>Add to contacts</Button>}
+                      <Button size="sm" variant={r.editing ? "secondary" : "ghost"} onClick={() => patch(r.key, { editing: !r.editing })}>Edit</Button>
                       {r.status !== "guest" && <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: "guest", match: undefined, editing: false })}>Guest</Button>}
                       <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: r.status === "skip" ? "pending" : "skip", editing: false })}>{r.status === "skip" ? "Undo" : "Skip"}</Button></>}
                     </div>
