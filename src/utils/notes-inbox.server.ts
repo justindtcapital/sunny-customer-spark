@@ -16,7 +16,7 @@ import {
   type KnowledgeRecord,
 } from "./knowledge.server";
 import { sha256Hex } from "./sha256";
-import { isNetworkTitle, matchesQuery, personInText } from "@/lib/network-notes";
+import { emailMatchesName, extractEmails, isNetworkTitle, matchesQuery, personInText } from "@/lib/network-notes";
 import { suggestPeople } from "@/lib/meeting-roster";
 import { teamMemberFor } from "@/lib/user-ownership";
 
@@ -232,6 +232,17 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
         for (const n of ex.nextSteps || []) {
           const who = (n.who || "").replace(/\(.*?\)/g, "").trim();
           if (who && !known.some((k) => k === who.toLowerCase() || k.split(" ")[0] === who.toLowerCase())) { put(who, "", ""); known.push(who.toLowerCase()); }
+        }
+        // Backfill missing emails from the mail text: "Shane Doyle" ↔ shane.doyle@tokagroup.com.
+        const mailEmails = extractEmails(`${r.participants} ${r.summary}`);
+        for (const p of [...map.values()]) {
+          if (p.email || !p.name) continue;
+          const hit = mailEmails.find((e) => !teamMemberFor(e) && emailMatchesName(e, p.name));
+          if (!hit) continue;
+          map.delete(p.key);
+          const existing = map.get(hit);
+          if (existing) map.set(hit, { ...existing, name: existing.name || p.name, company: existing.company || p.company });
+          else map.set(hit, { ...p, key: hit, email: hit, where: whereOf(hit, p.name) });
         }
         const hints = [r.portco, ...[...map.values()].map((p) => p.company), ...[...map.values()].map((p) => p.email.split("@")[1] || "")].filter(Boolean);
         for (const p of map.values()) if (p.where === "New") p.suggestions = suggestPeople(p, people, hints) as PersonMatch[];
