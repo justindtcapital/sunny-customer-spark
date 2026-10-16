@@ -213,10 +213,40 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
           <div className="space-y-1">
             <Label className={LABEL}>{mode === "log" ? "Who was involved" : "To"}</Label>
             <div className="flex flex-wrap gap-1">
-              {to.map((t) => <Badge key={t.email} variant="secondary" className="gap-1 font-normal">{t.name || t.email}<button type="button" aria-label={`Remove ${t.email}`} onClick={() => setTo((x) => x.filter((y) => y.email !== t.email))}><X className="h-3 w-3" /></button></Badge>)}
+              {to.map((t) => <Badge key={t.email || t.name} variant="secondary" className="gap-1 font-normal">{t.name || t.email}<button type="button" aria-label={`Remove ${t.email || t.name}`} onClick={() => setTo((x) => x.filter((y) => y !== t))}><X className="h-3 w-3" /></button></Badge>)}
             </div>
+            <div className="relative">
+              <Input className="h-8 text-sm" placeholder="Search Network & Prospecting by name, company or email…" value={personQ} onChange={(e) => setPersonQ(e.target.value)} />
+              {searching && <Loader2 className="absolute right-2 top-2 h-4 w-4 animate-spin text-muted-foreground" />}
+              {personQ.trim().length >= 2 && !searching && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-border bg-popover shadow-md">
+                  {personResults.map((p) => (
+                    <button key={p.email || p.name} type="button" className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent" onClick={() => pickPerson(p)}>
+                      <span className="min-w-0 truncate">{p.name || p.email}{p.company ? <span className="text-muted-foreground"> · {p.company}</span> : null}</span>
+                      <Badge variant="outline" className="shrink-0 text-[10px] font-normal">{p.where}</Badge>
+                    </button>
+                  ))}
+                  <button type="button" className="flex w-full items-center gap-1.5 border-t border-border px-3 py-1.5 text-left text-sm text-primary hover:bg-accent" onClick={() => { setAddingNew(true); setNewName(personQ.trim()); setPersonResults([]); }}>
+                    <UserPlus className="h-3.5 w-3.5" />Add "{personQ.trim()}" as a new contact
+                  </button>
+                </div>
+              )}
+            </div>
+            {addingNew && (
+              <div className="space-y-2 rounded-md border border-border p-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Input className="h-8 text-sm" placeholder="Name" value={newName} onChange={(e) => setNewName(e.target.value)} />
+                  <Input className="h-8 text-sm" placeholder="Email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                </div>
+                <div className="flex gap-2">
+                  <Input className="h-8 flex-1 text-sm" placeholder="Company" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} />
+                  <Button size="sm" onClick={() => void addNewContact()}>Save contact</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setAddingNew(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2">
-              <Input className="h-8 text-sm" placeholder="Add email address" value={addr} onChange={(e) => setAddr(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRecipient()} />
+              <Input className="h-8 text-sm" placeholder="…or add an email address directly" value={addr} onChange={(e) => setAddr(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addRecipient()} />
               <Button size="sm" variant="outline" onClick={addRecipient}>Add</Button>
             </div>
             {ctx?.people.some((p) => !p.email) && <p className="text-[11px] text-muted-foreground">No email on file for: {ctx.people.filter((p) => !p.email).map((p) => p.name).join(", ")}</p>}
