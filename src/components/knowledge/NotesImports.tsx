@@ -43,11 +43,13 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(s);
 }
 
-export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems, onStats, onActionNow }: {
+export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItems, onStats, onActionNow, split = false }: {
   actionOwner?: string; kind?: "notes" | "activity"; onCount?: (n: number) => void; onItems?: (items: NoteInboxItem[]) => void;
   onStats?: (stats: { pending: number; reviewed: number }) => void;
   /** My Actions: show an Action Now button per item. */
   onActionNow?: (item: NoteInboxItem) => void;
+  /** My Actions: inbox list on the left, selected item's review pane on the right. */
+  split?: boolean;
 }) {
   const isActivity = kind === "activity";
   const [trackFilter, setTrackFilter] = useState("all");
