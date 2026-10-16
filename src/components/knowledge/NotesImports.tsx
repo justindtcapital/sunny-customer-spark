@@ -3,7 +3,7 @@
 // move to History. Granola is pulled only when "Import from Granola" is clicked.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -304,11 +304,12 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
   const [actTracks, setActTracks] = useState<string[]>(() => (item.track === "BD" || item.track === "GTM" ? [item.track] : []));
-  type Step = { action: string; who: string; other: string; dueDate: string; track: boolean; portco: string };
+  type Step = { action: string; who: string; other: string; dueDate: string; portco: string; whoGuess: boolean };
   const [steps, setSteps] = useState<Step[]>(() => item.nextSteps.map((n) => {
     const i = resolveWho(n.who, item.people.map((p) => ({ name: p.name || p.email })));
     const mine = i >= 0 && item.people[i]!.where === "Team" && item.people[i]!.email === teamProfile(reviewer)?.email;
-    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, track: false, portco: "" };
+    // Auto-populated owners start as guesses (yellow ?) until the reviewer picks the name.
+    return { action: n.action, who: mine ? "__me" : i >= 0 ? item.people[i]!.key : n.who ? "__other" : "", other: i >= 0 ? "" : n.who, dueDate: n.dueDate, portco: "", whoGuess: !!n.who };
   }));
   const setStep = (i: number, v: Partial<Step>) => setSteps((s) => s.map((x, j) => (j === i ? { ...x, ...v } : x)));
   const [saving, setSaving] = useState(false);
