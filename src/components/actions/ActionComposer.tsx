@@ -288,7 +288,12 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             <Input className="h-8 text-sm" value={subject} onChange={(e) => setSubject(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label className={LABEL}>Email</Label>
+            <div className="flex items-center justify-between">
+              <Label className={LABEL}>Email</Label>
+              <Button size="sm" variant={recording ? "destructive" : "outline"} className="h-7 gap-1 text-xs" disabled={busy === "draft" && !recording} onClick={() => (recording ? stopDictation() : void startDictation())}>
+                {recording ? <><Square className="h-3 w-3" />Stop & draft</> : busy === "draft" ? <><Loader2 className="h-3 w-3 animate-spin" />Drafting…</> : <><Mic className="h-3 w-3" />Dictate</>}
+              </Button>
+            </div>
             {busy === "draft" && !body ? <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Writing a follow-up from the source…</p>
               : <Textarea className="h-72 text-sm" placeholder="Write your email, or use Draft with AI below." value={body} onChange={(e) => setBody(e.target.value)} />}
           </div>
