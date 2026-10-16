@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workstreamBarStatus } from "../src/lib/workstream-parse";
+import { isWorkstreamCompleted, workstreamBarStatus } from "../src/lib/workstream-parse";
 
 describe("workstream bar status", () => {
   it("uses the shared Asana status", () => {

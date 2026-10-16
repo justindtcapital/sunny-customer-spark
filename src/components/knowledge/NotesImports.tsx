@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { useWorkstreams } from "@/lib/use-workstreams";
+import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import {
   fetchNotesInboxFn,
   reopenNoteFn,
