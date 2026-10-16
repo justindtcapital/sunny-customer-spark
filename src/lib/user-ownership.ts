@@ -12,12 +12,14 @@ export interface TeamProfile {
 }
 
 // Explicit roster so Owner fields that say "Chris Falloon" match chris.falloon@….
-const TEAM: Record<string, { displayName: string; firstName: string; aliases?: string[] }> = {
+// `emails` lists every other address that is the same person (e.g. their DT Capital mailbox).
+const TEAM: Record<string, { displayName: string; firstName: string; aliases?: string[]; emails?: string[] }> = {
   "justin.adorante@dell.com": { displayName: "Justin Adorante", firstName: "Justin" },
   "chris.falloon@dell.com": {
     displayName: "Chris Falloon",
     firstName: "Chris",
     aliases: ["falloon, chris", "c. falloon"],
+    emails: ["chrisf@dt-capital.net"],
   },
   "julia.beech@dell.com": { displayName: "Julia Beech", firstName: "Julia" },
   "chris.hillock@dell.com": {
@@ -25,11 +27,29 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
     firstName: "Chris",
     aliases: ["hillock, chris"],
   },
-  "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane" },
+  "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane", emails: ["shane@dt-capital.net"] },
 };
 
-/** Lowercased teammate emails — always treated as internal for activity attribution. */
-export const TEAM_MEMBER_EMAILS: string[] = Object.keys(TEAM);
+/** Lowercased teammate emails (all addresses) — always treated as internal for activity attribution. */
+export const TEAM_MEMBER_EMAILS: string[] = Object.entries(TEAM).flatMap(([e, t]) => [e, ...(t.emails || [])]);
+
+/** Primary (dell.com) email for any of a teammate's addresses. */
+function primaryEmail(email: string): string {
+  const e = email.trim().toLowerCase();
+  if (TEAM[e]) return e;
+  return Object.entries(TEAM).find(([, t]) => (t.emails || []).includes(e))?.[0] || e;
+}
+
+/** The teammate a name or any of their email addresses refers to, else null. */
+export function teamMemberFor(nameOrEmail: string | null | undefined): { email: string; displayName: string; emails: string[] } | null {
+  const v = (nameOrEmail || "").trim().toLowerCase().replace(/^.*<([^>]+)>.*$/, "$1");
+  if (!v) return null;
+  for (const [e, t] of Object.entries(TEAM)) {
+    const all = [e, ...(t.emails || [])];
+    if (all.includes(v) || t.displayName.toLowerCase() === v || (t.aliases || []).includes(v)) return { email: e, displayName: t.displayName, emails: all };
+  }
+  return null;
+}
 
 function titleCaseLocal(local: string): string {
   return local
@@ -44,7 +64,7 @@ function titleCaseLocal(local: string): string {
 /** Build a team profile from the signed-in email (allowlisted or inferred). */
 export function teamProfile(email: string | null | undefined): TeamProfile | null {
   if (!email?.trim()) return null;
-  const normalized = email.trim().toLowerCase();
+  const normalized = primaryEmail(email);
   const known = TEAM[normalized];
   const local = normalized.split("@")[0] || "";
   const inferred = titleCaseLocal(local);
@@ -52,6 +72,7 @@ export function teamProfile(email: string | null | undefined): TeamProfile | nul
   const firstName = known?.firstName || displayName.split(/\s+/)[0] || "there";
   const nameTokens = new Set<string>();
   nameTokens.add(normalized);
+  for (const e of known?.emails || []) { nameTokens.add(e); nameTokens.add(e.split("@")[0]!); }
   nameTokens.add(displayName.toLowerCase());
   nameTokens.add(firstName.toLowerCase());
   for (const part of displayName.toLowerCase().split(/\s+/)) {
