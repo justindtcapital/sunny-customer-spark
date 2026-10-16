@@ -19,3 +19,6 @@
 - New KB files land in Drive 'Unfiled Documents' and move to Meeting Notes/<PortCo>, PortCo Operations or Network Updates only on review — Drive mirrors reviewed state.
 - Note review uses one meeting roster (link/add/guest/skip per person) that feeds next-step assignment; next steps are informational and stored on the review, only explicitly tracked ones become follow-ups — avoids follow-up bloat from others' actions.
 - Teammate identity is one roster entry per person (primary Dell email plus other addresses and name aliases) resolved via teamMemberFor; every owner/author/roster match goes through it so any address identifies the same user.
+- My Actions (/my-actions) is the only place to manage workstreams, notes and follow-ups; Dashboard summary boxes link there and old ?section deep links redirect — one inbox avoids duplicate review UIs.
+- PortCo bullets in emails come only from the newest Drive "PortCo List" sheet (name, website, first sentence of Summary; PORTCO_LIST_FILE_ID overrides), never AI — keeps approved wording and links exact.
+- Action Now completions are Harvested Activities with activityId "action:<hash>[:track]", undone via Harvest State "action-undone" — reuses activity counting without a new store.
