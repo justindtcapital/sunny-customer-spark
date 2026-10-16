@@ -193,11 +193,9 @@ function WorkstreamsTab({ owner, onAction }: { owner: string; onAction: (c: Acti
               </button>
               {!isClosed && <div className="divide-y divide-border">{items.map((w) => (
                 <button key={w.gid} onClick={() => setSelId(w.gid)} className={`${rowCls(sel?.gid === w.gid)} pl-10`}>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="shrink-0 text-[10px]">{w.segment}</Badge>
-                    <span className="truncate text-sm">{w.name || w.rawName}</span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap gap-1">
+                  <div className="truncate text-sm">{w.name || w.rawName}</div>
+                  <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
+                    <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
                     <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
                     {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
                   </div>
