@@ -639,7 +639,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                 <p className="text-xs text-muted-foreground">Saved with the note and shown on PortCo and contact pages. Steps assigned to you go on your calendar.{!isActivity && folder !== "portco" ? " Tag each step to its own PortCo." : ""}</p>
                 {steps.length === 0 && <p className="text-xs text-muted-foreground">None found.</p>}
                 {steps.map((s, i) => {
-                  const confirmed = roster.filter((r) => (r.status === "linked" || r.status === "team") && label(r) !== me);
+                  const confirmed = roster.filter((r) => (r.status === "linked" || r.status === "team" || r.status === "add") && label(r) !== me);
                   const guessedKey = s.whoGuess && s.who && s.who !== "__me" && s.who !== "__other" ? s.who : "";
                   const guessedRow = guessedKey ? roster.find((r) => r.key === guessedKey) : undefined;
                   const options = guessedRow && !confirmed.some((r) => r.key === guessedRow.key) ? [...confirmed, guessedRow] : confirmed;
