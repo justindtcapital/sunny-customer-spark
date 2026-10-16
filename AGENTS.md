@@ -18,3 +18,4 @@
 - Original author (email sender to an alias, Granola note owner, uploader, Drive file owner) is stamped once on ingest as importedBy:<recordId>; owner filters use it before any name matching, and reviewers are stored separately — keeps provenance after re-filing.
 - New KB files land in Drive 'Unfiled Documents' and move to Meeting Notes/<PortCo>, PortCo Operations or Network Updates only on review — Drive mirrors reviewed state.
 - Note review uses one meeting roster (link/add/guest/skip per person) that feeds next-step assignment; next steps are informational and stored on the review, only explicitly tracked ones become follow-ups — avoids follow-up bloat from others' actions.
+- Teammate identity is one roster entry per person (primary Dell email plus other addresses and name aliases) resolved via teamMemberFor; every owner/author/roster match goes through it so any address identifies the same user.
