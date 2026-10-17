@@ -1,8 +1,8 @@
 # Roadmap
 
 ## Action date calendar
-- [ ] Add compact current-month calendar with daily counts and drag selection in Date view
-- [ ] Test date filters and verify day/week selection and empty states
+- [x] Add compact current-month calendar with daily counts and drag selection in Date view
+- [x] Test date filters and verify day/week selection and empty states
 
 ## Follow-up editing
 - [x] Add an Edit panel below task controls with saved title, details, tags, owner and due date
