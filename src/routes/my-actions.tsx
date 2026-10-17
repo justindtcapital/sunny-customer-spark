@@ -273,7 +273,7 @@ function NewWorkstreamForm({ companies, onDone }: { companies: string[]; onDone:
 type Reminder = NonNullable<Awaited<ReturnType<typeof fetchHomeMomentum>>["reminders"]>[number];
 const words = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !["follow", "with", "the", "and", "for"].includes(w)));
 /** Two follow-ups look like the same action when they share the person, or most of their wording. */
-export function similarFollowUps(r: Reminder, all: Reminder[]): Reminder[] {
+function similarFollowUps(r: Reminder, all: Reminder[]): Reminder[] {
   const a = words(`${r.summary}`);
   return all.filter((x) => {
     if (x.id === r.id) return false;
