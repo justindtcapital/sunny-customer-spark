@@ -23,7 +23,7 @@ import { WorkstreamDetail, statusTone } from "@/components/portfolio/Workstreams
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction } from "@/utils/sheets.functions";
-import { listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
+import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
 const TABS = ["workstreams", "followups", "notes", "done"] as const;
@@ -296,12 +296,18 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
   const fetchHome = useServerFn(fetchHomeMomentum);
   const completeNote = useServerFn(completeHomeNoteFollowUp);
   const updInteraction = useServerFn(updateInteraction);
+  const completeAction = useServerFn(completeActionFn);
   const qc = useQueryClient();
   const [selId, setSelId] = useState("");
   const [sort, setSort] = useState<"portco" | "date">("portco");
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeSel, setMergeSel] = useState<string[]>([]);
+  const [pick, setPick] = useState({ summary: "", person: "", due: "", company: "" });
+  const [noteFor, setNoteFor] = useState("");
+  const [noteText, setNoteText] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const rows = [...(data?.reminders || [])].filter((x) => !hidden.has(x.id)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
   const groups = useMemo(() => {
@@ -312,6 +318,11 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
     }
     return [...m.entries()].sort(([a], [b]) => sort === "date" ? (a === "No date" ? 1 : b === "No date" ? -1 : a.localeCompare(b)) : a.localeCompare(b));
   }, [rows, sort]);
+  const mergeRows = mergeSel.map((id) => rows.find((x) => x.id === id)).filter(Boolean) as Reminder[];
+  // Default each merged field to the first selected follow-up.
+  useEffect(() => {
+    if (mergeRows.length >= 2) setPick({ summary: mergeRows[0]!.id, person: mergeRows[0]!.id, due: mergeRows[0]!.id, company: mergeRows[0]!.id });
+  }, [mergeSel.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ownerEmail) return <p className="text-sm text-muted-foreground">No email on file for {owner}.</p>;
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading follow-ups…</p>;
   if (!rows.length) return <p className="text-sm text-muted-foreground">No open follow-ups.</p>;
@@ -326,6 +337,17 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
     }
     return false;
   };
+  /** Completes a follow-up and records a note about what was done (logged as an action). */
+  const completeWithNote = async (x: Reminder, note: string) => {
+    if (note.trim()) {
+      await completeAction({ data: {
+        sourceKind: "followup", sourceId: x.activityId || x.id, subject: x.summary || `Follow-up with ${x.person}`,
+        recipients: [{ name: x.person, email: x.email || "" }], portcos: x.company ? x.company.split(/\s*,\s*/) : [],
+        tracks: [], actor: owner, followUpActivityId: x.activityId || undefined, mode: "log", note: note.trim(),
+      } });
+    }
+    return closeOne(x, false);
+  };
   const act = async (items: Reminder[], del: boolean, label: string) => {
     setBusy(label);
     try {
@@ -338,10 +360,41 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
     } catch (e) { console.error(e); toast.error("Couldn't update the follow-up"); }
     finally { setBusy(""); }
   };
+  const toggleMerge = (id: string) => setMergeSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
+  const doMerge = async () => {
+    const keep = mergeRows.find((x) => x.id === pick.summary) || mergeRows[0]!;
+    const chosenSummary = keep.summary || `Follow-up with ${keep.person}`;
+    const chosenPerson = mergeRows.find((x) => x.id === pick.person)?.person || keep.person;
+    const chosenDue = mergeRows.find((x) => x.id === pick.due)?.due || keep.due;
+    const chosenCompany = mergeRows.find((x) => x.id === pick.company)?.company || keep.company;
+    const note = `Merged ${mergeRows.length - 1} duplicate(s) into "${chosenSummary}" — ${chosenPerson}${chosenCompany ? ` · ${chosenCompany}` : ""}${chosenDue ? ` · due ${chosenDue.slice(0, 10)}` : ""}`;
+    setBusy("Merging");
+    try {
+      const ok: string[] = [];
+      for (const x of mergeRows.filter((m) => m.id !== keep.id)) if (await completeWithNote(x, note)) ok.push(x.id);
+      setHidden((h) => new Set([...h, ...ok]));
+      setMergeSel([]); setMergeMode(false); setSelId(keep.id);
+      if (ok.length === mergeRows.length - 1) toast.success(`Merged into "${chosenSummary}"`);
+      else toast.error("Some duplicates couldn't be closed here — open them on their own page.");
+      void qc.invalidateQueries({ queryKey: ["my-actions"] });
+    } catch (e) { console.error(e); toast.error("Couldn't merge"); }
+    finally { setBusy(""); }
+  };
   const similar = similarFollowUps(r, rows);
   const openLink = r.campaignId ? <Link to="/campaigns" search={{ campaign: r.campaignId } as never}>Open campaign <ExternalLink className="ml-1 h-3 w-3" /></Link>
     : r.source === "Prospecting" ? <Link to="/targeting" search={{ target: r.targetKey } as never}>Open in Prospecting <ExternalLink className="ml-1 h-3 w-3" /></Link>
     : r.email ? <Link to="/crm" search={{ contact: r.email } as never}>Open contact <ExternalLink className="ml-1 h-3 w-3" /></Link> : null;
+  const mergeField = (label: string, key: keyof typeof pick, val: (x: Reminder) => string) => (
+    <div className="space-y-1">
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      {mergeRows.map((x) => (
+        <label key={x.id} className="flex items-center gap-2 text-sm">
+          <input type="radio" name={`merge-${key}`} checked={pick[key] === x.id} onChange={() => setPick((p) => ({ ...p, [key]: x.id }))} className="accent-primary" />
+          <span className="truncate">{val(x) || "—"}</span>
+        </label>
+      ))}
+    </div>
+  );
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-sm">
@@ -349,6 +402,9 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
         <div className="inline-flex rounded-md border border-border p-0.5">
           {(["portco", "date"] as const).map((k) => <button key={k} onClick={() => setSort(k)} className={`rounded px-3 py-1 text-sm ${sort === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>{k === "portco" ? "PortCo / Partner" : "Date"}</button>)}
         </div>
+        <Button size="sm" variant={mergeMode ? "secondary" : "outline"} className="h-7" onClick={() => { setMergeMode((m) => !m); setMergeSel([]); }}>
+          <Merge className="mr-1 h-3.5 w-3.5" />{mergeMode ? `Merging (${mergeSel.length})` : "Merge"}
+        </Button>
         <span className="ml-auto text-xs text-muted-foreground">{rows.length} open</span>
       </div>
       <SplitPane
@@ -362,25 +418,37 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
               <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{items.length}</span>
             </button>
             {!isClosed && <div className="divide-y divide-border">{items.map((x) => (
-              <button key={x.id} onClick={() => setSelId(x.id)} className={`${rowCls(r.id === x.id)} pl-9`}>
+              <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSelId(x.id)} className={`${rowCls(!mergeMode && r.id === x.id)} pl-9`}>
                 <div className="flex items-center gap-2">
-                  {sort === "date" && x.company && <Logo name={x.company.split(/\s*,\s*/)[0]!} size="sm" />}
-                  <span className="truncate text-sm font-medium">{x.summary || `Follow up with ${x.person}`}</span>
-                </div>
-                <div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                  <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">{x.source}</Badge>
-                  {x.due ? `Due ${x.due.slice(0, 10)}` : "No date"} · {x.person}
+                  {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="h-3.5 w-3.5 shrink-0 accent-primary" />}
+                  {x.company && <Logo name={x.company.split(/\s*,\s*/)[0]!} size="sm" />}
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{x.summary || `Follow up with ${x.person}`}</span>
+                  <span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
+                    <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
+                    <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
+                  </span>
                 </div>
               </button>
             ))}</div>}
           </div>;
         })}</div>}
-        detail={<div className="space-y-4">
+        detail={mergeMode && mergeRows.length >= 2 ? <div className="space-y-4">
+          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Merge {mergeRows.length} follow-ups</div>
+          <p className="text-xs text-muted-foreground">Pick which value to keep for each field. The follow-up whose summary you keep stays open; the others close with a merge note.</p>
+          {mergeField("Summary (this one stays open)", "summary", (x) => x.summary || `Follow up with ${x.person}`)}
+          {mergeField("Person", "person", (x) => x.person)}
+          {mergeField("Due date", "due", (x) => (x.due ? x.due.slice(0, 10) : ""))}
+          {mergeField("PortCo / Partner", "company", (x) => x.company || "")}
+          <div className="flex gap-2 border-t border-border pt-3">
+            <Button size="sm" disabled={!!busy} onClick={() => void doMerge()}><Merge className="mr-1 h-3.5 w-3.5" />Merge into one</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setMergeMode(false); setMergeSel([]); }}>Cancel</Button>
+          </div>
+        </div> : mergeMode ? <p className="text-sm text-muted-foreground">Tick two or more follow-ups in the list to merge them.</p> : <div className="space-y-4">
           <div className="flex items-start gap-3">
             {r.company && <Logo name={r.company.split(/\s*,\s*/)[0]!} />}
             <div className="min-w-0 flex-1">
               <div className="font-display text-base font-semibold">{r.summary || `Follow up with ${r.person}`}</div>
-              <div className="text-xs text-muted-foreground">{r.person}{r.company ? ` · ${r.company}` : ""} · {r.source} · {r.due ? `Due ${r.due.slice(0, 10)}` : "No date"}{r.email ? ` · ${r.email}` : ""}</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2 border-y border-border py-3">
@@ -389,19 +457,34 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
               text: r.originalNote || r.summary, people: [{ name: r.person, email: r.email || "" }],
               portcos: r.source === "Notes" && r.company ? r.company.split(/\s*,\s*/) : [], followUpActivityId: r.activityId,
             })}><Zap className="mr-1 h-3.5 w-3.5" />Action Now</Button>
-            <Button size="sm" variant="outline" disabled={!!busy || !canClose(r)} onClick={() => void act([r], false, "Marked complete")}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
+            <Button size="sm" variant="outline" disabled={!!busy || !canClose(r)} onClick={() => { setNoteFor(noteFor === r.id ? "" : r.id); setNoteText(""); }}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
             <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(r)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([r], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
             {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
             {r.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={r.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
           </div>
+          {noteFor === r.id && <div className="space-y-2 rounded-md border border-border p-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What did you do? (optional note)</div>
+            <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3} placeholder='e.g. "Sent the intro deck" or "Already handled on the call"' className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            <div className="flex gap-2">
+              <Button size="sm" disabled={!!busy} onClick={() => { const n = noteText; setNoteFor(""); setNoteText(""); setBusy("Marked complete"); void completeWithNote(r, n).then((ok) => { if (ok) { setHidden((h) => new Set([...h, r.id])); toast.success("Marked complete"); void qc.invalidateQueries({ queryKey: ["my-actions"] }); } else toast.error("Couldn't update the follow-up"); }).finally(() => setBusy("")); }}>Save & complete</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setNoteFor(""); setNoteText(""); }}>Cancel</Button>
+            </div>
+          </div>}
           {!canClose(r) && <p className="text-xs text-muted-foreground">This {r.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
           {r.originalNote && r.originalNote !== r.summary && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{r.originalNote}</div>}
+          <div className="flex justify-end border-t border-border pt-3">
+            <div className="space-y-0.5 text-right text-xs text-muted-foreground">
+              <div className="flex items-center justify-end gap-1.5"><Badge variant="outline" className="h-4 px-1 text-[9px]">{r.source}</Badge>{r.company}</div>
+              <div>{r.person}{r.email ? ` · ${r.email}` : ""}</div>
+              <div className="tabular-nums">{r.due ? `Due ${r.due.slice(0, 10)}` : "No date"}</div>
+            </div>
+          </div>
           {similar.length > 0 && <div className="space-y-2 rounded-md border border-border p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Similar actions · {similar.length}</div>
               <Button size="sm" variant="outline" className="h-7" disabled={!!busy || !similar.some(canClose)} onClick={() => void act(similar.filter(canClose), false, `Merged ${similar.filter(canClose).length} into this one`)}>Merge all into this</Button>
             </div>
-            <p className="text-[11px] text-muted-foreground">Merging keeps this follow-up open and closes the duplicates.</p>
+            <p className="text-[11px] text-muted-foreground">Merging keeps this follow-up open and closes the duplicates. For field-by-field merging, use the Merge button above the list.</p>
             {similar.map((x) => <div key={x.id} className="flex items-center gap-2 text-sm">
               <button className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => setSelId(x.id)}>{x.summary || x.person}<span className="text-xs text-muted-foreground"> · {x.person} · {x.due ? x.due.slice(0, 10) : "No date"}</span></button>
               <Button size="sm" variant="ghost" className="h-7" disabled={!!busy || !canClose(x)} onClick={() => void act([x], false, "Merged")}>Merge</Button>
