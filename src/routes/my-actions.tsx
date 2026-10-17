@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Plus, Undo2, Zap } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Merge, Plus, Trash2, Undo2, Zap } from "lucide-react";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { toast } from "sonner";
@@ -21,11 +21,12 @@ import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-par
 import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
-import { fetchHomeMomentum } from "@/utils/home.functions";
+import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
+import { updateInteraction } from "@/utils/sheets.functions";
 import { listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
-const TABS = ["workstreams", "notes", "followups", "done"] as const;
+const TABS = ["workstreams", "followups", "notes", "done"] as const;
 type Tab = (typeof TABS)[number];
 
 export const Route = createFileRoute("/my-actions")({
@@ -83,7 +84,7 @@ function MyActionsPage() {
       <div className="inline-flex flex-wrap rounded-md border border-border p-0.5">
         {TABS.map((k) => (
           <button key={k} onClick={() => set({ tab: k })} className={`rounded px-3 py-1.5 text-sm ${tab === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>
-            {k === "workstreams" ? "Workstreams" : k === "notes" ? "Notes & Activity" : k === "followups" ? "Follow-ups" : "Done"}
+            {k === "workstreams" ? "Workstreams" : k === "notes" ? "Notes & Activity" : k === "followups" ? "Follow-ups" : "Completed"}
             {k === "notes" && <span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{counts.notes + counts.activity}</span>}
           </button>
         ))}
@@ -269,46 +270,146 @@ function NewWorkstreamForm({ companies, onDone }: { companies: string[]; onDone:
   );
 }
 
+type Reminder = NonNullable<Awaited<ReturnType<typeof fetchHomeMomentum>>["reminders"]>[number];
+const words = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !["follow", "with", "the", "and", "for"].includes(w)));
+/** Two follow-ups look like the same action when they share the person, or most of their wording. */
+function similarFollowUps(r: Reminder, all: Reminder[]): Reminder[] {
+  const a = words(`${r.summary}`);
+  return all.filter((x) => {
+    if (x.id === r.id) return false;
+    if (r.email && x.email && r.email.toLowerCase() === x.email.toLowerCase()) return true;
+    const b = words(`${x.summary}`);
+    const inter = [...a].filter((w) => b.has(w)).length;
+    return inter >= 2 && inter / Math.max(1, Math.min(a.size, b.size)) >= 0.6;
+  });
+}
+const weekOf = (d: string) => {
+  if (!d) return "No date";
+  const t = new Date(d.slice(0, 10) + "T00:00:00Z");
+  if (Number.isNaN(t.getTime())) return "No date";
+  t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+  return `Week of ${t.toISOString().slice(0, 10)}`;
+};
+
 function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
   const ownerEmail = teamMemberFor(owner)?.email || "";
   const fetchHome = useServerFn(fetchHomeMomentum);
+  const completeNote = useServerFn(completeHomeNoteFollowUp);
+  const updInteraction = useServerFn(updateInteraction);
+  const qc = useQueryClient();
   const [selId, setSelId] = useState("");
+  const [sort, setSort] = useState<"portco" | "date">("portco");
+  const [closed, setClosed] = useState<Set<string>>(new Set());
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
-  const rows = [...(data?.reminders || [])].sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  const rows = [...(data?.reminders || [])].filter((x) => !hidden.has(x.id)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  const groups = useMemo(() => {
+    const m = new Map<string, Reminder[]>();
+    for (const x of rows) {
+      const k = sort === "portco" ? ((x.company || "").split(/\s*,\s*/)[0] || "No PortCo / Partner") : weekOf(x.due);
+      m.set(k, [...(m.get(k) || []), x]);
+    }
+    return [...m.entries()].sort(([a], [b]) => sort === "date" ? (a === "No date" ? 1 : b === "No date" ? -1 : a.localeCompare(b)) : a.localeCompare(b));
+  }, [rows, sort]);
   if (!ownerEmail) return <p className="text-sm text-muted-foreground">No email on file for {owner}.</p>;
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading follow-ups…</p>;
   if (!rows.length) return <p className="text-sm text-muted-foreground">No open follow-ups.</p>;
   const r = rows.find((x) => x.id === selId) || rows[0]!;
+  const canClose = (x: Reminder) => !!x.activityId || (x.source === "Network" && !!x.email && !!x.originalNote);
+  /** Completes (or deletes) a follow-up where it lives. Returns false when it must be closed on its own page. */
+  const closeOne = async (x: Reminder, del: boolean) => {
+    if (x.activityId) return (await completeNote({ data: { activityId: x.activityId } })).success;
+    if (x.source === "Network" && x.email && x.originalNote) {
+      const res = await updInteraction({ data: { contactEmail: x.email, originalNote: x.originalNote, date: x.date, ...(del ? { requiresFollowUp: false } : { resolved: true }) } });
+      return !!res.success;
+    }
+    return false;
+  };
+  const act = async (items: Reminder[], del: boolean, label: string) => {
+    setBusy(label);
+    try {
+      const ok: string[] = [];
+      for (const x of items) if (await closeOne(x, del)) ok.push(x.id);
+      setHidden((h) => new Set([...h, ...ok]));
+      if (ok.length === items.length) toast.success(label);
+      else toast.error(`${items.length - ok.length} couldn't be updated here — open them on their own page.`);
+      void qc.invalidateQueries({ queryKey: ["my-actions"] });
+    } catch (e) { console.error(e); toast.error("Couldn't update the follow-up"); }
+    finally { setBusy(""); }
+  };
+  const similar = similarFollowUps(r, rows);
+  const openLink = r.campaignId ? <Link to="/campaigns" search={{ campaign: r.campaignId } as never}>Open campaign <ExternalLink className="ml-1 h-3 w-3" /></Link>
+    : r.source === "Prospecting" ? <Link to="/targeting" search={{ target: r.targetKey } as never}>Open in Prospecting <ExternalLink className="ml-1 h-3 w-3" /></Link>
+    : r.email ? <Link to="/crm" search={{ contact: r.email } as never}>Open contact <ExternalLink className="ml-1 h-3 w-3" /></Link> : null;
   return (
-    <SplitPane
-      list={<div className="divide-y divide-border">{rows.map((x) => (
-        <button key={x.id} onClick={() => setSelId(x.id)} className={rowCls(r.id === x.id)}>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="shrink-0 text-[10px]">{x.source}</Badge>
-            <span className="truncate text-sm font-medium">{x.person}{x.company ? ` · ${x.company}` : ""}</span>
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Sort by</span>
+        <div className="inline-flex rounded-md border border-border p-0.5">
+          {(["portco", "date"] as const).map((k) => <button key={k} onClick={() => setSort(k)} className={`rounded px-3 py-1 text-sm ${sort === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>{k === "portco" ? "PortCo / Partner" : "Date"}</button>)}
+        </div>
+        <span className="ml-auto text-xs text-muted-foreground">{rows.length} open</span>
+      </div>
+      <SplitPane
+        list={<div className="divide-y divide-border">{groups.map(([g, items]) => {
+          const isClosed = closed.has(g);
+          return <div key={g}>
+            <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g)) n.delete(g); else n.add(g); return n; })} className="flex w-full items-center gap-2 bg-muted/20 px-3 py-2 text-left">
+              {isClosed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              {sort === "portco" ? <Logo name={g} size="sm" /> : <CalendarDays className="h-4 w-4 text-muted-foreground" />}
+              <span className="flex-1 truncate text-sm font-semibold">{g}</span>
+              <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{items.length}</span>
+            </button>
+            {!isClosed && <div className="divide-y divide-border">{items.map((x) => (
+              <button key={x.id} onClick={() => setSelId(x.id)} className={`${rowCls(r.id === x.id)} pl-9`}>
+                <div className="flex items-center gap-2">
+                  {sort === "date" && x.company && <Logo name={x.company.split(/\s*,\s*/)[0]!} size="sm" />}
+                  <span className="truncate text-sm font-medium">{x.summary || `Follow up with ${x.person}`}</span>
+                </div>
+                <div className="mt-0.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                  <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">{x.source}</Badge>
+                  {x.due ? `Due ${x.due.slice(0, 10)}` : "No date"} · {x.person}
+                </div>
+              </button>
+            ))}</div>}
+          </div>;
+        })}</div>}
+        detail={<div className="space-y-4">
+          <div className="flex items-start gap-3">
+            {r.company && <Logo name={r.company.split(/\s*,\s*/)[0]!} />}
+            <div className="min-w-0 flex-1">
+              <div className="font-display text-base font-semibold">{r.summary || `Follow up with ${r.person}`}</div>
+              <div className="text-xs text-muted-foreground">{r.person}{r.company ? ` · ${r.company}` : ""} · {r.source} · {r.due ? `Due ${r.due.slice(0, 10)}` : "No date"}{r.email ? ` · ${r.email}` : ""}</div>
+            </div>
           </div>
-          <div className="mt-0.5 truncate text-xs text-muted-foreground">{x.due ? `Due ${x.due}` : "No date"} · {x.summary}</div>
-        </button>
-      ))}</div>}
-      detail={<div className="space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <div className="font-display text-base font-semibold">{r.person}{r.company ? ` · ${r.company}` : ""}</div>
-            <div className="text-xs text-muted-foreground">{r.source} · {r.due ? `Due ${r.due}` : "No date"}{r.email ? ` · ${r.email}` : ""}</div>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            {r.campaignId && <Button asChild size="sm" variant="ghost" className="h-8"><Link to="/campaigns">Campaign <ExternalLink className="h-3 w-3 ml-1" /></Link></Button>}
-            <Button size="sm" className="h-8" onClick={() => onAction({
+          <div className="flex flex-wrap gap-2 border-y border-border py-3">
+            <Button size="sm" onClick={() => onAction({
               sourceKind: "followup", sourceId: r.activityId || r.id, title: r.summary || `Follow-up with ${r.person}`,
               text: r.originalNote || r.summary, people: [{ name: r.person, email: r.email || "" }],
               portcos: r.source === "Notes" && r.company ? r.company.split(/\s*,\s*/) : [], followUpActivityId: r.activityId,
-            })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
+            })}><Zap className="mr-1 h-3.5 w-3.5" />Action Now</Button>
+            <Button size="sm" variant="outline" disabled={!!busy || !canClose(r)} onClick={() => void act([r], false, "Marked complete")}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
+            <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(r)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([r], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
+            {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
+            {r.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={r.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
           </div>
-        </div>
-        {r.summary && <p className="text-sm">{r.summary}</p>}
-        {r.originalNote && r.originalNote !== r.summary && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{r.originalNote}</div>}
-      </div>}
-    />
+          {!canClose(r) && <p className="text-xs text-muted-foreground">This {r.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
+          {r.originalNote && r.originalNote !== r.summary && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{r.originalNote}</div>}
+          {similar.length > 0 && <div className="space-y-2 rounded-md border border-border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Similar actions · {similar.length}</div>
+              <Button size="sm" variant="outline" className="h-7" disabled={!!busy || !similar.some(canClose)} onClick={() => void act(similar.filter(canClose), false, `Merged ${similar.filter(canClose).length} into this one`)}>Merge all into this</Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Merging keeps this follow-up open and closes the duplicates.</p>
+            {similar.map((x) => <div key={x.id} className="flex items-center gap-2 text-sm">
+              <button className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => setSelId(x.id)}>{x.summary || x.person}<span className="text-xs text-muted-foreground"> · {x.person} · {x.due ? x.due.slice(0, 10) : "No date"}</span></button>
+              <Button size="sm" variant="ghost" className="h-7" disabled={!!busy || !canClose(x)} onClick={() => void act([x], false, "Merged")}>Merge</Button>
+            </div>)}
+          </div>}
+        </div>}
+      />
+    </div>
   );
 }
 
