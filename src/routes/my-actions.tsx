@@ -81,13 +81,15 @@ function MyActionsPage() {
           <p className="text-sm text-muted-foreground">Review what came in, then follow up with Action Now.</p>
         </div>
         <div className="flex flex-wrap items-start justify-end gap-4">
-        {tab === "followups" && followUpSort === "date" && <ActionCalendar owner={owner} range={dateRange} onChange={setDateRange} />}
         <Select value={owner} onValueChange={(v) => set({ owner: v })}>
           <SelectTrigger className="h-9 w-56"><SelectValue placeholder="Action owner" /></SelectTrigger>
           <SelectContent>{ACTION_OWNERS.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent>
         </Select>
         </div>
       </div>
+
+      {tab === "followups" && followUpSort === "date" && <ActionCalendar owner={owner} range={dateRange} onChange={setDateRange} />}
+
 
       <div className="inline-flex flex-wrap rounded-md border border-border p-0.5">
         {TABS.map((k) => (
