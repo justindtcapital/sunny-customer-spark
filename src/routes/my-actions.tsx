@@ -22,6 +22,8 @@ import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
+import { ActionCalendar } from "@/components/actions/ActionCalendar";
+import { inActionRange, type ActionDateRange } from "@/lib/action-calendar";
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -66,20 +68,25 @@ function MyActionsPage() {
   const owner = ACTION_OWNERS.find((o) => o.name === search.owner)?.name || teamProfile(email)?.displayName || "";
   const [ctx, setCtx] = useState<ActionContext | null>(null);
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
+  const [followUpSort, setFollowUpSort] = useState<"portco" | "date">("portco");
+  const [dateRange, setDateRange] = useState<ActionDateRange>(null);
   const qc = useQueryClient();
   const set = (p: { tab?: Tab; owner?: string }) => navigate({ search: (s) => ({ ...s, ...p }), replace: true });
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4 p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold">My Actions</h1>
           <p className="text-sm text-muted-foreground">Review what came in, then follow up with Action Now.</p>
         </div>
+        <div className="flex flex-wrap items-start justify-end gap-4">
+        {tab === "followups" && followUpSort === "date" && <ActionCalendar owner={owner} range={dateRange} onChange={setDateRange} />}
         <Select value={owner} onValueChange={(v) => set({ owner: v })}>
           <SelectTrigger className="h-9 w-56"><SelectValue placeholder="Action owner" /></SelectTrigger>
           <SelectContent>{ACTION_OWNERS.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent>
         </Select>
+        </div>
       </div>
 
       <div className="inline-flex flex-wrap rounded-md border border-border p-0.5">
@@ -94,7 +101,7 @@ function MyActionsPage() {
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <>
         {tab === "workstreams" && <WorkstreamsTab owner={owner} onAction={setCtx} focusGid={search.ws} />}
         {tab === "notes" && <NotesTab owner={owner} onAction={setCtx} onCounts={setCounts} />}
-        {tab === "followups" && <FollowUpsTab owner={owner} onAction={setCtx} />}
+        {tab === "followups" && <FollowUpsTab owner={owner} onAction={setCtx} sort={followUpSort} setSort={setFollowUpSort} dateRange={dateRange} />}
         {tab === "done" && <DoneTab owner={owner} />}
       </>}
 
@@ -292,7 +299,7 @@ const weekOf = (d: string) => {
   return `Week of ${t.toISOString().slice(0, 10)}`;
 };
 
-function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: ActionContext) => void }) {
+function FollowUpsTab({ owner, onAction, sort, setSort, dateRange }: { owner: string; onAction: (c: ActionContext) => void; sort: "portco" | "date"; setSort: (s: "portco" | "date") => void; dateRange: ActionDateRange }) {
   const ownerEmail = teamMemberFor(owner)?.email || "";
   const fetchHome = useServerFn(fetchHomeMomentum);
   const completeNote = useServerFn(completeHomeNoteFollowUp);
@@ -301,7 +308,6 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
   const completeAction = useServerFn(completeActionFn);
   const qc = useQueryClient();
   const [selId, setSelId] = useState("");
-  const [sort, setSort] = useState<"portco" | "date">("portco");
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
@@ -312,7 +318,8 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
   const [noteText, setNoteText] = useState("");
   const [editFor, setEditFor] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
-  const rows = [...(data?.reminders || [])].filter((x) => !hidden.has(x.id)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  const allRows = [...(data?.reminders || [])].filter((x) => !hidden.has(x.id)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+  const rows = allRows.filter((x) => sort !== "date" || inActionRange(x.due, dateRange));
   const groups = useMemo(() => {
     const m = new Map<string, Reminder[]>();
     for (const x of rows) {
@@ -328,8 +335,10 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
   }, [mergeSel.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!ownerEmail) return <p className="text-sm text-muted-foreground">No email on file for {owner}.</p>;
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading follow-ups…</p>;
-  if (!rows.length) return <p className="text-sm text-muted-foreground">No open follow-ups.</p>;
-  const r = rows.find((x) => x.id === selId) || rows[0]!;
+  if (!allRows.length) return <p className="text-sm text-muted-foreground">No open follow-ups.</p>;
+  if (!rows.length) return <div className="space-y-3"><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => setSort("portco")}>PortCo / Partner</Button><Button variant="secondary" size="sm" onClick={() => setSort("date")}>Date</Button></div><p className="text-sm text-muted-foreground">No follow-ups on the selected dates.</p></div>;
+  const r = rows.find((x) => x.id === selId) || rows[0];
+  if (!r) return null;
   const canClose = (x: Reminder) =>
     !!x.activityId || (x.source === "Network" && !!x.email && (!!x.originalNote || x.id.startsWith("flag:")));
   /** Completes (or deletes) a follow-up where it lives. Returns false when it must be closed on its own page. */
