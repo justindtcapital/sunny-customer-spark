@@ -1,8 +1,8 @@
 # Roadmap
 
 ## Follow-up editing
-- [ ] Add an Edit panel below task controls with saved title, details, tags, owner and due date
-- [ ] Preserve source history and verify editing survives reload
+- [x] Add an Edit panel below task controls with saved title, details, tags, owner and due date
+- [x] Preserve source history and verify editing survives reload
 
 ## Follow-up readability and duplicates
 - [x] Protect list width and wrap long action/merge details
