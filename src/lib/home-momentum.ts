@@ -52,6 +52,9 @@ export interface HomeReminder {
   sourceUrl?: string;
   originalNote?: string;
   date?: string;
+  details?: string;
+  people?: { name: string; email: string }[];
+  tracks?: ("BD" | "GTM")[];
 }
 
 /** KB contact trails hold the update; assigned next steps are separate activities. */

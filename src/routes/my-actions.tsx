@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Merge, Plus, Trash2, Undo2, Zap } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Merge, Pencil, Plus, Trash2, Undo2, Zap } from "lucide-react";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-par
 import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
+import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -309,6 +310,7 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
   const [pick, setPick] = useState({ summary: "", person: "", due: "", company: "" });
   const [noteFor, setNoteFor] = useState("");
   const [noteText, setNoteText] = useState("");
+  const [editFor, setEditFor] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const rows = [...(data?.reminders || [])].filter((x) => !hidden.has(x.id)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
   const groups = useMemo(() => {
@@ -461,14 +463,16 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
           <div className="flex flex-wrap gap-2 border-y border-border py-3">
             <Button size="sm" onClick={() => onAction({
               sourceKind: "followup", sourceId: r.activityId || r.id, title: r.summary || `Follow-up with ${r.person}`,
-              text: r.originalNote || r.summary, people: [{ name: r.person, email: r.email || "" }],
-              portcos: r.source === "Notes" && r.company ? r.company.split(/\s*,\s*/) : [], followUpActivityId: r.activityId,
+              text: r.details || r.originalNote || r.summary, people: r.people || [{ name: r.person, email: r.email || "" }],
+              portcos: r.company ? r.company.split(/\s*,\s*/) : [], tracks: r.tracks, followUpActivityId: r.activityId,
             })}><Zap className="mr-1 h-3.5 w-3.5" />Action Now</Button>
             <Button size="sm" variant="outline" disabled={!!busy || !canClose(r)} onClick={() => { setNoteFor(noteFor === r.id ? "" : r.id); setNoteText(""); }}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
             <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(r)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([r], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
             {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
             {r.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={r.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditFor(editFor === r.id ? "" : r.id); setNoteFor(""); }}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>
           </div>
+          {editFor === r.id && <FollowUpEditor key={r.id} reminder={r} onClose={() => setEditFor("")} />}
           {noteFor === r.id && <div className="space-y-2 rounded-md border border-border p-3">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What did you do? (optional note)</div>
             <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3} placeholder='e.g. "Sent the intro deck" or "Already handled on the call"' className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
@@ -478,11 +482,11 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
             </div>
           </div>}
           {!canClose(r) && <p className="text-xs text-muted-foreground">This {r.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
-          {r.originalNote && r.originalNote !== r.summary && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{r.originalNote}</div>}
+          {(r.details || (r.originalNote && r.originalNote !== r.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{r.details || r.originalNote}</div>}
           <div className="flex justify-end border-t border-border pt-3">
             <div className="space-y-0.5 text-right text-xs text-muted-foreground">
               <div className="flex items-center justify-end gap-1.5"><Badge variant="outline" className="h-4 px-1 text-[9px]">{r.source}</Badge>{r.company}</div>
-              <div>{r.person}{r.email ? ` · ${r.email}` : ""}</div>
+              <div>{r.people ? r.people.map((p) => p.name || p.email).join(", ") : `${r.person}${r.email ? ` · ${r.email}` : ""}`}</div>
               <div className="tabular-nums">{r.due ? `Due ${r.due.slice(0, 10)}` : "No date"}</div>
             </div>
           </div>
