@@ -123,9 +123,9 @@ function NotesTab({ owner, onAction, onCounts }: { owner: string; onAction: (c: 
 
 function SplitPane({ list, detail }: { list: React.ReactNode; detail: React.ReactNode }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(280px,2fr)_3fr]">
-      <Card><CardContent className="max-h-[75vh] overflow-y-auto p-0">{list}</CardContent></Card>
-      <Card className="lg:sticky lg:top-4 self-start w-full"><CardContent className="max-h-[75vh] overflow-y-auto p-4">{detail}</CardContent></Card>
+    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <Card className="min-w-0"><CardContent className="max-h-[75vh] overflow-x-hidden overflow-y-auto p-0">{list}</CardContent></Card>
+      <Card className="min-w-0 lg:sticky lg:top-4 self-start w-full"><CardContent className="max-h-[75vh] overflow-x-hidden overflow-y-auto p-4 [overflow-wrap:anywhere]">{detail}</CardContent></Card>
     </div>
   );
 }
@@ -393,9 +393,9 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
     <div className="space-y-1">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
       {mergeRows.map((x) => (
-        <label key={x.id} className="flex items-center gap-2 text-sm">
-          <input type="radio" name={`merge-${key}`} checked={pick[key] === x.id} onChange={() => setPick((p) => ({ ...p, [key]: x.id }))} className="accent-primary" />
-          <span className="truncate">{val(x) || "—"}</span>
+        <label key={x.id} className="flex min-w-0 items-start gap-2 text-sm">
+          <input type="radio" name={`merge-${key}`} checked={pick[key] === x.id} onChange={() => setPick((p) => ({ ...p, [key]: x.id }))} className="mt-1 shrink-0 accent-primary" />
+          <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{val(x) || "—"}</span>
         </label>
       ))}
     </div>
@@ -424,15 +424,17 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
             </button>
             {!isClosed && <div className="divide-y divide-border">{items.map((x) => (
               <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSelId(x.id)} className={`${rowCls(!mergeMode && r.id === x.id)} pl-9`}>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-start gap-2">
                   {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="h-3.5 w-3.5 shrink-0 accent-primary" />}
                   {x.company && <Logo name={x.company.split(/\s*,\s*/)[0]!} size="sm" />}
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{x.summary || `Follow up with ${x.person}`}</span>
-                  <span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                  <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
+                  <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
                     <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
                     <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
                     <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
                   </span>
+                  </div>
                 </div>
               </button>
             ))}</div>}
@@ -485,13 +487,13 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
             </div>
           </div>
           {similar.length > 0 && <div className="space-y-2 rounded-md border border-border p-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Similar actions · {similar.length}</div>
               <Button size="sm" variant="outline" className="h-7" disabled={!!busy || !similar.some(canClose)} onClick={() => void act(similar.filter(canClose), false, `Merged ${similar.filter(canClose).length} into this one`)}>Merge all into this</Button>
             </div>
             <p className="text-[11px] text-muted-foreground">Merging keeps this follow-up open and closes the duplicates. For field-by-field merging, use the Merge button above the list.</p>
-            {similar.map((x) => <div key={x.id} className="flex items-center gap-2 text-sm">
-              <button className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => setSelId(x.id)}>{x.summary || x.person}<span className="text-xs text-muted-foreground"> · {x.person} · {x.due ? x.due.slice(0, 10) : "No date"}</span></button>
+            {similar.map((x) => <div key={x.id} className="flex min-w-0 items-start gap-2 text-sm">
+              <Button variant="ghost" className="h-auto min-w-0 flex-1 justify-start whitespace-normal p-0 text-left [overflow-wrap:anywhere]" onClick={() => setSelId(x.id)}><span>{x.summary || x.person}<span className="text-xs text-muted-foreground"> · {x.person} · {x.due ? x.due.slice(0, 10) : "No date"}</span></span></Button>
               <Button size="sm" variant="ghost" className="h-7" disabled={!!busy || !canClose(x)} onClick={() => void act([x], false, "Merged")}>Merge</Button>
             </div>)}
           </div>}

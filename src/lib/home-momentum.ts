@@ -53,13 +53,28 @@ export interface HomeReminder {
   originalNote?: string;
   date?: string;
 }
+
+/** KB contact trails hold the update; assigned next steps are separate activities. */
+export function isContactTask(sourceRef?: string): boolean {
+  return !sourceRef?.startsWith("kb:");
+}
+
+/** Collapse repeated stable IDs; a completed copy wins over older open copies. */
+export function uniqueActivities<T extends { activityId: string; resolved?: boolean }>(items: T[]): T[] {
+  const byId = new Map<string, T>();
+  for (const item of items) {
+    const existing = byId.get(item.activityId);
+    if (!existing || (!existing.resolved && item.resolved)) byId.set(item.activityId, item);
+  }
+  return [...byId.values()];
+}
 export function reminderBucket(due: string, today: string, weekEnd: string): "due" | "overdue" | "undated" | "later" {
   const day = dateKey(due);
   return !day ? "undated" : day < today ? "overdue" : day <= weekEnd ? "due" : "later";
 }
 /** Campaigns store the same reminder on the person; show the person copy once. */
 export function dedupeReminders(items: HomeReminder[]): HomeReminder[] {
-  const direct = items.filter((i) => i.source !== "Campaign");
+  const direct = [...new Map(items.filter((i) => i.source !== "Campaign").map((i) => [i.id, i])).values()];
   const personKey = (i: HomeReminder) => (i.email || i.targetKey || i.person).trim().toLowerCase();
   const seen = new Set(direct.map((i) => `${personKey(i)}:${dateKey(i.due)}`));
   return [...direct, ...items.filter((i) => {

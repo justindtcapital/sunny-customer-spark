@@ -22,6 +22,7 @@ import {
 } from "./sheets.server";
 import { callGeminiJSON, isGeminiConfigured } from "./gemini.server";
 import { sha256Hex } from "./sha256";
+import { uniqueActivities } from "@/lib/home-momentum";
 
 export const KNOWLEDGE_TABS = {
   records: "Knowledge Records",
@@ -210,7 +211,7 @@ export async function listKnowledgeRecords(): Promise<KnowledgeRecord[]> {
 
 export async function listHarvestedActivities(): Promise<HarvestedActivity[]> {
   await ensureTab(KNOWLEDGE_TABS.activities, ACTIVITY_HEADERS);
-  return rowsToActivities(await fetchSheetTab(KNOWLEDGE_TABS.activities));
+  return uniqueActivities(rowsToActivities(await fetchSheetTab(KNOWLEDGE_TABS.activities)));
 }
 
 export async function listWorkstreamLinks(): Promise<WorkstreamLink[]> {
@@ -240,9 +241,12 @@ export async function saveKnowledgeRecords(records: KnowledgeRecord[]): Promise<
 export async function saveHarvestedActivities(acts: HarvestedActivity[]): Promise<void> {
   if (acts.length === 0) return;
   await ensureTab(KNOWLEDGE_TABS.activities, ACTIVITY_HEADERS);
+  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.activities)).slice(1).map((row) => row[0]));
+  const pending = uniqueActivities(acts).filter((a) => !existing.has(a.activityId));
+  if (!pending.length) return;
   await appendSheetRows(
     KNOWLEDGE_TABS.activities,
-    acts.map((a) => [
+    pending.map((a) => [
       a.activityId, a.recordId, a.date, a.track, a.type, a.title, a.portco, a.person,
       a.owner, a.summary, a.sourceUrl, a.createdAt,
     ]),
