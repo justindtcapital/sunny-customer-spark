@@ -22,7 +22,7 @@ import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
-import { updateInteraction } from "@/utils/sheets.functions";
+import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
@@ -296,6 +296,7 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
   const fetchHome = useServerFn(fetchHomeMomentum);
   const completeNote = useServerFn(completeHomeNoteFollowUp);
   const updInteraction = useServerFn(updateInteraction);
+  const clearFlag = useServerFn(clearContactFollowUpFlag);
   const completeAction = useServerFn(completeActionFn);
   const qc = useQueryClient();
   const [selId, setSelId] = useState("");
@@ -327,10 +328,14 @@ function FollowUpsTab({ owner, onAction }: { owner: string; onAction: (c: Action
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading follow-ups…</p>;
   if (!rows.length) return <p className="text-sm text-muted-foreground">No open follow-ups.</p>;
   const r = rows.find((x) => x.id === selId) || rows[0]!;
-  const canClose = (x: Reminder) => !!x.activityId || (x.source === "Network" && !!x.email && !!x.originalNote);
+  const canClose = (x: Reminder) =>
+    !!x.activityId || (x.source === "Network" && !!x.email && (!!x.originalNote || x.id.startsWith("flag:")));
   /** Completes (or deletes) a follow-up where it lives. Returns false when it must be closed on its own page. */
   const closeOne = async (x: Reminder, del: boolean) => {
     if (x.activityId) return (await completeNote({ data: { activityId: x.activityId } })).success;
+    if (x.source === "Network" && x.email && x.id.startsWith("flag:")) {
+      return !!(await clearFlag({ data: { email: x.email } })).success;
+    }
     if (x.source === "Network" && x.email && x.originalNote) {
       const res = await updInteraction({ data: { contactEmail: x.email, originalNote: x.originalNote, date: x.date, ...(del ? { requiresFollowUp: false } : { resolved: true }) } });
       return !!res.success;
