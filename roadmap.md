@@ -1,5 +1,10 @@
 # Roadmap
 
+## Follow-up readability and duplicates
+- [ ] Protect list width and wrap long action/merge details
+- [ ] Remove repeated saved reminders and legacy note summaries from follow-ups without deleting history
+- [ ] Test reminder rules and verify Maven actions in both sort views
+
 ## Team next-step ownership
 - [x] Make four core teammates searchable with canonical identity matching
 - [x] Support teammate due dates and persist next steps to each assignee's My Actions
