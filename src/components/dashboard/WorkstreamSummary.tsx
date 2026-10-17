@@ -28,11 +28,10 @@ interface Props {
 
 export function CompanyLogo({ name, website }: { name: string; website: string }) {
   const [idx, setIdx] = useState(0);
-  const resolved = resolveCompanyLogoDomain({ website });
-  const sources =
-    resolved && resolved.confidence === "high"
-      ? companyLogoSources(resolved.domain, resolved.confidence)
-      : [];
+  const resolved = resolveCompanyLogoDomain({ website, company: name });
+  const sources = resolved
+    ? companyLogoSources(resolved.domain, resolved.confidence)
+    : [];
   const src = sources[idx];
   return (
     <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-card">

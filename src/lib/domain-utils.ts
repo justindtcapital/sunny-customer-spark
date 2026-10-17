@@ -188,7 +188,7 @@ export function resolveCompanyLogoDomain(input: {
 
 /** Optional publishable Logo.dev token (client-side, VITE_*). */
 function logoDevToken(): string {
-  const raw = import.meta.env.VITE_LOGO_DEV_TOKEN;
+  const raw = import.meta.env.VITE_LOVABLE_CONNECTOR_LOGO_DEV_API_KEY || import.meta.env.VITE_LOGO_DEV_TOKEN;
   return typeof raw === "string" ? raw.trim() : "";
 }
 
