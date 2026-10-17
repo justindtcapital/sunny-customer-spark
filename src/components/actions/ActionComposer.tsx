@@ -62,8 +62,6 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
   const [fuNote, setFuNote] = useState("");
   const rec = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
-  // Only pre-write when the source makes the follow-up obvious (notes/emails/follow-ups with content).
-  const obvious = (c: ActionContext) => c.sourceKind !== "workstream" && !!(c.text?.trim() || c.nextSteps?.length);
   const me = teamMemberFor(email);
 
   const run = async (n?: string) => {
@@ -89,7 +87,7 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
     setTracks(ctx.tracks || []);
     setSubject(""); setBody(""); setNudge(""); setLogNote("");
     setPersonQ(""); setPersonResults([]); setAddingNew(false); setFuDate(""); setFuNote("");
-    if (obvious(ctx)) { setMode("email"); void run(); } else setMode("");
+    setMode("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx]);
 
@@ -303,11 +301,11 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
               </Button>
             </div>
             {busy === "draft" && !body ? <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Writing a follow-up from the source…</p>
-              : <Textarea className="h-72 text-sm" placeholder="Write your email, or use Draft with AI below." value={body} onChange={(e) => setBody(e.target.value)} />}
+              : <Textarea className="h-72 text-sm" placeholder="Write your email, dictate it, or press Generate below." value={body} onChange={(e) => setBody(e.target.value)} />}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Input className="h-8 min-w-[180px] flex-1 text-xs" placeholder="Nudge: shorter, more formal, add a PortCo intro…" value={nudge} onChange={(e) => setNudge(e.target.value)} />
-            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void run(nudge)}>{busy === "draft" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}{body ? "Regenerate" : "Draft with AI"}</Button>
+            <Button size="sm" variant="outline" disabled={!!busy} onClick={() => void run(nudge)}>{busy === "draft" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}{body ? "Regenerate" : "Generate"}</Button>
             <AppendPortcoListButton preselected={portcos} onAppend={(t) => setBody((b) => appendPortcoList(b, t))} />
             <Button size="sm" variant="ghost" onClick={() => setBody("")}>Clear</Button>
           </div>
