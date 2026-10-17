@@ -1009,6 +1009,26 @@ export const updateContact = createServerFn({ method: "POST" })
     return { success: false, updated: 0 };
   });
 
+// Clear a contact's "Follow Up Flag" (used by My Actions to complete/delete
+// flagged Network follow-ups that have no interaction row).
+export const clearContactFollowUpFlag = createServerFn({ method: "POST" })
+  .inputValidator((data: { email: string }) => data)
+  .handler(async ({ data }) => {
+    const rows = await fetchSheetTab(TAB_NAMES.contacts);
+    if (rows.length < 2) return { success: false };
+    const headers = rows[0].map((h) => h.trim().toLowerCase());
+    const emailIdx = headers.indexOf("email");
+    const flagIdx = headers.indexOf("follow up flag");
+    if (emailIdx === -1 || flagIdx === -1) return { success: false };
+    const target = data.email.trim().toLowerCase();
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][emailIdx] || "").trim().toLowerCase() !== target) continue;
+      await updateSheetCell(TAB_NAMES.contacts, `${colLetters(flagIdx)}${i + 1}`, "FALSE");
+      return { success: true };
+    }
+    return { success: false };
+  });
+
 // Recompute all unlocked contacts' ratings from activity, persist changes, and
 // log them to the Rating History tab.
 export const recalculateRatings = createServerFn({ method: "POST" }).handler(async () =>
