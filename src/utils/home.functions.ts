@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { scopeMomentum, dedupeReminders, type HomeReminder } from "@/lib/home-momentum";
+import { scopeMomentum, dedupeReminders, isContactTask, type HomeReminder } from "@/lib/home-momentum";
 import { targetKeyOf } from "@/lib/types";
 import { ownerMatches, teamProfile } from "@/lib/user-ownership";
 import { coreAssignee } from "@/lib/team-next-steps";
@@ -50,13 +50,13 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     const reminders: HomeReminder[] = [];
     // Build reminders before filtering by relationship scope: task owner wins.
     for (const c of contacts) {
-      const outstanding = c.interactions.filter((i) => i.isFollowUp && !i.followUpComplete);
+      const outstanding = c.interactions.filter((i) => i.isFollowUp && !i.followUpComplete && isContactTask(i.sourceRef));
       for (const i of outstanding) {
         const who = i.owner || c.prime;
         if (!matches(who)) continue;
         reminders.push({ id: `${c.id}:${i.id}`, person: c.name, company: c.company, email: c.email, owner: who, due: i.followUpDue || "", source: "Network", summary: i.summary, originalNote: i.summary, date: i.date });
       }
-      if (c.followUpPending && !outstanding.length && matches(c.prime)) reminders.push({ id: `flag:${c.id}`, person: c.name, company: c.company, email: c.email, owner: c.prime, due: "", source: "Network", summary: "Follow-up flagged" });
+      if (c.followUpPending && !c.interactions.some((i) => i.isFollowUp && !i.followUpComplete) && matches(c.prime)) reminders.push({ id: `flag:${c.id}`, person: c.name, company: c.company, email: c.email, owner: c.prime, due: "", source: "Network", summary: "Follow-up flagged" });
     }
     for (const t of targets) if (t.followUp && matches(t.prime)) reminders.push({ id: `target:${t.id}`, person: t.name, company: t.company, email: t.email, targetKey: targetKeyOf(t), owner: t.prime || "", due: t.followUpDue || "", source: "Prospecting", summary: t.campaign || "Prospecting follow-up" });
     for (const m of members) {
@@ -77,7 +77,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     const sources = new Map(records.map((r) => [r.recordId, r.sourceType]));
     for (const a of activities) {
       const assignedOwner = coreAssignee(a.person)?.email || a.owner;
-      if (a.track !== "Follow-up" || a.resolved || !matches(assignedOwner)) continue;
+      if (a.track !== "Follow-up" || a.type !== "follow-up" || a.resolved || !matches(assignedOwner)) continue;
       if (!inbox.isRegisteredActivity(sources.get(a.recordId) || "", reviews.get(a.recordId))) continue;
       reminders.push({ id: a.activityId, activityId: a.activityId, person: a.person || a.title, company: a.portco, owner: assignedOwner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl });
     }

@@ -6,7 +6,7 @@
 - Keep workstream bar status and priority separate from segment-specific program fields so GTM and BD share the same Asana bar mapping without replacing their detail fields.- Workstream edits write only changed Asana custom fields, typed from Asana's own field metadata (enum by option gid), after a server re-read conflict check — avoids clobbering concurrent Asana edits.
 
 - Campaign membership lives in the "Campaign Members" sheet tab, one append-only row per (campaign, person); adding existing Network/Prospecting people never edits their records — so people can join many campaigns without data loss.
-- External note tracks use stable source ids and never mutate origins, ensuring idempotent imports.
+- External notes preserve origins. Harvested activities skip existing IDs on save and collapse repeated IDs on read, with completion winning — prevents repeated reminders.
 - Granola sync is manual-only; users clean notes before importing.
 
 - Bulk Network transfers preserve URID and a full profile snapshot in Targets, verify the copy and re-read the source before deletion; history and campaign tabs stay untouched to prevent data loss.
@@ -16,7 +16,7 @@
 
 - Home momentum uses a dedicated read-only Sheets/Asana aggregate and pure date/scope helpers; provider failures must never fall back to demo rows because KPI counts must reflect real records.
 - Contact creation uses a shared manual-rating policy and the legacy recalculation endpoint is inert; this prevents imports and sync callers from silently overriding human ratings.
-- Network reminder due dates live on Notes interaction rows; note-created reminder completion lives on Harvested Activities, so calendar counts and completion survive reloads without altering campaign membership.
+- Network reminder dates live on Notes; assigned steps and completion live on Harvested Activities. KB contact trails stay informational, never duplicate reminders.
 
 - Dashboard deep links use validated owner and section search parameters to select the action owner, expand the requested section, and scroll there; URL state keeps homepage navigation and browser history consistent.
 - Network (NWK) notes come from the NWK@ alias (GMAIL_NWK_ALIAS, default nwk@dt-capital.net) or "NWK" in a note title; on review, tagged contacts get one Interaction Trail row each (Source Ref kb:<recordId>, deduped) and the review stores their emails — keeps contact history traceable to the source note.

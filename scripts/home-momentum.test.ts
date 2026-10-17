@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { periodBounds, inPeriod, activeWorkstream, reminderBucket, dedupeReminders, scopeMomentum, type HomeReminder } from "../src/lib/home-momentum";
+import { periodBounds, inPeriod, activeWorkstream, reminderBucket, dedupeReminders, scopeMomentum, isContactTask, uniqueActivities, type HomeReminder } from "../src/lib/home-momentum";
 import { creationRating, ratingAfterActivity } from "../src/lib/relationship-rating";
 import { scoreContact } from "../src/lib/activity-score";
 import type { Contact } from "../src/lib/types";
@@ -51,6 +51,21 @@ describe("calendar momentum", () => {
 });
 
 describe("follow-up calendar", () => {
+  it.each(["Meet with Christine McCallum", "Follow up with Jonathan Corbin in Austin"])("shows repeated saves of %s once", (title) => {
+    const task = { activityId: "stable-maven-task", title, resolved: false };
+    expect(uniqueActivities([task, { ...task }])).toHaveLength(1);
+  });
+  it("a completed activity cannot reappear from an older duplicate", () => {
+    expect(uniqueActivities([{ activityId: "task", resolved: false }, { activityId: "task", resolved: true }, { activityId: "task", resolved: false }])).toEqual([{ activityId: "task", resolved: true }]);
+  });
+  it("keeps different Maven tasks even with the same owner and date", () => {
+    expect(uniqueActivities([{ activityId: "christine", owner: "Chris Falloon", date: "2026-10-16" }, { activityId: "jonathan", owner: "Chris Falloon", date: "2026-10-16" }])).toHaveLength(2);
+  });
+  it("Maven AGI update contact history is not another task", () => {
+    expect(isContactTask("kb:maven-update")).toBe(false);
+    expect(isContactTask(undefined)).toBe(true);
+    expect(isContactTask("asana:task")).toBe(true);
+  });
   it("keeps undated flags separate from due and overdue", () => {
     expect(reminderBucket("", "2026-10-15", "2026-10-18")).toBe("undated");
     expect(reminderBucket("2026-10-14", "2026-10-15", "2026-10-18")).toBe("overdue");
