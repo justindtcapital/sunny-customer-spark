@@ -23,7 +23,7 @@ import { WorkstreamDetail, statusTone } from "@/components/portfolio/Workstreams
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction } from "@/utils/sheets.functions";
-import { listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
+import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
 const TABS = ["workstreams", "followups", "notes", "done"] as const;
