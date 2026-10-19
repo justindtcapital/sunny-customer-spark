@@ -213,7 +213,7 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
   const [showDone, setShowDone] = useState(false);
   const [priority, setPriority] = useState("");
   const [creating, setCreating] = useState(false);
-  const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>({ portcos: true, network: true, workstreams: true, followups: true });
+  const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>({ portcos: true, network: true, ops: true, workstreams: true, followups: true });
   const [sel, setSel] = useState<Sel | null>(focusGid ? { kind: "ws", id: focusGid } : null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -228,6 +228,7 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
   const { data: homeData, isLoading: fuLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
   const portcoNames = useMemo(() => new Set(portcoList.map((p) => norm(p.name))), [portcoList]);
+  const websites = useMemo(() => new Map(portcoList.map((p) => [norm(p.name), p.website || ""])), [portcoList]);
 
   // Workstreams owned by the selected person.
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
