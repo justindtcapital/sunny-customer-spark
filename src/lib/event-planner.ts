@@ -31,6 +31,8 @@ export interface PlannerEvent {
   eventContact: string;
   createdBy: string;
   updated: string;
+  /** Raw DTC Status from the tracker: Considering | Accepted | Executed | Declined. */
+  dtcStatus: string;
 }
 
 export interface PlannerAttendee {
@@ -42,6 +44,23 @@ export interface PlannerAttendee {
   /** Invited | Registered | Attended */
   status: string;
   date: string;
+}
+
+export const DTC_STATUSES = ["Considering", "Accepted", "Executed", "Declined"] as const;
+
+/** Tracker DTC Status, falling back to the planner status for non-tracker rows. */
+export function dtcStatusOf(e: Pick<PlannerEvent, "dtcStatus" | "status" | "end" | "start">, today = ""): string {
+  const raw = (e.dtcStatus || "").trim().toLowerCase();
+  const hit = DTC_STATUSES.find((s) => s.toLowerCase() === raw);
+  if (hit) return hit;
+  if (e.status === "Declined") return "Declined";
+  if (e.status === "Potential") return "Considering";
+  return today && (e.end || e.start) && (e.end || e.start) < today ? "Executed" : "Accepted";
+}
+
+/** Tracker rows list one calendar year in order; a month that drops well below the max seen rolls into the next year. */
+export function trackerYearFor(month: number, maxMonthSoFar: number, baseYear: number): number {
+  return month > 0 && maxMonthSoFar - month >= 6 ? baseYear + 1 : baseYear;
 }
 
 // ── Categories (rows) → subcategories (tile colour) ─────────────
@@ -137,6 +156,7 @@ export function mapTrackerCategory(trackerCategory: string, name: string): strin
   const n = name.toLowerCase();
   if (/sagetap/.test(n)) return "Virtual Pitches (Sagetap)";
   if (/vation/.test(n)) return "Vation Briefs";
+  if (/brief/.test(n)) return "DTC Curated Briefings";
   if (/gbi/.test(n)) return "GBI Roundtable";
   if (/advisory council|\bcac\b/.test(n)) return "DTC Customer Advisory Council";
   if (c === "briefing") return "DTC Curated Briefings";

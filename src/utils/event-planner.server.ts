@@ -7,6 +7,7 @@ import {
   mapTrackerStatus,
   normalizeSector,
   parseTrackerDate,
+  trackerYearFor,
   splitList,
   categoryOfSubcategory,
   duplicateKey,
@@ -24,7 +25,7 @@ export const EVENT_HEADERS = [
   "URID", "Name", "Start", "End", "Location", "Category", "Subcategory", "Status",
   "Sectors", "PortCos", "Partners", "Owner", "Format", "Website", "Luma URL",
   "Source", "Source Ref", "Asana GID", "Network Count", "Notes", "Actions Needed",
-  "Event Contact", "Created By", "Created", "Updated",
+  "Event Contact", "Created By", "Created", "Updated", "DTC Status",
 ];
 export const ATTENDEE_HEADERS = ["Event URID", "Name", "Email", "Kind", "Status", "Date"];
 
@@ -107,7 +108,7 @@ function toRow(e: PlannerEvent, created: string): string[] {
     e.urid, e.name, e.start, e.end, e.location, e.category, e.subcategory, e.status,
     e.sectors.join("; "), e.portcos.join("; "), e.partners.join("; "), e.owner, e.format,
     e.website, e.lumaUrl, e.source, e.sourceRef, e.asanaGid, String(e.networkCount || ""),
-    e.notes, e.actionsNeeded, e.eventContact, e.createdBy, created, e.updated,
+    e.notes, e.actionsNeeded, e.eventContact, e.createdBy, created, e.updated, e.dtcStatus || "",
   ];
 }
 
@@ -123,7 +124,7 @@ function fromRow(r: string[], idx: Record<string, number>): PlannerEvent {
     owner: g("Owner"), format: g("Format"), website: g("Website"), lumaUrl: g("Luma URL"),
     source: g("Source"), sourceRef: g("Source Ref"), asanaGid: g("Asana GID"),
     networkCount: Number(g("Network Count")) || 0, notes: g("Notes"), actionsNeeded: g("Actions Needed"),
-    eventContact: g("Event Contact"), createdBy: g("Created By"), updated: g("Updated"),
+    eventContact: g("Event Contact"), createdBy: g("Created By"), updated: g("Updated"), dtcStatus: g("DTC Status"),
   };
 }
 
@@ -151,7 +152,7 @@ export function blankEvent(): PlannerEvent {
     urid: crypto.randomUUID(), name: "", start: "", end: "", location: "", category: "Unassigned",
     subcategory: "Unassigned", status: "Potential", sectors: [], portcos: [], partners: [], owner: "",
     format: "", website: "", lumaUrl: "", source: "Manual", sourceRef: "", asanaGid: "", networkCount: 0,
-    notes: "", actionsNeeded: "", eventContact: "", createdBy: "", updated: "",
+    notes: "", actionsNeeded: "", eventContact: "", createdBy: "", updated: "", dtcStatus: "",
   };
 }
 
@@ -204,6 +205,8 @@ export async function updatePlannerEvent(
   const current = fromRow(rows[i], idx);
   if (expectedUpdated && current.updated && current.updated !== expectedUpdated)
     throw new Error("Someone else just changed this event. Reload and try again.");
+  if (patch.status && patch.status !== current.status && patch.dtcStatus === undefined)
+    patch = { ...patch, dtcStatus: patch.status === "Declined" ? "Declined" : patch.status === "Potential" ? "Considering" : "Accepted" };
   const next = clean({ ...current, ...patch, urid }, current.createdBy);
   const created = rows[i][idx["Created"]] || "";
   const newRow = toRow(next, created);
@@ -231,6 +234,56 @@ export async function addAttendees(rows: PlannerAttendee[]): Promise<number> {
   return out.length;
 }
 
+function trackerDate(raw: string, monthHint: string, year: number, maxMonth: number) {
+  const first = parseTrackerDate(raw, year, monthHint);
+  const month = first.start ? Number(first.start.slice(5, 7)) : 0;
+  const y = trackerYearFor(month, maxMonth, year);
+  return { ...(y === year ? first : parseTrackerDate(raw, y, monthHint)), month };
+}
+
+/** Re-derive DTC Status, dates and briefing category from the FY tabs; rewrites only changed rows. */
+export async function repairPlannerEvents(): Promise<{ changed: number }> {
+  await ensureTab(EVENTS_TAB, EVENT_HEADERS);
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const fy = new Map<string, { status: string; start: string; end: string }>();
+  for (const tab of (await listTabs()).filter((t) => /^FY\s?\d{4}$/i.test(t))) {
+    const r = await readTab(tab, true);
+    const h = (r[0] || []).map((x) => (x || "").trim().toLowerCase());
+    const di = h.findIndex((x) => /^date/.test(x)), si = h.findIndex((x) => /status/.test(x)), mi = h.findIndex((x) => /^month/.test(x));
+    const ym = (r[0]?.[di] || "").match(/(20\d{2})/);
+    const year = ym ? Number(ym[1]) : Number(tab.replace(/\D/g, "")) - 1;
+    let maxMonth = 0;
+    for (let n = 1; n < r.length; n++) {
+      const d = trackerDate((r[n][di] || "").trim(), (r[n][mi] || "").trim(), year, maxMonth);
+      maxMonth = Math.max(maxMonth, d.month);
+      fy.set(`${tab}!${n + 1}`, { status: (r[n][si] || "").trim(), start: d.start, end: d.end });
+    }
+  }
+  let changed = 0;
+  const out = rows.slice(1).map((r) => {
+    if (!(r[idx["URID"]] || "").trim()) return r.map((v) => v ?? "");
+    const e = fromRow(r, idx);
+    const next = { ...e };
+    const ref = e.source === "Tracker" ? fy.get(e.sourceRef.split(" · ")[0]) : undefined;
+    if (ref) {
+      next.dtcStatus = ref.status;
+      if (ref.start) { next.start = ref.start; next.end = ref.end || ref.start; }
+    }
+    if (/brief/i.test(e.name) && !/vation|sagetap/i.test(e.name)) {
+      next.subcategory = "DTC Curated Briefings";
+      next.category = categoryOfSubcategory(next.subcategory);
+    }
+    const created = r[idx["Created"]] || "";
+    const before = toRow(e, created);
+    const after = toRow(next, created);
+    if (after.join("\u0001") !== before.join("\u0001")) changed++;
+    return after;
+  });
+  if (changed) await writeRange(EVENTS_TAB, 2, 0, out);
+  return { changed };
+}
+
 // ── One-time seed from FY tabs ──────────────────────────────────
 export async function seedFromTracker(by: string): Promise<{ added: number; skipped: number }> {
   const tabs = (await listTabs()).filter((t) => /^FY\s?\d{4}$/i.test(t));
@@ -248,15 +301,17 @@ export async function seedFromTracker(by: string): Promise<{ added: number; skip
     };
     const yearMatch = (rows[0]?.[c.date] || "").match(/(20\d{2})/);
     const year = yearMatch ? Number(yearMatch[1]) : fy - 1;
+    let maxMonth = 0;
     for (let n = 1; n < rows.length; n++) {
       const r = rows[n];
       const g = (k: number) => (k >= 0 ? (r[k] || "").trim() : "");
       const name = g(c.name);
       if (!name) continue;
-      const d = parseTrackerDate(g(c.date), year, g(c.month));
+      const d = trackerDate(g(c.date), g(c.month), year, maxMonth);
+      maxMonth = Math.max(maxMonth, d.month);
       inputs.push({
         name, start: d.start, end: d.end, location: g(c.loc),
-        subcategory: mapTrackerCategory(g(c.cat), name), status: mapTrackerStatus(g(c.status)),
+        subcategory: mapTrackerCategory(g(c.cat), name), status: mapTrackerStatus(g(c.status)), dtcStatus: g(c.status),
         sectors: [g(c.type)].filter(Boolean), portcos: splitList(g(c.portco)), partners: splitList(g(c.partners)),
         owner: g(c.cov), website: g(c.web), lumaUrl: g(c.sidecar), notes: g(c.notes),
         actionsNeeded: g(c.actions), eventContact: g(c.contact),
