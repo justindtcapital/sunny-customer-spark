@@ -3758,6 +3758,8 @@ export interface PortfolioCompanyInput {
   location?: string;
   /** Maps to the "Summary" column. */
   description?: string;
+  /** Company LinkedIn page — written to the "LinkedIn URL" column. */
+  linkedinUrl?: string;
 }
 
 // Add a portfolio company as a new row in the Portfolio Companies tab. Stamps a
