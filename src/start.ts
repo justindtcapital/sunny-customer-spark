@@ -1,4 +1,5 @@
 import { createCsrfMiddleware, createStart } from "@tanstack/react-start";
+import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 
 const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === "serverFn",
@@ -6,5 +7,6 @@ const csrfMiddleware = createCsrfMiddleware({
 
 // TanStack Start expects this named export during client hydration.
 export const startInstance = createStart(() => ({
+  functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [csrfMiddleware],
 }));
