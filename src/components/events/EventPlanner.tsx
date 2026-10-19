@@ -285,10 +285,18 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
                   {win.columns.map((col) => (
                     <div key={col.key} className="border-b border-l border-border p-1 space-y-1 min-h-[90px]">
                       {rowEvents
-                        .filter((e) => columnFor(e, win) === col.key)
+                        // Week/month: a multi-day event appears in every column it spans.
+                        .filter((e) => (zoom === "year" ? columnFor(e, win) === col.key : overlaps(e, col.start, col.end)))
                         .sort((a, b) => a.start.localeCompare(b.start))
                         .map((e) => (
-                          <Tile key={e.urid} e={e} zoom={zoom} onClick={() => setSelected(e)} />
+                          <Tile
+                            key={e.urid}
+                            e={e}
+                            zoom={zoom}
+                            clipStart={zoom !== "year" && !!e.start && e.start < col.start}
+                            clipEnd={zoom !== "year" && !!e.end && e.end > col.end}
+                            onClick={() => setSelected(e)}
+                          />
                         ))}
                     </div>
                   ))}
@@ -310,7 +318,7 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
         </div>
         {isLoading && <p className="text-xs text-muted-foreground">Loading events…</p>}
         {!isLoading && events.length === 0 && (
-          <p className="text-xs text-muted-foreground">No events yet — add one, import a CSV or sync Asana.</p>
+          <p className="text-xs text-muted-foreground">No events yet — add one, import a CSV or turn on Show Asana data.</p>
         )}
         {undated.length > 0 && (
           <div className="rounded-lg border border-dashed border-border p-3">
@@ -396,7 +404,15 @@ function shortDate(e: PlannerEvent): string {
   return e.end && e.end !== e.start ? `${f(e.start)}–${f(e.end)}` : f(e.start);
 }
 
-function Tile({ e, zoom, onClick }: { e: PlannerEvent; zoom: PlannerZoom; onClick: () => void }) {
+function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
+  e: PlannerEvent;
+  zoom: PlannerZoom;
+  /** Event started before this column (continuation from the left). */
+  clipStart?: boolean;
+  /** Event continues past this column. */
+  clipEnd?: boolean;
+  onClick: () => void;
+}) {
   const color = tileVar(e.subcategory);
   const potential = e.status === "Potential";
   return (
@@ -415,7 +431,7 @@ function Tile({ e, zoom, onClick }: { e: PlannerEvent; zoom: PlannerZoom; onClic
     >
       <div className="flex items-start gap-1">
         <span className={cn("font-medium leading-tight flex-1 min-w-0", zoom === "year" ? "text-[10px] line-clamp-2" : "text-xs line-clamp-2")}>
-          {e.name}
+          {clipStart && "◂ "}{e.name}{clipEnd && " ▸"}
         </span>
         <span className="flex gap-0.5 pt-0.5 shrink-0">
           {[...new Set(e.sectors.map(normalizeSector))].slice(0, 3).map((s) => (
