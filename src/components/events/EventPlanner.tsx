@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+import { eventReferenceNames } from "@/lib/event-cleanup";
 import type { AsanaEvent, Contact } from "@/lib/types";
 import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
@@ -81,7 +82,8 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
       .filter(
         (a) =>
           a.gid && !a.gid.startsWith("app-") && a.date &&
-          !gids.has(a.gid) && !keys.has(duplicateKey({ name: a.name, start: a.date })),
+          !gids.has(a.gid) && !events.some(e => e.sourceRef.includes(`/0/0/${a.gid}`)) &&
+          !keys.has(duplicateKey({ name: a.name, start: a.date })),
       )
       .map(asanaToPlanner);
   }, [showAsana, asanaOverlay, events]);
@@ -477,16 +479,16 @@ function EventDetail({
   const asanaOnly = !!e && e.urid.startsWith("asana:");
   const people = useMemo(() => {
     if (!e) return [];
-    const key = eventSeriesKey(e.name);
+    const keys = new Set(eventReferenceNames(e).map(eventSeriesKey));
     const rows = attendees.filter((a) => a.eventUrid === e.urid).map((a) => ({ name: a.name, email: a.email, kind: a.kind || "Network", status: a.status || "Attended" }));
     const seen = new Set(rows.map((r) => (r.email || r.name).toLowerCase()));
     for (const c of contacts) {
-      const hit = c.eventsAttended.some((x) => eventSeriesKey(x) === key) || c.eventsInvited.some((x) => eventSeriesKey(x) === key);
+      const hit = c.eventsAttended.some((x) => keys.has(eventSeriesKey(x))) || c.eventsInvited.some((x) => keys.has(eventSeriesKey(x)));
       if (!hit) continue;
       const k = (c.email || c.name).toLowerCase();
       if (seen.has(k)) continue;
       seen.add(k);
-      rows.push({ name: c.name, email: c.email, kind: "Network", status: c.eventsAttended.some((x) => eventSeriesKey(x) === key) ? "Attended" : "Invited" });
+      rows.push({ name: c.name, email: c.email, kind: "Network", status: c.eventsAttended.some((x) => keys.has(eventSeriesKey(x))) ? "Attended" : "Invited" });
     }
     return rows.sort((a, b) => a.name.localeCompare(b.name));
   }, [e, attendees, contacts]);
