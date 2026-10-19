@@ -549,7 +549,7 @@ function EventDetail({
                 <Field k="Location" v={e.location} />
                 <Field k="Format" v={e.format} />
                 <Field k="Category" v={`${e.category} › ${e.subcategory}`} />
-                <Field k="Owner" v={e.owner} />
+                <Field k="Owner" v={splitList(e.owner).map(o => teamMemberFor(o)?.displayName || o).join(", ")} />
                 <Field k="PortCos" v={e.portcos.join(", ")} />
                 <Field k="Partners" v={e.partners.join(", ")} />
                 <Field k="Event contact" v={e.eventContact} />
