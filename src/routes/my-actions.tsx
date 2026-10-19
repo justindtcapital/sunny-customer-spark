@@ -275,12 +275,15 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
       .sort((a, b) => a.company.localeCompare(b.company));
   }, [wsList, fuList, toggles, portcoNames]);
 
-  const firstSel: Sel | null = groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : groups[0]?.fu[0] ? { kind: "fu", id: groups[0].fu[0]!.id } : null;
+  const firstGroupFu = (g: (typeof groups)[number] | undefined) => g ? [...g.ws.flatMap((w) => g.linked.get(w.gid) || []), ...g.general][0] : undefined;
+  const firstSel: Sel | null = groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
   const resolved = sel?.kind === "ws" ? (wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (fuList.some((x) => x.id === sel.id) ? sel : null) : null;
   const cur = resolved || firstSel;
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
   const r = cur?.kind === "fu" ? fuList.find((x) => x.id === cur.id) || null : null;
-  const wsGroupFu = ws ? groups.find((g) => g.company === (ws.company || "No PortCo"))?.fu || [] : [];
+  // Detail pane: follow-ups linked to this workstream first, falling back to the same company.
+  const wsGroup = ws ? groups.find((g) => g.company === (ws.company || "No PortCo")) : undefined;
+  const wsGroupFu = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
 
   const mergeRows = mergeSel.map((id) => fuList.find((x) => x.id === id)).filter(Boolean) as Reminder[];
   // Default each merged field to the first selected follow-up.
