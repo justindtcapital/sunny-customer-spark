@@ -523,7 +523,7 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children, initial
   const done = statuses.filter((s) => s === "Completed").length;
   return (
     <div className="space-y-3">
-      <SummaryCard title="Workstreams" sub={scopeLabel} onManage={() => void go({ to: "/my-actions", search: { tab: "workstreams", owner } })}>
+      <SummaryCard title="Workstreams" sub={scopeLabel} onManage={() => void go({ to: "/my-actions", search: { tab: "actions", owner } })}>
         <div className="flex flex-wrap items-start gap-8">
           <div className="flex flex-wrap gap-8">
             <Stat label="Streams" value={ws.length} />
