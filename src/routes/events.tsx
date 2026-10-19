@@ -234,7 +234,7 @@ function EventsPage() {
   );
 
   return (
-    <div className="p-6 max-w-[1500px] mx-auto">
+    <div className={view === "planner" ? "p-6 max-w-[2200px] mx-auto" : "p-6 max-w-[1500px] mx-auto"}>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-lg font-bold text-foreground">Events</h1>
@@ -322,6 +322,7 @@ function EventsPage() {
           )}
         </div>
       </div>
+      )}
 
       <EventDetailSheet
         event={selected}
