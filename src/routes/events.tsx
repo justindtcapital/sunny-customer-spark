@@ -1,5 +1,6 @@
 import { Megaphone, LayoutGrid } from "lucide-react";
 import { EventPlanner } from "@/components/events/EventPlanner";
+import { EventMergeDialog } from "@/components/events/EventMergeDialog";
 import { plannerEventForView } from "@/lib/event-views";
 import { overlaps, sectorDotColor, subcategoryColor, type PlannerEvent } from "@/lib/event-planner";
 import { useEffect, useMemo, useState } from "react";
@@ -241,7 +242,7 @@ function EventsPage() {
           if (view === "list") return <ListView
             upcoming={adapted.filter(e => e.date >= today).sort((a,b) => a.date.localeCompare(b.date))}
             past={adapted.filter(e => e.date < today).sort((a,b) => b.date.localeCompare(a.date))}
-            all={adapted} contacts={contacts} onSelect={select}
+            all={adapted} contacts={contacts} onSelect={select} plannerEvents={rows}
           />;
           if (view === "calendar") return <CalendarView events={adapted} plannerEvents={rows} leads={leads} sectors={sectors} onSelect={select} />;
           return <AnalyticsView events={adapted} contacts={contacts} onSelectEvent={select} />;
@@ -378,15 +379,23 @@ function ListView({
   all,
   contacts,
   onSelect,
+  plannerEvents,
 }: {
   upcoming: AsanaEvent[];
   past: AsanaEvent[];
   all: AsanaEvent[];
   contacts: Contact[];
   onSelect: (e: AsanaEvent) => void;
+  plannerEvents?: PlannerEvent[];
 }) {
+  const [mergeMode, setMergeMode] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const toPick = (plannerEvents || []).filter((e) => picked.includes(e.urid));
+  const sel = mergeMode ? { picked, toggle: (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id])) } : undefined;
   return (
     <Tabs defaultValue="upcoming">
+      <div className="flex items-center gap-2 justify-between">
       <TabsList>
         <TabsTrigger value="upcoming" className="text-xs">
           Upcoming ({upcoming.length})
@@ -398,42 +407,63 @@ function ListView({
           All ({all.length})
         </TabsTrigger>
       </TabsList>
+      {plannerEvents && (
+        <div className="flex items-center gap-2">
+          {mergeMode && (
+            <Button size="sm" className="h-7 text-xs" disabled={picked.length < 2} onClick={() => setMergeOpen(true)}>
+              Merge selected ({picked.length})
+            </Button>
+          )}
+          <Button size="sm" variant={mergeMode ? "secondary" : "outline"} className="h-7 text-xs"
+            onClick={() => { setMergeMode((m) => !m); setPicked([]); }}>
+            {mergeMode ? "Cancel merge" : "Merge"}
+          </Button>
+        </div>
+      )}
+      </div>
       <TabsContent value="upcoming">
-        <EventTable events={upcoming} contacts={contacts} onSelect={onSelect} />
+        <EventTable events={upcoming} contacts={contacts} onSelect={onSelect} sel={sel} />
       </TabsContent>
       <TabsContent value="past">
-        <EventTable events={past} contacts={contacts} onSelect={onSelect} />
+        <EventTable events={past} contacts={contacts} onSelect={onSelect} sel={sel} />
       </TabsContent>
       <TabsContent value="all">
-        <EventTable events={all} contacts={contacts} onSelect={onSelect} />
+        <EventTable events={all} contacts={contacts} onSelect={onSelect} sel={sel} />
       </TabsContent>
+      <EventMergeDialog events={toPick} open={mergeOpen} onClose={() => setMergeOpen(false)}
+        onMerged={() => { setMergeOpen(false); setMergeMode(false); setPicked([]); }} />
     </Tabs>
   );
 }
 
+type MergeSel = { picked: string[]; toggle: (id: string) => void };
 function EventTable({
   events,
   contacts,
   onSelect,
+  sel,
 }: {
   events: AsanaEvent[];
   contacts: Contact[];
   onSelect: (e: AsanaEvent) => void;
+  sel?: MergeSel;
 }) {
   if (events.length === 0) {
     return <p className="text-xs text-muted-foreground py-8 text-center">No events.</p>;
   }
-  return <EventTableInner events={events} contacts={contacts} onSelect={onSelect} />;
+  return <EventTableInner events={events} contacts={contacts} onSelect={onSelect} sel={sel} />;
 }
 
 function EventTableInner({
   events,
   contacts,
   onSelect,
+  sel,
 }: {
   events: AsanaEvent[];
   contacts: Contact[];
   onSelect: (e: AsanaEvent) => void;
+  sel?: MergeSel;
 }) {
   const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000 });
   const prospectsByEvent = useMemo(() => {
@@ -449,6 +479,7 @@ function EventTableInner({
       <Table>
         <TableHeader>
           <TableRow>
+            {sel && <TableHead className="w-8" />}
             <TableHead className="text-[11px]">Date</TableHead>
             <TableHead className="text-[11px]">Name</TableHead>
             <TableHead className="text-[11px]">Lead</TableHead>
@@ -467,7 +498,12 @@ function EventTableInner({
             const { attended, invited } = findAttendees(contacts, e.name);
             const leadC = colorForLead(e.lead);
             return (
-              <TableRow key={e.gid} className="cursor-pointer" onClick={() => onSelect(e)}>
+              <TableRow key={e.gid} className={`cursor-pointer ${sel?.picked.includes(e.gid) ? "bg-accent" : ""}`} onClick={() => (sel ? sel.toggle(e.gid) : onSelect(e))}>
+                {sel && (
+                  <TableCell className="w-8" onClick={(ev) => ev.stopPropagation()}>
+                    <Checkbox checked={sel.picked.includes(e.gid)} onCheckedChange={() => sel.toggle(e.gid)} aria-label={`Select ${e.name}`} />
+                  </TableCell>
+                )}
                 <TableCell className="text-xs whitespace-nowrap">{e.date}</TableCell>
                 <TableCell className="text-xs font-medium">{e.name}</TableCell>
 

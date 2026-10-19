@@ -101,3 +101,18 @@ export const addPlannerAttendeesFn = createServerFn({ method: "POST" })
     const { addAttendees } = await import("./event-planner.server");
     return { added: await addAttendees(data.attendees) };
   });
+
+export const mergePlannerEventsFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { keeper: PlannerEvent; loserUrids: string[] }) => {
+    if (!d?.keeper?.urid || !Array.isArray(d.loserUrids) || !d.loserUrids.length) throw new Error("Pick events to merge");
+    if (d.loserUrids.includes(d.keeper.urid)) throw new Error("Keeper cannot also be merged away");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const { withDeadline } = await import("./request-deadline.server");
+    const { mergeEventsManually } = await import("./event-planner.server");
+    return withDeadline("mergePlannerEvents", 55_000, async (step) => {
+      step("merging events");
+      return mergeEventsManually(data.keeper, data.loserUrids);
+    });
+  });

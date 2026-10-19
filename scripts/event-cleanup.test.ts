@@ -50,3 +50,18 @@ describe("event cleanup", () => {
     expect(planEventCleanup(next, companies).updates.size).toBe(0);
   });
 });
+import { buildManualMerge } from "../src/lib/event-cleanup";
+describe("manual list merge", () => {
+  it("keeps the chosen record, takes picked fields, unions tags and records the merged name", () => {
+    const a = event({ urid: "a", name: "Orange Briefing", sectors: ["Cyber"], dtcStatus: "Executed" });
+    const b = event({ urid: "b", name: "Orange Briefing @ DTW", location: "Detroit", sectors: ["Data/AI"], dtcStatus: "Accepted", notes: "b note" });
+    const m = buildManualMerge([a, b], "a", { name: "b", location: "b", dtcStatus: "a" });
+    expect(m.urid).toBe("a");
+    expect(m.name).toBe("Orange Briefing @ DTW");
+    expect(m.location).toBe("Detroit");
+    expect(m.dtcStatus).toBe("Executed");
+    expect(m.sectors.sort()).toEqual(["Cyber", "Data/AI"]);
+    expect(m.notes).toContain("b note");
+    expect(m.sourceRef).toContain("Merged URID: b");
+  });
+});

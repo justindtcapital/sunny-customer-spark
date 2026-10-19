@@ -433,3 +433,25 @@ export async function extractEventFromUrl(url: string): Promise<Partial<PlannerE
     website: isLuma ? "" : url, lumaUrl: isLuma ? url : "", source: "Link", sourceRef: url, status: "Potential",
   };
 }
+
+/** Manual merge: rewrite the keeper row, blank loser rows, move their attendance to the keeper. */
+export async function mergeEventsManually(keeper: PlannerEvent, loserUrids: string[]): Promise<{ merged: number }> {
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const find = (u: string) => rows.findIndex((r, n) => n > 0 && (r[idx["URID"]] || "").trim() === u);
+  const ki = find(keeper.urid);
+  if (ki < 1) throw new Error("The event to keep no longer exists.");
+  const losers = loserUrids.map(find);
+  if (losers.some((i) => i < 1)) throw new Error("One of the events was already removed. Reload and try again.");
+  const next = { ...keeper, updated: new Date().toISOString() };
+  await writeRange(EVENTS_TAB, ki + 1, 0, [toRow(next, rows[ki][idx["Created"]] || "")]);
+  const blank = EVENT_HEADERS.map(() => "");
+  for (const i of losers) await writeRange(EVENTS_TAB, i + 1, 0, [blank]);
+  const att = await readTab(ATTENDEES_TAB, true).catch(() => [] as string[][]);
+  const set = new Set(loserUrids);
+  if (att.some((r, n) => n > 0 && set.has(r[0]))) {
+    await writeRange(ATTENDEES_TAB, 2, 0, att.slice(1).map((r) => [set.has(r[0]) ? keeper.urid : r[0] || ""]));
+  }
+  cache.delete(EVENTS_TAB);
+  return { merged: losers.length };
+}

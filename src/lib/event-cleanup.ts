@@ -101,3 +101,31 @@ export function planEventCleanup(events: PlannerEvent[], companies: CompanySecto
 export function remapEventAttendees(attendees: PlannerAttendee[], replacements: Map<string, string>): PlannerAttendee[] {
   return attendees.map(a => ({ ...a, eventUrid: replacements.get(a.eventUrid) || a.eventUrid }));
 }
+/** Fields the user harmonizes one-by-one when manually merging events. */
+export const MANUAL_MERGE_FIELDS = ["name", "start", "end", "location", "subcategory", "dtcStatus", "owner", "format", "website", "lumaUrl"] as const;
+export type ManualMergeField = (typeof MANUAL_MERGE_FIELDS)[number];
+
+/**
+ * Manual list-view merge: keeper record survives; each chosen field comes from the picked
+ * event; tags union; notes combine; loser names/URIDs stay in Source Ref for legacy links.
+ */
+export function buildManualMerge(events: PlannerEvent[], keeperUrid: string, picks: Partial<Record<ManualMergeField, string>>): PlannerEvent {
+  const keeper = events.find(e => e.urid === keeperUrid);
+  if (!keeper || events.length < 2) throw new Error("Pick at least two events and a record to keep");
+  let next = { ...keeper };
+  const losers = events.filter(e => e.urid !== keeperUrid);
+  for (const l of losers) {
+    next = mergePlannerEvents(next, l);
+    for (const f of ["notes", "actionsNeeded", "eventContact"] as const)
+      if (l[f] && !next[f].includes(l[f])) next[f] += `\n\n${l[f]}`;
+    next.sourceRef += ` · Merged event: ${l.name} · Merged URID: ${l.urid}`;
+    if (l.asanaGid && !next.sourceRef.includes(l.asanaGid)) next.sourceRef += ` · https://app.asana.com/0/0/${l.asanaGid}`;
+  }
+  for (const f of MANUAL_MERGE_FIELDS) {
+    const from = events.find(e => e.urid === picks[f]);
+    if (from) (next as Record<string, unknown>)[f] = from[f];
+  }
+  if (next.end < next.start) next.end = next.start;
+  next.category = categoryOfSubcategory(next.subcategory);
+  return next;
+}
