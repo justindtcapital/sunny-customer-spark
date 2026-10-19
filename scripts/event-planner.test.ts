@@ -59,3 +59,13 @@ describe("event planner", () => {
     expect(Object.values(m)).toEqual(["name", "start", "location", "website"]);
   });
 });
+
+// Briefings in the title always land in the Briefings category.
+{
+  const { mapTrackerCategory, trackerYearFor, dtcStatusOf, categoryOfSubcategory } = await import("../src/lib/event-planner");
+  const sub = mapTrackerCategory("dtc sponsored", "Briefing - Disney - LA");
+  if (sub !== "DTC Curated Briefings" || categoryOfSubcategory(sub) !== "Briefings") throw new Error("briefing category");
+  if (trackerYearFor(1, 12, 2026) !== 2027 || trackerYearFor(3, 4, 2026) !== 2026) throw new Error("year wrap");
+  if (dtcStatusOf({ dtcStatus: "executed", status: "Confirmed", start: "", end: "" }) !== "Executed") throw new Error("dtc status");
+  console.log("  ok  briefings, year wrap, DTC status");
+}

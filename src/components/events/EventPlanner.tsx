@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, Pencil, CheckCircle2, Search,
+  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, Pencil, CheckCircle2, Search, Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -462,6 +462,7 @@ function EventDetail({
               <div className="flex flex-wrap gap-1.5">
                 <Badge style={{ background: tileVar(e.subcategory) }} className="text-primary-foreground border-0">{e.subcategory}</Badge>
                 <Badge variant={e.status === "Confirmed" ? "default" : "outline"}>{e.status}</Badge>
+                <Badge variant="secondary">{dtcStatusOf(e, today())}</Badge>
                 {e.sectors.map((s) => (
                   <Badge key={s} variant="secondary" className="gap-1">
                     <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(--sector-${sectorDotColor(s)})` }} />
