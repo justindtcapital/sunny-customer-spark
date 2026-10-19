@@ -1,87 +1,48 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-
-// Allowlist of email addresses permitted to sign in.
-// To grant access to another person, add their lowercase email here.
-const ALLOWED_EMAILS = [
-  "justin.adorante@dell.com",
-  "chris.falloon@dell.com",
-  "julia.beech@dell.com",
-  "chris.hillock@dell.com",
-  "shane.earley@dell.com",
-];
-
-const STORAGE_KEY = "vp-auth-email";
-
-function isAllowed(email: string): boolean {
-  return ALLOWED_EMAILS.includes(email.trim().toLowerCase());
-}
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
+import { allowedTeamEmail } from "./team-access";
 
 interface AuthContextType {
-  /** The signed-in email, or null when signed out. */
   email: string | null;
-  /** True until the stored session has been read on the client. */
   ready: boolean;
-  /** Attempts sign-in. Returns null on success, or an error message. */
-  login: (email: string) => string | null;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
-
-const AuthContext = createContext<AuthContextType>({
-  email: null,
-  ready: false,
-  login: () => "Auth not ready",
-  logout: () => {},
-});
+const AuthContext = createContext<AuthContextType>({ email: null, ready: false, logout: async () => {} });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-
-  // Read the persisted session on mount (client only — localStorage is
-  // unavailable during SSR).
+  const queryClient = useQueryClient();
+  const router = useRouter();
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored && isAllowed(stored)) {
-        setEmail(stored.trim().toLowerCase());
-      }
-    } catch {
-      // localStorage may be unavailable (private mode, etc.) — stay signed out.
+    let active = true;
+    let revision = 0;
+    localStorage.removeItem("vp-auth-email");
+    async function refresh() {
+      const current = ++revision;
+      const { data } = await supabase.auth.getUser();
+      if (!active || current !== revision) return;
+      setEmail(data.user?.email_confirmed_at ? allowedTeamEmail(data.user.email) : null);
+      setReady(true);
     }
-    setReady(true);
-  }, []);
+    void refresh();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(event)) return;
+      // Defer auth work until the auth client's callback lock is released.
+      setTimeout(() => { if (!active) return; void refresh(); void router.invalidate(); if (event !== "SIGNED_OUT") void queryClient.invalidateQueries(); }, 0);
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [queryClient, router]);
 
-  function login(input: string): string | null {
-    const normalized = input.trim().toLowerCase();
-    if (!normalized) return "Please enter your email.";
-    if (!isAllowed(normalized)) {
-      return "No account found for this email.";
-    }
-    try {
-      localStorage.setItem(STORAGE_KEY, normalized);
-    } catch {
-      // Ignore persistence failure — session still works for this tab.
-    }
-    setEmail(normalized);
-    return null;
-  }
-
-  function logout() {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Ignore.
-    }
+  async function logout() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
     setEmail(null);
+    await router.navigate({ to: "/", replace: true });
   }
-
-  return (
-    <AuthContext.Provider value={{ email, ready, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ email, ready, logout }}>{children}</AuthContext.Provider>;
 }
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export function useAuth() { return useContext(AuthContext); }
