@@ -28,7 +28,7 @@ export function ActionCalendar({ owner, range, onChange }: { owner: string; rang
     const key = format(date, "yyyy-MM-dd");
     const selected = !!range && inActionRange(key, range);
     const count = counts.get(key) || 0;
-    return <Button key={key} data-daykey={key} aria-label={`${key}, ${count} actions`} aria-pressed={selected} variant={selected ? "secondary" : "ghost"} className={`h-7 w-full flex-col gap-0 rounded-sm p-0 text-[11px] leading-none ${key === today ? "ring-1 ring-primary" : ""} ${dim ? "opacity-40" : ""}`} onClick={(e) => { if (e.detail === 0) onChange(orderedDateRange(key, key)); }}><span>{date.getDate()}</span><span className={`h-2.5 text-[9px] tabular-nums ${count ? "text-primary" : "text-muted-foreground"}`}>{count || ""}</span></Button>;
+    return <Button key={key} data-daykey={key} aria-label={`${key}, ${count} actions`} aria-pressed={selected} variant={selected ? "default" : "ghost"} className={`h-7 w-full flex-col gap-0 rounded-sm p-0 text-[11px] leading-none ${key === today ? "ring-1 ring-primary" : ""} ${dim ? "opacity-40" : ""}`} onClick={(e) => { if (e.detail === 0) onChange(orderedDateRange(key, key)); }}><span>{date.getDate()}</span><span className={`h-2.5 text-[9px] tabular-nums ${selected ? "text-primary-foreground/80" : count ? "text-primary" : "text-muted-foreground"}`}>{count || ""}</span></Button>;
   };
 
   const drag = {
