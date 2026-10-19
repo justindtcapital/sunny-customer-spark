@@ -239,8 +239,9 @@ function EventsPage() {
         <div>
           <h1 className="text-lg font-bold text-foreground">Events</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Asana-sourced · {filtered.length} of {events.length} event
-            {events.length !== 1 ? "s" : ""}
+            {view === "planner" ? "Event planner · confirmed and potential events" : <>Asana-sourced · {filtered.length} of {events.length} event</>}
+            {view === "planner" ? null : <>
+            {events.length !== 1 ? "s" : ""}</>}
           </p>
 
         </div>
