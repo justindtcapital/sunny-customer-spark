@@ -21,7 +21,7 @@ import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, parseTrackerDate, splitList,
-  mapTrackerStatus, eventSeriesKey,
+  mapTrackerStatus, eventSeriesKey, DTC_STATUSES, dtcStatusOf,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
 import {
@@ -56,6 +56,7 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   const [subFilter, setSubFilter] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
   const [showDeclined, setShowDeclined] = useState(false);
+  const [dtcFilter, setDtcFilter] = useState<string[]>([]);
   const [portco, setPortco] = useState("");
   const [partner, setPartner] = useState("");
   const [owner, setOwner] = useState("");
@@ -81,7 +82,9 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return events.filter((e) => {
-      if (e.status === "Declined" && !showDeclined) return false;
+      const dtc = dtcStatusOf(e, today());
+      if (dtcFilter.length && !dtcFilter.includes(dtc)) return false;
+      if (e.status === "Declined" && !showDeclined && !dtcFilter.includes("Declined")) return false;
       if (statusView !== "Both" && e.status !== "Declined" && e.status !== statusView) return false;
       if (subFilter.length && !subFilter.includes(e.subcategory)) return false;
       if (sectorFilter.length && !e.sectors.map(normalizeSector).some((s) => sectorFilter.includes(s))) return false;
@@ -93,7 +96,7 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
         return false;
       return true;
     });
-  }, [events, search, subFilter, sectorFilter, showDeclined, statusView, portco, partner, owner, source]);
+  }, [events, search, subFilter, sectorFilter, dtcFilter, showDeclined, statusView, portco, partner, owner, source]);
 
   const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
@@ -125,25 +128,38 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{c.name}</div>
               {c.subcategories.map((s) => (
                 <label key={s.name} className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox
+                  <ColorCheck
+                    color={tileVar(s.name)}
                     checked={subFilter.includes(s.name)}
-                    onCheckedChange={(v) => setSubFilter((p) => (v ? [...p, s.name] : p.filter((x) => x !== s.name)))}
+                    onChange={(v) => setSubFilter((p) => (v ? [...p, s.name] : p.filter((x) => x !== s.name)))}
                   />
-                  <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ background: tileVar(s.name) }} />
                   <span className="truncate">{s.name}</span>
                 </label>
               ))}
             </div>
           ))}
         </FilterBlock>
+        <FilterBlock title="DTC Status">
+          {DTC_STATUSES.map((s) => (
+            <label key={s} className="flex items-center gap-2 cursor-pointer">
+              <Checkbox
+                checked={dtcFilter.includes(s)}
+                onCheckedChange={(v) => setDtcFilter((p) => (v ? [...p, s] : p.filter((x) => x !== s)))}
+              />
+              <span className="flex-1">{s}</span>
+              <span className="text-muted-foreground tabular-nums">{events.filter((e) => dtcStatusOf(e, today()) === s).length}</span>
+            </label>
+          ))}
+        </FilterBlock>
         <FilterBlock title="Sector">
           {PLANNER_SECTORS.map((s) => (
             <label key={s} className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
+              <ColorCheck
+                round
+                color={`var(--sector-${sectorDotColor(s)})`}
                 checked={sectorFilter.includes(s)}
-                onCheckedChange={(v) => setSectorFilter((p) => (v ? [...p, s] : p.filter((x) => x !== s)))}
+                onChange={(v) => setSectorFilter((p) => (v ? [...p, s] : p.filter((x) => x !== s)))}
               />
-              <span className="h-2 w-2 rounded-full" style={{ background: `var(--sector-${sectorDotColor(s)})` }} />
               {s}
             </label>
           ))}
@@ -805,5 +821,21 @@ function LinkDialog({ open, onClose, onExtracted }: { open: boolean; onClose: ()
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Checkbox filled with its legend colour: faint when off, solid with a tick when on. */
+function ColorCheck({ color, checked, onChange, round }: { color: string; checked: boolean; onChange: (v: boolean) => void; round?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={(ev) => { ev.preventDefault(); onChange(!checked); }}
+      className={cn("relative h-3.5 w-3.5 shrink-0 border-2 flex items-center justify-center", round ? "rounded-full" : "rounded-[3px]")}
+      style={{ borderColor: color, background: color, opacity: checked ? 1 : 0.55 }}
+    >
+      {checked && <Check className="h-2.5 w-2.5 text-background" strokeWidth={4} />}
+    </button>
   );
 }
