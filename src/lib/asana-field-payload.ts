@@ -21,6 +21,17 @@ export interface FieldChange {
   value: string | string[];
 }
 
+/** Rename the human title, preserving Asana's company/track naming prefix. */
+export function workstreamNameChange(current: string, original: string, title: string): string | undefined {
+  if (current !== original) throw new Error("Workstream title changed in Asana — refresh and try again.");
+  const value = title.trim();
+  if (!value) throw new Error("Workstream title cannot be empty.");
+  const parts = original.split(/->|→|»/).map((p) => p.trim());
+  const track = parts.findIndex((p) => /^(bd|b\/d|business development|gtm|go[ -]to[ -]market)$/i.test(p));
+  const name = track >= 0 ? [...parts.slice(0, track + 1), value].join(" -> ") : value;
+  return name === original ? undefined : name;
+}
+
 export function sameValue(a: string | string[], b: string | string[]): boolean {
   if (Array.isArray(a) || Array.isArray(b)) {
     const x = [...(Array.isArray(a) ? a : a ? [a] : [])].sort();

@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { buildCustomFieldsPayload, sameValue } from "../src/lib/asana-field-payload";
+import { buildCustomFieldsPayload, sameValue, workstreamNameChange } from "../src/lib/asana-field-payload";
 
 describe("buildCustomFieldsPayload", () => {
+  it("edits the workstream title while preserving company and track", () => {
+    expect(workstreamNameChange("MavenAGI -> GTM -> Pitch", "MavenAGI -> GTM -> Pitch", "New pitch")).toBe("MavenAGI -> GTM -> New pitch");
+  });
+  it("rejects concurrent title changes and blank titles", () => {
+    expect(() => workstreamNameChange("BD -> Changed", "BD -> Original", "New")).toThrow("changed");
+    expect(() => workstreamNameChange("BD -> Original", "BD -> Original", " ")).toThrow("empty");
+  });
   it("maps each Asana type", () => {
     expect(
       buildCustomFieldsPayload([
