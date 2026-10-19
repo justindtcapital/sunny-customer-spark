@@ -75,3 +75,4 @@
 - [x] Event database in the tracker sheet (seeded from FY2027 + Asana; CRM attendance copied)
 - [x] Planner timeline: category rows, subcategory tile colors, sector dots, week/month/year with prev/next, per-view totals
 - [x] Confirmed / Potential views, detail pane, add/edit, CSV import with field matching, add from link
+- [x] My Actions feed polish: split company/item toggles (PortCos, Network, Port DevOps | Workstreams, Follow-ups), logo-colored icon bullets, follow-ups nest under their workstream (editor link or Action Now origin)
