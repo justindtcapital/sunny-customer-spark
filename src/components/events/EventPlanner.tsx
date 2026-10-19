@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { eventReferenceNames } from "@/lib/event-cleanup";
+import { teamMemberFor, teamProfile } from "@/lib/user-ownership";
+import { eventMatchesFilters, mergeEventAutofill, type EventView } from "@/lib/event-views";
 import type { AsanaEvent, Contact } from "@/lib/types";
 import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
@@ -53,7 +55,12 @@ function asanaToPlanner(a: AsanaEvent): PlannerEvent {
 
 export const plannerQueryKey = ["event-planner"];
 
-export function EventPlanner({ contacts }: { contacts: Contact[] }) {
+export function EventPlanner({ contacts, view = "planner", openEventName, renderView }: {
+  contacts: Contact[];
+  view?: EventView;
+  openEventName?: string;
+  renderView?: (events: PlannerEvent[], onSelect: (event: PlannerEvent) => void) => ReactNode;
+}) {
   const { email } = useAuth();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: plannerQueryKey, queryFn: () => fetchPlannerFn() });
@@ -95,7 +102,6 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   const [search, setSearch] = useState("");
   const [subFilter, setSubFilter] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
-  const [showDeclined, setShowDeclined] = useState(false);
   const [dtcFilter, setDtcFilter] = useState<string[]>([]);
   const [portco, setPortco] = useState("");
   const [partner, setPartner] = useState("");
@@ -108,35 +114,30 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   const enrichFn = useServerFn(enrichFromAsanaFn);
   const [merging, setMerging] = useState(false);
 
+  useEffect(() => {
+    if (!openEventName) return;
+    const target = openEventName.trim().toLowerCase();
+    const match = events.find(e => eventReferenceNames(e).some(name => name.toLowerCase() === target));
+    if (match) setSelected(match);
+  }, [openEventName, events]);
+
   const win = useMemo(() => plannerWindow(zoom, anchor), [zoom, anchor]);
   const options = useMemo(() => {
     const u = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b));
     return {
       portcos: u(events.flatMap((e) => e.portcos)),
       partners: u(events.flatMap((e) => e.partners)),
-      owners: u(events.flatMap((e) => splitList(e.owner))),
+      owners: u(events.flatMap((e) => splitList(e.owner).map(o => teamMemberFor(o)?.displayName || o))),
       sources: u(allEvents.map((e) => e.source)),
     };
   }, [allEvents]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allEvents.filter((e) => {
-      const dtc = dtcStatusOf(e, today());
-      if (dtcFilter.length && !dtcFilter.includes(dtc)) return false;
-      if (e.status === "Declined" && !showDeclined && !dtcFilter.includes("Declined")) return false;
-      if (statusView !== "Both" && e.status !== "Declined" && e.status !== statusView) return false;
-      if (subFilter.length && !subFilter.includes(e.subcategory)) return false;
-      if (sectorFilter.length && !e.sectors.map(normalizeSector).some((s) => sectorFilter.includes(s))) return false;
-      if (portco && !e.portcos.includes(portco)) return false;
-      if (partner && !e.partners.includes(partner)) return false;
-      if (owner && !splitList(e.owner).includes(owner)) return false;
-      if (source && e.source !== source) return false;
-      if (q && !`${e.name} ${e.location} ${e.portcos.join(" ")} ${e.partners.join(" ")} ${e.notes}`.toLowerCase().includes(q))
-        return false;
-      return true;
-    });
-  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, showDeclined, statusView, portco, partner, owner, source]);
+    return allEvents.filter(e => eventMatchesFilters(e, {
+      search, subcategories: subFilter, sectors: sectorFilter, statuses: dtcFilter,
+      statusView, portco, partner, owner, source,
+    }, today()));
+  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, statusView, portco, partner, owner, source]);
 
   const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
@@ -213,15 +214,12 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
         <FilterSelect label="Partner" value={partner} onChange={setPartner} options={options.partners} />
         <FilterSelect label="Owner" value={owner} onChange={setOwner} options={options.owners} />
         <FilterSelect label="Source" value={source} onChange={setSource} options={options.sources} />
-        <label className="flex items-center gap-2 cursor-pointer">
-          <Checkbox checked={showDeclined} onCheckedChange={(v) => setShowDeclined(!!v)} /> Show declined
-        </label>
       </aside>
 
       <div className="min-w-0 space-y-3">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2">
-          <Seg value={zoom} onChange={(v) => setZoom(v as PlannerZoom)} options={["week", "month", "year"]} />
+          {view === "planner" && <><Seg value={zoom} onChange={(v) => setZoom(v as PlannerZoom)} options={["week", "month", "year"]} />
           <div className="flex items-center gap-1">
             <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => setAnchor(stepAnchor(zoom, anchor, -1))} aria-label="Previous">
               <ChevronLeft className="h-4 w-4" />
@@ -231,7 +229,7 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <div className="text-sm font-semibold min-w-[150px]">{win.label}</div>
+          <div className="text-sm font-semibold min-w-[150px]">{win.label}</div></>}
           <Seg value={statusView} onChange={(v) => setStatusView(v as StatusView)} options={["Confirmed", "Potential", "Both"]} />
           <div className="ml-auto flex flex-wrap gap-1.5">
             <Button size="sm" className="h-7 text-xs" onClick={() => setEditing({ status: "Potential", subcategory: "Unassigned", source: "Manual" })}>
@@ -253,6 +251,7 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
         </div>
         {data?.error && <p className="text-xs text-destructive">Couldn't read the event tracker: {data.error}</p>}
 
+        {view !== "planner" && renderView ? renderView(filtered, setSelected) : <>
         {/* Grid */}
         <div className="rounded-lg border border-border overflow-x-auto">
           <div
@@ -337,6 +336,7 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
           <span className="flex items-center gap-1"><span className="h-3 w-5 rounded border-2 border-dashed" style={{ borderColor: "var(--planner-blue)" }} /> Potential</span>
           <span>Tile color = category · dot = sector</span>
         </div>
+        </>}
       </div>
 
       <EventDetail
@@ -555,7 +555,7 @@ function EventDetail({
                 <Field k="Event contact" v={e.eventContact} />
                 <Field k="Actions needed" v={e.actionsNeeded} />
                 <Field k="Source" v={`${e.source}${e.sourceRef && !/^https?:/.test(e.sourceRef) ? ` · ${e.sourceRef}` : ""}`} />
-                <Field k="Added by" v={e.createdBy} />
+                <Field k="Added by" v={teamMemberFor(e.createdBy)?.displayName || teamProfile(e.createdBy)?.displayName || ""} />
               </dl>
               {e.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{e.notes}</p>}
               <div className="flex flex-wrap gap-2">
@@ -646,15 +646,30 @@ function EventForm({
   const { email } = useAuth();
   const add = useServerFn(addPlannerEventsFn);
   const update = useServerFn(updatePlannerEventFn);
+  const extract = useServerFn(extractEventFromUrlFn);
   const [form, setForm] = useState<Partial<PlannerEvent>>({});
   const [key, setKey] = useState<unknown>(null);
   const [saving, setSaving] = useState(false);
+  const [filling, setFilling] = useState(false);
   if (initial !== key) {
     setKey(initial);
     setForm(initial || {});
   }
   const set = <K extends keyof PlannerEvent>(k: K, v: PlannerEvent[K]) => setForm((f) => ({ ...f, [k]: v }));
   const list = (k: "sectors" | "portcos" | "partners") => (form[k] || []).join("; ");
+
+  async function autofill() {
+    const url = form.website?.trim();
+    if (!url) return;
+    setFilling(true);
+    try {
+      const extracted = await extract({ data: { url } });
+      setForm(current => mergeEventAutofill(current, extracted));
+      toast.success("Event details filled — ready to review");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally { setFilling(false); }
+  }
 
   async function save() {
     if (!form.name?.trim()) return toast.error("Event name is required");
@@ -682,6 +697,15 @@ function EventForm({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{form.urid ? "Edit event" : "Add event"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3 text-xs">
+          <L label="Website" full>
+            <div className="flex flex-wrap gap-2">
+              <Input aria-label="Event website" type="url" className="flex-1 min-w-0" placeholder="https://…" value={form.website || ""} onChange={(e) => set("website", e.target.value)} />
+              <Button variant="outline" onClick={autofill} disabled={filling || !form.website?.trim()}>
+                <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", filling && "animate-spin")} />
+                {filling ? "Reading page…" : "Autofill from link"}
+              </Button>
+            </div>
+          </L>
           <L label="Event name" full><Input value={form.name || ""} onChange={(e) => set("name", e.target.value)} /></L>
           <L label="Start date"><Input type="date" value={form.start || ""} onChange={(e) => set("start", e.target.value)} /></L>
           <L label="End date"><Input type="date" value={form.end || ""} onChange={(e) => set("end", e.target.value)} /></L>
@@ -721,7 +745,6 @@ function EventForm({
           <L label="Partners (; separated)"><Input list="vp-partners" value={list("partners")} onChange={(e) => set("partners", splitList(e.target.value))} /></L>
           <L label="Network attendees (count)"><Input type="number" value={form.networkCount || ""} onChange={(e) => set("networkCount", Number(e.target.value) || 0)} /></L>
           <L label="Event contact"><Input value={form.eventContact || ""} onChange={(e) => set("eventContact", e.target.value)} /></L>
-          <L label="Website"><Input value={form.website || ""} onChange={(e) => set("website", e.target.value)} /></L>
           <L label="Luma / RSVP link"><Input value={form.lumaUrl || ""} onChange={(e) => set("lumaUrl", e.target.value)} /></L>
           <L label="Actions needed" full><Input value={form.actionsNeeded || ""} onChange={(e) => set("actionsNeeded", e.target.value)} /></L>
           <L label="Notes" full><Textarea rows={3} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} /></L>
@@ -731,7 +754,7 @@ function EventForm({
         <datalist id="vp-partners">{options.partners.map((o) => <option key={o} value={o} />)}</datalist>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : form.urid ? "Save changes" : "Add event"}</Button>
+          <Button onClick={save} disabled={saving || filling}>{saving ? "Saving…" : form.urid ? "Save changes" : "Add event"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
