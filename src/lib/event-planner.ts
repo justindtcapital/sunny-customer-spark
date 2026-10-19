@@ -347,6 +347,142 @@ export function priorYears(e: PlannerEvent, all: PlannerEvent[]): PlannerEvent[]
     .sort((a, b) => b.start.localeCompare(a.start));
 }
 
+// ── One-time Asana enrichment & merge ───────────────────────────
+/** Structural Asana event shape (avoids importing src/lib/types here). */
+export interface AsanaLike {
+  gid: string;
+  name: string;
+  date: string;
+  format?: string;
+  owner?: string;
+  sectors: string[];
+  portcos: string[];
+  attendeeCount?: number;
+  type?: string;
+  lead?: string;
+}
+
+/** Map an Asana event to a planner subcategory (tile color). */
+export function asanaSubcategory(a: Pick<AsanaLike, "name" | "type" | "lead">): string {
+  const lead = (a.lead || "").toLowerCase();
+  if (a.type === "dinner") return lead.includes("partner") ? "DTC Event (with Partner)" : "DTC Event (No Partnership)";
+  if (lead === "dtc") return "DTC Event (No Partnership)";
+  if (a.type === "meeting") return "DTC Curated Briefings";
+  const mapped = mapTrackerCategory("", a.name);
+  return mapped !== "Unassigned" ? mapped : "3rd Party Events";
+}
+
+/**
+ * How well a planner event matches an Asana event:
+ * 3 = same Asana gid, 2 = same date + same series name, 1 = same date + overlapping names, 0 = no match.
+ */
+export function asanaMatchScore(e: Pick<PlannerEvent, "name" | "start" | "asanaGid">, a: AsanaLike): number {
+  if (e.asanaGid && e.asanaGid === a.gid) return 3;
+  if (!a.date || !e.start || e.start !== a.date) return 0;
+  const ek = eventSeriesKey(e.name);
+  const ak = eventSeriesKey(a.name);
+  if (!ek || !ak) return 0;
+  if (ek === ak) return 2;
+  if (ek.includes(ak) || ak.includes(ek)) return 1;
+  return 0;
+}
+
+/** Fill empty planner fields from an Asana event; never overwrites existing values. */
+export function enrichEventFromAsana(e: PlannerEvent, a: AsanaLike): PlannerEvent {
+  const next = { ...e };
+  if (!next.asanaGid) next.asanaGid = a.gid;
+  if (!next.format && a.format) next.format = a.format;
+  if (!next.owner && a.owner) next.owner = a.owner;
+  next.sectors = [...new Set([...next.sectors, ...a.sectors].map(normalizeSector).filter(Boolean))];
+  next.portcos = [...new Set([...next.portcos, ...a.portcos].filter(Boolean))];
+  next.networkCount = Math.max(next.networkCount || 0, a.attendeeCount || 0);
+  const link = `https://app.asana.com/0/0/${a.gid}`;
+  if (next.sourceRef && !next.sourceRef.includes(a.gid) && !/^https?:/.test(next.sourceRef))
+    next.sourceRef = `${next.sourceRef} · ${link}`;
+  else if (!next.sourceRef) next.sourceRef = link;
+  return next;
+}
+
+/** Merge loser into keeper: keeper keeps identity, DTC status and category; empty fields filled, lists unioned. */
+export function mergePlannerEvents(keeper: PlannerEvent, loser: PlannerEvent): PlannerEvent {
+  const next = { ...keeper };
+  const fill = (k: keyof PlannerEvent) => {
+    if (!next[k] && loser[k]) (next as Record<string, unknown>)[k] = loser[k];
+  };
+  (["location", "format", "website", "lumaUrl", "owner", "notes", "actionsNeeded", "eventContact", "asanaGid"] as const).forEach(fill);
+  next.sectors = [...new Set([...next.sectors, ...loser.sectors])];
+  next.portcos = [...new Set([...next.portcos, ...loser.portcos])];
+  next.partners = [...new Set([...next.partners, ...loser.partners])];
+  next.networkCount = Math.max(next.networkCount || 0, loser.networkCount || 0);
+  if (!next.end && loser.end) next.end = loser.end;
+  if (loser.sourceRef && !next.sourceRef.includes(loser.sourceRef))
+    next.sourceRef = next.sourceRef ? `${next.sourceRef} · ${loser.sourceRef}` : loser.sourceRef;
+  return next;
+}
+
+export interface AsanaEnrichPlan {
+  /** urid → enriched event (includes merged losers). */
+  updates: Map<string, PlannerEvent>;
+  /** urids of rows merged away (to delete). */
+  removed: string[];
+  /** Asana events with no planner counterpart. */
+  unmatched: AsanaLike[];
+}
+
+/**
+ * Plan the one-time Asana enrichment: match Asana events to planner rows,
+ * enrich matches, and merge same-date duplicate rows (Tracker row wins).
+ */
+export function planAsanaEnrichment(events: PlannerEvent[], asana: AsanaLike[]): AsanaEnrichPlan {
+  const updates = new Map<string, PlannerEvent>();
+  const removed: string[] = [];
+  const unmatched: AsanaLike[] = [];
+  const byUrid = new Map(events.map((e) => [e.urid, e]));
+
+  for (const a of asana) {
+    if (!a.gid || a.gid.startsWith("app-") || !a.name) continue;
+    let best: PlannerEvent | null = null;
+    let bestScore = 0;
+    for (const e of events) {
+      if (removed.includes(e.urid)) continue;
+      const s = asanaMatchScore(byUrid.get(e.urid) || e, a);
+      if (s > bestScore) {
+        best = e;
+        bestScore = s;
+      }
+    }
+    if (!best || bestScore < 2) {
+      if (!best) unmatched.push(a);
+      continue;
+    }
+    const cur = updates.get(best.urid) || best;
+    updates.set(best.urid, enrichEventFromAsana(cur, a));
+  }
+
+  // Merge same-date duplicate rows (name variants), e.g. a Tracker row and an Asana-added row.
+  const byDate = new Map<string, PlannerEvent[]>();
+  for (const e of events) {
+    if (!e.start) continue;
+    const list = byDate.get(e.start) || [];
+    list.push(e);
+    byDate.set(e.start, list);
+  }
+  for (const list of byDate.values()) {
+    if (list.length !== 2) continue; // only auto-merge unambiguous pairs
+    const [x, y] = list;
+    const kx = eventSeriesKey(x.name);
+    const ky = eventSeriesKey(y.name);
+    if (!kx || !ky || (kx !== ky && !kx.includes(ky) && !ky.includes(kx))) continue;
+    const keeper = x.source === "Tracker" ? x : y.source === "Tracker" ? y : x;
+    const loser = keeper === x ? y : x;
+    if (removed.includes(loser.urid)) continue;
+    removed.push(loser.urid);
+    const base = updates.get(keeper.urid) || keeper;
+    updates.set(keeper.urid, mergePlannerEvents(base, updates.get(loser.urid) || loser));
+  }
+  return { updates, removed, unmatched };
+}
+
 // ── CSV import ──────────────────────────────────────────────────
 export const IMPORT_FIELDS = [
   "name",
