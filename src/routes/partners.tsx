@@ -242,7 +242,7 @@ function PartnerPane({ name }: { name: string }) {
                       {linked.length > 0 && (
                         <div className="basis-full flex flex-wrap gap-1 pl-1">
                           {linked.map((w) => (
-                            <Link key={w.gid} to="/my-actions" search={{ tab: "workstreams", ws: w.gid, owner: ACTION_OWNERS.find((o) => ownerMatches(w.owner, o.name))?.name }} className="rounded border border-border px-1.5 py-0.5 text-[10px] text-primary hover:underline">{w.company} · {w.name || w.rawName}</Link>
+                            <Link key={w.gid} to="/my-actions" search={{ tab: "actions", ws: w.gid, owner: ACTION_OWNERS.find((o) => ownerMatches(w.owner, o.name))?.name }} className="rounded border border-border px-1.5 py-0.5 text-[10px] text-primary hover:underline">{w.company} · {w.name || w.rawName}</Link>
                           ))}
                         </div>)}
                     </li>
@@ -255,7 +255,7 @@ function PartnerPane({ name }: { name: string }) {
                 <ul className="divide-y divide-border">
                   {ws.map((w) => (
                     <li key={w.gid} className="py-1.5 text-sm">
-                      <Link to="/my-actions" search={{ tab: "workstreams", ws: w.gid, owner: ACTION_OWNERS.find((o) => ownerMatches(w.owner, o.name))?.name }}
+                      <Link to="/my-actions" search={{ tab: "actions", ws: w.gid, owner: ACTION_OWNERS.find((o) => ownerMatches(w.owner, o.name))?.name }}
                         className="block truncate font-medium text-primary hover:underline" title="Open in My Actions">{w.name}</Link>
                       <div className="mt-0.5 flex justify-end gap-1.5">
                         <Badge variant="outline" className="text-[10px]">{w.company}</Badge>

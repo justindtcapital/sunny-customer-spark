@@ -58,7 +58,7 @@ export const Route = createFileRoute("/dashboard")({
   beforeLoad: ({ search }) => {
     // Managing workstreams and notes moved to My Actions; keep old deep links working.
     if (search.section === "notes" || search.section === "workstreams")
-      throw redirect({ to: "/my-actions", search: { tab: search.section, owner: search.owner } });
+      throw redirect({ to: "/my-actions", search: { tab: search.section === "workstreams" ? "actions" : "notes", owner: search.owner } });
   },
   head: () => ({
     meta: [
@@ -523,7 +523,7 @@ function WorkstreamOverview({ keys, owner, scopeLabel, points, children, initial
   const done = statuses.filter((s) => s === "Completed").length;
   return (
     <div className="space-y-3">
-      <SummaryCard title="Workstreams" sub={scopeLabel} onManage={() => void go({ to: "/my-actions", search: { tab: "workstreams", owner } })}>
+      <SummaryCard title="Workstreams" sub={scopeLabel} onManage={() => void go({ to: "/my-actions", search: { tab: "actions", owner } })}>
         <div className="flex flex-wrap items-start gap-8">
           <div className="flex flex-wrap gap-8">
             <Stat label="Streams" value={ws.length} />
