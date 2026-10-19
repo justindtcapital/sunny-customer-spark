@@ -16,23 +16,39 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import type { Contact } from "@/lib/types";
+import type { AsanaEvent, Contact } from "@/lib/types";
 import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, parseTrackerDate, splitList,
-  mapTrackerStatus, eventSeriesKey, DTC_STATUSES, dtcStatusOf,
+  mapTrackerStatus, eventSeriesKey, DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
+  duplicateKey,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
 import {
-  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, syncAsanaPlannerFn, extractEventFromUrlFn,
-  addPlannerAttendeesFn,
+  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
+  extractEventFromUrlFn, addPlannerAttendeesFn,
 } from "@/utils/event-planner.functions";
 
 type StatusView = "Confirmed" | "Potential" | "Both";
 const SUBCATS = PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name));
 const today = () => new Date().toISOString().slice(0, 10);
 const tileVar = (sub: string) => `var(--planner-${subcategoryColor(sub)})`;
+
+/** Read-only planner-shaped view of a live Asana event (Show Asana data overlay). */
+function asanaToPlanner(a: AsanaEvent): PlannerEvent {
+  const sub = asanaSubcategory(a);
+  return {
+    urid: `asana:${a.gid}`, name: a.name, start: a.date, end: a.date, location: "",
+    category: categoryOfSubcategory(sub), subcategory: sub,
+    status: a.status === "completed" ? "Confirmed" : "Potential",
+    sectors: a.sectors || [], portcos: a.portcos || [], partners: [], owner: a.owner || "",
+    format: a.format || "", website: "", lumaUrl: "", source: "Asana (live)",
+    sourceRef: `https://app.asana.com/0/0/${a.gid}`, asanaGid: a.gid,
+    networkCount: a.attendeeCount || 0, notes: "", actionsNeeded: "", eventContact: "",
+    createdBy: "", updated: "", dtcStatus: "",
+  };
+}
 
 export const plannerQueryKey = ["event-planner"];
 
