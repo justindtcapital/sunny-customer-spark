@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { allowedTeamEmail } from "@/lib/team-access";
-import "@lovable.dev/cloud-auth-js/styles.css";
 
 export function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -40,7 +39,7 @@ export function LoginScreen() {
     } catch (e) { setError(e instanceof Error ? e.message : "Sign-in failed."); }
     finally { setPassword(""); setBusy(false); }
   }
-  async function social(provider: "google" | "microsoft" | "lovable") {
+  async function social(provider: "google") {
     setBusy(true); setError("");
     try { const result = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin }); if (result.error) setError(result.error.message); }
     catch { setError("Sign-in could not start. Please try again."); }
@@ -49,9 +48,7 @@ export function LoginScreen() {
   return <div className="flex min-h-screen items-center justify-center bg-background px-4">
     <Card className="w-full max-w-sm border-border"><CardHeader><CardTitle className="text-2xl">Venture Pulse</CardTitle></CardHeader><CardContent className="space-y-4">
       {mode === "signin" || mode === "signup" ? <div className="space-y-2">
-        <Button className="w-full" variant="outline" disabled={busy} onClick={() => social("microsoft")}>Continue with Microsoft</Button>
         <Button className="w-full" variant="outline" disabled={busy} onClick={() => social("google")}>Continue with Google</Button>
-        <Button className="lovable-auth-button w-full" disabled={busy} onClick={() => social("lovable")}>Continue with Lovable</Button>
       </div> : null}
       <form onSubmit={handleSubmit} className="space-y-4">
         {mode !== "recovery" && <div className="space-y-2"><Label htmlFor="email">Team email</Label><Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>}

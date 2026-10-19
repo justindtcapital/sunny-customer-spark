@@ -137,6 +137,7 @@ export const updateWorkstreamFn = createServerFn({ method: "POST" })
           )
           .max(40),
         completed: z.boolean().optional(),
+        title: z.object({ original: z.string().max(500), value: z.string().trim().min(1).max(200) }).optional(),
       })
       .parse(data),
   )

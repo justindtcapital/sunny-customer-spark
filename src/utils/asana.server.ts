@@ -17,6 +17,7 @@ import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
 import { parseWorkstreamName, type Workstream } from "@/lib/workstream-parse";
 import {
   buildCustomFieldsPayload,
+  workstreamNameChange,
   sameValue,
   type AsanaFieldType,
   type FieldChange,
@@ -819,6 +820,7 @@ async function asanaWrite<T = unknown>(path: string, method: "PUT" | "POST", bod
 export async function updateWorkstream(input: {
   gid: string;
   changes: FieldChange[];
+  title?: { original: string; value: string };
   completed?: boolean;
   created_at?: string | null;
   completed_at?: string | null;
@@ -827,6 +829,7 @@ export async function updateWorkstream(input: {
     `/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS},parent.name`,
   );
   const current = new Map(((before.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
+  const name = input.title ? workstreamNameChange(before.data.name || "", input.title.original, input.title.value) : undefined;
   let catalog: Map<string, WorkstreamFieldMeta & { projectGid: string }> | null = null;
   for (const c of input.changes) {
     let m = current.get(c.gid);
@@ -855,6 +858,7 @@ export async function updateWorkstream(input: {
     }
   }
   const data: Record<string, unknown> = {};
+  if (name !== undefined) data.name = name;
   if (input.changes.length) data.custom_fields = buildCustomFieldsPayload(input.changes);
   if (typeof input.completed === "boolean") data.completed = input.completed;
   if (Object.keys(data).length) await asanaWrite(`/tasks/${input.gid}`, "PUT", { data });

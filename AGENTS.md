@@ -4,7 +4,7 @@
 - Scope pending Sheets work to the originating request and run review saves under withDeadline named steps; Workers kill stranded/idle waits as "hung".
 - Wrap request-context access and exported server helpers in createServerOnlyFn when reachable through client-imported function modules; filename suffixes alone do not prevent server imports entering the browser graph.
 
-- Keep workstream bar status and priority separate from segment-specific program fields so GTM and BD share the same Asana bar mapping without replacing their detail fields.- Workstream edits write only changed Asana custom fields, typed from Asana's own field metadata (enum by option gid), after a server re-read conflict check — avoids clobbering concurrent Asana edits.
+- Workstream bars separate status/priority from program fields. Edits re-read Asana, conflict-check, and write changed fields only (enum gids); title edits preserve company/track prefixes and compare the original task name.
 
 - Campaign membership lives in the "Campaign Members" sheet tab, one append-only row per (campaign, person); adding existing Network/Prospecting people never edits their records — so people can join many campaigns without data loss.
 - External notes preserve origins. Harvested activities skip existing IDs on save and collapse repeated IDs on read, with completion winning — prevents repeated reminders.
@@ -22,7 +22,7 @@
 - Teammate identity is one roster entry per person (primary Dell email plus other addresses and name aliases) resolved via teamMemberFor; every owner/author/roster match goes through it so any address identifies the same user.
 - My Actions owns management; Dashboard links there. Date calendar and follow-ups share one owner query and inclusive date-range helpers — counts and filtering stay consistent.
 - PortCo bullets in emails come only from the newest Drive "PortCo List" sheet (name, website, first sentence of Summary; PORTCO_LIST_FILE_ID overrides), never AI — keeps approved wording and links exact.
-- Action Now completions are Harvested Activities with activityId "action:<hash>[:track]", undone via Harvest State "action-undone" — reuses activity counting without a new store.
+- Completed aggregates owner-scoped workstreams, resolved follow-ups, confirmed reviews and Action Now across all dates. Action Now uses "action:<hash>[:track]" and "action-undone"; dedupe tracks and represented follow-ups without a new store.
 - Partners are a separate entity from PortCos ("Partners" sheet tab, own review tag fields); contacts are linked to a partner by company match at read time and never moved or edited — keeps Network/Prospecting records intact while every upload auto-tags.
 - Event Planner data lives in the shared Event Tracker spreadsheet ("Events DB" + "Event Attendees" tabs, EVENT_TRACKER_SHEET_ID overrides); FY tabs are read only for the one-time seed, and people stay in the CRM with attendance as (event, person) rows — keeps one contact record across many events and years.
 - Asana is a read-only overlay in the Event Planner ("Show Asana data" toggle, off by default); the one-time "Merge Asana data" action enriches empty fields and merges same-date duplicate rows (Tracker row wins, DTC Status never overwritten) via planAsanaEnrichment — no recurring Asana sync writes.

@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Merge, Pencil, Plus, Trash2, Undo2, Zap } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Zap } from "lucide-react";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { toast } from "sonner";
@@ -30,6 +30,12 @@ import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actio
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
 const TABS = ["workstreams", "followups", "notes", "done"] as const;
+const TAB_STYLE = {
+  workstreams: { label: "Workstreams", Icon: GitBranch, tone: "text-primary", selected: "bg-primary text-primary-foreground hover:bg-primary/90" },
+  followups: { label: "Follow-ups", Icon: CalendarDays, tone: "text-warm-foreground", selected: "bg-warm-foreground text-primary-foreground hover:text-primary-foreground hover:bg-warm-foreground/90" },
+  notes: { label: "Notes & Activity inbox", Icon: Inbox, tone: "text-council-foreground", selected: "bg-council-foreground text-primary-foreground hover:text-primary-foreground hover:bg-council-foreground/90" },
+  done: { label: "Completed", Icon: CheckCircle2, tone: "text-good-foreground", selected: "bg-good-foreground text-primary-foreground hover:text-primary-foreground hover:bg-good-foreground/90" },
+};
 type Tab = (typeof TABS)[number];
 
 export const Route = createFileRoute("/my-actions")({
@@ -91,21 +97,22 @@ function MyActionsPage() {
       {tab === "followups" && followUpSort === "date" && <ActionCalendar owner={owner} range={dateRange} onChange={setDateRange} />}
 
 
-      <div className="inline-flex flex-wrap rounded-md border border-border p-0.5">
-        {TABS.map((k) => (
-          <button key={k} onClick={() => set({ tab: k })} className={`rounded px-3 py-1.5 text-sm ${tab === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>
-            {k === "workstreams" ? "Workstreams" : k === "notes" ? "Notes & Activity" : k === "followups" ? "Follow-ups" : "Completed"}
-            {k === "notes" && <span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{counts.notes + counts.activity}</span>}
-          </button>
-        ))}
+      <div role="tablist" aria-label="My Actions inboxes" className="flex flex-wrap gap-2 border-b border-border pb-4">
+        {TABS.map((k) => {
+          const { label, Icon, tone, selected } = TAB_STYLE[k];
+          return <Button role="tab" aria-selected={tab === k} aria-controls={`actions-${k}`} key={k} onClick={() => set({ tab: k })} variant="outline" className={`h-10 border-2 px-4 ${tab === k ? `${selected} border-transparent font-semibold` : `${tone} border-border bg-card`}`}>
+            <Icon className="h-4 w-4" />{label}
+            {k === "notes" && <span className="ml-1 rounded bg-current/10 px-1.5 text-xs tabular-nums">{counts.notes + counts.activity}</span>}
+          </Button>;
+        })}
       </div>
 
-      {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <>
+      {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
         {tab === "workstreams" && <WorkstreamsTab owner={owner} onAction={setCtx} focusGid={search.ws} />}
         {tab === "notes" && <NotesTab owner={owner} onAction={setCtx} onCounts={setCounts} />}
         {tab === "followups" && <FollowUpsTab owner={owner} onAction={setCtx} sort={followUpSort} setSort={setFollowUpSort} dateRange={dateRange} />}
         {tab === "done" && <DoneTab owner={owner} />}
-      </>}
+      </div>}
 
       <ActionComposer ctx={ctx} onClose={() => setCtx(null)} onDone={() => { void qc.invalidateQueries({ queryKey: ["my-actions"] }); }} />
     </div>
@@ -120,9 +127,9 @@ function NotesTab({ owner, onAction, onCounts }: { owner: string; onAction: (c: 
     <div className="space-y-2">
       <div className="inline-flex rounded-md border border-border p-0.5">
         {(["notes", "activity"] as const).map((k) => (
-          <button key={k} onClick={() => setSub(k)} className={`rounded px-3 py-1 text-sm ${sub === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>
+          <Button key={k} size="sm" variant={sub === k ? "default" : "ghost"} aria-pressed={sub === k} onClick={() => setSub(k)}>
             {k === "notes" ? "Notes Imports" : "Activity Review"}<span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{n[k]}</span>
-          </button>
+          </Button>
         ))}
       </div>
       <div className={sub === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onStats={(s) => update("notes", s.pending)} onActionNow={(i) => onAction(fromNote(i, "note"))} split /></div>
@@ -150,6 +157,7 @@ function Logo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
 
 function WorkstreamsTab({ owner, onAction, focusGid }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string }) {
   const { workstreams, loading, refresh } = useWorkstreams();
+  const qc = useQueryClient();
   const [showDone, setShowDone] = useState(false);
   const [priority, setPriority] = useState("");
   const [creating, setCreating] = useState(false);
@@ -239,7 +247,7 @@ function WorkstreamsTab({ owner, onAction, focusGid }: { owner: string; onAction
               tracks: sel.segment === "BD" || sel.segment === "GTM" ? [sel.segment] : [],
             })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
           </div>
-          <WorkstreamDetail key={sel.gid} w={sel} />
+          <WorkstreamDetail key={sel.gid} w={sel} onSaved={() => { void refresh(); void qc.invalidateQueries({ queryKey: ["my-actions", "done"] }); }} />
         </div>}
       />}
     </div>
@@ -522,26 +530,31 @@ function DoneTab({ owner }: { owner: string }) {
   const list = useServerFn(listDoneActionsFn);
   const undo = useServerFn(undoActionFn);
   const qc = useQueryClient();
-  const { data = [], isLoading } = useQuery({ queryKey: ["my-actions", "done", owner], queryFn: () => list({ data: { owner } }), staleTime: 30_000 });
-  return (
+  const [kind, setKind] = useState("all");
+  const [busy, setBusy] = useState("");
+  const { data = [], isLoading, isError } = useQuery({ queryKey: ["my-actions", "done", owner], queryFn: () => list({ data: { owner } }), staleTime: 30_000 });
+  const visible = data.filter((a) => kind === "all" || a.kind === kind);
+  const labels = { workstream: "Workstream", followup: "Follow-up / Action", note: "Note", activity: "Activity" };
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-center gap-2">
+      <Select value={kind} onValueChange={setKind}><SelectTrigger className="w-52"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">All completed</SelectItem>{Object.entries(labels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
+      <span className="ml-auto text-xs text-muted-foreground">{visible.length} completed · All dates</span>
+    </div>
     <Card><CardContent className="p-0">
-      {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading…</p>}
-      {!isLoading && !data.length && <p className="p-4 text-sm text-muted-foreground">Nothing completed with Action Now in the last 30 days.</p>}
-      <div className="divide-y divide-border">
-        {data.map((a) => (
-          <div key={a.base} className="flex flex-wrap items-center gap-3 px-4 py-2">
-            <CheckCircle2 className="h-4 w-4 text-primary" />
-            <div className="min-w-[220px] flex-1">
-              <div className="text-sm font-medium">{a.title}</div>
-              <div className="text-xs text-muted-foreground">{a.date} · {a.person}{a.portco ? ` · ${a.portco}` : ""}{a.track ? ` · ${a.track}` : ""}</div>
-            </div>
-            <Button size="sm" variant="ghost" className="h-7" onClick={async () => {
-              await undo({ data: { actionId: a.base, followUpActivityId: a.summary.includes("(followup)") ? a.recordId : undefined } });
-              toast.success("Reopened"); void qc.invalidateQueries({ queryKey: ["my-actions"] });
-            }}><Undo2 className="h-3.5 w-3.5 mr-1" />Undo</Button>
-          </div>
-        ))}
-      </div>
+      {isLoading && <p className="p-4 text-sm text-muted-foreground">Loading completed actions…</p>}
+      {isError && <div role="alert" className="p-4 text-sm text-destructive">Couldn't load completed actions. <Button size="sm" variant="outline" onClick={() => void qc.invalidateQueries({ queryKey: ["my-actions", "done"] })}>Retry</Button></div>}
+      {!isLoading && !isError && !visible.length && <p className="p-4 text-sm text-muted-foreground">No completed items for this selection.</p>}
+      <div className="divide-y divide-border">{visible.map((a) => <div key={a.id} className="flex flex-wrap items-start gap-3 px-4 py-3">
+        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-good-foreground" />
+        <div className="min-w-0 flex-1"><div className="break-words text-sm font-medium">{a.title}</div><div className="mt-1 flex flex-wrap justify-end gap-2 text-xs text-muted-foreground"><Badge variant="outline">{labels[a.kind]}</Badge>{a.date.slice(0, 10)}{a.person && <span>{a.person}</span>}{a.portco && <span>{a.portco}</span>}</div></div>
+        {a.workstreamGid && <Button asChild size="sm" variant="ghost"><Link to="/my-actions" search={{ tab: "workstreams", owner, ws: a.workstreamGid }}>Open <ExternalLink className="h-3.5 w-3.5" /></Link></Button>}
+        {a.actionId && <Button size="sm" variant="ghost" disabled={!!busy} onClick={async () => {
+          if (!a.actionId) return;
+          setBusy(a.id);
+          try { await undo({ data: { actionId: a.actionId, followUpActivityId: a.followUpActivityId } }); toast.success("Reopened"); await qc.invalidateQueries({ queryKey: ["my-actions"] }); }
+          catch { toast.error("Couldn't reopen this action"); } finally { setBusy(""); }
+        }}><Undo2 className="h-3.5 w-3.5" />Undo</Button>}
+      </div>)}</div>
     </CardContent></Card>
-  );
+  </div>;
 }
