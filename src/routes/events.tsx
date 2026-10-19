@@ -1,4 +1,5 @@
-import { Megaphone } from "lucide-react";
+import { Megaphone, LayoutGrid } from "lucide-react";
+import { EventPlanner } from "@/components/events/EventPlanner";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { fetchAsanaEvents } from "@/utils/asana.functions";
@@ -94,10 +95,10 @@ import {
 export const Route = createFileRoute("/events")({
   head: () => ({
     meta: [
-      { title: "Events — VenturePulse" },
-      { name: "description", content: "Track Asana-sourced events and Network attendance" },
-      { property: "og:title", content: "Events — VenturePulse" },
-      { property: "og:description", content: "Track Asana-sourced events and Network attendance" },
+      { title: "Event Planner — VenturePulse" },
+      { name: "description", content: "Plan confirmed and potential events across years, categories and sectors" },
+      { property: "og:title", content: "Event Planner — VenturePulse" },
+      { property: "og:description", content: "Plan confirmed and potential events across years, categories and sectors" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -179,7 +180,7 @@ function EventsPage() {
     synopses: Record<string, string>;
   };
   const router = useRouter();
-  const [view, setView] = useState<"list" | "calendar" | "analytics">("list");
+  const [view, setView] = useState<"planner" | "list" | "calendar" | "analytics">("planner");
   const [selected, setSelected] = useState<AsanaEvent | null>(null);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const { event: openEventName } = Route.useSearch();
@@ -246,6 +247,14 @@ function EventsPage() {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
             <Button
+              variant={view === "planner" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setView("planner")}
+            >
+              <LayoutGrid className="h-3.5 w-3.5 mr-1.5" /> Planner
+            </Button>
+            <Button
               variant={view === "list" ? "secondary" : "ghost"}
               size="sm"
               className="h-7 text-xs"
@@ -273,6 +282,9 @@ function EventsPage() {
         </div>
       </div>
 
+      {view === "planner" ? (
+        <EventPlanner contacts={contacts} />
+      ) : (
       <div className="grid grid-cols-[200px_1fr] gap-6">
         <FiltersPanel
           filters={filters}
