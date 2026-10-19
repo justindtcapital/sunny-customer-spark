@@ -7,7 +7,7 @@ function titleKey(name: string): string {
   return eventSeriesKey(name)
     .replace(/\bbriefings?\b/g, " ")
     .replace(/\bgbi impact\b/g, "gbi")
-    .replace(/\bn h a i\b|\bnhai\b/g, "nhai")
+    .replace(/\bn h a i\b|\bnhai\b|\bnh i\b/g, "nhai")
     .replace(/\bconferenec\b/g, "conference")
     .replace(/\billuymn\b/g, "illumyn")
     .replace(/\bcybersecuity\b/g, "cybersecurity")
