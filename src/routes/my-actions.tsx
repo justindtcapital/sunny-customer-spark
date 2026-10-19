@@ -3,7 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Users, Zap } from "lucide-react";
+import { Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Users, Wrench, Zap } from "lucide-react";
+import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { toast } from "sonner";
@@ -173,13 +174,31 @@ function similarFollowUps(r: Reminder, all: Reminder[]): Reminder[] {
 
 type Sel = { kind: "ws" | "fu"; id: string };
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
-const FEED_TOGGLES = [
+/** Which companies to show — separate from which item types to show. */
+const COMPANY_TOGGLES = [
   { key: "portcos", label: "PortCos", Icon: Building2 },
   { key: "network", label: "Network", Icon: Users },
+  { key: "ops", label: "Port DevOps", Icon: Wrench },
+] as const;
+const ITEM_TOGGLES = [
   { key: "workstreams", label: "Workstreams", Icon: GitBranch },
   { key: "followups", label: "Follow-ups", Icon: CalendarDays },
 ] as const;
-type FeedToggle = (typeof FEED_TOGGLES)[number]["key"];
+type FeedToggle = (typeof COMPANY_TOGGLES)[number]["key"] | (typeof ITEM_TOGGLES)[number]["key"];
+
+/** Workstream / follow-up bullet: icon in a circle tinted with the company logo's primary color. */
+function Bullet({ kind, company, website }: { kind: "ws" | "fu"; company: string; website?: string }) {
+  const color = useLogoColor(company, website || "");
+  const Icon = kind === "ws" ? GitBranch : CalendarDays;
+  return (
+    <span
+      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${color ? "" : kind === "ws" ? "border-primary/40 bg-primary/10 text-primary" : "border-warm-foreground/40 bg-warm-foreground/10 text-warm-foreground"}`}
+      style={color ? { backgroundColor: color.bg, borderColor: color.fg, color: color.fg } : undefined}
+    >
+      <Icon className="h-3 w-3" />
+    </span>
+  );
+}
 
 /** Merged My Actions feed: workstreams and follow-ups grouped by PortCo / company. */
 function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; dateRange: ActionDateRange }) {
