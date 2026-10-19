@@ -4,6 +4,9 @@ import { PROGRAM_FIELDS, workstreamBarStatus, initialsOf } from "@/lib/workstrea
 import { StakeholderPicker, parseStakeholders, type Stakeholder } from "./StakeholderPicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Pencil } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useServerFn } from "@tanstack/react-start";
@@ -73,6 +76,8 @@ type EditKey = keyof Workstream;
 
 function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onSaved: (w: Workstream) => void; onCancel: () => void; inline?: boolean }) {
   const save = useServerFn(updateWorkstreamFn);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [title, setTitle] = useState(w.name || w.rawName);
   const keys: Array<[string, EditKey]> = [
     ["Work stream status", "workstreamStatus"],
     ["Work stream priority", "workstreamPriority"],
@@ -98,10 +103,11 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
     if (sm && stakeholderNames !== String(w.dellStakeholders || "") && !sameValue(stakeholderNames, sm.value))
       changes.push({ gid: sm.gid, type: sm.type, original: sm.value, value: stakeholderNames });
     const completedChanged = completed !== w.completed;
-    if (!changes.length && !completedChanged) return onCancel();
+    const titleChanged = title.trim() !== (w.name || w.rawName);
+    if (!changes.length && !completedChanged && !titleChanged) return onCancel();
     setSaving(true);
     const res = await save({
-      data: { gid: w.gid, changes, completed: completedChanged ? completed : undefined },
+      data: { gid: w.gid, changes, completed: completedChanged ? completed : undefined, title: titleChanged ? { original: w.rawName, value: title.trim() } : undefined },
     }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
     setSaving(false);
     if (!res.ok) {
@@ -111,11 +117,13 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
     patchWorkstreamCache(res.workstream);
     toast.success("Saved to Asana");
     setDraft({});
+    setEditingTitle(false);
     onSaved(res.workstream);
   };
 
   return (
     <div className="space-y-2">
+      {editingTitle && <div className="space-y-1 border-b border-border pb-3"><Label htmlFor={`workstream-title-${w.gid}`}>Workstream title</Label><Input id={`workstream-title-${w.gid}`} value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} /></div>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
         {keys.map(([label, key]) => {
           const m = w.editable?.[key];
@@ -148,11 +156,12 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
         <Checkbox checked={completed} onCheckedChange={(c) => setCompleted(c === true)} />
         Mark subtask complete in Asana
       </label>
-      {(!inline || Object.keys(draft).length > 0 || completed !== w.completed || stakeholders.map((s) => s.name).join(", ") !== String(w.dellStakeholders || "")) && <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { if (inline) { setDraft({}); setCompleted(w.completed); setStakeholders(parseStakeholders(String(w.dellStakeholders || ""))); } else onCancel(); }} disabled={saving}>
+      <Button size="sm" variant="outline" disabled={saving} onClick={() => setEditingTitle((v) => !v)} aria-expanded={editingTitle}><Pencil className="h-3.5 w-3.5" />Edit title</Button>
+      {(!inline || Object.keys(draft).length > 0 || title.trim() !== (w.name || w.rawName) || completed !== w.completed || stakeholders.map((s) => s.name).join(", ") !== String(w.dellStakeholders || "")) && <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setTitle(w.name || w.rawName); setEditingTitle(false); if (inline) { setDraft({}); setCompleted(w.completed); setStakeholders(parseStakeholders(String(w.dellStakeholders || ""))); } else onCancel(); }} disabled={saving}>
           Cancel
         </Button>
-        <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving}>
+        <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving || !title.trim()}>
           {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save{inline ? " changes to Asana" : ""}
         </Button>
       </div>}
@@ -365,12 +374,12 @@ export function WorkstreamsPanel({
 }
 
 /** Always-open workstream editor for My Actions: fields are directly editable, Save appears once something changes. */
-export function WorkstreamDetail({ w: initial }: { w: Workstream }) {
+export function WorkstreamDetail({ w: initial, onSaved }: { w: Workstream; onSaved?: (w: Workstream) => void }) {
   const [saved, setSaved] = useState<Workstream | null>(null);
   const w = saved && saved.gid === initial.gid ? saved : initial;
   return (
     <div className="space-y-3">
-      <EditView key={w.gid} w={w} inline onCancel={() => {}} onSaved={setSaved} />
+      <EditView key={w.rawName} w={w} inline onCancel={() => {}} onSaved={(next) => { setSaved(next); onSaved?.(next); }} />
       {w.notes && (
         <div className="space-y-1">
           <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">Detail</p>
