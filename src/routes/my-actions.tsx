@@ -265,7 +265,7 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
         const linked = new Map<string, Reminder[]>();
         const general: Reminder[] = [];
         for (const x of g.fu) {
-          const w = g.ws.find((w) => x.recordId === w.gid || x.recordId === `ws:${w.gid}`);
+          const w = g.ws.find((w) => x.workstreamGid === w.gid || x.recordId === w.gid || x.recordId === `ws:${w.gid}`);
           if (w) linked.set(w.gid, [...(linked.get(w.gid) || []), x]);
           else general.push(x);
         }
