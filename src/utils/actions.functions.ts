@@ -89,7 +89,7 @@ export const listDoneActionsFn = createServerFn({ method: "POST" })
   .inputValidator((d: { owner: string }) => z.object({ owner: z.string().max(200) }).parse(d))
   .handler(async ({ data }) => {
     const k = await import("./knowledge.server");
-    const { completedActions, type: _unused } = { ...(await import("@/lib/completed-actions")), type: undefined };
+    const { completedActions } = await import("@/lib/completed-actions");
     const inbox = await import("./notes-inbox.server");
     const asana = await import("./asana.server");
     const sheets = await import("./sheets.server");
@@ -107,7 +107,7 @@ export const listDoneActionsFn = createServerFn({ method: "POST" })
       if (!action && !(a.track === "Follow-up" && a.resolved)) continue;
       const base = action ? a.activityId.split(":").slice(0, 2).join(":") : a.activityId;
       const edit = edits.get(a.activityId);
-      rows.push({ id: base, kind: "followup", title: edit?.title || a.title, date: a.resolvedAt || a.createdAt || a.date, person: a.person, portco: a.portco, owner: edit?.owner || a.owner,
+      rows.push({ id: base, kind: "followup", title: edit?.summary || a.title, date: a.resolvedAt || a.createdAt || a.date, person: edit?.people.map((p) => p.name || p.email).join(", ") || a.person, portco: edit?.company || a.portco, owner: edit?.owner || a.owner,
         ...(action ? { actionId: base, followUpActivityId: a.summary.includes("(followup)") && activities.some((x) => x.activityId === a.recordId) ? a.recordId : undefined } : {}) });
     }
     for (const w of workstreams.filter(isWorkstreamCompleted)) rows.push({ id: `ws:${w.gid}`, kind: "workstream", title: w.name || w.rawName, date: w.completedAt || w.lastActivity, person: "", portco: w.company, owner: w.owner, workstreamGid: w.gid });

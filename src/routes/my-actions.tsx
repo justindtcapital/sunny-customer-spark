@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, Merge, Pencil, Plus, Trash2, Undo2, Zap } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Zap } from "lucide-react";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { toast } from "sonner";
@@ -30,6 +30,12 @@ import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actio
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
 const TABS = ["workstreams", "followups", "notes", "done"] as const;
+const TAB_STYLE = {
+  workstreams: { label: "Workstreams", Icon: GitBranch, tone: "text-primary", selected: "bg-primary text-primary-foreground hover:bg-primary/90" },
+  followups: { label: "Follow-ups", Icon: CalendarDays, tone: "text-warm-foreground", selected: "bg-warm-foreground text-background hover:bg-warm-foreground/90" },
+  notes: { label: "Notes & Activity inbox", Icon: Inbox, tone: "text-council-foreground", selected: "bg-council-foreground text-background hover:bg-council-foreground/90" },
+  done: { label: "Completed", Icon: CheckCircle2, tone: "text-good-foreground", selected: "bg-good-foreground text-background hover:bg-good-foreground/90" },
+};
 type Tab = (typeof TABS)[number];
 
 export const Route = createFileRoute("/my-actions")({
@@ -91,21 +97,22 @@ function MyActionsPage() {
       {tab === "followups" && followUpSort === "date" && <ActionCalendar owner={owner} range={dateRange} onChange={setDateRange} />}
 
 
-      <div className="inline-flex flex-wrap rounded-md border border-border p-0.5">
-        {TABS.map((k) => (
-          <button key={k} onClick={() => set({ tab: k })} className={`rounded px-3 py-1.5 text-sm ${tab === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>
-            {k === "workstreams" ? "Workstreams" : k === "notes" ? "Notes & Activity" : k === "followups" ? "Follow-ups" : "Completed"}
-            {k === "notes" && <span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{counts.notes + counts.activity}</span>}
-          </button>
-        ))}
+      <div role="tablist" aria-label="My Actions inboxes" className="flex flex-wrap gap-2 border-b border-border pb-4">
+        {TABS.map((k) => {
+          const { label, Icon, tone, selected } = TAB_STYLE[k];
+          return <Button role="tab" aria-selected={tab === k} aria-controls={`actions-${k}`} key={k} onClick={() => set({ tab: k })} variant="outline" className={`h-10 border-2 px-4 ${tab === k ? `${selected} border-transparent font-semibold` : `${tone} border-border bg-card`}`}>
+            <Icon className="h-4 w-4" />{label}
+            {k === "notes" && <span className="ml-1 rounded bg-current/10 px-1.5 text-xs tabular-nums">{counts.notes + counts.activity}</span>}
+          </Button>;
+        })}
       </div>
 
-      {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <>
+      {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
         {tab === "workstreams" && <WorkstreamsTab owner={owner} onAction={setCtx} focusGid={search.ws} />}
         {tab === "notes" && <NotesTab owner={owner} onAction={setCtx} onCounts={setCounts} />}
         {tab === "followups" && <FollowUpsTab owner={owner} onAction={setCtx} sort={followUpSort} setSort={setFollowUpSort} dateRange={dateRange} />}
         {tab === "done" && <DoneTab owner={owner} />}
-      </>}
+      </div>}
 
       <ActionComposer ctx={ctx} onClose={() => setCtx(null)} onDone={() => { void qc.invalidateQueries({ queryKey: ["my-actions"] }); }} />
     </div>
@@ -120,9 +127,9 @@ function NotesTab({ owner, onAction, onCounts }: { owner: string; onAction: (c: 
     <div className="space-y-2">
       <div className="inline-flex rounded-md border border-border p-0.5">
         {(["notes", "activity"] as const).map((k) => (
-          <button key={k} onClick={() => setSub(k)} className={`rounded px-3 py-1 text-sm ${sub === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground"}`}>
+          <Button key={k} size="sm" variant={sub === k ? "default" : "ghost"} aria-pressed={sub === k} onClick={() => setSub(k)}>
             {k === "notes" ? "Notes Imports" : "Activity Review"}<span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{n[k]}</span>
-          </button>
+          </Button>
         ))}
       </div>
       <div className={sub === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onStats={(s) => update("notes", s.pending)} onActionNow={(i) => onAction(fromNote(i, "note"))} split /></div>
@@ -239,7 +246,7 @@ function WorkstreamsTab({ owner, onAction, focusGid }: { owner: string; onAction
               tracks: sel.segment === "BD" || sel.segment === "GTM" ? [sel.segment] : [],
             })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
           </div>
-          <WorkstreamDetail key={sel.gid} w={sel} />
+          <WorkstreamDetail key={sel.gid} w={sel} onSaved={() => { void refresh(); void qcInvalidateCompleted(); }} />
         </div>}
       />}
     </div>
