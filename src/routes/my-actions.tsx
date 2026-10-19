@@ -32,9 +32,9 @@ import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 const TABS = ["workstreams", "followups", "notes", "done"] as const;
 const TAB_STYLE = {
   workstreams: { label: "Workstreams", Icon: GitBranch, tone: "text-primary", selected: "bg-primary text-primary-foreground hover:bg-primary/90" },
-  followups: { label: "Follow-ups", Icon: CalendarDays, tone: "text-warm-foreground", selected: "bg-warm-foreground text-background hover:bg-warm-foreground/90" },
-  notes: { label: "Notes & Activity inbox", Icon: Inbox, tone: "text-council-foreground", selected: "bg-council-foreground text-background hover:bg-council-foreground/90" },
-  done: { label: "Completed", Icon: CheckCircle2, tone: "text-good-foreground", selected: "bg-good-foreground text-background hover:bg-good-foreground/90" },
+  followups: { label: "Follow-ups", Icon: CalendarDays, tone: "text-warm-foreground", selected: "bg-warm-foreground text-primary-foreground hover:text-primary-foreground hover:bg-warm-foreground/90" },
+  notes: { label: "Notes & Activity inbox", Icon: Inbox, tone: "text-council-foreground", selected: "bg-council-foreground text-primary-foreground hover:text-primary-foreground hover:bg-council-foreground/90" },
+  done: { label: "Completed", Icon: CheckCircle2, tone: "text-good-foreground", selected: "bg-good-foreground text-primary-foreground hover:text-primary-foreground hover:bg-good-foreground/90" },
 };
 type Tab = (typeof TABS)[number];
 

@@ -102,9 +102,11 @@ export const listDoneActionsFn = createServerFn({ method: "POST" })
     const emails = await inbox.listNotesInbox(true, data.owner, "activity");
     const edits = await readFollowUpEdits();
     const rows: import("@/lib/completed-actions").CompletedAction[] = [];
+    const represented = new Set(activities.filter((a) => a.activityId.startsWith("action:") && !undone.has(a.activityId.split(":").slice(0, 2).join(":"))).map((a) => a.recordId));
     for (const a of activities) {
       const action = a.activityId.startsWith("action:");
       if (!action && !(a.track === "Follow-up" && a.resolved)) continue;
+      if (!action && represented.has(a.activityId)) continue;
       const base = action ? a.activityId.split(":").slice(0, 2).join(":") : a.activityId;
       const edit = edits.get(a.activityId);
       rows.push({ id: base, kind: "followup", title: edit?.summary || a.title, date: a.resolvedAt || a.createdAt || a.date, person: edit?.people.map((p) => p.name || p.email).join(", ") || a.person, portco: edit?.company || a.portco, owner: edit?.owner || a.owner,
