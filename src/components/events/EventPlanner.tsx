@@ -40,8 +40,13 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   const { email } = useAuth();
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: plannerQueryKey, queryFn: () => fetchPlannerFn() });
-  const events = data?.events ?? [];
   const attendees = data?.attendees ?? [];
+  // Network count = the larger of the typed count and logged attendees.
+  const events = useMemo(() => {
+    const n = new Map<string, number>();
+    (data?.attendees ?? []).forEach((a) => a.status !== "Invited" && n.set(a.eventUrid, (n.get(a.eventUrid) || 0) + 1));
+    return (data?.events ?? []).map((e) => ({ ...e, networkCount: Math.max(e.networkCount || 0, n.get(e.urid) || 0) }));
+  }, [data]);
   const refresh = () => qc.invalidateQueries({ queryKey: plannerQueryKey });
 
   const [zoom, setZoom] = useState<PlannerZoom>("year");
