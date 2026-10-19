@@ -1,4 +1,4 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { Outlet, Link, createRootRoute, HeadContent, Scripts, useRouterState } from "@tanstack/react-router";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { FilterProvider, useFilters } from "@/lib/filter-context";
@@ -103,6 +103,8 @@ function RootComponent() {
 
 function AuthGate() {
   const { email, ready } = useAuth();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname === "/auth") return <Outlet />;
 
   // Avoid flashing the login screen before the stored session is read.
   if (!ready) return null;

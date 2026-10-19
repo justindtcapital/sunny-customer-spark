@@ -15,7 +15,7 @@ export function LoginScreen() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (window.location.hash.includes("type=recovery")) setMode("recovery"); }, []);
+  useEffect(() => { if (window.location.hash.includes("type=recovery") || window.location.search.includes("recovery=1")) setMode("recovery"); }, []);
   async function handleSubmit(event: FormEvent) {
     event.preventDefault(); setError(""); setNotice("");
     if (mode !== "recovery" && !allowedTeamEmail(email)) { setError("Use your registered team email address."); return; }

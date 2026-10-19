@@ -89,8 +89,10 @@ export const syncGranolaFn = createServerFn({ method: "POST" }).middleware([requ
     const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
     const { withDeadline } = await import("./request-deadline.server");
     const apiKey = await loadGranolaKey(context.userId);
-    return withDeadline("Import my Granola", 55_000, (step) => step("Read and save Granola notes", () =>
-      runKnowledgeHarvest({ includeGmail: false, includeDrive: false, includeGranola: true, maxGranolaNotes: 5, importedBy: context.teamEmail, granolaAccess: { apiKey, userId: context.userId } })));
+    return withDeadline("Import my Granola", 55_000, (step) => {
+      step("Read and save Granola notes");
+      return runKnowledgeHarvest({ includeGmail: false, includeDrive: false, includeGranola: true, maxGranolaNotes: 5, importedBy: context.teamEmail, granolaAccess: { apiKey, userId: context.userId } });
+    });
   });
 
 export const fetchNotesInboxFn = createServerFn({ method: "POST" })
