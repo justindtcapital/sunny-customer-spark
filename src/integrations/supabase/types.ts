@@ -14,7 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      personal_granola_connections: {
+        Row: {
+          connected_at: string
+          key_ciphertext: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string
+          key_ciphertext: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string
+          key_ciphertext?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
