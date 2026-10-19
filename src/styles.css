@@ -484,3 +484,22 @@
     animation: none !important;
   }
 }
+
+/* Event Planner — subcategory tile colours and sector dots */
+:root {
+  --planner-violet: oklch(0.62 0.17 300);
+  --planner-purple: oklch(0.55 0.2 290);
+  --planner-plum: oklch(0.6 0.14 330);
+  --planner-lime: oklch(0.72 0.17 130);
+  --planner-sky: oklch(0.7 0.12 220);
+  --planner-rose: oklch(0.66 0.17 15);
+  --planner-blue: oklch(0.62 0.15 245);
+  --planner-amber: oklch(0.74 0.15 75);
+  --planner-orange: oklch(0.7 0.16 50);
+  --planner-slate: oklch(0.62 0.02 250);
+  --sector-cyber: oklch(0.63 0.2 25);
+  --sector-data: oklch(0.65 0.16 250);
+  --sector-supply: oklch(0.72 0.16 145);
+  --sector-industry: oklch(0.75 0.14 85);
+  --sector-other: oklch(0.6 0.02 250);
+}

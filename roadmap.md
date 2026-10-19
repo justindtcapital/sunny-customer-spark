@@ -46,3 +46,8 @@
 - [x] Partner tagging (and per-next-step partner) in Notes review and Activity review
 - [ ] Partner filter in Network/Prospecting Detailed search
 - [ ] Partner campaigns panel
+
+## Event planner
+- [x] Event database in the tracker sheet (seeded from FY2027 + Asana; CRM attendance copied)
+- [x] Planner timeline: category rows, subcategory tile colors, sector dots, week/month/year with prev/next, per-view totals
+- [x] Confirmed / Potential views, detail pane, add/edit, CSV import with field matching, add from link
