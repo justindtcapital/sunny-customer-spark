@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedTeamEmail, granolaAuthor, granolaCursorKey } from "../src/lib/team-access";
+import { allowedTeamEmail, granolaAuthor, granolaCursorKey, uniqueSourceRecords } from "../src/lib/team-access";
 
 describe("personal Granola isolation", () => {
   it("accepts verified roster emails, not names or unknown users", () => {
@@ -16,5 +16,8 @@ describe("personal Granola isolation", () => {
   it("uses the note owner without inventing an author when absent", () => {
     expect(granolaAuthor({ name: "Julia Beech", email: "JULIA@dt-capital.net" })).toBe("Julia Beech <julia@dt-capital.net>");
     expect(granolaAuthor()).toBe("");
+  });
+  it("does not save another copy of a shared Granola note", () => {
+    expect(uniqueSourceRecords([{ recordId: "granola-shared" }, { recordId: "granola-new" }, { recordId: "granola-new" }], new Set(["granola-shared"]))).toEqual([{ recordId: "granola-new" }]);
   });
 });

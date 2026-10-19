@@ -229,9 +229,13 @@ export async function listSuggestedContacts(): Promise<SuggestedContact[]> {
 export async function saveKnowledgeRecords(records: KnowledgeRecord[]): Promise<void> {
   if (records.length === 0) return;
   await ensureTab(KNOWLEDGE_TABS.records, RECORD_HEADERS);
+  const { uniqueSourceRecords } = await import("@/lib/team-access");
+  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.records)).slice(1).map((row) => row[0]));
+  const pending = uniqueSourceRecords(records, existing);
+  if (!pending.length) return;
   await appendSheetRows(
     KNOWLEDGE_TABS.records,
-    records.map((r) => [
+    pending.map((r) => [
       r.recordId, r.sourceType, r.sourceId, r.date, r.title, r.portco, r.participants,
       r.summary, r.extractedJson, r.textHash, r.textRef, r.sourceUrl, r.createdAt,
     ]),

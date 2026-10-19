@@ -14,3 +14,12 @@ export function granolaCursorKey(userId?: string): string {
 export function granolaAuthor(owner?: { name?: string | null; email?: string | null }): string {
   return [owner?.name?.trim(), owner?.email ? `<${owner.email.trim().toLowerCase()}>` : ""].filter(Boolean).join(" ");
 }
+
+export function uniqueSourceRecords<T extends { recordId: string }>(records: T[], existing: Set<string>): T[] {
+  const seen = new Set(existing);
+  return records.filter((record) => {
+    if (seen.has(record.recordId)) return false;
+    seen.add(record.recordId);
+    return true;
+  });
+}

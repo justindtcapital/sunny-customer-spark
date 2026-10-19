@@ -8,7 +8,7 @@
 
 - Campaign membership lives in the "Campaign Members" sheet tab, one append-only row per (campaign, person); adding existing Network/Prospecting people never edits their records — so people can join many campaigns without data loss.
 - External notes preserve origins. Harvested activities skip existing IDs on save and collapse repeated IDs on read, with completion winning — prevents repeated reminders.
-- Granola sync is manual-only; users clean notes before importing.
+- Granola stays manual-only; personal auth/storage rules live in src/utils/AGENTS.md.
 
 - Bulk Network transfers preserve URID and a full profile snapshot in Targets, verify the copy and re-read the source before deletion; history and campaign tabs stay untouched to prevent data loss.
 
