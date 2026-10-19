@@ -205,6 +205,8 @@ export async function updatePlannerEvent(
   const current = fromRow(rows[i], idx);
   if (expectedUpdated && current.updated && current.updated !== expectedUpdated)
     throw new Error("Someone else just changed this event. Reload and try again.");
+  if (patch.status && patch.status !== current.status && patch.dtcStatus === undefined)
+    patch = { ...patch, dtcStatus: patch.status === "Declined" ? "Declined" : patch.status === "Potential" ? "Considering" : "Accepted" };
   const next = clean({ ...current, ...patch, urid }, current.createdBy);
   const created = rows[i][idx["Created"]] || "";
   const newRow = toRow(next, created);
