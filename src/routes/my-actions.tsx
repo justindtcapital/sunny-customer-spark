@@ -178,7 +178,7 @@ const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
 const COMPANY_TOGGLES = [
   { key: "portcos", label: "PortCos", Icon: Building2 },
   { key: "network", label: "Network", Icon: Users },
-  { key: "ops", label: "Port DevOps", Icon: Wrench },
+  { key: "ops", label: "PortDev Ops", Icon: Wrench },
 ] as const;
 const ITEM_TOGGLES = [
   { key: "workstreams", label: "Workstreams", Icon: GitBranch },
@@ -250,26 +250,31 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
     if (w && isWorkstreamCompleted(w)) setShowDone(true);
   }, [focusGid, workstreams]);
 
-  // Groups keyed by company: workstreams first, then follow-ups. Follow-ups created
-  // from a workstream's Action Now (recordId = the workstream gid) nest under it.
+  // Groups keyed by company: workstreams first, then follow-ups. A follow-up linked
+  // to a workstream (via the editor or Action Now) nests under that workstream even
+  // when the follow-up's company tag differs from the workstream's company name.
   const groups = useMemo(() => {
+    const byGid = new Map(wsList.map((w) => [w.gid, w]));
+    const linked = new Map<string, Reminder[]>();
+    const general: Reminder[] = [];
+    if (toggles.followups) for (const x of fuList) {
+      const gid = x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "");
+      const w = gid ? byGid.get(gid) : undefined;
+      if (w && toggles.workstreams) linked.set(w.gid, [...(linked.get(w.gid) || []), x]);
+      else general.push(x);
+    }
     const m = new Map<string, { ws: Workstream[]; fu: Reminder[] }>();
     const ensure = (k: string) => { const g = m.get(k) || { ws: [] as Workstream[], fu: [] as Reminder[] }; m.set(k, g); return g; };
     if (toggles.workstreams) for (const w of wsList) ensure(w.company || "No PortCo").ws.push(w);
-    if (toggles.followups) for (const x of fuList) ensure((x.company || "").split(/\s*,\s*/)[0] || "No company").fu.push(x);
+    for (const x of general) ensure((x.company || "").split(/\s*,\s*/)[0] || "No company").fu.push(x);
     return [...m.entries()]
       .map(([company, g]) => {
         const kind = portcoNames.has(norm(company)) ? "portcos" as const
           : company === "No PortCo" || company === "No company" ? "ops" as const
           : "network" as const;
-        const linked = new Map<string, Reminder[]>();
-        const general: Reminder[] = [];
-        for (const x of g.fu) {
-          const w = g.ws.find((w) => x.workstreamGid === w.gid || x.recordId === w.gid || x.recordId === `ws:${w.gid}`);
-          if (w) linked.set(w.gid, [...(linked.get(w.gid) || []), x]);
-          else general.push(x);
-        }
-        return { company, ws: g.ws, linked, general, kind };
+        const gLinked = new Map<string, Reminder[]>();
+        for (const w of g.ws) if (linked.has(w.gid)) gLinked.set(w.gid, linked.get(w.gid)!);
+        return { company, ws: g.ws, linked: gLinked, general: g.fu, kind };
       })
       .filter((g) => toggles[g.kind] && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
       .sort((a, b) => a.company.localeCompare(b.company));
@@ -429,9 +434,9 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
           ))}
         </div>
         <span className="h-6 w-px bg-border" aria-hidden />
-        <div className="inline-flex rounded-md border border-dashed border-border p-0.5" role="group" aria-label="Item type filters">
+        <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Item type filters">
           {ITEM_TOGGLES.map(({ key, label, Icon }) => (
-            <Button key={key} size="sm" variant={toggles[key] ? "secondary" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
+            <Button key={key} size="sm" variant={toggles[key] ? "default" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
               <Icon className="mr-1 h-3.5 w-3.5" />{label}
             </Button>
           ))}
