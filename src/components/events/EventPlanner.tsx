@@ -24,7 +24,7 @@ import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, parseTrackerDate, splitList,
-  mapTrackerStatus, eventSeriesKey, DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
+  mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
   duplicateKey,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
@@ -102,7 +102,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [search, setSearch] = useState("");
   const [subFilter, setSubFilter] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
-  const [dtcFilter, setDtcFilter] = useState<string[]>([]);
+  const [dtcFilter, setDtcFilter] = useState<string[]>([...DEFAULT_DTC_STATUSES]);
   const [portco, setPortco] = useState("");
   const [partner, setPartner] = useState("");
   const [owner, setOwner] = useState("");
