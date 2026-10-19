@@ -2,6 +2,7 @@
 // review queue, suggested contacts, and manual harvest trigger.
 
 import { createServerFn } from "@tanstack/react-start";
+import { requireTeamAuth } from "./team-auth";
 
 export const fetchKnowledgeDataFn = createServerFn({ method: "GET" }).handler(async () => {
   const { listKnowledgeRecords, listHarvestedActivities, listWorkstreamLinks, listSuggestedContacts } =
@@ -71,19 +72,25 @@ export const fetchGranolaImportsFn = createServerFn({ method: "GET" }).handler(a
   return { connected: true, imports: await listGranolaImports().catch(() => []) };
 });
 
-export const verifyGranolaImportsFn = createServerFn({ method: "POST" })
+export const verifyGranolaImportsFn = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
   .inputValidator((input: { noteIds?: string[]; retry?: boolean }) => input)
-  .handler(async ({ data }) => {
+  .handler(async ({ data, context }) => {
     const { verifyGranolaImports } = await import("./granola.server");
-    return { imports: await verifyGranolaImports({ noteIds: data.noteIds, retry: !!data.retry }) };
+    const { loadGranolaKey } = await import("./granola-connections.server");
+    const access = data.retry ? { apiKey: await loadGranolaKey(context.userId), userId: context.userId } : undefined;
+    return { imports: await verifyGranolaImports({ noteIds: data.noteIds, retry: !!data.retry, access }) };
   });
 
 /** Manual-only Granola pull (the scheduled harvest never touches Granola). */
-export const syncGranolaFn = createServerFn({ method: "POST" })
+export const syncGranolaFn = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
   .inputValidator((input: { importedBy?: string }) => input || {})
-  .handler(async ({ data }) => {
+  .handler(async ({ context }) => {
+    const { loadGranolaKey } = await import("./granola-connections.server");
     const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
-    return runKnowledgeHarvest({ includeGmail: false, includeDrive: false, includeGranola: true, maxGranolaNotes: 30, importedBy: data?.importedBy });
+    const { withDeadline } = await import("./request-deadline.server");
+    const apiKey = await loadGranolaKey(context.userId);
+    return withDeadline("Import my Granola", 55_000, (step) => step("Read and save Granola notes", () =>
+      runKnowledgeHarvest({ includeGmail: false, includeDrive: false, includeGranola: true, maxGranolaNotes: 5, importedBy: context.teamEmail, granolaAccess: { apiKey, userId: context.userId } })));
   });
 
 export const fetchNotesInboxFn = createServerFn({ method: "POST" })

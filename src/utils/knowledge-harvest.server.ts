@@ -145,7 +145,7 @@ function externalPeople(messages: GmailMessage[]): Array<{ name: string; email: 
  * cron never passes it.
  */
 export async function runKnowledgeHarvest(
-  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean; includeDrive?: boolean; importedBy?: string } = {},
+  opts: { maxThreadsPerTrack?: number; maxGranolaNotes?: number; includeGranola?: boolean; includeGmail?: boolean; includeDrive?: boolean; importedBy?: string; granolaAccess?: import("./granola.server").GranolaAccess } = {},
 ): Promise<HarvestResult> {
   const maxPerTrack = Math.max(1, Math.min(50, opts.maxThreadsPerTrack ?? 15));
   const result: HarvestResult = {
@@ -164,6 +164,7 @@ export async function runKnowledgeHarvest(
   const newLinks: WorkstreamLink[] = [];
   const newContacts: SuggestedContact[] = [];
   const now = new Date().toISOString();
+  let granolaCursor: { key: string; value: string } | undefined;
   /** Original author per record (email sender, Granola owner) — stamped on ingest. */
   const authors = new Map<string, string>();
   const internalCfg = getInternalConfig();
@@ -301,9 +302,10 @@ export async function runKnowledgeHarvest(
     const { harvestGranola, verifyGranolaImports } = await import("./granola.server");
     const internal = getInternalConfig();
     const g = await harvestGranola({
-      candidates, known, suggested, maxNotes: opts.maxGranolaNotes ?? 25,
+      candidates, known, suggested, maxNotes: opts.maxGranolaNotes ?? 25, access: opts.granolaAccess,
       isExternal: (e) => !isInternalEmail(e, internal) && !isNoiseEmail(e),
     });
+    granolaCursor = g.cursor;
     newRecords.push(...g.records);
     newActivities.push(...g.activities);
     for (const a of g.activities) if (a.owner && !authors.has(a.recordId)) authors.set(a.recordId, a.owner);
@@ -313,19 +315,21 @@ export async function runKnowledgeHarvest(
     result.granolaNotesAdded = g.records.length;
     result.granolaCopiedToDrive = g.copiedToDrive;
     await saveKnowledgeRecords(newRecords);
-    if (g.records.length) await verifyGranolaImports({ noteIds: g.records.map((r) => r.sourceId) });
+    if (g.records.length) await verifyGranolaImports({ noteIds: g.records.map((r) => r.sourceId), access: opts.granolaAccess });
   } catch (e) {
     result.errors.push(`Granola: ${(e as Error).message}`);
     await saveKnowledgeRecords(newRecords);
   }
   // Stamp the original author (sender / Granola owner), else whoever triggered the import.
   for (const r of newRecords) {
-    const who = authors.get(r.recordId) || opts.importedBy || "";
-    if (who) await setHarvestState(`importedBy:${r.recordId}`, who);
+    const who = authors.get(r.recordId) || (r.sourceType === "granola" ? "" : opts.importedBy) || "";
+    if (who && !(await getHarvestState(`importedBy:${r.recordId}`))) await setHarvestState(`importedBy:${r.recordId}`, who);
+    if (r.sourceType === "granola" && opts.importedBy) await setHarvestState(`importedVia:${r.recordId}`, opts.importedBy);
   }
   await saveHarvestedActivities(newActivities);
   await saveWorkstreamLinks(newLinks);
   await saveSuggestedContacts(newContacts);
+  if (granolaCursor && !result.errors.length) await setHarvestState(granolaCursor.key, granolaCursor.value);
 
   // Meeting files dropped into the KB Drive (Meet notes, transcripts, recordings).
   if (opts.includeDrive !== false) {

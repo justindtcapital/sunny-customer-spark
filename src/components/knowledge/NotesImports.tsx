@@ -2,6 +2,8 @@
 // Drive, workstream emails). Notes stay here until reviewed; reviewed notes
 // move to History. Granola is pulled only when "Import from Granola" is clicked.
 
+import { useServerFn } from "@tanstack/react-start";
+import { ConnectGranolaButton } from "./ConnectGranolaButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -60,7 +62,8 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
   const [q, setQ] = useState("");
   const { email } = useAuth();
   const [items, setItems] = useState<NoteInboxItem[]>([]);
-  const [granolaConnected, setGranolaConnected] = useState(true);
+  const [granolaConnected, setGranolaConnected] = useState(false);
+  const importMyGranola = useServerFn(syncGranolaFn);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [history, setHistory] = useState(false);
@@ -83,7 +86,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
         cbRef.current.onItems?.(r.items);
         cbRef.current.onStats?.({ pending: r.items.length, reviewed: h ? h.items.length : 0 });
       }
-      setGranolaConnected(r.granolaConnected);
+
     } catch (e) {
       toast.error(`Couldn't load notes: ${(e as Error).message}`);
     } finally {
@@ -95,7 +98,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
   async function syncGranola() {
     setBusy("granola");
     try {
-      const r = await syncGranolaFn({ data: { importedBy: email || "" } });
+      const r = await importMyGranola({ data: {} });
       const errs = r.errors.length;
       toast.success(`${r.granolaNotesAdded} new Granola notes imported${errs ? `, ${errs} problems` : ""}.`);
       await load();
@@ -153,7 +156,8 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
             {actionOwner ? ` · ${isActivity ? "involving" : "imported by"} ${actionOwner}` : ""}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!isActivity && <ConnectGranolaButton onChange={setGranolaConnected} />}
           <Button size="sm" variant={history ? "secondary" : "ghost"} onClick={() => setHistory((h) => !h)}>
             <History className="h-3.5 w-3.5" /> {history ? "Back to inbox" : "Show history"}
           </Button>
@@ -168,7 +172,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
           {granolaConnected && !isActivity && (
             <Button size="sm" disabled={!!busy} onClick={syncGranola}>
               {busy === "granola" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Import from Granola
+              Import from my Granola
             </Button>
           )}
           <input

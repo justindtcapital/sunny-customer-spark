@@ -21,6 +21,10 @@ import {
   type WorkstreamLink,
 } from "./knowledge.server";
 import { sha256Hex } from "./sha256";
+import { granolaAuthor, granolaCursorKey } from "@/lib/team-access";
+import { createServerOnlyFn } from "@tanstack/react-start";
+
+export interface GranolaAccess { apiKey: string; userId: string }
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/granola";
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
@@ -29,16 +33,19 @@ export function isGranolaConfigured(): boolean {
   return !!(process.env.LOVABLE_API_KEY && process.env.GRANOLA_API_KEY);
 }
 
-async function granolaGet<T>(path: string): Promise<T> {
+async function granolaGet<T>(path: string, access?: GranolaAccess): Promise<T> {
   const lk = process.env.LOVABLE_API_KEY;
   const gk = process.env.GRANOLA_API_KEY;
-  if (!lk || !gk) throw new Error("Granola is not connected");
-  const res = await fetch(`${GATEWAY_URL}${path}`, {
-    headers: { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk },
+  if (!access && (!lk || !gk)) throw new Error("Granola is not connected");
+  const headers: Record<string, string> = access
+    ? { Authorization: `Bearer ${access.apiKey}` }
+    : { Authorization: `Bearer ${lk}`, "X-Connection-Api-Key": gk || "" };
+  const res = await fetch(`${access ? "https://public-api.granola.ai" : GATEWAY_URL}${path}`, {
+    headers, signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Granola ${res.status}: ${body.slice(0, 300)}`);
+    await res.arrayBuffer();
+    throw new Error(`Granola request failed (${res.status}). Check your connection and note permissions.`);
   }
   return (await res.json()) as T;
 }
@@ -56,13 +63,13 @@ export interface GranolaNote extends GranolaNoteListItem {
 }
 
 /** Notes created after an ISO time, all pages (bounded). */
-export async function listGranolaNotes(createdAfter: string, maxNotes = 200): Promise<GranolaNoteListItem[]> {
+export async function listGranolaNotes(createdAfter: string, maxNotes = 200, access?: GranolaAccess): Promise<GranolaNoteListItem[]> {
   const out: GranolaNoteListItem[] = [];
   let cursor = "";
   for (let page = 0; page < 20 && out.length < maxNotes; page++) {
     const qs = new URLSearchParams({ limit: "30", created_after: createdAfter });
     if (cursor) qs.set("cursor", cursor);
-    const d = await granolaGet<{ notes: GranolaNoteListItem[]; hasMore: boolean; cursor: string }>(`/v1/notes?${qs}`);
+    const d = await granolaGet<{ notes: GranolaNoteListItem[]; hasMore: boolean; cursor: string }>(`/v1/notes?${qs}`, access);
     out.push(...(d.notes || []).filter((n) => !n.deleted_at));
     if (!d.hasMore || !d.cursor) break;
     cursor = d.cursor;
@@ -70,9 +77,9 @@ export async function listGranolaNotes(createdAfter: string, maxNotes = 200): Pr
   return out.slice(0, maxNotes);
 }
 
-export function getGranolaNote(id: string): Promise<GranolaNote> {
-  return granolaGet<GranolaNote>(`/v1/notes/${encodeURIComponent(id)}?include=transcript`);
-}
+export const getGranolaNote = createServerOnlyFn((id: string, access?: GranolaAccess): Promise<GranolaNote> => {
+  return granolaGet<GranolaNote>(`/v1/notes/${encodeURIComponent(id)}?include=transcript`, access);
+});
 
 function transcriptText(n: GranolaNote): string {
   return (n.transcript || []).map((t) => `${t.speaker?.name || "Speaker"}: ${t.text}`).join("\n");
@@ -163,6 +170,7 @@ export interface GranolaHarvestInput {
   suggested: Set<string>;
   isExternal: (email: string) => boolean;
   maxNotes: number;
+  access?: GranolaAccess;
 }
 
 export interface GranolaHarvestOutput {
@@ -173,6 +181,7 @@ export interface GranolaHarvestOutput {
   notesSeen: number;
   copiedToDrive: number;
   errors: string[];
+  cursor?: { key: string; value: string };
 }
 
 const VERIFIED_PREFIX = "granola:verified:";
@@ -180,9 +189,10 @@ const VERIFIED_PREFIX = "granola:verified:";
 /** Pull new Granola notes; caller persists the returned rows. */
 export async function harvestGranola(input: GranolaHarvestInput): Promise<GranolaHarvestOutput> {
   const out: GranolaHarvestOutput = { records: [], activities: [], links: [], contacts: [], notesSeen: 0, copiedToDrive: 0, errors: [] };
-  if (!isGranolaConfigured()) return out;
+  if (!input.access && !isGranolaConfigured()) return out;
 
-  const last = await getHarvestState("granola:notes");
+  const cursorKey = granolaCursorKey(input.access?.userId);
+  const last = await getHarvestState(cursorKey);
   // Look back 2 days from the cursor: notes appear only once summarised.
   const since = last
     ? new Date(new Date(last).getTime() - 2 * 86400000).toISOString()
@@ -191,7 +201,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
 
   let list: GranolaNoteListItem[];
   try {
-    list = await listGranolaNotes(since);
+    list = await listGranolaNotes(since, 200, input.access);
   } catch (e) {
     out.errors.push(`Granola: ${(e as Error).message}`);
     return out;
@@ -207,7 +217,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
     if (processed >= input.maxNotes) { hitCap = true; break; }
     processed++;
     try {
-      const n = await getGranolaNote(item.id);
+      const n = await getGranolaNote(item.id, input.access);
       const summary = n.summary_markdown || n.summary_text || "";
       const tx = transcriptText(n);
       const title = n.title || "Untitled meeting";
@@ -215,7 +225,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
         .map((f) => f.name || "")
         .find((f) => input.candidates.names.some((c) => c.toLowerCase() === f.toLowerCase()));
       const ex = await extractKnowledge(`${summary}\n\n${tx}`.slice(0, 16000), title, input.candidates.names, input.candidates.workstreams);
-      const portco = folderCo ? input.candidates.names.find((c) => c.toLowerCase() === folderCo.toLowerCase())! : ex.portco;
+      const portco = (folderCo ? input.candidates.names.find((c) => c.toLowerCase() === folderCo.toLowerCase()) : undefined) || ex.portco;
 
       let drive: { id: string; url: string } | null = null;
       try {
@@ -239,7 +249,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
         portco,
         participants: people.map((p) => (p.name ? `${p.name} <${p.email}>` : p.email)).join("; ").slice(0, 900),
         summary: (ex.summary || summary).slice(0, 2000),
-        extractedJson: JSON.stringify({ ...ex, portco, granola: { hasTranscript: !!tx, summaryMarkdown: summary.slice(0, 30000) } }).slice(0, 45000),
+        extractedJson: JSON.stringify({ ...ex, portco, granola: { hasTranscript: !!tx, summaryMarkdown: summary.slice(0, 30000), author: granolaAuthor(n.owner) } }).slice(0, 45000),
         textHash: sha256Hex(summary + tx),
         textRef: drive?.id || "",
         sourceUrl: n.web_url || "",
@@ -250,7 +260,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
         out.activities.push({
           activityId: sha256Hex(`${recordId}:${a.type}:${i}`).slice(0, 24),
           recordId, date, track: "Meeting – Granola", type: a.type || "meeting",
-          title: a.title || title, portco, person: a.person, owner: [n.owner?.name, n.owner?.email ? `<${n.owner.email.toLowerCase()}>` : ""].filter(Boolean).join(" ") || "Chris Falloon",
+          title: a.title || title, portco, person: a.person, owner: granolaAuthor(n.owner),
           summary: a.summary, sourceUrl: n.web_url || "", createdAt: now,
         });
       });
@@ -278,7 +288,8 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
     }
   }
   // Only advance the cursor once everything in the window was handled.
-  if (!hitCap) await setHarvestState("granola:notes", startedAt);
+  // Caller advances only after all returned records and related rows are saved.
+  if (!hitCap && !out.errors.length && list.length < 200) out.cursor = { key: cursorKey, value: startedAt };
   return out;
 }
 
@@ -338,7 +349,7 @@ export async function listGranolaImports(): Promise<GranolaImportStatus[]> {
  * verification when both exist. If the Drive copy is missing, re-copy it first
  * (only when retry=true). Returns updated statuses.
  */
-export async function verifyGranolaImports(opts: { noteIds?: string[]; retry?: boolean } = {}): Promise<GranolaImportStatus[]> {
+export async function verifyGranolaImports(opts: { noteIds?: string[]; retry?: boolean; access?: GranolaAccess } = {}): Promise<GranolaImportStatus[]> {
   const records = (await listKnowledgeRecords()).filter((r) => r.sourceType === "granola");
   const verified = await verifiedMap();
   const targets = records.filter((r) => (opts.noteIds ? opts.noteIds.includes(r.sourceId) : !verified.get(r.sourceId))).slice(0, 40);
@@ -346,7 +357,7 @@ export async function verifyGranolaImports(opts: { noteIds?: string[]; retry?: b
     let fileId = r.textRef;
     if (!(await driveFileExists(fileId)) && opts.retry) {
       try {
-        const n = await getGranolaNote(r.sourceId);
+        const n = await getGranolaNote(r.sourceId, opts.access);
         const copy = await copyNoteToDrive(n, r.portco);
         if (copy) {
           fileId = copy.id;
