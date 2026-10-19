@@ -3,6 +3,16 @@ import { scorePortcoNameMatch } from "./portco-names";
 
 type CompanySector = { name: string; sector: string; domain?: string };
 
+function companyFor(name: string, companies: CompanySector[]) {
+  const ranked = companies.map(c => ({ c, score: Math.max(scorePortcoNameMatch(name, c.name), scorePortcoNameMatch(name.replace(/\.(io|ai|com)$/i, ""), c.name)) })).sort((a, b) => b.score - a.score);
+  const best = ranked[0];
+  return best && best.score >= 200 ? best.c : undefined;
+}
+
+export function eventReferenceNames(event: PlannerEvent): string[] {
+  return [event.name, ...[...event.sourceRef.matchAll(/Merged event: (.*?)(?: ·|$)/g)].map(m => m[1])];
+}
+
 function titleKey(name: string): string {
   return eventSeriesKey(name)
     .replace(/\bbriefings?\b/g, " ")
@@ -35,15 +45,14 @@ export function resolveEventSectors(event: PlannerEvent, companies: CompanySecto
   const resolved: string[] = [];
   let complete = event.portcos.length > 0;
   for (const name of event.portcos) {
-    const ranked = companies.map(c => ({ c, score: scorePortcoNameMatch(name, c.name) })).sort((a, b) => b.score - a.score);
-    const best = ranked[0];
-    if (!best || best.score < 200) { complete = false; continue; }
-    const raw = best.c.sector;
+    const best = companyFor(name, companies);
+    if (!best) { complete = false; continue; }
+    const raw = best.sector;
     const sector = /cyber|security|secops|devsecops|data protection/i.test(raw) ? "Cyber"
       : /supply|logistic/i.test(raw) ? "Supply Chain"
       : /\bai\b|data|analytics|observability|mlops/i.test(raw) ? "Data/AI"
-      : best.c.domain === "Security" ? "Cyber"
-      : ["AI", "Data"].includes(best.c.domain || "") ? "Data/AI" : "";
+      : best.domain === "Security" ? "Cyber"
+      : ["AI", "Data"].includes(best.domain || "") ? "Data/AI" : "";
     if (sector) resolved.push(sector); else complete = false;
   }
   return [...new Set(complete && resolved.length ? resolved : [...event.sectors.map(normalizeSector), ...resolved])];
@@ -52,7 +61,7 @@ export function resolveEventSectors(event: PlannerEvent, companies: CompanySecto
 export function planEventCleanup(events: PlannerEvent[], companies: CompanySector[]) {
   const replacements = new Map<string, string>();
   const updates = new Map<string, PlannerEvent>();
-  for (const tracker of events.filter(e => e.source === "Tracker")) {
+  for (const tracker of events.filter(e => e.source === "Tracker").sort((a, b) => Number(Boolean(b.dtcStatus)) - Number(Boolean(a.dtcStatus)))) {
     if (replacements.has(tracker.urid)) continue;
     const matches = events.filter(e => e.urid !== tracker.urid && !replacements.has(e.urid) && cleanupMatch(tracker, e));
     let next = tracker;
@@ -71,6 +80,7 @@ export function planEventCleanup(events: PlannerEvent[], companies: CompanySecto
       replacements.set(loser.urid, tracker.urid);
     }
     if (next !== tracker) {
+      next.portcos = [...new Set(next.portcos.map(name => companyFor(name, companies)?.name || name))];
       next.sectors = resolveEventSectors(next, companies);
       updates.set(tracker.urid, next);
     }
