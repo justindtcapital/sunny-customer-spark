@@ -379,6 +379,7 @@ function ListView({
   all,
   contacts,
   onSelect,
+  plannerEvents,
 }: {
   upcoming: AsanaEvent[];
   past: AsanaEvent[];
