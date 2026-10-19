@@ -125,11 +125,13 @@ export const addPortfolioCompany = createServerFn({ method: "POST" })
       focusArea?: string;
       location?: string;
       description?: string;
+      linkedinUrl?: string;
     }) => data,
   )
   .handler(async ({ data }) => {
     if (!data.name?.trim()) throw new Error("Company name is required");
     return await addPortfolioCompanyServer({
+      linkedinUrl: data.linkedinUrl,
       name: data.name,
       website: data.website,
       focusArea: data.focusArea,
