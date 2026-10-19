@@ -326,14 +326,6 @@ export async function seedFromTracker(by: string): Promise<{ added: number; skip
 }
 
 // ── Asana sync (kept running during transition) ─────────────────
-function asanaSubcategory(e: AsanaEvent): string {
-  const lead = (e.lead || "").toLowerCase();
-  if (e.type === "dinner") return lead.includes("partner") ? "DTC Event (with Partner)" : "DTC Event (No Partnership)";
-  if (lead === "dtc") return "DTC Event (No Partnership)";
-  if (e.type === "meeting") return "DTC Curated Briefings";
-  return mapTrackerCategory("", e.name) !== "Unassigned" ? mapTrackerCategory("", e.name) : "3rd Party Events";
-}
-
 /** Add Asana events not yet in the DB (matched by gid, then name+date). Never overwrites. */
 export async function syncAsanaEvents(asana: AsanaEvent[], by: string): Promise<{ added: number }> {
   const db = await readPlannerEvents(true);
@@ -351,6 +343,47 @@ export async function syncAsanaEvents(asana: AsanaEvent[], by: string): Promise<
     }));
   const r = await addPlannerEvents(inputs, by);
   return { added: r.added };
+}
+
+/**
+ * One-time Asana enrichment: fill empty fields on matched rows from Asana,
+ * merge same-date duplicate rows (Tracker row wins), and rewrite the Events DB
+ * block once. Never touches DTC Status, category, or non-empty fields.
+ */
+export async function enrichFromAsana(
+  asana: AsanaEvent[],
+  by: string,
+): Promise<{ enriched: number; merged: number; unmatchedAsana: number }> {
+  await ensureTab(EVENTS_TAB, EVENT_HEADERS);
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const dataRows = rows.slice(1);
+  const events = dataRows.filter((r) => (r[idx["URID"]] || "").trim()).map((r) => fromRow(r, idx));
+  const plan = planAsanaEnrichment(events, asana);
+  if (plan.updates.size === 0 && plan.removed.length === 0)
+    return { enriched: 0, merged: 0, unmatchedAsana: plan.unmatched.length };
+
+  const now = new Date().toISOString();
+  const removed = new Set(plan.removed);
+  const finalEvents = events
+    .filter((e) => !removed.has(e.urid))
+    .map((e) => {
+      const u = plan.updates.get(e.urid);
+      if (!u) return e;
+      return { ...u, category: categoryOfSubcategory(u.subcategory), updated: now };
+    });
+  // Keep any blank/non-event rows that were interleaved, then pad so removed
+  // rows are cleared rather than left as stale duplicates.
+  const blanks = dataRows.filter((r) => !(r[idx["URID"]] || "").trim()).map((r) => r.map((v) => v ?? ""));
+  const createdBy = new Map(events.map((e, i) => [e.urid, dataRows.filter((r) => (r[idx["URID"]] || "").trim())[i]?.[idx["Created"]] || ""]));
+  const out = finalEvents.map((e) => toRow(e, createdBy.get(e.urid) || now));
+  const width = EVENT_HEADERS.length;
+  const empty = () => Array.from({ length: width }, () => "");
+  while (out.length + blanks.length < dataRows.length) out.push(empty());
+  await writeRange(EVENTS_TAB, 2, 0, [...out, ...blanks]);
+  cache.delete(EVENTS_TAB);
+  void by;
+  return { enriched: plan.updates.size, merged: plan.removed.length, unmatchedAsana: plan.unmatched.length };
 }
 
 // ── Add from link ───────────────────────────────────────────────
