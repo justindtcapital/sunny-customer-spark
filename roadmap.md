@@ -4,7 +4,7 @@
 - [x] Merge Workstreams and Follow-ups into one My Actions tab grouped by PortCo/company
 - [x] Workstream/follow-up icons, attached follow-ups under the workstream detail pane
 - [x] PortCos / Network / Workstreams / Follow-ups on-off toggles; legacy tab links redirect
-- [ ] Verify the merged feed signed-in (grouping, toggles, deep links, merge/complete flows)
+- [x] Verify the merged feed signed-in (grouping, toggles, deep links, merge/complete flows)
 
 ## Login and My Actions clarity
 - [x] Keep only Google and email/password login
