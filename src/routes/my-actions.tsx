@@ -250,15 +250,28 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
     if (w && isWorkstreamCompleted(w)) setShowDone(true);
   }, [focusGid, workstreams]);
 
-  // Groups keyed by company: workstreams first, then follow-ups.
+  // Groups keyed by company: workstreams first, then follow-ups. Follow-ups created
+  // from a workstream's Action Now (recordId = the workstream gid) nest under it.
   const groups = useMemo(() => {
     const m = new Map<string, { ws: Workstream[]; fu: Reminder[] }>();
     const ensure = (k: string) => { const g = m.get(k) || { ws: [] as Workstream[], fu: [] as Reminder[] }; m.set(k, g); return g; };
     if (toggles.workstreams) for (const w of wsList) ensure(w.company || "No PortCo").ws.push(w);
     if (toggles.followups) for (const x of fuList) ensure((x.company || "").split(/\s*,\s*/)[0] || "No company").fu.push(x);
     return [...m.entries()]
-      .map(([company, g]) => ({ company, ...g, isPortco: portcoNames.has(norm(company)) }))
-      .filter((g) => (g.isPortco ? toggles.portcos : toggles.network) && (g.ws.length + g.fu.length > 0))
+      .map(([company, g]) => {
+        const kind = portcoNames.has(norm(company)) ? "portco" as const
+          : company === "No PortCo" || company === "No company" ? "ops" as const
+          : "network" as const;
+        const linked = new Map<string, Reminder[]>();
+        const general: Reminder[] = [];
+        for (const x of g.fu) {
+          const w = g.ws.find((w) => x.recordId === w.gid || x.recordId === `ws:${w.gid}`);
+          if (w) linked.set(w.gid, [...(linked.get(w.gid) || []), x]);
+          else general.push(x);
+        }
+        return { company, ws: g.ws, linked, general, kind };
+      })
+      .filter((g) => toggles[g.kind] && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
       .sort((a, b) => a.company.localeCompare(b.company));
   }, [wsList, fuList, toggles, portcoNames]);
 
