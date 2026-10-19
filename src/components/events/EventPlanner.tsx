@@ -474,6 +474,7 @@ function EventDetail({
   const addAtt = useServerFn(addPlannerAttendeesFn);
   const [q, setQ] = useState("");
   const e = event;
+  const asanaOnly = !!e && e.urid.startsWith("asana:");
   const people = useMemo(() => {
     if (!e) return [];
     const key = eventSeriesKey(e.name);
@@ -532,11 +533,14 @@ function EventDetail({
                   </Badge>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => onEdit(e)}><Pencil className="h-3.5 w-3.5 mr-1" /> Edit</Button>
-                {e.status !== "Confirmed" && (
+              <div className="flex gap-2 items-center">
+                {!asanaOnly && (
+                  <Button size="sm" variant="outline" onClick={() => onEdit(e)}><Pencil className="h-3.5 w-3.5 mr-1" /> Edit</Button>
+                )}
+                {!asanaOnly && e.status !== "Confirmed" && (
                   <Button size="sm" onClick={promote}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark confirmed</Button>
                 )}
+                {asanaOnly && <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>}
               </div>
               <dl className="grid grid-cols-[110px_1fr] gap-y-1.5 text-xs">
                 <Field k="Dates" v={shortDate(e) + (e.start ? ` ${e.start.slice(0, 4)}` : "")} />
@@ -562,7 +566,9 @@ function EventDetail({
               <section className="space-y-2">
                 <h3 className="text-xs font-semibold">Attendees & invites ({people.length})</h3>
                 <div className="relative">
+                  {!asanaOnly && (
                   <Input value={q} onChange={(x) => setQ(x.target.value)} placeholder="Add a Network contact…" className="h-7 text-xs" />
+                  )}
                   {matches.length > 0 && (
                     <div className="absolute z-10 mt-1 w-full rounded-md border border-border bg-popover shadow">
                       {matches.map((c) => (
