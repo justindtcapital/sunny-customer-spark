@@ -79,7 +79,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
       const assignedOwner = coreAssignee(a.person)?.email || a.owner;
       if (a.track !== "Follow-up" || a.type !== "follow-up" || a.resolved) continue;
       if (!inbox.isRegisteredActivity(sources.get(a.recordId) || "", reviews.get(a.recordId))) continue;
-      reminders.push({ id: a.activityId, activityId: a.activityId, person: a.person || a.title, company: a.portco, owner: assignedOwner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl });
+      reminders.push({ id: a.activityId, activityId: a.activityId, recordId: a.recordId, person: a.person || a.title, company: a.portco, owner: assignedOwner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl });
     }
     const recordDates = new Map(records.map((r) => [r.recordId, r.createdAt]));
     const { readFollowUpEdits } = await import("./follow-up-edit.server");

@@ -9,6 +9,12 @@ describe("task editing", () => {
     expect(result).toMatchObject({ id: "note:123", activityId: "123", originalNote: "Original transcript", email: "chris@example.com", summary: "Send Maven deck", due: "2026-10-26", owner: "Julia Beech", company: "Dell", details: "Discuss pilot", people: edit.people, tracks: ["BD"] });
     expect(original.summary).toBe("Follow up");
   });
+  it("links an action to a workstream and can unlink it again", () => {
+    const linked = applyFollowUpEdit(original, { ...followUpValues(original), workstreamGid: "gid-1" });
+    expect(linked.workstreamGid).toBe("gid-1");
+    const unlinked = applyFollowUpEdit(linked, { ...followUpValues(linked), workstreamGid: "" });
+    expect(unlinked.workstreamGid).toBeUndefined();
+  });
   it("rejects empty action titles", () => { expect(followUpEditSchema.safeParse({ ...followUpValues(original), summary: " " }).success).toBe(false); });
   it("allows clearing a due date", () => { expect(followUpEditSchema.safeParse({ ...followUpValues(original), due: "" }).success).toBe(true); });
 });

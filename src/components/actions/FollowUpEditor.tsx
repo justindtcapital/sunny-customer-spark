@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ACTION_OWNERS } from "@/lib/action-owners";
+import { ACTION_OWNERS, ownerMatches } from "@/lib/action-owners";
 import { teamMemberFor } from "@/lib/user-ownership";
+import { useWorkstreams } from "@/lib/use-workstreams";
 import type { HomeReminder } from "@/lib/home-momentum";
 import { followUpValues } from "@/lib/follow-up-edit";
 import { editFollowUpFn } from "@/utils/follow-up-edit.functions";
@@ -23,6 +24,9 @@ export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; 
   const save = useServerFn(editFollowUpFn);
   const search = useServerFn(searchPeopleFn);
   const qc = useQueryClient();
+  const { workstreams } = useWorkstreams();
+  const ownerWorkstreams = workstreams.filter((w) => ownerMatches(w.owner, values.owner))
+    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name));
   useEffect(() => {
     let live = true;
     if (query.trim().length < 2) { setResults([]); return; }
@@ -47,6 +51,15 @@ export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; 
       <div className="min-w-0 space-y-1"><Label>Action owner</Label><Select value={teamMemberFor(values.owner)?.displayName || values.owner} onValueChange={(owner) => setValues({ ...values, owner })}><SelectTrigger aria-label="Action owner" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{ACTION_OWNERS.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent></Select></div>
     </div>
     <div className="space-y-1"><Label htmlFor="task-company">PortCo / Partner / Company</Label><Input id="task-company" value={values.company} onChange={(e) => setValues({ ...values, company: e.target.value })} /></div>
+    <div className="space-y-1"><Label>Part of workstream</Label>
+      <Select value={values.workstreamGid || "none"} onValueChange={(v) => setValues({ ...values, workstreamGid: v === "none" ? "" : v })}>
+        <SelectTrigger aria-label="Part of workstream" className="w-full"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">Stands alone</SelectItem>
+          {ownerWorkstreams.map((w) => <SelectItem key={w.gid} value={w.gid}>{w.company} – {w.name || w.rawName}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
     <div className="space-y-2"><Label>People connected</Label><div className="flex flex-wrap gap-1">{values.people.map((p, i) => <Button key={`${p.email}:${i}`} size="sm" variant="secondary" className="h-auto max-w-full whitespace-normal text-left" onClick={() => setValues({ ...values, people: values.people.filter((_, n) => n !== i) })}>{p.name || p.email}<X className="ml-1 h-3 w-3 shrink-0" /></Button>)}</div><Input aria-label="Search people" placeholder="Search team, Network or Prospecting" value={query} onChange={(e) => setQuery(e.target.value)} />
       {results.length > 0 && <div className="max-h-40 overflow-y-auto divide-y divide-border border border-border">{results.map((p, i) => <Button key={`${p.email}:${i}`} variant="ghost" className="h-auto w-full justify-start whitespace-normal rounded-none px-2 py-1.5 text-left" onClick={() => { setValues({ ...values, people: [...values.people.filter((x) => p.email ? x.email !== p.email : x.name !== p.name), { name: p.name, email: p.email }] }); setQuery(""); }}><span>{p.name}<span className="ml-2 text-xs text-muted-foreground">{p.where} · {p.company || p.email}</span></span></Button>)}</div>}
     </div>
