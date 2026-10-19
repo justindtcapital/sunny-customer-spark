@@ -1,11 +1,11 @@
 # Roadmap
 
 ## Login and My Actions clarity
-- [ ] Keep only Google and email/password login
-- [ ] Distinguish My Actions tabs and selected state
-- [ ] Add workstream title editing with safe save
-- [ ] Include completed workstreams, follow-ups, notes and activity across all dates
-- [ ] Test and verify the changed flows
+- [x] Keep only Google and email/password login
+- [x] Distinguish My Actions tabs and selected state
+- [x] Add workstream title editing with safe save
+- [x] Include completed workstreams, follow-ups, notes and activity across all dates
+- [x] Test and verify the changed flows
 
 ## Individual Granola connections
 - [x] Add verified teammate identity before storing or using personal Granola credentials
