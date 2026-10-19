@@ -672,8 +672,8 @@ function CalendarView({
                     <button
                       key={`${e.gid}-${idx}`}
                       onClick={() => onSelect(e)}
-                      className={`relative block w-full text-left text-[11px] font-medium truncate pl-3.5 pr-1 py-0.5 rounded border-2 hover:shadow-md ${planner && (planner.status !== "Confirmed") ? "border-dashed" : ""} ${planner?.status === "Declined" ? "opacity-50 line-through" : ""}`}
-                      style={planner ? (() => { const c = `var(--planner-${subcategoryColor(planner.subcategory)})`; const pot = planner.status !== "Confirmed"; return { borderColor: c, background: `color-mix(in oklch, ${c} ${pot ? 6 : 16}%, transparent)`, color: "var(--foreground)" }; })() : { backgroundColor: lead.bg, color: lead.fg }}
+                      className={`relative block w-full text-left text-[11px] font-medium truncate pl-3.5 pr-1 py-0.5 rounded border-2 hover:shadow-md ${planner && planner.status !== "Confirmed" ? "border-dashed" : ""} ${planner?.status === "Declined" ? "opacity-50 line-through" : ""}`}
+                      style={planner ? (() => { const c = `var(--planner-${subcategoryColor(planner.subcategory)})`; const pot = planner.status === "Potential"; return { borderColor: c, background: `color-mix(in oklch, ${c} ${pot ? 6 : 16}%, transparent)`, color: "var(--foreground)" }; })() : { backgroundColor: lead.bg, color: lead.fg }}
                       title={`${e.name}${e.lead ? ` · ${e.lead}` : ""}${sectorLabel ? ` · ${sectorLabel}` : ""}`}
                     >
                       {dot && (
