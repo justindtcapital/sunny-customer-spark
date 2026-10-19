@@ -49,6 +49,8 @@ export interface HomeReminder {
   targetKey?: string;
   campaignId?: string;
   activityId?: string;
+  /** Source record (note id or ws:<gid>) for follow-ups harvested from notes/actions. */
+  recordId?: string;
   sourceUrl?: string;
   originalNote?: string;
   date?: string;

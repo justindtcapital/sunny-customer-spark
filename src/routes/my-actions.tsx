@@ -259,7 +259,7 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
     if (toggles.followups) for (const x of fuList) ensure((x.company || "").split(/\s*,\s*/)[0] || "No company").fu.push(x);
     return [...m.entries()]
       .map(([company, g]) => {
-        const kind = portcoNames.has(norm(company)) ? "portco" as const
+        const kind = portcoNames.has(norm(company)) ? "portcos" as const
           : company === "No PortCo" || company === "No company" ? "ops" as const
           : "network" as const;
         const linked = new Map<string, Reminder[]>();
