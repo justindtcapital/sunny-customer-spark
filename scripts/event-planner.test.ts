@@ -61,15 +61,15 @@ describe("event planner", () => {
 });
 
 import { trackerYearFor, dtcStatusOf, mapTrackerCategory as mtc, categoryOfSubcategory as cos } from "../src/lib/event-planner";
-test("briefing in the title is always a Briefings event", () => {
+it("briefing in the title is always a Briefings event", () => {
   const sub = mtc("dtc sponsored", "Briefing - Disney - LA");
   expect(sub).toBe("DTC Curated Briefings");
   expect(cos(sub)).toBe("Briefings");
 });
-test("tracker January after December rolls to next year", () => {
+it("tracker January after December rolls to next year", () => {
   expect(trackerYearFor(1, 12, 2026)).toBe(2027);
   expect(trackerYearFor(3, 4, 2026)).toBe(2026);
 });
-test("DTC status reads the tracker flag", () => {
+it("DTC status reads the tracker flag", () => {
   expect(dtcStatusOf({ dtcStatus: "executed", status: "Confirmed", start: "", end: "" })).toBe("Executed");
 });
