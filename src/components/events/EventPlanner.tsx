@@ -65,6 +65,28 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   }, [data]);
   const refresh = () => qc.invalidateQueries({ queryKey: plannerQueryKey });
 
+  const [showAsana, setShowAsana] = useState(false);
+  const { data: asanaOverlay } = useQuery({
+    queryKey: ["asana-overlay"],
+    queryFn: () => fetchAsanaOverlayFn(),
+    enabled: showAsana,
+    staleTime: 60_000,
+  });
+  // Live Asana overlay: only events not already in the tracker (by gid or name+date).
+  const asanaExtras = useMemo(() => {
+    if (!showAsana || !asanaOverlay?.events) return [] as PlannerEvent[];
+    const gids = new Set(events.map((e) => e.asanaGid).filter(Boolean));
+    const keys = new Set(events.map(duplicateKey));
+    return asanaOverlay.events
+      .filter(
+        (a) =>
+          a.gid && !a.gid.startsWith("app-") && a.date &&
+          !gids.has(a.gid) && !keys.has(duplicateKey({ name: a.name, start: a.date })),
+      )
+      .map(asanaToPlanner);
+  }, [showAsana, asanaOverlay, events]);
+  const allEvents = useMemo(() => [...events, ...asanaExtras], [events, asanaExtras]);
+
   const [zoom, setZoom] = useState<PlannerZoom>("year");
   const [anchor, setAnchor] = useState(today());
   const [statusView, setStatusView] = useState<StatusView>("Both");
@@ -81,8 +103,8 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   const [editing, setEditing] = useState<Partial<PlannerEvent> | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
-  const syncFn = useServerFn(syncAsanaPlannerFn);
-  const [syncing, setSyncing] = useState(false);
+  const enrichFn = useServerFn(enrichFromAsanaFn);
+  const [merging, setMerging] = useState(false);
 
   const win = useMemo(() => plannerWindow(zoom, anchor), [zoom, anchor]);
   const options = useMemo(() => {
