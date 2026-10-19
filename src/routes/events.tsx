@@ -1,5 +1,7 @@
 import { Megaphone, LayoutGrid } from "lucide-react";
 import { EventPlanner } from "@/components/events/EventPlanner";
+import { plannerEventForView } from "@/lib/event-views";
+import { overlaps, sectorDotColor, subcategoryColor, type PlannerEvent } from "@/lib/event-planner";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { fetchAsanaEvents } from "@/utils/asana.functions";
@@ -173,76 +175,16 @@ interface Filters {
 }
 
 function EventsPage() {
-  const { events, contacts, emailActivity, synopses } = Route.useLoaderData() as {
-    events: AsanaEvent[];
-    contacts: Contact[];
-    emailActivity: EmailActivityRecord[];
-    synopses: Record<string, string>;
-  };
-  const router = useRouter();
+  const { contacts } = Route.useLoaderData();
   const [view, setView] = useState<"planner" | "list" | "calendar" | "analytics">("planner");
-  const [selected, setSelected] = useState<AsanaEvent | null>(null);
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const { event: openEventName } = Route.useSearch();
-  // Deep link (?event=<name>) — e.g. from a PortCo panel's Open button — opens
-  // that event's detail once the list loads.
-  useEffect(() => {
-    if (!openEventName || selected) return;
-    const target = openEventName.trim().toLowerCase();
-    const match = events.find((e) => e.name.trim().toLowerCase() === target);
-    if (match) setSelected(match);
-  }, [openEventName, events, selected]);
-  const [filters, setFilters] = useState<Filters>({ lead: "", format: "", sector: "" });
-
-  const leads = useMemo(
-    () => Array.from(new Set(events.map((e) => e.lead).filter((v): v is string => !!v))).sort(),
-    [events],
-  );
-  const formats = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          events.map((e) => e.format).filter((v): v is NonNullable<AsanaEvent["format"]> => !!v),
-        ),
-      ).sort(),
-    [events],
-  );
-  const sectors = useMemo(
-    () => Array.from(new Set(events.flatMap((e) => e.sectors || []).filter(Boolean))).sort(),
-    [events],
-  );
-
-  const filtered = useMemo(
-    () =>
-      events.filter(
-        (e) =>
-          (!filters.lead || e.lead === filters.lead) &&
-          (!filters.format || e.format === filters.format) &&
-          (!filters.sector || (e.sectors || []).includes(filters.sector)),
-      ),
-    [events, filters],
-  );
-
-  const today = new Date().toISOString().split("T")[0];
-  const upcoming = useMemo(
-    () => filtered.filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date)),
-    [filtered, today],
-  );
-  const past = useMemo(
-    () => filtered.filter((e) => e.date < today).sort((a, b) => b.date.localeCompare(a.date)),
-    [filtered, today],
-  );
 
   return (
-    <div className={view === "planner" ? "p-6 max-w-[2200px] mx-auto" : "p-6 max-w-[1500px] mx-auto"}>
+    <div className="p-6 max-w-[2200px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-lg font-bold text-foreground">Events</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {view === "planner" ? "Event planner · confirmed and potential events" : <>Asana-sourced · {filtered.length} of {events.length} event</>}
-            {view === "planner" ? null : <>
-            {events.length !== 1 ? "s" : ""}</>}
-          </p>
+
 
         </div>
         <div className="flex items-center gap-2">
@@ -283,71 +225,27 @@ function EventsPage() {
         </div>
       </div>
 
-      {view === "planner" ? (
-        <EventPlanner contacts={contacts} />
-      ) : (
-      <div className="grid grid-cols-[200px_1fr] gap-6">
-        <FiltersPanel
-          filters={filters}
-          setFilters={setFilters}
-          leads={leads}
-          formats={formats}
-          sectors={sectors}
-        />
-        <div className="min-w-0">
-          {events.length === 0 ? (
-            <div className="text-center py-16 border border-dashed border-border rounded-lg">
-              <CalendarIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">
-                No events found in the Asana Events project.
-              </p>
-            </div>
-
-          ) : view === "list" ? (
-            <ListView
-              upcoming={upcoming}
-              past={past}
-              all={filtered}
-              contacts={contacts}
-              onSelect={setSelected}
-            />
-          ) : view === "calendar" ? (
-            <CalendarView
-              events={filtered}
-              leads={leads}
-              sectors={sectors}
-              onSelect={setSelected}
-            />
-          ) : (
-            <AnalyticsView events={filtered} contacts={contacts} onSelectEvent={setSelected} />
-          )}
-        </div>
-      </div>
-      )}
-
-      <EventDetailSheet
-        event={selected}
+      <EventPlanner
         contacts={contacts}
-        emails={
-          selected
-            ? emailActivity.filter(
-                (e) => e.linkedEvent.trim().toLowerCase() === selected.name.trim().toLowerCase(),
-              )
-            : []
-        }
-        onClose={() => setSelected(null)}
-        onChanged={() => router.invalidate()}
-        synopsis={selected ? synopses[selected.name.trim().toLowerCase()] || "" : ""}
-        onSelectContact={setSelectedContact}
-      />
-
-      <ContactDetail
-        contact={selectedContact}
-        open={!!selectedContact}
-        onOpenChange={(open) => {
-          if (!open) setSelectedContact(null);
+        view={view}
+        openEventName={openEventName}
+        renderView={(rows, onSelect) => {
+          const adapted = rows.map(plannerEventForView);
+          const select = (event: AsanaEvent) => {
+            const match = rows.find(row => row.urid === event.gid);
+            if (match) onSelect(match);
+          };
+          const today = new Date().toISOString().slice(0, 10);
+          const leads = [...new Set(adapted.map(e => e.lead).filter((v): v is string => !!v))];
+          const sectors = [...new Set(adapted.flatMap(e => e.sectors))];
+          if (view === "list") return <ListView
+            upcoming={adapted.filter(e => e.date >= today).sort((a,b) => a.date.localeCompare(b.date))}
+            past={adapted.filter(e => e.date < today).sort((a,b) => b.date.localeCompare(a.date))}
+            all={adapted} contacts={contacts} onSelect={select}
+          />;
+          if (view === "calendar") return <CalendarView events={adapted} plannerEvents={rows} leads={leads} sectors={sectors} onSelect={select} />;
+          return <AnalyticsView events={adapted} contacts={contacts} onSelectEvent={select} />;
         }}
-        onContactUpdate={() => router.invalidate()}
       />
 
     </div>
@@ -655,9 +553,11 @@ function CalendarView({
   events,
   leads,
   sectors,
+  plannerEvents,
   onSelect,
 }: {
   events: AsanaEvent[];
+  plannerEvents?: PlannerEvent[];
   leads: string[];
   sectors: string[];
   onSelect: (e: AsanaEvent) => void;
@@ -678,12 +578,17 @@ function CalendarView({
   const eventsByDay = useMemo(() => {
     const map = new Map<string, AsanaEvent[]>();
     for (const e of events) {
-      const list = map.get(e.date) || [];
-      list.push(e);
-      map.set(e.date, list);
+      const planner = plannerEvents?.find(row => row.urid === e.gid);
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = `${cursor.year}-${String(cursor.month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        if (planner ? !overlaps(planner, date, date) : e.date !== date) continue;
+        const list = map.get(date) || [];
+        list.push(e);
+        map.set(date, list);
+      }
     }
     return map;
-  }, [events]);
+  }, [events, plannerEvents, cursor, daysInMonth]);
 
   const cells: { date: string | null; key: string }[] = [];
   for (let i = 0; i < startWeekday; i++) cells.push({ date: null, key: `pad-${i}` });
@@ -756,6 +661,7 @@ function CalendarView({
               </div>
               <div className="space-y-0.5">
                 {dayEvents.slice(0, 3).map((e, idx) => {
+                  const planner = plannerEvents?.find(row => row.urid === e.gid);
                   const lead = colorForLead(e.lead);
                   // First sector with a known color drives the indicator dot.
                   const dot = (e.sectors || [])
@@ -767,13 +673,13 @@ function CalendarView({
                       key={`${e.gid}-${idx}`}
                       onClick={() => onSelect(e)}
                       className="relative block w-full text-left text-[10px] truncate pl-3 pr-1 py-0.5 rounded hover:opacity-80"
-                      style={{ backgroundColor: lead.bg, color: lead.fg }}
+                      style={planner ? { backgroundColor: `var(--planner-${subcategoryColor(planner.subcategory)})`, color: "var(--foreground)" } : { backgroundColor: lead.bg, color: lead.fg }}
                       title={`${e.name}${e.lead ? ` · ${e.lead}` : ""}${sectorLabel ? ` · ${sectorLabel}` : ""}`}
                     >
                       {dot && (
                         <span
                           className="absolute left-1 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full"
-                          style={{ backgroundColor: dot.solid }}
+                          style={{ backgroundColor: planner ? `var(--sector-${sectorDotColor(e.sectors[0] || "")})` : dot.solid }}
                         />
                       )}
                       {e.name}

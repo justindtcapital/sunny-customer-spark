@@ -78,7 +78,6 @@ export const PLANNER_CATEGORIES: PlannerCategory[] = [
   {
     name: "DTC Led Events",
     subcategories: [
-      { name: "DTC Customer Advisory Council", color: "violet" },
       { name: "DTC Event (No Partnership)", color: "purple" },
       { name: "DTC Event (with Partner)", color: "plum" },
     ],
