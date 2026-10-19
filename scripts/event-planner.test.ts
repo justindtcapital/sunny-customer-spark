@@ -73,3 +73,57 @@ it("tracker January after December rolls to next year", () => {
 it("DTC status reads the tracker flag", () => {
   expect(dtcStatusOf({ dtcStatus: "executed", status: "Confirmed", start: "", end: "" })).toBe("Executed");
 });
+
+import { asanaMatchScore, planAsanaEnrichment, mergePlannerEvents, type AsanaLike } from "../src/lib/event-planner";
+const az = (p: Partial<AsanaLike>): AsanaLike => ({
+  gid: "g1", name: "RSA Conference", date: "2026-04-01", sectors: [], portcos: [], ...p,
+});
+
+describe("Asana enrichment", () => {
+  it("matches by gid first, then same date + series name", () => {
+    const e = ev({ name: "RSA SF 2026", start: "2026-04-01", asanaGid: "g9" });
+    expect(asanaMatchScore(e, az({ gid: "g9", name: "Other", date: "2025-01-01" }))).toBe(3);
+    expect(asanaMatchScore(e, az({ gid: "g1", name: "RSA SF" }))).toBe(2);
+    expect(asanaMatchScore(e, az({ gid: "g1", name: "RSA SF", date: "2026-04-02" }))).toBe(0);
+    expect(asanaMatchScore(e, az({ gid: "g1", name: "RSA SF 2026 - San Francisco" }))).toBe(1);
+  });
+  it("enrichment fills empty fields but never overwrites", () => {
+    const e = ev({ name: "RSA SF", start: "2026-04-01", format: "in-person", portcos: ["A"] });
+    const plan = planAsanaEnrichment([e], [az({ name: "RSA SF 2026", format: "virtual", owner: "Chris", sectors: ["Security"], portcos: ["B"], attendeeCount: 40 })]);
+    const u = plan.updates.get(e.urid)!;
+    expect(u.format).toBe("in-person");
+    expect(u.owner).toBe("Chris");
+    expect(u.sectors).toContain("Cyber");
+    expect(u.portcos).toEqual(["A", "B"]);
+    expect(u.networkCount).toBe(40);
+    expect(u.asanaGid).toBe("g1");
+  });
+  it("merges a same-date duplicate pair, Tracker row wins and keeps DTC status", () => {
+    const tracker = ev({ name: "McAfee Summit", start: "2026-05-12", source: "Tracker", dtcStatus: "Accepted", subcategory: "3rd Party Events" });
+    const dupe = ev({ name: "McAfee Summit 2026", start: "2026-05-12", source: "Asana", asanaGid: "g7", networkCount: 25, format: "in-person" });
+    const plan = planAsanaEnrichment([tracker, dupe], []);
+    expect(plan.removed).toEqual([dupe.urid]);
+    const merged = plan.updates.get(tracker.urid)!;
+    expect(merged.dtcStatus).toBe("Accepted");
+    expect(merged.asanaGid).toBe("g7");
+    expect(merged.networkCount).toBe(25);
+    expect(merged.format).toBe("in-person");
+  });
+  it("does not merge three-plus same-date rows or different dates", () => {
+    const a = ev({ name: "Dinner NYC", start: "2026-06-01" });
+    const b = ev({ name: "Dinner NYC 2026", start: "2026-06-01" });
+    const c = ev({ name: "Dinner NYC Extra", start: "2026-06-01" });
+    expect(planAsanaEnrichment([a, b, c], []).removed).toEqual([]);
+    const d = ev({ name: "Dinner NYC", start: "2026-06-02" });
+    expect(planAsanaEnrichment([a, d], []).removed).toEqual([]);
+  });
+  it("mergePlannerEvents unions lists and keeps keeper identity", () => {
+    const k = ev({ urid: "k", name: "A", portcos: ["X"], sectors: ["Cyber"] });
+    const l = ev({ urid: "l", name: "A 2026", portcos: ["Y"], sectors: ["Data/AI"], website: "https://a.com" });
+    const m = mergePlannerEvents(k, l);
+    expect(m.urid).toBe("k");
+    expect(m.portcos).toEqual(["X", "Y"]);
+    expect(m.sectors).toEqual(["Cyber", "Data/AI"]);
+    expect(m.website).toBe("https://a.com");
+  });
+});

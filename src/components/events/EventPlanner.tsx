@@ -16,23 +16,39 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import type { Contact } from "@/lib/types";
+import type { AsanaEvent, Contact } from "@/lib/types";
 import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, parseTrackerDate, splitList,
-  mapTrackerStatus, eventSeriesKey, DTC_STATUSES, dtcStatusOf,
+  mapTrackerStatus, eventSeriesKey, DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
+  duplicateKey,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
 import {
-  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, syncAsanaPlannerFn, extractEventFromUrlFn,
-  addPlannerAttendeesFn,
+  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
+  extractEventFromUrlFn, addPlannerAttendeesFn,
 } from "@/utils/event-planner.functions";
 
 type StatusView = "Confirmed" | "Potential" | "Both";
 const SUBCATS = PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name));
 const today = () => new Date().toISOString().slice(0, 10);
 const tileVar = (sub: string) => `var(--planner-${subcategoryColor(sub)})`;
+
+/** Read-only planner-shaped view of a live Asana event (Show Asana data overlay). */
+function asanaToPlanner(a: AsanaEvent): PlannerEvent {
+  const sub = asanaSubcategory(a);
+  return {
+    urid: `asana:${a.gid}`, name: a.name, start: a.date, end: a.date, location: "",
+    category: categoryOfSubcategory(sub), subcategory: sub,
+    status: a.status === "completed" ? "Confirmed" : "Potential",
+    sectors: a.sectors || [], portcos: a.portcos || [], partners: [], owner: a.owner || "",
+    format: a.format || "", website: "", lumaUrl: "", source: "Asana (live)",
+    sourceRef: `https://app.asana.com/0/0/${a.gid}`, asanaGid: a.gid,
+    networkCount: a.attendeeCount || 0, notes: "", actionsNeeded: "", eventContact: "",
+    createdBy: "", updated: "", dtcStatus: "",
+  };
+}
 
 export const plannerQueryKey = ["event-planner"];
 
@@ -48,6 +64,28 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
     return (data?.events ?? []).map((e) => ({ ...e, networkCount: Math.max(e.networkCount || 0, n.get(e.urid) || 0) }));
   }, [data]);
   const refresh = () => qc.invalidateQueries({ queryKey: plannerQueryKey });
+
+  const [showAsana, setShowAsana] = useState(false);
+  const { data: asanaOverlay } = useQuery({
+    queryKey: ["asana-overlay"],
+    queryFn: () => fetchAsanaOverlayFn(),
+    enabled: showAsana,
+    staleTime: 60_000,
+  });
+  // Live Asana overlay: only events not already in the tracker (by gid or name+date).
+  const asanaExtras = useMemo(() => {
+    if (!showAsana || !asanaOverlay?.events) return [] as PlannerEvent[];
+    const gids = new Set(events.map((e) => e.asanaGid).filter(Boolean));
+    const keys = new Set(events.map(duplicateKey));
+    return asanaOverlay.events
+      .filter(
+        (a) =>
+          a.gid && !a.gid.startsWith("app-") && a.date &&
+          !gids.has(a.gid) && !keys.has(duplicateKey({ name: a.name, start: a.date })),
+      )
+      .map(asanaToPlanner);
+  }, [showAsana, asanaOverlay, events]);
+  const allEvents = useMemo(() => [...events, ...asanaExtras], [events, asanaExtras]);
 
   const [zoom, setZoom] = useState<PlannerZoom>("year");
   const [anchor, setAnchor] = useState(today());
@@ -65,8 +103,8 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
   const [editing, setEditing] = useState<Partial<PlannerEvent> | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
-  const syncFn = useServerFn(syncAsanaPlannerFn);
-  const [syncing, setSyncing] = useState(false);
+  const enrichFn = useServerFn(enrichFromAsanaFn);
+  const [merging, setMerging] = useState(false);
 
   const win = useMemo(() => plannerWindow(zoom, anchor), [zoom, anchor]);
   const options = useMemo(() => {
@@ -75,13 +113,13 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
       portcos: u(events.flatMap((e) => e.portcos)),
       partners: u(events.flatMap((e) => e.partners)),
       owners: u(events.flatMap((e) => splitList(e.owner))),
-      sources: u(events.map((e) => e.source)),
+      sources: u(allEvents.map((e) => e.source)),
     };
-  }, [events]);
+  }, [allEvents]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return events.filter((e) => {
+    return allEvents.filter((e) => {
       const dtc = dtcStatusOf(e, today());
       if (dtcFilter.length && !dtcFilter.includes(dtc)) return false;
       if (e.status === "Declined" && !showDeclined && !dtcFilter.includes("Declined")) return false;
@@ -96,21 +134,26 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
         return false;
       return true;
     });
-  }, [events, search, subFilter, sectorFilter, dtcFilter, showDeclined, statusView, portco, partner, owner, source]);
+  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, showDeclined, statusView, portco, partner, owner, source]);
 
   const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
 
-  async function syncAsana() {
-    setSyncing(true);
+  async function mergeAsana() {
+    if (!window.confirm("One-time merge: fill empty event fields from Asana and combine same-date duplicates in the tracker. Continue?"))
+      return;
+    setMerging(true);
     try {
-      const r = await syncFn({ data: { by: email || "" } });
-      toast.success(r.added ? `Added ${r.added} new Asana event${r.added === 1 ? "" : "s"}` : "Already up to date with Asana");
+      const r = await enrichFn({ data: { by: email || "" } });
+      toast.success(
+        `Enriched ${r.enriched} event${r.enriched === 1 ? "" : "s"}, merged ${r.merged} duplicate${r.merged === 1 ? "" : "s"}` +
+          (r.unmatchedAsana ? ` · ${r.unmatchedAsana} Asana-only left` : ""),
+      );
       refresh();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setSyncing(false);
+      setMerging(false);
     }
   }
 
@@ -198,8 +241,11 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLinkOpen(true)}>
               <Link2 className="h-3.5 w-3.5 mr-1" /> Add from link
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={syncAsana} disabled={syncing}>
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", syncing && "animate-spin")} /> Sync Asana
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <Checkbox checked={showAsana} onCheckedChange={(v) => setShowAsana(!!v)} /> Show Asana data
+            </label>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={mergeAsana} disabled={merging}>
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", merging && "animate-spin")} /> Merge Asana data
             </Button>
           </div>
         </div>
@@ -239,10 +285,18 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
                   {win.columns.map((col) => (
                     <div key={col.key} className="border-b border-l border-border p-1 space-y-1 min-h-[90px]">
                       {rowEvents
-                        .filter((e) => columnFor(e, win) === col.key)
+                        // Week/month: a multi-day event appears in every column it spans.
+                        .filter((e) => (zoom === "year" ? columnFor(e, win) === col.key : overlaps(e, col.start, col.end)))
                         .sort((a, b) => a.start.localeCompare(b.start))
                         .map((e) => (
-                          <Tile key={e.urid} e={e} zoom={zoom} onClick={() => setSelected(e)} />
+                          <Tile
+                            key={e.urid}
+                            e={e}
+                            zoom={zoom}
+                            clipStart={zoom !== "year" && !!e.start && e.start < col.start}
+                            clipEnd={zoom !== "year" && !!e.end && e.end > col.end}
+                            onClick={() => setSelected(e)}
+                          />
                         ))}
                     </div>
                   ))}
@@ -264,7 +318,7 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
         </div>
         {isLoading && <p className="text-xs text-muted-foreground">Loading events…</p>}
         {!isLoading && events.length === 0 && (
-          <p className="text-xs text-muted-foreground">No events yet — add one, import a CSV or sync Asana.</p>
+          <p className="text-xs text-muted-foreground">No events yet — add one, import a CSV or turn on Show Asana data.</p>
         )}
         {undated.length > 0 && (
           <div className="rounded-lg border border-dashed border-border p-3">
@@ -350,7 +404,15 @@ function shortDate(e: PlannerEvent): string {
   return e.end && e.end !== e.start ? `${f(e.start)}–${f(e.end)}` : f(e.start);
 }
 
-function Tile({ e, zoom, onClick }: { e: PlannerEvent; zoom: PlannerZoom; onClick: () => void }) {
+function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
+  e: PlannerEvent;
+  zoom: PlannerZoom;
+  /** Event started before this column (continuation from the left). */
+  clipStart?: boolean;
+  /** Event continues past this column. */
+  clipEnd?: boolean;
+  onClick: () => void;
+}) {
   const color = tileVar(e.subcategory);
   const potential = e.status === "Potential";
   return (
@@ -369,7 +431,7 @@ function Tile({ e, zoom, onClick }: { e: PlannerEvent; zoom: PlannerZoom; onClic
     >
       <div className="flex items-start gap-1">
         <span className={cn("font-medium leading-tight flex-1 min-w-0", zoom === "year" ? "text-[10px] line-clamp-2" : "text-xs line-clamp-2")}>
-          {e.name}
+          {clipStart && "◂ "}{e.name}{clipEnd && " ▸"}
         </span>
         <span className="flex gap-0.5 pt-0.5 shrink-0">
           {[...new Set(e.sectors.map(normalizeSector))].slice(0, 3).map((s) => (
@@ -412,6 +474,7 @@ function EventDetail({
   const addAtt = useServerFn(addPlannerAttendeesFn);
   const [q, setQ] = useState("");
   const e = event;
+  const asanaOnly = !!e && e.urid.startsWith("asana:");
   const people = useMemo(() => {
     if (!e) return [];
     const key = eventSeriesKey(e.name);
@@ -470,11 +533,14 @@ function EventDetail({
                   </Badge>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => onEdit(e)}><Pencil className="h-3.5 w-3.5 mr-1" /> Edit</Button>
-                {e.status !== "Confirmed" && (
+              <div className="flex gap-2 items-center">
+                {!asanaOnly && (
+                  <Button size="sm" variant="outline" onClick={() => onEdit(e)}><Pencil className="h-3.5 w-3.5 mr-1" /> Edit</Button>
+                )}
+                {!asanaOnly && e.status !== "Confirmed" && (
                   <Button size="sm" onClick={promote}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark confirmed</Button>
                 )}
+                {asanaOnly && <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>}
               </div>
               <dl className="grid grid-cols-[110px_1fr] gap-y-1.5 text-xs">
                 <Field k="Dates" v={shortDate(e) + (e.start ? ` ${e.start.slice(0, 4)}` : "")} />
@@ -500,7 +566,9 @@ function EventDetail({
               <section className="space-y-2">
                 <h3 className="text-xs font-semibold">Attendees & invites ({people.length})</h3>
                 <div className="relative">
+                  {!asanaOnly && (
                   <Input value={q} onChange={(x) => setQ(x.target.value)} placeholder="Add a Network contact…" className="h-7 text-xs" />
+                  )}
                   {matches.length > 0 && (
                     <div className="absolute z-10 mt-1 w-full rounded-md border border-border bg-popover shadow">
                       {matches.map((c) => (

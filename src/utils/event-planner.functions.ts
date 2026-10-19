@@ -55,6 +55,32 @@ export const syncAsanaPlannerFn = createServerFn({ method: "POST" })
     });
   });
 
+/** Live Asana events for the "Show Asana data" overlay toggle (read-only). */
+export const fetchAsanaOverlayFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { fetchAllAsanaEvents } = await import("./asana.server");
+  try {
+    return { events: await fetchAllAsanaEvents(), error: "" };
+  } catch (e) {
+    console.error("[event-planner] Asana overlay failed", e);
+    return { events: [], error: (e as Error).message };
+  }
+});
+
+/** One-time: enrich planner rows from Asana and merge same-date duplicates. */
+export const enrichFromAsanaFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { by: string }) => d)
+  .handler(async ({ data }) => {
+    const { withDeadline } = await import("./request-deadline.server");
+    const { enrichFromAsana } = await import("./event-planner.server");
+    const { fetchAllAsanaEvents } = await import("./asana.server");
+    return withDeadline("enrichFromAsana", 55_000, async (step) => {
+      step("reading Asana");
+      const asana = await fetchAllAsanaEvents();
+      step("enriching and merging events");
+      return enrichFromAsana(asana, data.by || "");
+    });
+  });
+
 export const extractEventFromUrlFn = createServerFn({ method: "POST" })
   .inputValidator((d: { url: string }) => {
     const u = new URL(d?.url || "");
