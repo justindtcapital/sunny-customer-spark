@@ -85,11 +85,11 @@ describe("Asana enrichment", () => {
     expect(asanaMatchScore(e, az({ gid: "g9", name: "Other", date: "2025-01-01" }))).toBe(3);
     expect(asanaMatchScore(e, az({ gid: "g1", name: "RSA SF" }))).toBe(2);
     expect(asanaMatchScore(e, az({ gid: "g1", name: "RSA SF", date: "2026-04-02" }))).toBe(0);
-    expect(asanaMatchScore(e, az({ gid: "g1", name: "RSA Conference 2026 - San Francisco" }))).toBe(1);
+    expect(asanaMatchScore(e, az({ gid: "g1", name: "RSA SF 2026 - San Francisco" }))).toBe(1);
   });
   it("enrichment fills empty fields but never overwrites", () => {
     const e = ev({ name: "RSA SF", start: "2026-04-01", format: "in-person", portcos: ["A"] });
-    const plan = planAsanaEnrichment([e], [az({ format: "virtual", owner: "Chris", sectors: ["Security"], portcos: ["B"], attendeeCount: 40 })]);
+    const plan = planAsanaEnrichment([e], [az({ name: "RSA SF 2026", format: "virtual", owner: "Chris", sectors: ["Security"], portcos: ["B"], attendeeCount: 40 })]);
     const u = plan.updates.get(e.urid)!;
     expect(u.format).toBe("in-person");
     expect(u.owner).toBe("Chris");
