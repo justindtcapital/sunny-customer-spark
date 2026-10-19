@@ -167,8 +167,11 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
   const granola = new Map((await listGranolaImports().catch(() => [])).map((g) => [g.noteId, g]));
   const linkBy = new Map(links.map((l) => [l.recordId, l]));
   const actsBy = new Map<string, { owners: string[]; track: string }>();
-  // Granola is connected through Chris Falloon's account, so unstamped Granola notes are his.
-  const GRANOLA_OWNER = "chris falloon";
+  const sourceAuthor = (r: KnowledgeRecord): string => {
+    const stamped = importers.get(r.recordId);
+    if (stamped) return stamped;
+    try { return JSON.parse(r.extractedJson || "{}")?.granola?.author || ""; } catch { return ""; }
+  };
   if (kind === "activity") {
     const { listHarvestedActivities } = await import("./knowledge.server");
     for (const a of await listHarvestedActivities().catch(() => [])) {
@@ -192,9 +195,9 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
     if (ownerKey) {
       const { ownerMatches } = await import("@/lib/action-owners");
       // Recorded author first; legacy unstamped emails fall back to name matching.
-      const who = importers.get(r.recordId) || (kind === "activity"
+      const who = sourceAuthor(r) || (kind === "activity"
         ? [...(actsBy.get(r.recordId)?.owners || []), r.participants, r.summary].join(" ")
-        : r.sourceType === "granola" ? GRANOLA_OWNER : "");
+        : "");
       if (!ownerMatches(who, owner || "")) continue;
     }
     let ex: { nextSteps?: NoteInboxItem["nextSteps"]; people?: Array<{ name: string; email: string; company: string }>; granola?: { hasTranscript?: boolean } } = {};
@@ -202,7 +205,7 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
     const g = r.sourceType === "granola" ? granola.get(r.sourceId) : undefined;
     const driveUrl = r.textRef ? `https://drive.google.com/file/d/${r.textRef}/view` : "";
     out.push({
-      recordId: r.recordId, source: sourceLabel(r), author: importers.get(r.recordId) || (r.sourceType === "granola" ? "Chris Falloon" : ""), title: r.title, date: r.date, portco: r.portco,
+      recordId: r.recordId, source: sourceLabel(r), author: sourceAuthor(r), title: r.title, date: r.date, portco: r.portco,
       summary: r.summary, sourceUrl: r.sourceUrl, driveUrl,
       saved: true, copiedToDrive: !!r.textRef, hasTranscript: !!ex.granola?.hasTranscript,
       safeToDelete: g ? g.safeToDelete : !!r.textRef,
