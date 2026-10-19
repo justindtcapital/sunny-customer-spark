@@ -33,7 +33,6 @@ import {
   extractEventFromUrlFn, addPlannerAttendeesFn,
 } from "@/utils/event-planner.functions";
 
-type StatusView = "Confirmed" | "Potential" | "Both";
 const SUBCATS = PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name));
 const today = () => new Date().toISOString().slice(0, 10);
 const tileVar = (sub: string) => `var(--planner-${subcategoryColor(sub)})`;
@@ -98,7 +97,6 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
 
   const [zoom, setZoom] = useState<PlannerZoom>("year");
   const [anchor, setAnchor] = useState(today());
-  const [statusView, setStatusView] = useState<StatusView>("Both");
   const [search, setSearch] = useState("");
   const [subFilter, setSubFilter] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
@@ -135,9 +133,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const filtered = useMemo(() => {
     return allEvents.filter(e => eventMatchesFilters(e, {
       search, subcategories: subFilter, sectors: sectorFilter, statuses: dtcFilter,
-      statusView, portco, partner, owner, source,
+      statusView: "Both", portco, partner, owner, source,
     }, today()));
-  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, statusView, portco, partner, owner, source]);
+  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, portco, partner, owner, source]);
 
   const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
@@ -230,7 +228,6 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
             </Button>
           </div>
           <div className="text-sm font-semibold min-w-[150px]">{win.label}</div></>}
-          <Seg value={statusView} onChange={(v) => setStatusView(v as StatusView)} options={["Confirmed", "Potential", "Both"]} />
           <div className="ml-auto flex flex-wrap gap-1.5">
             <Button size="sm" className="h-7 text-xs" onClick={() => setEditing({ status: "Potential", subcategory: "Unassigned", source: "Manual" })}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Add event

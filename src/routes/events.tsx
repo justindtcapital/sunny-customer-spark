@@ -641,26 +641,26 @@ function CalendarView({
           </div>
         ))}
         {cells.map((cell) => {
-          if (!cell.date) return <div key={cell.key} className="min-h-[88px]" />;
+          if (!cell.date) return <div key={cell.key} className="min-h-[140px]" />;
           const dayNum = Number(cell.date.split("-")[2]);
           const dayEvents = eventsByDay.get(cell.date) || [];
           const isToday = cell.date === today;
           return (
             <div
               key={cell.key}
-              className={`min-h-[88px] border border-border rounded p-1 ${
+              className={`min-h-[140px] border border-border rounded p-1 ${
                 isToday ? "bg-primary/5 border-primary/30" : "bg-background"
               }`}
             >
               <div
-                className={`text-[10px] font-medium mb-1 ${
+                className={`text-sm font-semibold mb-1 ${
                   isToday ? "text-primary" : "text-muted-foreground"
                 }`}
               >
                 {dayNum}
               </div>
               <div className="space-y-0.5">
-                {dayEvents.slice(0, 3).map((e, idx) => {
+                {dayEvents.slice(0, 5).map((e, idx) => {
                   const planner = plannerEvents?.find(row => row.urid === e.gid);
                   const lead = colorForLead(e.lead);
                   // First sector with a known color drives the indicator dot.
@@ -672,8 +672,8 @@ function CalendarView({
                     <button
                       key={`${e.gid}-${idx}`}
                       onClick={() => onSelect(e)}
-                      className="relative block w-full text-left text-[10px] truncate pl-3 pr-1 py-0.5 rounded hover:opacity-80"
-                      style={planner ? { backgroundColor: `var(--planner-${subcategoryColor(planner.subcategory)})`, color: "var(--foreground)" } : { backgroundColor: lead.bg, color: lead.fg }}
+                      className={`relative block w-full text-left text-[11px] font-medium truncate pl-3.5 pr-1 py-0.5 rounded border-2 hover:shadow-md ${planner && (planner.status !== "Confirmed") ? "border-dashed" : ""} ${planner?.status === "Declined" ? "opacity-50 line-through" : ""}`}
+                      style={planner ? (() => { const c = `var(--planner-${subcategoryColor(planner.subcategory)})`; const pot = planner.status !== "Confirmed"; return { borderColor: c, background: `color-mix(in oklch, ${c} ${pot ? 6 : 16}%, transparent)`, color: "var(--foreground)" }; })() : { backgroundColor: lead.bg, color: lead.fg }}
                       title={`${e.name}${e.lead ? ` · ${e.lead}` : ""}${sectorLabel ? ` · ${sectorLabel}` : ""}`}
                     >
                       {dot && (
@@ -686,9 +686,9 @@ function CalendarView({
                     </button>
                   );
                 })}
-                {dayEvents.length > 3 && (
+                {dayEvents.length > 5 && (
                   <div className="text-[9px] text-muted-foreground px-1">
-                    +{dayEvents.length - 3} more
+                    +{dayEvents.length - 5} more
                   </div>
                 )}
               </div>
@@ -697,7 +697,6 @@ function CalendarView({
         })}
       </div>
 
-      <Legend leads={leads} sectors={sectors} />
     </div>
   );
 }
