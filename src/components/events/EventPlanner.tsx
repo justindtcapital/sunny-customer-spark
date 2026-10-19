@@ -113,13 +113,13 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
       portcos: u(events.flatMap((e) => e.portcos)),
       partners: u(events.flatMap((e) => e.partners)),
       owners: u(events.flatMap((e) => splitList(e.owner))),
-      sources: u(events.map((e) => e.source)),
+      sources: u(allEvents.map((e) => e.source)),
     };
-  }, [events]);
+  }, [allEvents]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return events.filter((e) => {
+    return allEvents.filter((e) => {
       const dtc = dtcStatusOf(e, today());
       if (dtcFilter.length && !dtcFilter.includes(dtc)) return false;
       if (e.status === "Declined" && !showDeclined && !dtcFilter.includes("Declined")) return false;
@@ -134,21 +134,26 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
         return false;
       return true;
     });
-  }, [events, search, subFilter, sectorFilter, dtcFilter, showDeclined, statusView, portco, partner, owner, source]);
+  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, showDeclined, statusView, portco, partner, owner, source]);
 
   const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
 
-  async function syncAsana() {
-    setSyncing(true);
+  async function mergeAsana() {
+    if (!window.confirm("One-time merge: fill empty event fields from Asana and combine same-date duplicates in the tracker. Continue?"))
+      return;
+    setMerging(true);
     try {
-      const r = await syncFn({ data: { by: email || "" } });
-      toast.success(r.added ? `Added ${r.added} new Asana event${r.added === 1 ? "" : "s"}` : "Already up to date with Asana");
+      const r = await enrichFn({ data: { by: email || "" } });
+      toast.success(
+        `Enriched ${r.enriched} event${r.enriched === 1 ? "" : "s"}, merged ${r.merged} duplicate${r.merged === 1 ? "" : "s"}` +
+          (r.unmatchedAsana ? ` · ${r.unmatchedAsana} Asana-only left` : ""),
+      );
       refresh();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setSyncing(false);
+      setMerging(false);
     }
   }
 
@@ -236,8 +241,11 @@ export function EventPlanner({ contacts }: { contacts: Contact[] }) {
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLinkOpen(true)}>
               <Link2 className="h-3.5 w-3.5 mr-1" /> Add from link
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={syncAsana} disabled={syncing}>
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", syncing && "animate-spin")} /> Sync Asana
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+              <Checkbox checked={showAsana} onCheckedChange={(v) => setShowAsana(!!v)} /> Show Asana data
+            </label>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={mergeAsana} disabled={merging}>
+              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", merging && "animate-spin")} /> Merge Asana data
             </Button>
           </div>
         </div>
