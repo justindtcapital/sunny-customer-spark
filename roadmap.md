@@ -1,5 +1,11 @@
 # Roadmap
 
+## Individual Granola connections
+- [ ] Add verified teammate identity before storing or using personal Granola credentials
+- [ ] Add self-service connection, replacement and disconnect controls with encrypted server-side storage
+- [ ] Scope manual imports and cursors to the connection; preserve original note authors and deduplicate shared notes
+- [ ] Test credential isolation and verify connection/import flows
+
 ## Action date calendar
 - [x] Add compact current-month calendar with daily counts and drag selection in Date view
 - [x] Test date filters and verify day/week selection and empty states
