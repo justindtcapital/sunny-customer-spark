@@ -48,9 +48,9 @@
 - [ ] Partner campaigns panel
 
 ## Event planner
-- [ ] Share category/status/sector/dropdown filters across all four event views; remove unused advisory council and Show declined
-- [ ] Attribute current events to Julia's canonical profile and add editable URL autofill to Add event
-- [ ] Test shared filters, verify saved attribution, and exercise live autofill
+- [x] Share category/status/sector/dropdown filters across all four event views; remove unused advisory council and Show declined
+- [x] Attribute current events to Julia's canonical profile and add editable URL autofill to Add event
+- [x] Test shared filters, verify saved attribution, and exercise live autofill
 - [x] Merge cross-source event name variants, resolve sectors from portfolio data, and preserve attendee/reference links
 - [x] Categorize unassigned conferences and verify saved planner results
 - [x] Event database in the tracker sheet (seeded from FY2027 + Asana; CRM attendance copied)
