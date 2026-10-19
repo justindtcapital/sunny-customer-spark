@@ -28,8 +28,6 @@ import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functi
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
-import { ConnectGranolaButton } from "@/components/knowledge/ConnectGranolaButton";
-const noopGranola = () => {};
 
 const TABS = ["workstreams", "followups", "notes", "done"] as const;
 type Tab = (typeof TABS)[number];
@@ -83,7 +81,6 @@ function MyActionsPage() {
           <p className="text-sm text-muted-foreground">Review what came in, then follow up with Action Now.</p>
         </div>
         <div className="flex flex-wrap items-start justify-end gap-4">
-        <ConnectGranolaButton onChange={noopGranola} />
         <Select value={owner} onValueChange={(v) => set({ owner: v })}>
           <SelectTrigger className="h-9 w-56"><SelectValue placeholder="Action owner" /></SelectTrigger>
           <SelectContent>{ACTION_OWNERS.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent>
