@@ -3758,6 +3758,8 @@ export interface PortfolioCompanyInput {
   location?: string;
   /** Maps to the "Summary" column. */
   description?: string;
+  /** Company LinkedIn page — written to the "LinkedIn URL" column. */
+  linkedinUrl?: string;
 }
 
 // Add a portfolio company as a new row in the Portfolio Companies tab. Stamps a
@@ -3782,6 +3784,7 @@ export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<
 
   await ensureTab(TAB_NAMES.portfolio, PORTFOLIO_HEADERS);
   await ensureColumn(TAB_NAMES.portfolio, "URID");
+  if (data.linkedinUrl?.trim()) await ensureColumn(TAB_NAMES.portfolio, "LinkedIn URL");
 
   const urid = crypto.randomUUID();
   // Keys are the lowercased sheet headers (see PORTFOLIO_COLS).
@@ -3792,6 +3795,7 @@ export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<
     "focus area(s)": (data.focusArea || "").trim(),
     hq: (data.location || "").trim(),
     summary: (data.description || "").trim(),
+    "linkedin url": (data.linkedinUrl || "").trim(),
   };
 
   const rows = await fetchSheetTab(TAB_NAMES.portfolio);
