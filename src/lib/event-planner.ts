@@ -31,7 +31,7 @@ export interface PlannerEvent {
   eventContact: string;
   createdBy: string;
   updated: string;
-  /** Raw DTC Status from the tracker: Considering | Accepted | Executed | Declined. */
+  /** Raw DTC Status from the tracker: Executed | Accepted | Considering | Potential | Declined. */
   dtcStatus: string;
 }
 
@@ -46,7 +46,8 @@ export interface PlannerAttendee {
   date: string;
 }
 
-export const DTC_STATUSES = ["Considering", "Accepted", "Executed", "Declined"] as const;
+export const DTC_STATUSES = ["Executed", "Accepted", "Considering", "Potential", "Declined"] as const;
+export const DEFAULT_DTC_STATUSES = ["Executed", "Accepted", "Considering"] as const;
 
 /** Tracker DTC Status, falling back to the planner status for non-tracker rows. */
 export function dtcStatusOf(e: Pick<PlannerEvent, "dtcStatus" | "status" | "end" | "start">, today = ""): string {
@@ -54,7 +55,7 @@ export function dtcStatusOf(e: Pick<PlannerEvent, "dtcStatus" | "status" | "end"
   const hit = DTC_STATUSES.find((s) => s.toLowerCase() === raw);
   if (hit) return hit;
   if (e.status === "Declined") return "Declined";
-  if (e.status === "Potential") return "Considering";
+  if (e.status === "Potential") return "Potential";
   return today && (e.end || e.start) && (e.end || e.start) < today ? "Executed" : "Accepted";
 }
 

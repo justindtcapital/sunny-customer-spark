@@ -9,7 +9,7 @@ export interface EventFilters {
 }
 export function eventMatchesFilters(e: PlannerEvent, f: EventFilters, today: string): boolean {
   const status = dtcStatusOf(e, today);
-  if (f.statuses.length ? !f.statuses.includes(status) : status === "Declined") return false;
+  if (!f.statuses.includes(status)) return false;
   if (f.statusView !== "Both" && e.status !== "Declined" && e.status !== f.statusView) return false;
   if (f.subcategories.length && !f.subcategories.includes(e.subcategory)) return false;
   if (f.sectors.length && !e.sectors.map(normalizeSector).some(s => f.sectors.includes(s))) return false;
