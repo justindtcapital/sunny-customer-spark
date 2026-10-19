@@ -421,9 +421,17 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Feed filters">
-          {FEED_TOGGLES.map(({ key, label, Icon }) => (
+        <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Company filters">
+          {COMPANY_TOGGLES.map(({ key, label, Icon }) => (
             <Button key={key} size="sm" variant={toggles[key] ? "default" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
+              <Icon className="mr-1 h-3.5 w-3.5" />{label}
+            </Button>
+          ))}
+        </div>
+        <span className="h-6 w-px bg-border" aria-hidden />
+        <div className="inline-flex rounded-md border border-dashed border-border p-0.5" role="group" aria-label="Item type filters">
+          {ITEM_TOGGLES.map(({ key, label, Icon }) => (
+            <Button key={key} size="sm" variant={toggles[key] ? "secondary" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
               <Icon className="mr-1 h-3.5 w-3.5" />{label}
             </Button>
           ))}
