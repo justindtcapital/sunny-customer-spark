@@ -3,10 +3,12 @@
 // FY tabs, which stay untouched); attendance lives in "Event Attendees".
 import { getAccessToken, sheetsFetch, colLetters } from "./sheets.server";
 import {
+  asanaSubcategory,
   mapTrackerCategory,
   mapTrackerStatus,
   normalizeSector,
   parseTrackerDate,
+  planAsanaEnrichment,
   trackerYearFor,
   splitList,
   categoryOfSubcategory,
