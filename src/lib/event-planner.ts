@@ -395,3 +395,27 @@ export function guessImportMapping(headers: string[]): Record<number, ImportFiel
 export function duplicateKey(e: Pick<PlannerEvent, "name" | "start">): string {
   return `${eventSeriesKey(e.name)}|${e.start}`;
 }
+
+/** Minimal CSV parser (quotes, BOM, , or ; or tab delimiter). */
+export function parsePlannerCsv(text: string): string[][] {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  const first = text.split(/\r?\n/)[0] || "";
+  const delim = [",", ";", "\t"].sort((a, b) => first.split(b).length - first.split(a).length)[0];
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') q = false;
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cell); cell = ""; }
+    else if (ch === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+    else if (ch !== "\r") cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter((r) => r.some((c) => c.trim()));
+}
