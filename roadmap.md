@@ -48,6 +48,8 @@
 - [ ] Partner campaigns panel
 
 ## Event planner
+- [x] Merge cross-source event name variants, resolve sectors from portfolio data, and preserve attendee/reference links
+- [x] Categorize unassigned conferences and verify saved planner results
 - [x] Event database in the tracker sheet (seeded from FY2027 + Asana; CRM attendance copied)
 - [x] Planner timeline: category rows, subcategory tile colors, sector dots, week/month/year with prev/next, per-view totals
 - [x] Confirmed / Potential views, detail pane, add/edit, CSV import with field matching, add from link
