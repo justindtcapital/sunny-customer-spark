@@ -462,6 +462,24 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
       {groups.length > 0 && <SplitPane
         list={<div className="divide-y divide-border">{groups.map((g) => {
           const isClosed = closed.has(g.company);
+          const website = websites.get(norm(g.company)) || "";
+          const fuCount = g.general.length + [...g.linked.values()].flat().length;
+          const fuRow = (x: Reminder, nested: boolean) => (
+            <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} ${nested ? "pl-16" : "pl-10"}`}>
+              <div className="flex min-w-0 items-start gap-2">
+                {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
+                <Bullet kind="fu" company={g.company} website={website} />
+                <div className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
+                  <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+                    <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
+                    <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
+                    <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
+                  </span>
+                </div>
+              </div>
+            </button>
+          );
           return (
             <div key={g.company}>
               <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
@@ -469,40 +487,28 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
                 {isClosed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                 <Logo name={g.company} size="sm" />
                 <span className="flex-1 truncate text-sm font-semibold">{g.company}</span>
-                <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{g.ws.length + g.fu.length}</span>
+                <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{g.ws.length + fuCount}</span>
               </button>
               {!isClosed && <div className="divide-y divide-border">
                 {g.ws.map((w) => (
-                  <button key={w.gid} onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} pl-10`}>
-                    <div className="flex min-w-0 items-start gap-2">
-                      <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm">{w.name || w.rawName}</div>
-                        <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
-                          <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
-                          <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
-                          {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
+                  <div key={w.gid}>
+                    <button onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} pl-10`}>
+                      <div className="flex min-w-0 items-start gap-2">
+                        <Bullet kind="ws" company={g.company} website={website} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{w.name || w.rawName}</div>
+                          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
+                            <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
+                            <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
+                            {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
+                    </button>
+                    {(g.linked.get(w.gid) || []).map((x) => fuRow(x, true))}
+                  </div>
                 ))}
-                {g.fu.map((x) => (
-                  <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} pl-10`}>
-                    <div className="flex min-w-0 items-start gap-2">
-                      {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
-                      <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warm-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
-                        <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-                          <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
-                          <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
-                          <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                {g.general.map((x) => fuRow(x, false))}
               </div>}
             </div>
           );
