@@ -292,7 +292,8 @@ export async function runKnowledgeHarvest(
       }
     }
 
-    await setHarvestState(`gmail:${track}`, new Date().toISOString().slice(0, 10).replace(/-/g, "/"));
+    // Overlap by 2 days (existing threads are skipped) so late or capped threads aren't lost.
+    await setHarvestState(`gmail:${track}`, new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10).replace(/-/g, "/"));
   }
 
   // Granola meeting notes (read-only source) — manual sync only.
