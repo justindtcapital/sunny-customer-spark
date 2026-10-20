@@ -438,10 +438,11 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
           {ITEM_TOGGLES.map(({ key, label, Icon }) => (
             <Button key={key} size="sm" variant={toggles[key] ? "default" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
               <Icon className="mr-1 h-3.5 w-3.5" />{label}
+              <span className="ml-1 rounded bg-current/10 px-1.5 text-xs tabular-nums">{key === "workstreams" ? wsList.length : fuList.length}</span>
             </Button>
           ))}
         </div>
-        <span className="text-xs text-muted-foreground">{openWs} workstreams · {fuList.length} follow-ups</span>
+
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {priorities.length > 0 && (
             <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
