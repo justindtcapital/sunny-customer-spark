@@ -234,7 +234,6 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
   const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && (!priority || w.workstreamPriority.toLowerCase() === priority.toLowerCase()))
     .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, priority]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openWs = mine.filter((w) => !isWorkstreamCompleted(w)).length;
   const priorities = useMemo(() => [...new Set(mine.map((w) => w.workstreamPriority).filter(Boolean))].sort(), [mine]);
   const companies = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [workstreams]);
 
@@ -438,10 +437,11 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
           {ITEM_TOGGLES.map(({ key, label, Icon }) => (
             <Button key={key} size="sm" variant={toggles[key] ? "default" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
               <Icon className="mr-1 h-3.5 w-3.5" />{label}
+              <span className="ml-1 rounded bg-current/10 px-1.5 text-xs tabular-nums">{key === "workstreams" ? wsList.length : fuList.length}</span>
             </Button>
           ))}
         </div>
-        <span className="text-xs text-muted-foreground">{openWs} workstreams · {fuList.length} follow-ups</span>
+
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {priorities.length > 0 && (
             <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
