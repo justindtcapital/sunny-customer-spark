@@ -290,6 +290,8 @@ export async function enrichPerson(params: {
 export interface ApolloPersonResult {
   id: string;
   firstName: string;
+  /** Free masked last name from Apollo, e.g. "Kh***h". */
+  lastNameObfuscated: string;
   title: string;
   company: string;
   hasEmail: boolean;
@@ -374,6 +376,7 @@ export async function searchPeople(params: ApolloSearchParams): Promise<ApolloSe
     return {
       id: String(p.id || ""),
       firstName: String(p.first_name || ""),
+      lastNameObfuscated: String(p.last_name_obfuscated || ""),
       title: String(p.title || ""),
       company: String(p.organization_name || org.name || ""),
       hasEmail: Boolean(p.has_email),

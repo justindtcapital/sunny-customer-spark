@@ -63,6 +63,7 @@ import {
 } from "@/lib/campaigns";
 import { fetchContacts, fetchTargets, fetchPortfolioCompanies } from "@/utils/sheets.functions";
 import { findProspects } from "@/utils/prospects.functions";
+import { metroLabel } from "@/lib/metro-areas";
 import {
   addCampaignMembers,
   draftCampaignTemplate,
@@ -1208,6 +1209,7 @@ function ExternalSearch({ onAdd }: { onAdd: (p: CandidatePerson[]) => void }) {
   const [engine, setEngine] = useState<"sumble" | "apollo">("sumble");
   const [focus, setFocus] = useState("");
   const [industry, setIndustry] = useState("");
+  const [location, setLocation] = useState("");
   const [levels, setLevels] = useState<string[]>(["VP", "Director"]);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<CandidatePerson[]>([]);
@@ -1221,6 +1223,7 @@ function ExternalSearch({ onAdd }: { onAdd: (p: CandidatePerson[]) => void }) {
           industry: engine === "sumble" ? industry : "",
           jobLevels: levels,
           jobFunctions: engine === "apollo" && focus ? [focus] : undefined,
+          countries: engine === "apollo" && location.trim() ? location.split(";").map((x) => x.trim()).filter(Boolean) : undefined,
           companyLimit: 10,
           perCompany: 3,
         },
@@ -1268,6 +1271,16 @@ function ExternalSearch({ onAdd }: { onAdd: (p: CandidatePerson[]) => void }) {
         {engine === "sumble" && (
           <Input placeholder="Industry (optional)" value={industry} onChange={(e) => setIndustry(e.target.value)} />
         )}
+        {engine === "apollo" && (
+          <div>
+            <Input placeholder="Location, e.g. San Francisco" value={location} onChange={(e) => setLocation(e.target.value)} />
+            {location.split(";").map((x) => metroLabel(x)).filter(Boolean).length > 0 && (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Includes the whole {location.split(";").map((x) => metroLabel(x)).filter(Boolean).join(", ")}
+              </p>
+            )}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {JOB_LEVELS.map((l) => (
             <label key={l} className="flex items-center gap-1">
@@ -1292,7 +1305,7 @@ function ExternalSearch({ onAdd }: { onAdd: (p: CandidatePerson[]) => void }) {
         )}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        New people found here are added to Prospecting when you confirm the list. Searches use Sumble or Apollo credits.
+        New people found here are added to Prospecting when you confirm the list. Apollo searches are free; masked last names (e.g. Kh***h) help spot-check against LinkedIn. Separate multiple locations with ";".
       </p>
       {results.length > 0 && <PeopleTable people={results} />}
     </div>
