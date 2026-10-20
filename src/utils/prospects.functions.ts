@@ -1,3 +1,4 @@
+import { expandLocations } from "@/lib/metro-areas";
 import { createServerFn } from "@tanstack/react-start";
 import { buildProspects, discoverProspectCompanies, fetchProspectPeople, type ProspectsResult, type ProspectCompany, type ProspectCompaniesResult, type SumbleProspect } from "./sumble.server";
 import { enrichPerson, searchPeople } from "./apollo.server";
@@ -84,7 +85,7 @@ async function apolloAttributeSearch(data: ProspectInput): Promise<ProspectsResu
     ...new Set((data.jobLevels || []).map((l) => SENIORITY_TITLE_MAP[l]?.seniority).filter(Boolean)),
   ];
   const employeeRanges = (data.sizes || []).map((s) => SIZE_TO_APOLLO_RANGE[s]).filter(Boolean);
-  const locations = (data.countries || []).map((s) => s.trim()).filter(Boolean);
+  const locations = expandLocations(data.countries || []);
 
   if (!titles.length && !seniorities.length && !employeeRanges.length && !locations.length) {
     return {
@@ -109,7 +110,7 @@ async function apolloAttributeSearch(data: ProspectInput): Promise<ProspectsResu
   // Apollo results are obfuscated (first name + title + company + id); the Apollo
   // id lets us reveal full contact info on add (enrichPerson by id).
   const prospects: SumbleProspect[] = res.people.map((p) => ({
-    name: p.firstName,
+    name: [p.firstName, p.lastNameObfuscated].filter(Boolean).join(" "),
     title: p.title,
     company: p.company,
     apolloId: p.id,

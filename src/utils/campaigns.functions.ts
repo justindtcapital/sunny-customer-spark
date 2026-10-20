@@ -190,7 +190,8 @@ export const addCampaignMembers = createServerFn({ method: "POST" })
       if (p.origin !== "network" && p.origin !== "prospect") {
         if (inNetwork) kind = "network";
         else if (!inProspecting) {
-          const [first, ...rest] = p.name.trim().split(/\s+/);
+          // Masked Apollo last names ("Kh***h") are display-only hints — never saved.
+          const [first, ...rest] = p.name.trim().split(/\s+/).filter((t) => !t.includes("*"));
           newProspects.push({
             firstName: first || "",
             lastName: rest.join(" "),
