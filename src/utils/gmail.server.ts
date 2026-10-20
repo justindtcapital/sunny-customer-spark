@@ -181,6 +181,24 @@ function extractParts(payload: any): { text: string; html: string } {
   return { text, html: html.slice(0, 300_000) };
 }
 
+/** Unwrap Google Groups sender rewriting; leaves ordinary mail untouched. */
+export function resolveGroupSender(
+  from: { name: string; email: string },
+  originalSender: string,
+  replyTo: string,
+): { name: string; email: string } {
+  const viaGroup = / via /i.test(from.name || "");
+  const orig = parseEmailAddress(originalSender || "")?.email || "";
+  if (!viaGroup && !(orig && orig.toLowerCase() !== (from.email || "").toLowerCase())) return from;
+  const rt = parseEmailAddress(replyTo || "");
+  const email = orig || rt?.email || "";
+  if (!email) return from;
+  const name =
+    (rt && rt.email.toLowerCase() === email.toLowerCase() && rt.name) ||
+    (from.name || "").replace(/^['"]+|['"]+$/g, "").replace(/['"]?\s+via\s+.*$/i, "").trim();
+  return { name, email };
+}
+
 function header(headers: any[], name: string): string {
   const h = (headers || []).find((x) => (x.name || "").toLowerCase() === name.toLowerCase());
   return h?.value || "";
@@ -239,7 +257,10 @@ async function getMessage(token: string, id: string, mailbox?: string): Promise<
   const headers = m.payload?.headers || [];
   // RFC 5322 parsing: quoted display names such as "Jain, Vrashank" <v.j@dell.com>
   // survive intact, and tokens without a plausible local@domain shape are dropped.
-  const from = parseEmailAddress(header(headers, "From")) || { name: "", email: "" };
+  const rawFrom = parseEmailAddress(header(headers, "From")) || { name: "", email: "" };
+  // Google Groups rewrites From to the group ("'Beech, Julia' via GTM Tracking"
+  // <gtm-tracking@…>); the real sender is in X-Original-Sender / Reply-To.
+  const from = resolveGroupSender(rawFrom, header(headers, "X-Original-Sender"), header(headers, "Reply-To"));
   const toPeople = parseAddressList(header(headers, "To"));
   const ccPeople = parseAddressList(header(headers, "Cc"));
   const to = toPeople.map((p) => p.email);
