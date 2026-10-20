@@ -60,8 +60,9 @@ const ALIASES: Record<string, string> = {
 };
 
 function metroKey(raw: string): string | null {
-  const city = raw.split(",")[0].trim().toLowerCase().replace(/^greater\s+/, "").replace(/\s+(metro|area|metro area)$/, "");
-  const key = ALIASES[city] || city;
+  const first = raw.split(",")[0].trim().toLowerCase();
+  const city = first.replace(/^greater\s+/, "").replace(/\s+(metro|area|metro area)$/, "");
+  const key = ALIASES[first] || ALIASES[city] || city;
   return METROS[key] ? key : null;
 }
 
