@@ -3876,7 +3876,15 @@ export async function updatePortfolioCompany(entry: {
       }
     }
   }
-  if (rowNumber === -1) return { updated: 0 };
+  if (rowNumber === -1) {
+    // Not in the sheet yet (e.g. an Asana-only portco): create the row instead
+    // of failing, so the Edit button works for every portfolio company.
+    if (!entry.upsertNew) return { updated: 0 };
+    const urid = crypto.randomUUID();
+    const appendMap = { urid, ...valueByHeader };
+    await appendSheetRow(TAB_NAMES.portfolio, headers.map((h) => appendMap[h] ?? ""));
+    return { updated: 1, created: true, urid };
+  }
 
   const valueByHeader: Record<string, string> = {
     "company name": newName,
