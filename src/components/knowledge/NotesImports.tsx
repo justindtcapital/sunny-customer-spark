@@ -24,6 +24,7 @@ import {
   searchPeopleFn,
   syncGranolaFn,
   syncDriveNotesFn,
+  syncMailboxFn,
   uploadNoteFn,
 } from "@/utils/knowledge.functions";
 import type { NoteInboxItem, PersonMatch } from "@/utils/notes-inbox.server";
@@ -109,6 +110,19 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
     }
   }
 
+  async function syncMailbox() {
+    setBusy("mail");
+    try {
+      const r = await syncMailboxFn();
+      toast.success(`${r.activitiesAdded} new tracking emails imported${r.errors.length ? `, ${r.errors.length} problems` : ""}.`);
+      await load();
+    } catch (e) {
+      toast.error(`Mailbox sync failed: ${(e as Error).message}`);
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function syncDrive() {
     setBusy("drive");
     try {
@@ -168,6 +182,10 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
           {!isActivity && <Button size="sm" variant="outline" disabled={!!busy} onClick={syncDrive}>
             {busy === "drive" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             Import from Drive
+          </Button>}
+          {isActivity && <Button size="sm" variant="outline" disabled={!!busy} onClick={syncMailbox}>
+            {busy === "mail" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Sync Mailbox
           </Button>}
           {granolaConnected && !isActivity && (
             <Button size="sm" disabled={!!busy} onClick={syncGranola}>

@@ -66,6 +66,12 @@ export const runKnowledgeHarvestFn = createServerFn({ method: "POST" }).handler(
   return runKnowledgeHarvest({ maxThreadsPerTrack: 15 });
 });
 
+/** On-demand mailbox pull for the Activity inbox (tracking aliases only). */
+export const syncMailboxFn = createServerFn({ method: "POST" }).handler(async () => {
+  const { runKnowledgeHarvest } = await import("./knowledge-harvest.server");
+  return runKnowledgeHarvest({ maxThreadsPerTrack: 40, includeGmail: true, includeGranola: false, includeDrive: false });
+});
+
 export const fetchGranolaImportsFn = createServerFn({ method: "GET" }).handler(async () => {
   const { listGranolaImports, isGranolaConfigured } = await import("./granola.server");
   if (!isGranolaConfigured()) return { connected: false, imports: [] };
