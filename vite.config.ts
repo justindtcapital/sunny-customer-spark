@@ -59,16 +59,13 @@ const PUBLIC_BACKEND_ENV = {
   VITE_SUPABASE_PROJECT_ID: "xpnaijnjpdnchmtuzcmq",
 } as const;
 
-const publicEnvDefines = Object.fromEntries(
-  Object.entries(PUBLIC_BACKEND_ENV).map(([key, fallback]) => [
-    `import.meta.env.${key}`,
-    JSON.stringify(process.env[key] || fallback),
-  ]),
-);
+// Vite's env loader also reads VITE_* values from process.env.
+for (const [key, fallback] of Object.entries(PUBLIC_BACKEND_ENV)) {
+  if (!process.env[key]) process.env[key] = fallback;
+}
 
 export default defineConfig({
   vite: {
     plugins: [tanstackEmptyPluginAdaptersCompat()],
-    define: publicEnvDefines,
   },
 });
