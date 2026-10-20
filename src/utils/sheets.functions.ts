@@ -151,6 +151,8 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
       focusArea?: string;
       location?: string;
       description?: string;
+      /** Create the sheet row when no matching row is found (Asana-only portcos). */
+      upsertNew?: boolean;
     }) => data,
   )
   .handler(async ({ data }) => {
