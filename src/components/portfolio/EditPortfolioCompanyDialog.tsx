@@ -68,6 +68,9 @@ export function EditPortfolioCompanyDialog({
         focusArea: focusArea.trim(),
         location: location.trim(),
         description: description.trim(),
+        // Companies that live only in Asana (no sheet row yet) get one created
+        // on save so they become editable like every other portfolio company.
+        upsertNew: company.id.startsWith("asana-pc-"),
       };
       const res = await updatePortfolioCompany({ data: payload });
       if (!res.updated) {
@@ -83,7 +86,9 @@ export function EditPortfolioCompanyDialog({
         location: payload.location,
         description: payload.description,
       };
-      toast.success(`Updated ${payload.name}.`);
+      toast.success(
+        res.created ? `Added ${payload.name} to the portfolio sheet.` : `Updated ${payload.name}.`,
+      );
       await onSaved?.(updated);
       onOpenChange(false);
     } catch (e) {
