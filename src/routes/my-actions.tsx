@@ -234,7 +234,6 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
   const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && (!priority || w.workstreamPriority.toLowerCase() === priority.toLowerCase()))
     .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, priority]); // eslint-disable-line react-hooks/exhaustive-deps
-  const openWs = mine.filter((w) => !isWorkstreamCompleted(w)).length;
   const priorities = useMemo(() => [...new Set(mine.map((w) => w.workstreamPriority).filter(Boolean))].sort(), [mine]);
   const companies = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [workstreams]);
 
