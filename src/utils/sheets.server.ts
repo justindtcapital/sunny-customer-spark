@@ -3891,7 +3891,7 @@ export async function updatePortfolioCompany(entry: {
     // of failing, so the Edit button works for every portfolio company.
     if (!entry.upsertNew) return { updated: 0 };
     const urid = crypto.randomUUID();
-    const appendMap = { urid, ...valueByHeader };
+    const appendMap: Record<string, string> = { urid, ...valueByHeader };
     await appendSheetRow(TAB_NAMES.portfolio, headers.map((h) => appendMap[h] ?? ""));
     return { updated: 1, created: true, urid };
   }
