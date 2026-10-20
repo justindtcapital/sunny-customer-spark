@@ -51,6 +51,19 @@ function tanstackEmptyPluginAdaptersCompat(): Plugin {
   };
 }
 
+// Public (publishable) backend settings. Published builds do not receive the
+// git-ignored .env, so fall back to these values when the env var is absent.
+const PUBLIC_BACKEND_ENV = {
+  VITE_SUPABASE_URL: "https://xpnaijnjpdnchmtuzcmq.supabase.co",
+  VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_ZphGwE9HUKHuCFnMdj6QRA_UKAnIF8z",
+  VITE_SUPABASE_PROJECT_ID: "xpnaijnjpdnchmtuzcmq",
+} as const;
+
+// Vite's env loader also reads VITE_* values from process.env.
+for (const [key, fallback] of Object.entries(PUBLIC_BACKEND_ENV)) {
+  if (!process.env[key]) process.env[key] = fallback;
+}
+
 export default defineConfig({
   vite: {
     plugins: [tanstackEmptyPluginAdaptersCompat()],
