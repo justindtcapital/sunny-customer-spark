@@ -486,15 +486,14 @@ export function PortfolioDetail({
                       </h3>
                       <div className="flex flex-col items-end gap-1">
                         <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-1.5 text-[10px] font-medium"
-                            onClick={() => setEditOpen(true)}
-                          >
-                            <Pencil className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
-                        )}
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-[10px] font-medium"
+                          onClick={() => setEditOpen(true)}
+                        >
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"

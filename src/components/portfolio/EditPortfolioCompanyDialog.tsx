@@ -106,6 +106,7 @@ export function EditPortfolioCompanyDialog({
           <DialogTitle>Edit portfolio company</DialogTitle>
           <DialogDescription className="text-xs">
             Updates the Portfolio Companies sheet row. Website domain is used to match Key People.
+            If the company isn't in the sheet yet (Asana-only), saving creates its row.
           </DialogDescription>
         </DialogHeader>
 
