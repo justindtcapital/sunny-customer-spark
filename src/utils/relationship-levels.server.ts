@@ -51,7 +51,9 @@ export async function changeRelationshipLevels(input: { contacts: { urid?: strin
     if (!key || seen.has(key)) continue;
     seen.add(key);
     const source = rows.slice(1).find((r) => selected.urid ? cell(headers, r, "urid") === selected.urid : norm(cell(headers, r, "email")) === norm(selected.email));
-    const current = source ? cell(headers, source, "relationship status") as Temperature : undefined;
+    // Read the rating exactly as the app displays it (blank/odd casing → Cold).
+    const raw = source ? norm(cell(headers, source, "relationship status")) : "";
+    const current = (source ? ({ council: "Council", hot: "Hot", warm: "Warm", cold: "Cold" } as Record<string, Temperature>)[raw] || "Cold" : undefined) as Temperature | undefined;
     if (!source || !current || current !== selected.temperature) { result.skipped++; continue; }
     const next = nextRelationshipLevel(current, input.change);
     if (!next) { result.skipped++; continue; }
