@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_requests: {
+        Row: {
+          created_at: string
+          description: string
+          effort: string
+          id: string
+          kind: string
+          lovable_prompt: string
+          page: string
+          priority: string
+          requested_by: string
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          effort?: string
+          id?: string
+          kind?: string
+          lovable_prompt?: string
+          page?: string
+          priority?: string
+          requested_by?: string
+          status?: string
+          title: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          effort?: string
+          id?: string
+          kind?: string
+          lovable_prompt?: string
+          page?: string
+          priority?: string
+          requested_by?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       personal_granola_connections: {
         Row: {
           connected_at: string
