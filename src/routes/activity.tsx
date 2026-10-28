@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { fetchOpsLog } from "@/utils/sheets.functions";
 import { repairGmailNotesFn } from "@/utils/gmail-notes-repair.functions";
 import type { OpsLogEntry } from "@/utils/sheets.server";
+import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,10 +34,10 @@ import {
 export const Route = createFileRoute("/activity")({
   head: () => ({
     meta: [
-      { title: "Activity Log — VenturePulse" },
-      { name: "description", content: "Audit trail of every import, export, sync, edit and delete" },
-      { property: "og:title", content: "Activity Log — VenturePulse" },
-      { property: "og:description", content: "Audit trail of every import, export, sync, edit and delete" },
+      { title: "Admin — VenturePulse" },
+      { name: "description", content: "Troubleshooting assistant, fix and feature requests, and the activity log" },
+      { property: "og:title", content: "Admin — VenturePulse" },
+      { property: "og:description", content: "Troubleshooting assistant, fix and feature requests, and the activity log" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -159,12 +160,16 @@ function ActivityPage() {
 
   return (
     <div className="p-6 max-w-[1200px] mx-auto">
-      <div className="flex items-center justify-between mb-5">
+      <h1 className="text-lg font-bold text-foreground mb-4">Admin</h1>
+      <AdminWorkspace />
+      <details className="mt-8 rounded-xl border bg-card p-4">
+      <summary className="cursor-pointer text-sm font-semibold">Activity log</summary>
+      <div className="flex items-center justify-between mb-5 mt-4">
         <div>
-          <h1 className="flex items-center gap-2 text-lg font-bold text-foreground">
+          <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
             <ScrollText className="h-5 w-5 text-primary" />
             Activity Log
-          </h1>
+          </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Audit trail of every import, export, sync, edit, delete, enrichment and repair —
             written to the workbook's Ops Log tab.
@@ -318,6 +323,7 @@ function ActivityPage() {
           })}
         </div>
       )}
+      </details>
     </div>
   );
 }
