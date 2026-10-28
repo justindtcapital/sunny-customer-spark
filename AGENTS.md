@@ -30,3 +30,4 @@
 - EventPlanner owns the persistent shared sidebar and canonical filtered tracker rows for all event views; event-views adapts rows only for legacy list/chart presentation, and every selection opens the tracker detail to avoid divergent Asana datasets.
 - vite.config.ts seeds public VITE_ backend env into process.env; .env is git-ignored, so published builds would crash.
 - Admin fix/feature requests live in the Lovable Cloud admin_requests table (not Sheets); the in-app assistant only drafts tickets and never changes code — avoids Sheets quota/conflicts and false "fixed" claims.
+- Admin dictation uses complete PCM WAV capture and the existing transcription service; transcripts append to the editable message without sending, and leaving the page releases microphone tracks.
