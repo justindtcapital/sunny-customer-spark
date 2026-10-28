@@ -10,7 +10,9 @@ import { DictationButton } from "@/components/admin/DictationButton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bug, Lightbulb, LifeBuoy, Send, Copy, ArrowRightLeft, Trash2, Loader2, ClipboardList } from "lucide-react";
+import { Bug, Lightbulb, LifeBuoy, Send, Copy, ArrowRightLeft, Trash2, Loader2, ClipboardList, ExternalLink } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { buildHandoffPrompt, buildHandoffUrl } from "@/lib/lovable-handoff";
 
 type Draft = NonNullable<AssistantReply["draft"]>;
 interface RequestRow {
@@ -147,14 +149,37 @@ function RequestList({ kind, rows, uid, onUpdate, onRemove }: {
 }) {
   const Icon = kind === "fix" ? Bug : Lightbulb;
   const sorted = [...rows].sort((a, b) => Number(a.status === "done") - Number(b.status === "done") || (PRI_RANK[a.priority] ?? 1) - (PRI_RANK[b.priority] ?? 1));
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const active = sorted.filter((r) => r.status !== "done" && r.status !== "won't do");
+  const chosen = sorted.filter((r) => sel.has(r.id));
+  const allOn = active.length > 0 && active.every((r) => sel.has(r.id));
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  async function handoff() {
+    const prompt = buildHandoffPrompt(kind, chosen);
+    const { url, prefilled } = buildHandoffUrl(prompt);
+    try { await navigator.clipboard.writeText(prompt); } catch { /* ignore */ }
+    window.open(url, "_blank", "noopener");
+    toast.success(prefilled ? "Opened Lovable with your build sheet — review it, then send" : "Build sheet copied — paste it into Lovable's chat");
+    for (const r of chosen) if (r.status === "open") onUpdate(r.id, { status: "planned" });
+  }
   return (
     <section className="rounded-xl border bg-card p-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold mb-3"><Icon className="h-4 w-4 text-primary" /> {kind === "fix" ? "Fix requests" : "Feature requests"} <Badge variant="secondary">{rows.length}</Badge></h3>
+      {active.length > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox checked={allOn} onCheckedChange={() => setSel(allOn ? new Set() : new Set(active.map((r) => r.id)))} /> Select all open
+          </label>
+          <Button size="sm" className="ml-auto h-7 text-xs" disabled={chosen.length === 0} onClick={handoff}>
+            <ExternalLink className="h-3 w-3 mr-1" /> {kind === "fix" ? "Fix" : "Build"} in Lovable{chosen.length ? ` (${chosen.length})` : ""}
+          </Button>
+        </div>
+      )}
       {sorted.length === 0 && <p className="text-xs text-muted-foreground">None yet.</p>}
       <div className="space-y-2">
         {sorted.map((r) => (
           <div key={r.id} className={`rounded-lg border p-3 ${r.status === "done" || r.status === "won't do" ? "opacity-60" : ""}`}>
-            <div className="text-sm font-medium">{r.title}</div>
+            <div className="flex items-start gap-2 text-sm font-medium"><Checkbox className="mt-0.5" checked={sel.has(r.id)} onCheckedChange={() => toggle(r.id)} aria-label={`Select ${r.title}`} />{r.title}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{r.description}</div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <Select value={r.status} onValueChange={(v) => onUpdate(r.id, { status: v })}>
