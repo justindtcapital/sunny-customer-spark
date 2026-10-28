@@ -8,6 +8,13 @@
       "when": 1792446414258,
       "tag": "0000_personal_granola_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793200484517,
+      "tag": "0001_admin_requests",
+      "breakpoints": true
     }
   ]
 }

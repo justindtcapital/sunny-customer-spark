@@ -98,7 +98,7 @@ const navItems = [
   { title: "Partners", url: "/partners", icon: Handshake },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
   { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
-  { title: "Activity", url: "/activity", icon: ScrollText },
+  { title: "Admin", url: "/activity", icon: ScrollText },
 ];
 
 interface AppSidebarProps {

@@ -29,3 +29,4 @@
 - One-time event cleanup uses the pure event-cleanup plan and an explicitly applied, backed-up Sheets batch; keeper URIDs/statuses survive, attendee URIDs are remapped atomically, and merged names/Asana IDs remain in Source Ref for legacy contact links and read-only overlay suppression.
 - EventPlanner owns the persistent shared sidebar and canonical filtered tracker rows for all event views; event-views adapts rows only for legacy list/chart presentation, and every selection opens the tracker detail to avoid divergent Asana datasets.
 - vite.config.ts seeds public VITE_ backend env into process.env; .env is git-ignored, so published builds would crash.
+- Admin fix/feature requests live in the Lovable Cloud admin_requests table (not Sheets); the in-app assistant only drafts tickets and never changes code — avoids Sheets quota/conflicts and false "fixed" claims.
