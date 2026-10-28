@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { askAdminAssistantFn, type AssistantReply, type AssistantTurn } from "@/utils/admin-assistant.functions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DictationButton } from "@/components/admin/DictationButton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +27,7 @@ export function AdminWorkspace() {
   const [turns, setTurns] = useState<AssistantTurn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dictating, setDictating] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [uid, setUid] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function AdminWorkspace() {
 
   async function send() {
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text || busy || dictating) return;
     const next = [...turns, { role: "user" as const, text }];
     setTurns(next); setInput(""); setBusy(true);
     try {
@@ -118,9 +120,12 @@ export function AdminWorkspace() {
           </div>
         )}
         <div className="flex gap-2">
-          <Textarea rows={2} value={input} placeholder="e.g. Bulk demote says 'already at limit' for 6 people…" onChange={(e) => setInput(e.target.value)}
+          <Textarea aria-label="Troubleshooting message" rows={2} value={input} placeholder="e.g. Bulk demote says 'already at limit' for 6 people…" onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} />
-          <Button onClick={send} disabled={busy || !input.trim()} size="icon" className="shrink-0 self-end"><Send className="h-4 w-4" /></Button>
+          <div className="flex shrink-0 self-end gap-2">
+            <DictationButton disabled={busy} onBusyChange={setDictating} onText={(text) => setInput((previous) => previous.trim() ? `${previous.trimEnd()} ${text}` : text)} />
+            <Button aria-label="Send troubleshooting message" title="Send message" onClick={send} disabled={busy || dictating || !input.trim()} size="icon"><Send className="h-4 w-4" /></Button>
+          </div>
         </div>
       </section>
 
