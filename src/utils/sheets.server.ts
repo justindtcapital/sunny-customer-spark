@@ -1475,6 +1475,7 @@ const CONTACT_COLS: Record<string, string> = {
   "date added": "dateAdded",
   "contact type": "contactType",
   "areas of interest": "areasOfInterest",
+  "primary area of interest": "primaryArea",
   // Canonical record source (accept a couple of legacy header names).
   source: "source",
   "lead source": "source",
@@ -2594,6 +2595,7 @@ export async function buildContacts(): Promise<Contact[]> {
       prime: c.prime || "",
       sector: c.sector || "",
       areasOfInterest,
+      primaryArea: c.primaryArea || undefined,
       temperature,
       portCoIntros,
       portCoEngagements,
@@ -3291,6 +3293,7 @@ const BULK_FIELD_HEADERS: Record<BulkEditField, string> = {
   company: "company",
   contactType: "contact type",
   areasOfInterest: "areas of interest",
+  primaryArea: "primary area of interest",
   source: "source",
 };
 

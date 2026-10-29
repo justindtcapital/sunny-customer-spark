@@ -46,10 +46,12 @@ const FIELDS: { key: BulkEditField; label: string }[] = [
   { key: "location", label: "Location" },
   { key: "contactType", label: "Contact Type" },
   { key: "areasOfInterest", label: "Area of Interest" },
+  { key: "primaryArea", label: "Primary Area of Interest" },
   { key: "source", label: "Source" },
 ];
 
-const TEMPERATURES: Temperature[] = ["Hot", "Warm", "Cold"];
+const TEMPERATURES: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
+const PRIMARY_AREAS = ["Security", "AI & Data", "Logistics", "Other"];
 
 // Selectable Contact Primes for the bulk-edit multi-select.
 const PRIMES = ["Julia", "Hillock", "Falloon", "Shane"] as const;
@@ -216,6 +218,7 @@ export function BulkEditBar() {
           else if (field === "title") u.title = v;
           else if (field === "company") u.company = v;
           else if (field === "contactType") u.contactType = v;
+          else if (field === "primaryArea") u.primaryArea = v;
           else if (field === "source") u.source = v as Contact["source"];
           else if (field === "areasOfInterest")
             u.areasOfInterest = v.split(",").map((s) => s.trim()).filter(Boolean);
@@ -261,6 +264,14 @@ export function BulkEditBar() {
         <Select value={value} onValueChange={setValue}>
           <SelectTrigger className="h-8 w-36 text-sm"><SelectValue placeholder="Choose status…" /></SelectTrigger>
           <SelectContent>{TEMPERATURES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+        </Select>
+      );
+    }
+    if (field === "primaryArea") {
+      return (
+        <Select value={value} onValueChange={setValue}>
+          <SelectTrigger className="h-8 w-44 text-sm"><SelectValue placeholder="Choose area…" /></SelectTrigger>
+          <SelectContent>{PRIMARY_AREAS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
         </Select>
       );
     }
@@ -385,7 +396,7 @@ export function BulkEditBar() {
           <AlertDialogHeader>
             <AlertDialogTitle>{levelChange === "promote" ? "Promote" : "Demote"} {count} selected contact{count === 1 ? "" : "s"}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {levelChange === "promote" ? "Move each selected contact up one level. Hot and Council remain unchanged." : "Move each selected contact down one level. Cold contacts move to Prospecting; Council remains unchanged."}
+              {levelChange === "promote" ? "Move each selected contact up one level. Hot moves to Council; Council remains unchanged." : "Move each selected contact down one level. Council moves to Hot; Cold contacts move to Prospecting."}
               {levelChange !== "promote" && " Contact details and existing history are retained."}
             </AlertDialogDescription>
           </AlertDialogHeader>
