@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useFilters } from "@/lib/filter-context";
 import type { Contact } from "@/lib/types";
-import { ownerMatches, type TeamProfile } from "@/lib/user-ownership";
+import { isMyContact, ownerMatches, type TeamProfile } from "@/lib/user-ownership";
 import { fetchNetworkPyramid, saveNetworkTargets } from "@/utils/sheets.functions";
 import {
   dotBreakdown, marketFor, movementKpis, primaryDomainFor, MARKETS, PRIMARY_DOMAINS, PYRAMID_TIERS, WINDOWS,
@@ -47,25 +48,28 @@ function MiniPyramid() {
 
 function TierChart({ counts }: { counts: Record<PyramidTier, number | null> }) {
   return <div className="network-tier-chart" aria-label="Relationship tiers">
-    <svg viewBox="0 0 160 250" className="h-full w-full" aria-hidden="true" preserveAspectRatio="none">
+    <svg viewBox="0 0 200 250" className="h-full w-full" preserveAspectRatio="xMidYMid meet" role="img"
+      aria-label={PYRAMID_TIERS.map(t => `${t === "Prospect" ? "Prospects" : t} ${counts[t] ?? "pending"}`).join(", ")}>
       {PYRAMID_TIERS.map((tier, i) => {
-        const top = i * 50 + 2, bottom = (i + 1) * 50 - 2;
-        const topWidth = i * 32, bottomWidth = (i + 1) * 32;
-        return <polygon key={tier} className={cn("fill-current", tierTone[tier])} points={`${80-topWidth/2},${top} ${80+topWidth/2},${top} ${80+bottomWidth/2},${bottom} ${80-bottomWidth/2},${bottom}`} />;
+        const top = i * 50 + 1.5, bottom = (i + 1) * 50 - 1.5;
+        const topWidth = i * 40, bottomWidth = (i + 1) * 40;
+        const label = tier === "Prospect" ? "Prospects" : tier;
+        const n = counts[tier];
+        const small = i === 0;
+        return <g key={tier} className={tierTone[tier]}>
+          <polygon className="fill-current" points={`${100-topWidth/2},${top} ${100+topWidth/2},${top} ${100+bottomWidth/2},${bottom} ${100-bottomWidth/2},${bottom}`} />
+          <text x={100} y={small ? bottom - 17 : bottom - 21} textAnchor="middle" className="fill-background font-semibold tabular-nums" style={{ fontSize: small ? 11 : 17 }}>{n?.toLocaleString() ?? "—"}</text>
+          <text x={100} y={bottom - 5} textAnchor="middle" className="fill-background font-medium uppercase" style={{ fontSize: small ? 6.5 : 8, letterSpacing: small ? 0.2 : 1 }}>{label}</text>
+        </g>;
       })}
     </svg>
-    <div className="grid grid-rows-5">
-      {PYRAMID_TIERS.map(tier => <div key={tier} className="flex min-w-0 items-center justify-between gap-3 border-b border-border/60 last:border-0">
-        <span className={cn("text-xs font-medium", tierTone[tier])}>{tier === "Prospect" ? "Prospects" : tier}</span>
-        <span className="text-xl font-semibold tabular-nums text-foreground">{counts[tier]?.toLocaleString() ?? "—"}</span>
-      </div>)}
-    </div>
   </div>;
 }
 
 export function NetworkPyramid({
-  contacts, profile, selection, onSelect, expanded, onExpandedChange: setExpanded,
+  contacts, profile, ownedGids, selection, onSelect, expanded, onExpandedChange: setExpanded,
 }: {
+  ownedGids?: Set<string>;
   expanded: boolean;
   onExpandedChange: (v: boolean) => void;
   contacts: Contact[];
@@ -74,7 +78,11 @@ export function NetworkPyramid({
   onSelect: (s: PyramidSelection | null) => void;
 }) {
   const [view, setView] = useState<View>("domain");
-  const [scope, setScope] = useState<"mine" | "ours">("ours");
+  // Scope is shared with the sidebar's "My contacts / Everyone" switch so both always agree.
+  const { filters, setFilters } = useFilters();
+  const scope: "mine" | "ours" = filters.ownershipScope === "everyone" ? "ours" : "mine";
+  const setScope = (s: "mine" | "ours") => setFilters({ ...filters, ownershipScope: s === "mine" ? "mine" : "everyone" });
+  const owned = useMemo(() => ownedGids || new Set<string>(), [ownedGids]);
   const [win, setWin] = useState<WindowKey>("30d");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -83,16 +91,17 @@ export function NetworkPyramid({
   const pyramidQuery = useQuery({ queryKey: ["network-pyramid"], queryFn: () => fetchNetworkPyramid(), enabled: expanded, staleTime: 5 * 60_000 });
   const data = pyramidQuery.data;
 
-  const mine = scope === "mine" && profile;
+  const mine = scope === "mine";
   const people = useMemo(() => {
-    const net = contacts.filter((c) => !mine || (!profile || ownerMatches(c.prime, profile))).map((c) => ({
+    const net = contacts.filter((c) => !mine || (!!profile && isMyContact(c, owned, profile))).map((c) => ({
       email: c.email, tier: c.temperature as PyramidTier, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), dateAdded: c.dateAdded,
     }));
-    const pros = (data?.prospects || []).filter((p) => !mine || (!profile || ownerMatches(p.prime, profile))).map((p) => ({
+    const pros = (data?.prospects || []).filter((p) => !mine || (!!profile && ownerMatches(p.prime, profile))).map((p) => ({
       email: p.email, tier: "Prospect" as PyramidTier, domain: primaryDomainFor("", p.areas), market: marketFor(p.location), dateAdded: p.dateAdded,
     }));
     return [...net, ...pros];
-  }, [contacts, data, mine, profile]);
+  }, [contacts, data, mine, profile, owned]);
+  const sidebarCount = Object.entries(filters).filter(([k, v]) => !["search", "ownershipScope", "dateField"].includes(k) && (Array.isArray(v) ? v.length > 0 : typeof v === "boolean" ? v : typeof v === "string" ? !!v : false)).length;
 
   const counts = useMemo(() => {
     const out = Object.fromEntries(PYRAMID_TIERS.map((t) => [t, 0])) as Record<PyramidTier, number | null>;
@@ -142,7 +151,7 @@ export function NetworkPyramid({
             <h2 className="text-base font-semibold text-foreground">Network overview</h2>
             {pyramidQuery.isFetching && <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">{scope === "mine" ? "My relationships" : "DTC relationships"} · {people.length.toLocaleString()} people{!data && " · prospects pending"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{scope === "mine" ? "My contacts" : "Everyone at DTC"} · {people.length.toLocaleString()} people{!data && " · prospects pending"}{sidebarCount > 0 && ` · ${sidebarCount} sidebar filter${sidebarCount > 1 ? "s" : ""} also narrow the list below`}</p>
         </div>
         <Button size="icon" variant="ghost" className="size-8 shrink-0" onClick={() => setExpanded(false)} title="Collapse" aria-label="Collapse Network overview"><ChevronUp /></Button>
         <div className="network-view-controls col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-3">
@@ -153,7 +162,7 @@ export function NetworkPyramid({
             })}
           </div>
           <div className="inline-flex rounded-md border p-1" aria-label="Network scope">
-            {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My Network" : "Our Network"}</Button>)}
+            {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My contacts" : "Everyone"}</Button>)}
           </div>
         </div>
       </header>
