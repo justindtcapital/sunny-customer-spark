@@ -31,6 +31,14 @@ async function savedPeople(): Promise<SavedPerson[]> {
   });
 }
 
+/** Existing Network/Prospecting person with any of these email addresses (authoritative read). */
+export async function findSavedPersonByEmail(email?: string): Promise<{ name: string; where: string } | null> {
+  const wanted = emailIdentities(email);
+  if (!wanted.length) return null;
+  const hit = (await savedPeople()).find((p) => emailIdentities(p.email).some((e) => wanted.includes(e)));
+  return hit ? { name: hit.name || hit.email || "existing person", where: hit.where } : null;
+}
+
 function classify(input: Record<string, unknown> & PersonIdentity, saved: SavedPerson[], where: string, hasAssociations: boolean): { status: "new" | "duplicate" | "review"; reason: string } {
   const candidates = peopleCandidates(input, saved);
   if (!candidates.length) {

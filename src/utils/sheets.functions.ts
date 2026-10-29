@@ -450,6 +450,12 @@ export const addContact = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data }) => {
+    // Reuse instead of duplicating: an email already in Network or Prospecting is never added again.
+    const { findSavedPersonByEmail } = await import("./bulk-import.server");
+    const existing = await findSavedPersonByEmail(data.email);
+    if (existing) {
+      throw new Error(`${existing.name} is already in ${existing.where} with this email — open that person instead.`);
+    }
     // Ensure the Source columns exist before the header-aware append writes them.
     await ensureColumn(TAB_NAMES.contacts, "Source");
     if (data.followUp) await ensureColumn(TAB_NAMES.contacts, "Follow Up Flag");
