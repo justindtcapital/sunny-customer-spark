@@ -28,7 +28,7 @@ function Dots({ n, className }: { n: number; className?: string }) {
   return (
     <div className={cn("flex flex-wrap items-center gap-0.5", className)}>
       {dotBreakdown(n).flatMap(({ size, count }) =>
-        Array.from({ length: Math.min(count, 12) }, (_, i) => (
+        Array.from({ length: Math.min(count, 6) }, (_, i) => (
           <span key={`${size}-${i}`} className="rounded-full bg-pyramid-dot ring-1 ring-pyramid-foreground/40" style={{ width: px[size], height: px[size] }} />
         )),
       )}
