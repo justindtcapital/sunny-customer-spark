@@ -1,3 +1,4 @@
+import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useState, useEffect } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PortfolioCompany, Contact, EmailActivityRecord } from "@/lib/types";
@@ -109,18 +110,6 @@ const KEY_PEOPLE_MAX_HEIGHT = "240px";
 
 const actionBtnClass = "h-7 text-[11px] font-medium";
 
-function getLogoUrl(website: string) {
-  if (!website?.trim()) return null;
-  const raw = website.trim();
-  // Accept bare domains (e.g. "coactive.ai") by adding a protocol before parsing.
-  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  try {
-    const url = new URL(withProtocol);
-    return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
-  } catch {
-    return null;
-  }
-}
 
 export function PortfolioDetail({
   company,
@@ -415,7 +404,6 @@ export function PortfolioDetail({
     return best;
   })();
 
-  const logoUrl = getLogoUrl(company.website);
 
   return (
     <>
@@ -424,31 +412,7 @@ export function PortfolioDetail({
           <SheetHeader className="pb-4 border-b border-border shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                  {logoUrl ? (
-                    <img
-                      src={logoUrl}
-                      alt={company.name}
-                      className="h-9 w-9 object-contain"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        target.style.display = "none";
-                        if (target.nextElementSibling)
-                          (target.nextElementSibling as HTMLElement).style.display = "";
-                      }}
-                    />
-                  ) : null}
-                  <span
-                    className="text-lg font-bold text-primary"
-                    style={logoUrl ? { display: "none" } : {}}
-                  >
-                    {company.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </span>
-                </div>
+                <PortcoLogo name={company.name} website={company.website} size="lg" />
                 <div>
                   <SheetTitle className="text-base">{company.name}</SheetTitle>
                   <SheetDescription className="flex items-center gap-1">

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { companyLogoSources, resolveCompanyLogoDomain } from "@/lib/domain-utils";
-import { linkedinIdentity } from "@/lib/import-dedupe";
 
 const SHARED_HOSTS = /(^|\.)(linkedin\.com|crunchbase\.com|pitchbook\.com|angel\.co|wellfound\.com|twitter\.com|x\.com|facebook\.com)$/i;
-void linkedinIdentity;
 
 /** Company logo from its website via the shared source ladder; initials fallback. */
 export function PortcoLogo({

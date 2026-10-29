@@ -1,6 +1,7 @@
 import type { PortfolioCompany } from "@/lib/types";
 import type { PortfolioCompanyCounts } from "@/routes/portfolio";
 import { Card, CardContent } from "@/components/ui/card";
+import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Building2, Mail, MapPin, Users, Calendar, Link2 } from "lucide-react";
@@ -13,19 +14,6 @@ interface PortfolioCardProps {
   onToggleSelect?: (id: string) => void;
 }
 
-function getLogoUrl(website: string) {
-  if (!website?.trim()) return null;
-  const raw = website.trim();
-  // Accept bare domains (e.g. "coactive.ai") by adding a protocol before parsing.
-  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  try {
-    const url = new URL(withProtocol);
-    return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
-  } catch {
-    return null;
-  }
-}
-
 export function PortfolioCard({
   company,
   counts,
@@ -33,7 +21,6 @@ export function PortfolioCard({
   selected = false,
   onToggleSelect,
 }: PortfolioCardProps) {
-  const logoUrl = getLogoUrl(company.website);
 
   return (
     <Card
@@ -58,26 +45,7 @@ export function PortfolioCard({
                 />
               </div>
             )}
-            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden shrink-0">
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt={company.name}
-                  className="h-7 w-7 object-contain"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.style.display = "none";
-                    if (target.nextElementSibling) (target.nextElementSibling as HTMLElement).style.display = "";
-                  }}
-                />
-              ) : null}
-              <span
-                className="text-sm font-semibold text-primary"
-                style={logoUrl ? { display: "none" } : {}}
-              >
-                {company.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-              </span>
-            </div>
+            <PortcoLogo name={company.name} website={company.website} />
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-foreground truncate">{company.name}</h3>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
