@@ -23,7 +23,7 @@ import type { AsanaEvent, Contact } from "@/lib/types";
 import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
-  sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, parseTrackerDate, splitList, parseEventDate, dominantYear, dtcStatusOf,
+  sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
   duplicateKey,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
@@ -853,10 +853,10 @@ function CsvImportDialog({ open, onClose, onDone }: { open: boolean; onClose: ()
       const message = `Imported ${r.added} event${r.added === 1 ? "" : "s"}${r.skipped.length ? ` · ${r.skipped.length} exact duplicates skipped` : ""}${r.review.length ? ` · ${r.review.length} need review in Admin` : ""}${rejected.length ? ` · ${rejected.length} rejected` : ""}`;
       if (!r.added) toast.error(message); else if (r.review.length || rejected.length) toast.warning(message); else toast.success(message);
       const savedNames = new Set(r.outcomes.filter((o: { status: string }) => o.status === "changed").map((o: { label: string }) => o.label));
-      const saved = events.filter((e) => savedNames.has(clean(e.name)));
+      const saved = events.filter((e) => savedNames.has((e.name || "").trim()));
       const firstDate = saved.map((e) => e.start || "").filter(Boolean).sort()[0] || "";
       setRows([]);
-      onDone({ firstDate, statuses: [...new Set(saved.map((e) => dtcStatusOf(e as PlannerEvent)))] });
+      onDone({ firstDate, statuses: [...new Set(saved.map((e) => dtcStatusOf(e as PlannerEvent, today())))] });
       if (!rejected.length) onClose();
     } catch (e) {
       toast.error((e as Error).message);
