@@ -1,5 +1,9 @@
 # Roadmap
 
+## Network bulk-action fixes
+- [ ] Fix safe, idempotent Network-to-Prospecting transfers and reconcile the list — awaiting plan approval
+- [ ] Fix promotion/demotion rejections, show per-contact outcomes, and verify mixed batches/retries — awaiting plan approval
+
 ## Network dashboard visual refresh
 - [x] Refine the pyramid, statistics and controls without changing counts or data
 - [x] Verify signed-in desktop and mobile layouts, views and contact filtering
