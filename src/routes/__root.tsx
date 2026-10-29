@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { LoginScreen } from "@/components/login-screen";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
+import { VicButton } from "@/components/vic/VicPanel";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import appCss from "../styles.css?url";
@@ -129,6 +130,7 @@ function AuthGate() {
                       <main className="flex-1 overflow-auto">
                         <Outlet />
                       </main>
+                      <VicButton />
                     </div>
                   </div>
                 </SidebarProvider>
