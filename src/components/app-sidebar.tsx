@@ -583,7 +583,7 @@ export function AppSidebar({
                       Temperature
                     </label>
                     <MultiSelect
-                      options={["Hot", "Warm", "Cold"]}
+                      options={["Council", "Hot", "Warm", "Cold", "PortCo"]}
                       value={filters.temperature}
                       onChange={(v) => update({ temperature: v })}
                       placeholder="All"

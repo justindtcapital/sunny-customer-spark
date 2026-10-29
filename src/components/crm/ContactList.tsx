@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import type { Contact, ContactFilters as Filters } from "@/lib/types";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { locationMatches } from "@/lib/location-utils";
+import { matchesTemperatureFilter } from "@/lib/portco-contacts";
 import { isMyContact, type TeamProfile } from "@/lib/user-ownership";
 import { ContactCard } from "./ContactCard";
 import { ContactTable } from "./ContactTable";
@@ -49,7 +50,7 @@ export function ContactList({
       if (filters.search.trim() && scoreContactSearch(c, filters.search) <= 0) return false;
       // Multi-select categorical filters: empty = no filter; OR within each field.
       if (filters.sector.length && !filters.sector.includes(c.sector)) return false;
-      if (filters.temperature.length && !filters.temperature.includes(c.temperature)) return false;
+      if (!matchesTemperatureFilter(c, filters.temperature)) return false;
       if (filters.prime.length && !filters.prime.includes(c.prime)) return false;
       if (
         filters.areaOfInterest.length &&
