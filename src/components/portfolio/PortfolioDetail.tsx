@@ -442,6 +442,16 @@ export function PortfolioDetail({
 
           <ScrollArea className="flex-1 -mx-6 px-6">
             <div className="py-5 space-y-6">
+              {!isSheetBacked && (
+                <section className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-xs flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground">
+                    Only in Asana — not yet set up in Venture Pulse, so no website, logo or details.
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => setEditOpen(true)}>
+                    Set up company
+                  </Button>
+                </section>
+              )}
               {/* Description */}
               <section className="border-b border-border pb-4">
                 <p className="text-sm text-muted-foreground">{company.description}</p>

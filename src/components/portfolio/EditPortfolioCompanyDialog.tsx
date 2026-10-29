@@ -17,6 +17,7 @@ import { Loader2, Pencil } from "lucide-react";
 import { updatePortfolioCompany } from "@/utils/sheets.functions";
 import { normalizeFocusArea } from "@/lib/focus-area-utils";
 import { toast } from "sonner";
+import { lookupCompanyFn } from "@/utils/portco-lookup.functions";
 import { parseDomainList } from "@/lib/company-domains";
 import { isLinkedInCompanyUrl } from "@/lib/portco-fields";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
@@ -51,6 +52,32 @@ export function EditPortfolioCompanyDialog({
   const [linkedin, setLinkedin] = useState("");
   const linkedinInvalid = !isLinkedInCompanyUrl(linkedin);
   const [busy, setBusy] = useState(false);
+  const [finding, setFinding] = useState(false);
+  const [findNote, setFindNote] = useState("");
+
+  // Look up the real company (website + LinkedIn) and fill blanks only, for review before save.
+  const findCompany = async () => {
+    setFinding(true);
+    setFindNote("");
+    try {
+      const r = await lookupCompanyFn({ data: { name: name.trim(), website: website.trim(), linkedinUrl: linkedin.trim() } });
+      if (!website.trim() && r.website) setWebsite(r.website);
+      if (!linkedin.trim() && r.linkedinUrl && isLinkedInCompanyUrl(r.linkedinUrl)) setLinkedin(normalizeLinkedinUrl(r.linkedinUrl));
+      if (!focusArea.trim() && r.focusArea) setFocusArea(r.focusArea);
+      if (!location.trim() && r.location) setLocation(r.location);
+      if (!description.trim() && r.description) setDescription(r.description);
+      setFindNote(
+        r.website || r.description
+          ? "Filled empty fields. Check the website and LinkedIn are the right company before saving."
+          : "No match found. Add the website or LinkedIn page by hand.",
+      );
+    } catch (e) {
+      console.error("lookupCompany failed", e);
+      setFindNote("Lookup failed. Try again, or enter the website by hand.");
+    } finally {
+      setFinding(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || !company) return;
@@ -62,6 +89,7 @@ export function EditPortfolioCompanyDialog({
     setAliases((company.domainAliases || []).join(", "));
     setLinkedin(company.linkedinUrl || "");
     setBusy(false);
+    setFindNote("");
   }, [open, company]);
 
   const submit = async () => {
@@ -125,6 +153,13 @@ export function EditPortfolioCompanyDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => void findCompany()} disabled={finding || !name.trim()}>
+            {finding && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+            Find website &amp; details
+          </Button>
+          {findNote && <span className="text-[11px] text-muted-foreground">{findNote}</span>}
+        </div>
         <div className="grid grid-cols-2 gap-3 py-2">
           <div className="col-span-2">
             <Label className={labelClass}>Company name *</Label>
