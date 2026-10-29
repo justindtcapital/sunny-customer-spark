@@ -48,18 +48,21 @@ function MiniPyramid() {
 
 function TierChart({ counts }: { counts: Record<PyramidTier, number | null> }) {
   return <div className="network-tier-chart" aria-label="Relationship tiers">
-    <svg viewBox="0 0 200 250" className="h-full w-full" preserveAspectRatio="xMidYMid meet" role="img"
+    <svg viewBox="0 0 240 250" className="h-full w-full" preserveAspectRatio="xMidYMid meet" role="img"
       aria-label={PYRAMID_TIERS.map(t => `${t === "Prospect" ? "Prospects" : t} ${counts[t] ?? "pending"}`).join(", ")}>
       {PYRAMID_TIERS.map((tier, i) => {
         const top = i * 50 + 1.5, bottom = (i + 1) * 50 - 1.5;
-        const topWidth = i * 40, bottomWidth = (i + 1) * 40;
+        const topWidth = i * 48, bottomWidth = (i + 1) * 48;
         const label = tier === "Prospect" ? "Prospects" : tier;
         const n = counts[tier];
-        const small = i === 0;
+        const apex = i === 0;
+        // Left edge x at the label baseline (edge slopes 24 units per band).
+        const labelY = bottom - 4;
+        const leftAtLabel = 120 - topWidth / 2 - ((labelY - top) / (bottom - top)) * 24;
         return <g key={tier} className={tierTone[tier]}>
-          <polygon className="fill-current" points={`${100-topWidth/2},${top} ${100+topWidth/2},${top} ${100+bottomWidth/2},${bottom} ${100-bottomWidth/2},${bottom}`} />
-          <text x={100} y={small ? bottom - 17 : bottom - 21} textAnchor="middle" className="fill-background font-semibold tabular-nums" style={{ fontSize: small ? 11 : 17 }}>{n?.toLocaleString() ?? "—"}</text>
-          <text x={100} y={bottom - 5} textAnchor="middle" className="fill-background font-medium uppercase" style={{ fontSize: small ? 6.5 : 8, letterSpacing: small ? 0.2 : 1 }}>{label}</text>
+          <polygon className="fill-current" points={`${120-topWidth/2},${top} ${120+topWidth/2},${top} ${120+bottomWidth/2},${bottom} ${120-bottomWidth/2},${bottom}`} />
+          <text x={120} y={apex ? top + 30 : (top + bottom) / 2 + 4} textAnchor="middle" className="fill-background font-semibold tabular-nums" style={{ fontSize: apex ? 12 : 18 }}>{n?.toLocaleString() ?? "—"}</text>
+          <text x={leftAtLabel + (apex ? 3 : 6)} y={labelY} textAnchor="start" className="fill-background font-medium uppercase" style={{ fontSize: apex ? 6 : 7.5, letterSpacing: apex ? 0.2 : 0.8 }}>{label}</text>
         </g>;
       })}
     </svg>

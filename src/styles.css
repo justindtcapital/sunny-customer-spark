@@ -504,7 +504,7 @@
 .network-overview { container-type: inline-size; }
 .network-overview-body {
   display: grid;
-  grid-template-columns: minmax(170px, 0.8fr) minmax(0, 2.6fr);
+  grid-template-columns: minmax(210px, 1fr) minmax(0, 2.4fr);
   gap: 24px;
 }
 .network-tier-chart {
