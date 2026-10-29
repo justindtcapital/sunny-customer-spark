@@ -13,6 +13,7 @@ import { matchSheetToAsanaKeys } from "@/lib/portco-names";
 import { dedupePortfolioCompanies } from "@/lib/portco-dedupe";
 import { PortfolioCard } from "@/components/portfolio/PortfolioCard";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
+import { compareCompanyNames } from "@/lib/portco-fields";
 import { AddPortfolioCompanyDialog } from "@/components/portfolio/AddPortfolioCompanyDialog";
 import { ContactDetail } from "@/components/crm/ContactDetail";
 import { ContactAvatar } from "@/components/crm/ContactAvatar";
@@ -408,7 +409,7 @@ function PortfolioPage() {
           if (!inv || !filters.leadInvestor.includes(inv)) return false;
         }
         return true;
-      }),
+      }).sort(compareCompanyNames),
     [companies, filters],
   );
 

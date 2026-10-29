@@ -1,3 +1,4 @@
+import { isLinkedInCompanyUrl } from "@/lib/portco-fields";
 import { requireTeamAuth } from "./team-auth";
 import { createServerFn } from "@tanstack/react-start";
 import { parseToIsoDate, todayIso } from "@/lib/sheet-date";
@@ -156,10 +157,13 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
       domainAliases?: string[];
       /** Dismissed domain suggestions. */
       dismissedDomains?: string[];
+      linkedinUrl?: string;
       /** Create the sheet row when no matching row is found (Asana-only portcos). */
       upsertNew?: boolean;
     }) => {
       if (!data.name?.trim()) throw new Error("Company name is required");
+      if (data.linkedinUrl !== undefined && !isLinkedInCompanyUrl(data.linkedinUrl))
+        throw new Error("LinkedIn URL must be a linkedin.com/company/… page");
       if (data.domainAliases && (!Array.isArray(data.domainAliases) || data.domainAliases.length > 30))
         throw new Error("Invalid domain list");
       if (data.dismissedDomains && (!Array.isArray(data.dismissedDomains) || data.dismissedDomains.length > 200))
