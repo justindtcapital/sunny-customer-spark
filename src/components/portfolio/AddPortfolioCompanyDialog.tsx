@@ -17,6 +17,9 @@ import { addPortfolioCompany, addContact } from "@/utils/sheets.functions";
 import { lookupCompanyFn, suggestKeyPeopleFn } from "@/utils/portco-lookup.functions";
 import { enrichContact } from "@/utils/apollo.functions";
 import { toast } from "sonner";
+import type { PortfolioCompany } from "@/lib/types";
+import { companyDomainMap, findCompanyClash, normalizeDomain } from "@/lib/company-domains";
+import { saveCompanyDomains } from "./save-company-domains";
 
 const labelClass =
   "text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block";
@@ -30,10 +33,15 @@ export function AddPortfolioCompanyDialog({
   open,
   onOpenChange,
   onAdded,
+  companies = [],
+  onOpenExisting,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onAdded?: () => void | Promise<void>;
+  /** Existing companies, checked by name, website and verified domains before creating. */
+  companies?: PortfolioCompany[];
+  onOpenExisting?: (company: PortfolioCompany) => void;
 }) {
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
@@ -53,6 +61,24 @@ export function AddPortfolioCompanyDialog({
     setName(""); setWebsite(""); setLinkedinUrl(""); setFocusArea(""); setLocation("");
     setDescription(""); setBusy(false); setLooking(false); setLookupNote("");
     setPeople(null); setPeopleError(""); setPicked(new Set());
+  };
+
+  const clash = name.trim() ? findCompanyClash(companies, { name: name.trim(), website }) : null;
+  const newDomain = normalizeDomain(website);
+  const canAddDomain = !!(clash && newDomain && !companyDomainMap(clash.company).has(newDomain));
+  const addDomainToExisting = async () => {
+    if (!clash || !newDomain) return;
+    setBusy(true);
+    const updated = await saveCompanyDomains(clash.company, {
+      domainAliases: [...(clash.company.domainAliases || []), newDomain],
+    });
+    setBusy(false);
+    if (!updated) return;
+    toast.success(`Added ${newDomain} to ${clash.company.name}.`);
+    await onAdded?.();
+    reset();
+    onOpenChange(false);
+    onOpenExisting?.(updated);
   };
 
   const canLookup = !!(website.trim() || linkedinUrl.trim() || name.trim());
@@ -102,7 +128,7 @@ export function AddPortfolioCompanyDialog({
     });
 
   const submit = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || clash) return;
     setBusy(true);
     try {
       await addPortfolioCompany({
@@ -241,9 +267,29 @@ export function AddPortfolioCompanyDialog({
           </div>
         </div>
 
+        {clash && (
+          <div className="rounded-md border border-border bg-muted/50 p-3 text-xs">
+            <p className="font-medium text-foreground">
+              {clash.company.name} is already in the portfolio ({clash.reason}).
+            </p>
+            <p className="mt-0.5 text-muted-foreground">Reuse it instead of creating a second company.</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {onOpenExisting && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => { const c = clash.company; reset(); onOpenChange(false); onOpenExisting(c); }}>
+                  Open existing
+                </Button>
+              )}
+              {canAddDomain && (
+                <Button size="sm" variant="outline" disabled={busy} onClick={() => void addDomainToExisting()}>
+                  Add {newDomain} to {clash.company.name}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || !name.trim()}>
+          <Button onClick={submit} disabled={busy || !name.trim() || !!clash}>
             {busy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Building2 className="h-3.5 w-3.5 mr-1" />}
             Add company{picked.size ? ` + ${picked.size}` : ""}
           </Button>

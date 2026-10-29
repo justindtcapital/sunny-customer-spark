@@ -5,6 +5,7 @@
 import { appendSheetRow, appendSheetRows, ensureColumn, ensureTab, fetchSheetTab, updateSheetCells } from "./sheets.server";
 import { SEED_PARTNERS, matchPartner, normalizeCategory, type Partner, type PartnerCategory } from "@/lib/partners";
 import { createRequestState } from "./request-state.server";
+import { linkContactsByDomain, parseDomainList, validateDomainAliases } from "@/lib/company-domains";
 
 const TAB = "Partners";
 const HEADERS = ["Name", "Category", "Website", "Notes", "Aliases", "Created", "Summary", "Location"];
@@ -74,6 +75,7 @@ export async function listPartners(): Promise<Partner[]> {
       name, category: normalizeCategory(at(r, "category")), website: at(r, "website"), notes: at(r, "notes"),
       aliases: at(r, "aliases").split(/\s*,\s*/).filter(Boolean),
       summary: at(r, "summary"), location: at(r, "location"),
+      domainAliases: parseDomainList(at(r, "email domains")),
     });
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -89,7 +91,34 @@ export async function addPartner(input: { name: string; category: PartnerCategor
   return p;
 }
 
-export interface PartnerContact { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" }
+export interface PartnerContact { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting"; via?: string }
+
+/** Partner for a person: company-name match first, else an exact website/verified email domain. */
+function partnerFor(p: { company: string; email: string }, partners: Partner[]): { partner: Partner; via?: string } | null {
+  const byName = matchPartner(p.company, partners);
+  if (byName) return { partner: byName };
+  for (const partner of partners) {
+    const hit = linkContactsByDomain([p], { name: partner.name, website: partner.website, domainAliases: partner.domainAliases })[0];
+    if (hit) return { partner, via: hit.via };
+  }
+  return null;
+}
+
+/** Save verified email domains for a partner (rejects shared providers and domains another partner owns). */
+export async function setPartnerDomains(name: string, domains: string[]): Promise<{ domains: string[]; rejected: { domain: string; reason: string }[] }> {
+  const partners = await listPartners();
+  const self = partners.find((p) => p.name.toLowerCase() === name.trim().toLowerCase());
+  if (!self) throw new Error(`${name} isn't a partner`);
+  const check = validateDomainAliases(domains, { name: self.name, website: self.website }, partners.map((p) => ({ name: p.name, website: p.website, domainAliases: p.domainAliases })));
+  await ensureColumn(TAB, "Email Domains");
+  const rows = await fetchSheetTab(TAB);
+  const h = (rows[0] || []).map((x) => (x || "").trim().toLowerCase());
+  const ni = h.indexOf("name"), di = h.indexOf("email domains");
+  const idx = rows.findIndex((r, i) => i > 0 && (r[ni] || "").trim().toLowerCase() === self.name.toLowerCase());
+  if (idx < 1 || di < 0) throw new Error("Couldn't find the partner row");
+  await updateSheetCells(TAB, [{ range: `${colLetter(di)}${idx + 1}`, value: check.accepted.join(", ") }]);
+  return { domains: check.accepted, rejected: check.rejected };
+}
 export interface PartnerActivity { recordId: string; date: string; title: string; summary: string; track: string; source: string; url: string; nextSteps: string[] }
 
 export interface PartnerSummary { name: string; contacts: number }
@@ -100,7 +129,7 @@ export async function partnerSummaries(): Promise<{ partners: Partner[]; counts:
   const people = await peopleDirectory();
   const counts: Record<string, number> = {};
   for (const p of people) {
-    const m = matchPartner(p.company, partners);
+    const m = partnerFor(p, partners)?.partner;
     if (m) counts[m.name] = (counts[m.name] || 0) + 1;
   }
   // Reviewed notes/emails tagged to each partner (directly or on a next step).
@@ -127,7 +156,13 @@ export async function partnerDetail(name: string): Promise<{ partner: Partner | 
   const { peopleDirectory, reviewMap } = await import("./notes-inbox.server");
   const { listKnowledgeRecords } = await import("./knowledge.server");
   const [people, records, reviews] = await Promise.all([peopleDirectory(), listKnowledgeRecords(), reviewMap()]);
-  const contacts = people.filter((p) => matchPartner(p.company, [partner])).sort((a, b) => a.name.localeCompare(b.name));
+  // Exclusive assignment across all partners so one person never shows under two.
+  const contacts: PartnerContact[] = [];
+  for (const p of people) {
+    const hit = partnerFor(p, partners);
+    if (hit?.partner.name === partner.name) contacts.push({ ...p, via: hit.via });
+  }
+  contacts.sort((a, b) => a.name.localeCompare(b.name));
   const activity: PartnerActivity[] = [];
   const key = partner.name.toLowerCase();
   for (const r of records) {

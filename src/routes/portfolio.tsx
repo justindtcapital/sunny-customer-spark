@@ -31,7 +31,7 @@ import {
 import { Building2, Users, Plus, Trash2, RefreshCw, Globe, Loader2, X } from "lucide-react";
 import { usePortfolioFilters } from "@/lib/portfolio-filter-context";
 import { useFilterOptions } from "@/lib/filter-options-context";
-import { extractDomain } from "@/lib/domain-utils";
+import { companyDomainMap, isSharedEmailDomain, normalizeDomain, suggestDomainMatches } from "@/lib/company-domains";
 import { canonicalLocations, locationMatches } from "@/lib/location-utils";
 import { canonicalFocusAreas, focusAreaMatches } from "@/lib/focus-area-utils";
 import { toast } from "sonner";
@@ -318,12 +318,13 @@ function PortfolioPage() {
     });
   }, [companies, updateOptions]);
 
-  // Index contacts by their email domain so we can match them to portfolio companies by website.
+  // Index contacts by normalized email domain; companies link through their
+  // website domain plus verified aliases (see company-domains). Shared providers never link.
   const contactsByDomain = useMemo(() => {
     const map = new Map<string, Contact[]>();
     for (const c of contacts) {
-      const d = extractDomain(c.email);
-      if (!d) continue;
+      const d = normalizeDomain((c.email || "").split(/[;,\s]+/)[0]);
+      if (!d || isSharedEmailDomain(d)) continue;
       const list = map.get(d) || [];
       list.push(c);
       map.set(d, list);
@@ -331,17 +332,51 @@ function PortfolioPage() {
     return map;
   }, [contacts]);
 
-  const matchedFor = (company: PortfolioCompany): Contact[] => {
-    const d = extractDomain(company.website);
-    if (!d) return [];
-    return contactsByDomain.get(d) || [];
+  const linkedFor = (company: PortfolioCompany) => {
+    const out: { contact: Contact; via?: string }[] = [];
+    const seen = new Set<string>();
+    for (const [d, kind] of companyDomainMap(company)) {
+      for (const contact of contactsByDomain.get(d) || []) {
+        if (seen.has(contact.id)) continue;
+        seen.add(contact.id);
+        out.push({ contact, via: kind === "alias" ? d : undefined });
+      }
+    }
+    return out;
   };
+  const matchedFor = (company: PortfolioCompany): Contact[] => linkedFor(company).map((l) => l.contact);
 
-  const selectedCompanyContacts = useMemo(
-    () => (selectedCompany ? matchedFor(selectedCompany) : []),
+  const selectedCompanyLinks = useMemo(
+    () => (selectedCompany ? linkedFor(selectedCompany) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedCompany, contactsByDomain],
   );
+  const selectedCompanyContacts = useMemo(() => selectedCompanyLinks.map((l) => l.contact), [selectedCompanyLinks]);
+  const selectedCompanyVia = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const l of selectedCompanyLinks) if (l.via) m[l.contact.id] = l.via;
+    return m;
+  }, [selectedCompanyLinks]);
+  const selectedCompanySuggestions = useMemo(
+    () => (selectedCompany ? suggestDomainMatches(contacts, selectedCompany, companies) : []),
+    [selectedCompany, contacts, companies],
+  );
+  // Tagged emails plus emails with anyone at a linked domain, without double counting.
+  const selectedCompanyEmails = useMemo(() => {
+    if (!selectedCompany) return [];
+    const key = selectedCompany.name.trim().toLowerCase();
+    const domains = companyDomainMap(selectedCompany);
+    const seen = new Set<string>();
+    return emailActivity.filter((e) => {
+      const tagged = (e.linkedPortco || "").split(/[;,]/).map((s) => s.trim().toLowerCase()).includes(key);
+      const d = normalizeDomain(e.contactEmail);
+      if (!tagged && !(d && domains.has(d))) return false;
+      const k = `${(e.contactEmail || "").toLowerCase()}|${e.timestamp}|${e.subject}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [selectedCompany, emailActivity]);
 
   const selectedCompanyCrmIntros = useMemo(
     () => (selectedCompany ? findCrmIntros(contacts, selectedCompany.name) : []),
@@ -564,8 +599,7 @@ function PortfolioPage() {
         const seen = new Set<string>();
         const people: Contact[] = [];
         for (const co of comps) {
-          const d = extractDomain(co.website);
-          for (const person of d ? contactsByDomain.get(d) || [] : []) {
+          for (const person of matchedFor(co)) {
             if (!seen.has(person.id)) {
               seen.add(person.id);
               people.push(person);
@@ -835,17 +869,10 @@ function PortfolioPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         crmContacts={selectedCompanyContacts}
+        crmContactVia={selectedCompanyVia}
+        domainSuggestions={selectedCompanySuggestions}
         crmIntros={selectedCompanyCrmIntros}
-        emails={
-          selectedCompany
-            ? emailActivity.filter((e) =>
-                (e.linkedPortco || "")
-                  .split(/[;,]/)
-                  .map((s) => s.trim().toLowerCase())
-                  .includes(selectedCompany.name.trim().toLowerCase()),
-              )
-            : []
-        }
+        emails={selectedCompanyEmails}
         onPersonClick={handlePersonClick}
         onPersonAdded={refreshContacts}
         onCompanyUpdate={handleCompanyUpdate}
@@ -856,6 +883,11 @@ function PortfolioPage() {
         open={addOpen}
         onOpenChange={setAddOpen}
         onAdded={() => router.invalidate()}
+        companies={companies}
+        onOpenExisting={(c) => {
+          setSelectedCompany(c);
+          setDetailOpen(true);
+        }}
       />
 
       <ContactDetail

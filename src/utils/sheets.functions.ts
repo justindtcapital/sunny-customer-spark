@@ -152,13 +152,35 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
       focusArea?: string;
       location?: string;
       description?: string;
+      /** Verified alternate email domains (team-only; logged). */
+      domainAliases?: string[];
+      /** Dismissed domain suggestions. */
+      dismissedDomains?: string[];
       /** Create the sheet row when no matching row is found (Asana-only portcos). */
       upsertNew?: boolean;
-    }) => data,
+    }) => {
+      if (!data.name?.trim()) throw new Error("Company name is required");
+      if (data.domainAliases && (!Array.isArray(data.domainAliases) || data.domainAliases.length > 30))
+        throw new Error("Invalid domain list");
+      if (data.dismissedDomains && (!Array.isArray(data.dismissedDomains) || data.dismissedDomains.length > 200))
+        throw new Error("Invalid dismissed list");
+      return data;
+    },
   )
-  .handler(async ({ data }) => {
-    if (!data.name?.trim()) throw new Error("Company name is required");
-    return await updatePortfolioCompanyServer(data);
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const res = await updatePortfolioCompanyServer(data);
+    if (data.domainAliases && res.updated) {
+      const who = context.teamEmail || "teammate";
+      await logOpsEventServer({
+        action: "maintenance",
+        source: "company_domains",
+        status: res.rejectedDomains?.length ? "warning" : "ok",
+        summary: `Email domains for ${data.name}: ${data.domainAliases.join(", ") || "none"}`,
+        details: { by: who, rejected: res.rejectedDomains?.map((r) => `${r.domain} (${r.reason})`).join("; ") || "" },
+      });
+    }
+    return res;
   });
 
 // Delete a portfolio company (by stable URID, falling back to exact name match).
@@ -428,6 +450,12 @@ export const addContact = createServerFn({ method: "POST" })
     }) => data,
   )
   .handler(async ({ data }) => {
+    // Reuse instead of duplicating: an email already in Network or Prospecting is never added again.
+    const { findSavedPersonByEmail } = await import("./bulk-import.server");
+    const existing = await findSavedPersonByEmail(data.email);
+    if (existing) {
+      throw new Error(`${existing.name} is already in ${existing.where} with this email — open that person instead.`);
+    }
     // Ensure the Source columns exist before the header-aware append writes them.
     await ensureColumn(TAB_NAMES.contacts, "Source");
     if (data.followUp) await ensureColumn(TAB_NAMES.contacts, "Follow Up Flag");

@@ -19,7 +19,7 @@ import { personInText } from "@/lib/network-notes";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { loadPartners } from "@/lib/use-partners";
-import { addPartnerFn, fetchPartnerDetailFn, fetchPartnersFn } from "@/utils/partners.functions";
+import { addPartnerFn, fetchPartnerDetailFn, fetchPartnersFn, setPartnerDomainsFn } from "@/utils/partners.functions";
 
 export const Route = createFileRoute("/partners")({
   head: () => ({
@@ -119,6 +119,42 @@ function PartnersPage() {
   );
 }
 
+// Verified extra email domains: people with these addresses link to the partner.
+function PartnerDomains({ name, domains, onSaved }: { name: string; domains: string[]; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(domains.join(", "));
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      const res = await setPartnerDomainsFn({ data: { name, domains: value.split(/[\s,;]+/).filter(Boolean) } });
+      for (const r of res.rejected) toast.warning(`${r.domain} not added: ${r.reason}.`);
+      toast.success(`Saved email domains for ${name}.`);
+      setEditing(false);
+      onSaved();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save domains.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!editing) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Other email domains: {domains.length ? <span className="font-mono">{domains.join(", ")}</span> : "none"}{" "}
+        <button type="button" className="text-primary hover:underline" onClick={() => { setValue(domains.join(", ")); setEditing(true); }}>Edit</button>
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Input className="h-8 max-w-xs text-sm" value={value} onChange={(e) => setValue(e.target.value)} placeholder="partner-mail.com, partner.io" />
+      <Button size="sm" disabled={busy} onClick={() => void save()}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</Button>
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing(false)}>Cancel</Button>
+    </div>
+  );
+}
+
 function PartnerLogo({ partner, size = 36 }: { partner: Pick<Partner, "name" | "website">; size?: number }) {
   const [failed, setFailed] = useState(false);
   const src = partnerLogoUrl(partner.website);
@@ -207,6 +243,7 @@ function PartnerPane({ name }: { name: string }) {
             {d.partner?.location && <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3 w-3" />{d.partner.location}</p>}
             {d.partner?.summary ? <p className="text-sm">{d.partner.summary}</p> : <p className="text-xs text-muted-foreground">No summary yet{d.partner?.website ? "" : " — add a website to generate one"}.</p>}
             {d.partner?.notes && <p className="text-sm text-muted-foreground">{d.partner.notes}</p>}
+            {d.partner && <PartnerDomains name={d.partner.name} domains={d.partner.domainAliases || []} onSaved={() => void q.refetch()} />}
             <div className="grid grid-cols-4 gap-2">
               <Stat n={d.contacts.length} label="Contacts" active={view === "contacts"} onClick={() => setView("contacts")} />
               <Stat n={activeWs} label="Active workstreams" active={view === "workstreams"} onClick={() => setView("workstreams")} />
@@ -238,6 +275,7 @@ function PartnerPane({ name }: { name: string }) {
                         {c.title && <span className="text-muted-foreground">, {c.title}</span>}
                         {c.email && <span className="text-xs text-muted-foreground">, {c.email}</span>}
                       </span>
+                      {c.via && <span className="rounded bg-muted px-1 py-px text-[10px] text-muted-foreground">via {c.via}</span>}
                       <Badge variant="outline" className="text-[10px]">{c.where}</Badge>
                       {linked.length > 0 && (
                         <div className="basis-full flex flex-wrap gap-1 pl-1">

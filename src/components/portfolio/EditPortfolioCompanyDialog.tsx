@@ -17,6 +17,7 @@ import { Loader2, Pencil } from "lucide-react";
 import { updatePortfolioCompany } from "@/utils/sheets.functions";
 import { normalizeFocusArea } from "@/lib/focus-area-utils";
 import { toast } from "sonner";
+import { parseDomainList } from "@/lib/company-domains";
 
 const labelClass =
   "text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block";
@@ -44,6 +45,7 @@ export function EditPortfolioCompanyDialog({
   const [focusArea, setFocusArea] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
+  const [aliases, setAliases] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function EditPortfolioCompanyDialog({
     setFocusArea(company.sector || "");
     setLocation(company.location || "");
     setDescription(company.description || "");
+    setAliases((company.domainAliases || []).join(", "));
     setBusy(false);
   }, [open, company]);
 
@@ -68,6 +71,7 @@ export function EditPortfolioCompanyDialog({
         focusArea: focusArea.trim(),
         location: location.trim(),
         description: description.trim(),
+        domainAliases: parseDomainList(aliases),
         // Companies that live only in Asana (no sheet row yet) get one created
         // on save so they become editable like every other portfolio company.
         upsertNew: company.id.startsWith("asana-pc-"),
@@ -77,8 +81,12 @@ export function EditPortfolioCompanyDialog({
         toast.error("Couldn't find that company in the sheet to update.");
         return;
       }
+      const rejected = new Set((res.rejectedDomains || []).map((r) => r.domain));
+      for (const r of res.rejectedDomains || []) toast.warning(`${r.domain} not added: ${r.reason}.`);
       const updated: PortfolioCompany = {
         ...company,
+        urid: company.urid || res.urid,
+        domainAliases: payload.domainAliases.filter((d) => !rejected.has(d)),
         name: payload.name,
         website: payload.website,
         sector: payload.focusArea,
@@ -93,7 +101,7 @@ export function EditPortfolioCompanyDialog({
       onOpenChange(false);
     } catch (e) {
       console.error("updatePortfolioCompany failed", e);
-      toast.error("Couldn't update the company — see console.");
+      toast.error(e instanceof Error && e.message ? e.message : "Couldn't update the company — see console.");
     } finally {
       setBusy(false);
     }
@@ -105,7 +113,7 @@ export function EditPortfolioCompanyDialog({
         <DialogHeader>
           <DialogTitle>Edit portfolio company</DialogTitle>
           <DialogDescription className="text-xs">
-            Updates the Portfolio Companies sheet row. Website domain is used to match Key People.
+            Updates the Portfolio Companies sheet row. Website and other email domains are used to match Key People.
             If the company isn't in the sheet yet (Asana-only), saving creates its row.
           </DialogDescription>
         </DialogHeader>
@@ -129,6 +137,18 @@ export function EditPortfolioCompanyDialog({
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="coactive.ai"
             />
+          </div>
+          <div className="col-span-2">
+            <Label className={labelClass}>Other email domains</Label>
+            <Input
+              className="h-8 text-sm"
+              value={aliases}
+              onChange={(e) => setAliases(e.target.value)}
+              placeholder="mavenagi.com, maven.ai"
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              People with these email addresses show as Key People. Gmail, Outlook and similar are never used.
+            </p>
           </div>
           <div>
             <Label className={labelClass}>Focus area</Label>
