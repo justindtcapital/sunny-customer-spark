@@ -58,14 +58,15 @@ function MiniPyramid({ counts }: { counts: Record<PyramidTier, number | null> })
 }
 
 export function NetworkPyramid({
-  contacts, profile, selection, onSelect,
+  contacts, profile, selection, onSelect, expanded, onExpandedChange: setExpanded,
 }: {
+  expanded: boolean;
+  onExpandedChange: (v: boolean) => void;
   contacts: Contact[];
   profile: TeamProfile | null;
   selection: PyramidSelection | null;
   onSelect: (s: PyramidSelection | null) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [view, setView] = useState<View>("domain");
   const [scope, setScope] = useState<"mine" | "ours">("ours");
   const [win, setWin] = useState<WindowKey>("30d");
