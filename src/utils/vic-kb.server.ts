@@ -8,7 +8,7 @@ const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const FOLDER = "application/vnd.google-apps.folder";
 
 export function kbDriveId(): string {
-  return process.env["VIC_KB_DRIVE_ID"]?.trim() || "0AFtlyPes27_K9k9K9VPA";
+  return process.env["GOOGLE_KB_DRIVE_ID"]?.trim() || "0AFtlyPes27_K9k9K9VPA";
 }
 
 async function drive(path: string, params: Record<string, string>) {
