@@ -119,6 +119,8 @@ export function NetworkPyramid({
     return out;
   }, [people, data]);
 
+  const networkCount = PYRAMID_TIERS.reduce((total, tier) => tier === "Prospect" ? total : total + (counts[tier] ?? 0), 0);
+
   const kpis = useMemo(() => {
     const emails = new Set(people.map((p) => p.email.toLowerCase()).filter(Boolean));
     const moves = (data?.movements || []).filter((m) => !mine || emails.has(m.email.toLowerCase()));
@@ -160,7 +162,7 @@ export function NetworkPyramid({
             <h2 className="text-base font-semibold text-foreground">Network overview</h2>
             {pyramidQuery.isFetching && <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">{scope === "mine" ? "My contacts" : "Everyone at DTC"} · {people.length.toLocaleString()} people{!data && " · prospects pending"}{sidebarCount > 0 && ` · ${sidebarCount} sidebar filter${sidebarCount > 1 ? "s" : ""} also narrow the list below`}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{scope === "mine" ? "My contacts" : "Everyone at DTC"} · {networkCount.toLocaleString()} network relationships · {counts.Prospect === null ? "prospects pending" : `${counts.Prospect.toLocaleString()} prospects in pipeline`}{sidebarCount > 0 && ` · ${sidebarCount} sidebar filter${sidebarCount > 1 ? "s" : ""} also narrow the list below`}</p>
         </div>
         <Button size="icon" variant="ghost" className="size-8 shrink-0" onClick={() => setExpanded(false)} title="Collapse" aria-label="Collapse Network overview"><ChevronUp /></Button>
         <div className="network-view-controls col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-3">
