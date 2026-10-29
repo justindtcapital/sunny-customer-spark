@@ -828,7 +828,8 @@ function CsvImportDialog({ open, onClose, onDone }: { open: boolean; onClose: ()
     setBusy(true);
     try {
       const r = await add({ data: { events, by: email || "" } });
-      toast.success(`Imported ${r.added} event${r.added === 1 ? "" : "s"}${r.skipped.length ? ` · ${r.skipped.length} duplicates skipped` : ""}`);
+      const message = `Imported ${r.added} event${r.added === 1 ? "" : "s"}${r.skipped.length ? ` · ${r.skipped.length} exact duplicates skipped` : ""}${r.review.length ? ` · ${r.review.length} need review in Admin` : ""}`;
+      if (r.review.length) toast.warning(message); else toast.success(message);
       setRows([]);
       onDone();
       onClose();

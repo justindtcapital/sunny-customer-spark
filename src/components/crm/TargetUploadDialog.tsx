@@ -294,7 +294,6 @@ export function TargetUploadDialog({
       const key = targetKeyOf({ email: r.email, name: nm, company: r.company });
       if (key && (existing.has(key) || seen.has(key))) {
         dupes++;
-        continue;
       }
       if (key) seen.add(key);
       unique.push(r);
@@ -364,7 +363,8 @@ export function TargetUploadDialog({
       const parts = [`Imported ${res.added} target${res.added !== 1 ? "s" : ""}`];
       if (enrichOnImport) parts.push(`${enrichedCount} enriched`);
       if (res.duplicates) parts.push(`${res.duplicates} duplicate${res.duplicates !== 1 ? "s" : ""} skipped`);
-      toast.success(parts.join(" · "));
+      if (res.review) parts.push(`${res.review} need review in Admin`);
+      if (res.review) toast.warning(parts.join(" · ")); else toast.success(parts.join(" · "));
       if (res.added > 0) await onImported?.();
       reset();
       onOpenChange(false);
