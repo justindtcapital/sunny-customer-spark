@@ -63,6 +63,11 @@ export function SelectionProvider({ children }: { children: ReactNode }) {
 
   const setFilteredContacts = useCallback((contacts: Contact[]) => {
     setAllFilteredContacts(contacts);
+    const visible = new Set(contacts.map(c => c.id));
+    setSelectedIds(prev => {
+      const next = new Set([...prev].filter(id => visible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
   }, []);
 
   const setOnBulkUpdate = useCallback((fn: ((updatedContacts: Contact[]) => void) | undefined) => {

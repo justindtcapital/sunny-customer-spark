@@ -133,7 +133,7 @@ export function ContactList({
             c.email.split(";")[0]?.trim().toLowerCase() ===
               prev.email.split(";")[0]?.trim().toLowerCase()),
       );
-      return match || prev;
+      return match || null;
     });
   }, [contacts]);
 
