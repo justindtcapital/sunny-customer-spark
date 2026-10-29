@@ -90,7 +90,7 @@
 
 ## Vic assistant
 - [x] Phase 1: Vic button on every page, Vic page with saved chats, read tools (Network, Prospecting, PortCos, Partners, Events), reviewed relationship changes and email drafts
-- [ ] Phase 1b: reviewed follow-up create/complete, event attendees, log action
-- [ ] Phase 2: Venture Pulse KB Drive index + folder picker + cited answers
+- [x] Phase 1b: reviewed follow-up create/complete, event attendees, log action
+- [x] Phase 2: Venture Pulse KB search (Drive full-text) + folder picker + cited answers
 - [ ] Phase 3: skills — PortCo questions, new-company overlap, intro matching, skill registry
 - [ ] Phase 4: scheduled skills — daily digest, Monday actions, weekly report
