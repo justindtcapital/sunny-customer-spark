@@ -1,6 +1,6 @@
 import { nextRelationshipLevel, type RelationshipChange } from "@/lib/relationship-rating";
 import type { Temperature } from "@/lib/types";
-import { appendSheetRows, bulkUpdateContacts, deleteSheetRows, ensureColumn, ensureTab, fetchSheetTab, TAB_NAMES, TARGET_HEADERS } from "./sheets.server";
+import { logNetworkMovements, appendSheetRows, bulkUpdateContacts, deleteSheetRows, ensureColumn, ensureTab, fetchSheetTab, TAB_NAMES, TARGET_HEADERS } from "./sheets.server";
 
 const norm = (value: string) => value.trim().toLowerCase();
 const cell = (headers: string[], row: string[], name: string) => row[headers.indexOf(norm(name))] || "";
@@ -58,7 +58,10 @@ export async function changeRelationshipLevels(input: { contacts: { urid?: strin
     const next = nextRelationshipLevel(current, input.change);
     if (!next) { result.skipped++; continue; }
     if (next === "Prospecting") {
-      if (await moveToProspecting(headers, source)) result.moved++;
+      if (await moveToProspecting(headers, source)) {
+        result.moved++;
+        await logNetworkMovements([{ email: cell(headers, source, "email"), name: cell(headers, source, "name"), from: current, to: "Prospecting", reason: "Moved to Prospecting" }]);
+      }
       else result.skipped++;
     } else {
       const email = cell(headers, source, "email");
