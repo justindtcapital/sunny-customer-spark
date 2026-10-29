@@ -40,3 +40,19 @@ Risks
 - `EditPortfolioCompanyDialog.tsx`: add a field, its state, inline error and save payload. Update the company in place afterwards using `onUpdated`.
 - New `src/lib/portco-fields.ts` holding `isLinkedInCompanyUrl` and `compareCompanyNames`, with tests in a matching `.test.ts` file.
 - `src/routes/portfolio.tsx`: sort `filtered` with `compareCompanyNames`. Make sure the add-company callback adds the company to `companies` locally.
+
+## 3. Automatic logo for newly added companies
+
+What changes for you
+- When you add a company, its logo appears on the card and in the details panel straight away.
+- The logo is found from the company's website. If no website was entered, it uses one the add-company search found. If no logo is found, you see the company initial, as you do today.
+- The Add Company dialog shows a small logo preview once a website is known, so you can see the result before saving.
+
+Approach
+- Reuse the logo finder already used elsewhere in the app (it tries Logo.dev first, then free favicon sources). Point the PortCo cards and details panel at it instead of the card's own older lookup, so all new and existing companies get the same results.
+- Nothing extra is saved. The logo comes from the website each time, so changing the website updates the logo too.
+
+Risks
+- Companies without a website, or with a generic one, show the initial. Companies whose website is a shared site (LinkedIn, Crunchbase) are skipped, so no wrong logo appears.
+
+Technical: `PortfolioCard.tsx` `getLogoUrl` → `resolveCompanyLogoDomain` + the logo ladder in `src/lib/domain-utils.ts`. Add a preview to `AddPortfolioCompanyDialog.tsx`, and use the enriched website as the fallback.
