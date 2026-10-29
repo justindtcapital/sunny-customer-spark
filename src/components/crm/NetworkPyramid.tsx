@@ -184,7 +184,7 @@ export function NetworkPyramid({
       </div>}
       <div className="network-overview-body mt-5">
         <TierChart counts={counts} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
-          if (t === "Prospect") { navigate({ to: "/prospecting" }); return; }
+          if (t === "Prospect") { navigate({ to: "/targeting" }); return; }
           onSelect(selection?.view === "tier" && selection.tier === t ? null : { tier: t, view: "tier", column: "" });
         }} />
         <div className={cn("network-breakdown min-w-0", view === "geo" ? "network-breakdown-geo" : view === "kpis" ? "network-breakdown-kpis" : "network-breakdown-domain")}>
