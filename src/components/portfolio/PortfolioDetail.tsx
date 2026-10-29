@@ -57,6 +57,8 @@ import {
 import { ContactAvatar } from "@/components/crm/ContactAvatar";
 import { addContact, deletePortfolioCompany } from "@/utils/sheets.functions";
 import { extractDomain } from "@/lib/domain-utils";
+import type { DomainSuggestion } from "@/lib/company-domains";
+import { DomainSuggestions } from "./DomainSuggestions";
 import { getPortcoIntel, getPortcoBrief } from "@/utils/sumble.functions";
 import { TechStackSection } from "@/components/crm/TechStackSection";
 import { ActivitySection } from "@/components/crm/ActivitySection";
@@ -86,6 +88,10 @@ interface PortfolioDetailProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   crmContacts?: Contact[];
+  /** contact id → verified alias domain it matched through (website matches omitted). */
+  crmContactVia?: Record<string, string>;
+  /** Review-only similar-domain suggestions. */
+  domainSuggestions?: DomainSuggestion<Contact>[];
   crmIntros?: Contact[];
   /** Outreach emails logged on behalf of this company (from Email Activity). */
   emails?: EmailActivityRecord[];
@@ -121,6 +127,8 @@ export function PortfolioDetail({
   open,
   onOpenChange,
   crmContacts = [],
+  crmContactVia = {},
+  domainSuggestions = [],
   crmIntros = [],
   emails = [],
   onPersonClick,
@@ -641,10 +649,15 @@ export function PortfolioDetail({
                   </Button>
                   </div>
                 </div>
+                <DomainSuggestions
+                  company={company}
+                  suggestions={domainSuggestions}
+                  onCompanyUpdate={onCompanyUpdate}
+                />
                 {crmContacts.length === 0 && company.employees.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    No CRM contacts matched this company's domain yet. Tag contacts with sector
-                    "Portfolio" and use a matching email domain to surface them here.
+                    No CRM contacts matched this company's website or email domains yet. Add
+                    other email domains with Edit, or verify a suggested match above.
                   </p>
                 ) : (
                   <div
@@ -666,6 +679,11 @@ export function PortfolioDetail({
                             </p>
                             <p className="text-[10px] text-muted-foreground truncate">
                               {contact.title || "—"}
+                              {crmContactVia[contact.id] && (
+                                <span className="ml-1.5 rounded bg-muted px-1 py-px text-[9px]">
+                                  via {crmContactVia[contact.id]}
+                                </span>
+                              )}
                             </p>
                             <div className="flex items-center gap-2 mt-0.5">
                               {contact.email && (
