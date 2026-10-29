@@ -2,7 +2,7 @@ import { nextRelationshipLevel, type RelationshipChange } from "@/lib/relationsh
 import type { Temperature } from "@/lib/types";
 import { snapshotEqual, outcomeTotals, type BulkOutcome } from "@/lib/bulk-operation";
 import { emailIdentities } from "@/lib/import-dedupe";
-import { logNetworkMovements, appendSheetRows, setContactRating, deleteSheetRows, ensureColumn, ensureTab, fetchSheetTab, TAB_NAMES, TARGET_HEADERS } from "./sheets.server";
+import { fillMissingUrids, logNetworkMovements, appendSheetRows, setContactRating, deleteSheetRows, ensureColumn, ensureTab, fetchSheetTab, TAB_NAMES, TARGET_HEADERS } from "./sheets.server";
 
 const norm = (value: string) => value.trim().toLowerCase();
 const cell = (headers: string[], row: string[], name: string) => row[headers.indexOf(norm(name))] || "";
@@ -45,6 +45,9 @@ async function moveToProspecting(headers: string[], source: string[]): Promise<{
 
 export async function changeRelationshipLevels(input: RelationshipInput, prior: BulkOutcome[] = [], checkpoint?: (outcomes: BulkOutcome[]) => Promise<void>) {
   const outcomes: BulkOutcome[] = [], seen = new Set<string>();
+  // Moves need a stable ID; give blank rows one first (blank cells only, never guessed).
+  await fillMissingUrids(TAB_NAMES.contacts);
+  await fillMissingUrids(TAB_NAMES.targets);
   for (const selected of input.contacts) {
     const key = selected.urid || norm(selected.email);
     const destination = selected.destination !== undefined ? selected.destination : nextRelationshipLevel(selected.temperature, input.change);

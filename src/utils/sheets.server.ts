@@ -26,6 +26,7 @@ import { creationRating } from "@/lib/relationship-rating";
 import { inferInterestAreas } from "@/lib/interest-domains";
 import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
+import { planMissingUrids } from "@/lib/contact-ids";
 import { normalizeSource, targetKeyOf, normalizeInteractionType } from "@/lib/types";
 import { buildPortCoCanonicalMap, canonicalizePortCo } from "@/lib/portco-canonical";
 import { normalizePortcoName } from "@/lib/portco-names";
@@ -2439,6 +2440,39 @@ export async function buildFieldProvenance(): Promise<
   return map;
 }
 
+
+/**
+ * Give every contact row with a blank URID a new unique ID. Writes only blank
+ * ID cells, in small batches; safe to repeat. Returns the fresh rows.
+ */
+export async function fillMissingUrids(tab: string): Promise<{ filled: number }> {
+  await ensureColumn(tab, "URID");
+  const rows = await fetchSheetTab(tab, true);
+  if (rows.length < 2) return { filled: 0 };
+  const uridCol = (rows[0] || []).map((h) => h.trim().toLowerCase()).indexOf("urid");
+  if (uridCol === -1) return { filled: 0 };
+  const fills = planMissingUrids(rows, uridCol);
+  for (let i = 0; i < fills.length; i += 200) {
+    const batch = fills.slice(i, i + 200);
+    await updateSheetCells(tab, batch.map((f) => ({ range: `${colLetters(uridCol)}${f.row}`, value: f.urid })));
+  }
+  return { filled: fills.length };
+}
+
+/** Self-heal on read: if any populated row lacks a URID, fill blanks and re-read. */
+async function fetchTabWithUrids(tab: string): Promise<string[][]> {
+  const rows = await fetchSheetTab(tab);
+  const col = (rows[0] || []).map((h) => h.trim().toLowerCase()).indexOf("urid");
+  if (col === -1 || planMissingUrids(rows, col, () => "x").length === 0) return rows;
+  try {
+    await fillMissingUrids(tab);
+    return await fetchSheetTab(tab, true);
+  } catch (e) {
+    console.error(`URID self-heal failed for ${tab}`, e);
+    return rows;
+  }
+}
+
 export async function buildContacts(): Promise<Contact[]> {
   const [
     contactRows,
@@ -2449,7 +2483,7 @@ export async function buildContacts(): Promise<Contact[]> {
     provenance,
     portfolioCompanies,
   ] = await Promise.all([
-    fetchSheetTab(TAB_NAMES.contacts),
+    fetchTabWithUrids(TAB_NAMES.contacts),
     fetchSheetTab(TAB_NAMES.events).catch(() => [] as string[][]),
     fetchSheetTab(TAB_NAMES.portcoIntros).catch(() => [] as string[][]),
     fetchSheetTab(TAB_NAMES.interactions).catch(() => [] as string[][]),
@@ -4170,7 +4204,7 @@ export async function saveTargetStrategy(
 
 export async function buildTargets(): Promise<TargetLead[]> {
   const [targetRows, outreachMap, strategyMap] = await Promise.all([
-    fetchSheetTab(TAB_NAMES.targets),
+    fetchTabWithUrids(TAB_NAMES.targets),
     buildTargetOutreachMap(),
     buildTargetStrategyMap(),
   ]);
