@@ -11,6 +11,8 @@ export interface Partner {
   notes: string;
   /** Extra company spellings that identify this partner (comma-separated in the sheet). */
   aliases: string[];
+  /** Verified email domains beyond the website (sheet "Email Domains"). */
+  domainAliases?: string[];
   /** One-paragraph description, generated once from the website. */
   summary?: string;
   location?: string;
