@@ -34,7 +34,11 @@ export const createActivityFixRequest = createServerFn({ method: "POST" }).middl
     const { data: existing, error: readError } = await db.from("admin_requests").select("id").eq("activity_key",data.activityKey).maybeSingle();
     if (readError) throw new Error("Could not check the existing request.");
     if (existing) return { id: existing.id, existing: true };
-    const { data: saved, error } = await db.from("admin_requests").upsert({ kind: "fix", title: data.title, description: data.description, lovable_prompt: data.prompt, page: data.page, activity_key: data.activityKey, operation_id: data.operationId, requested_by: context.teamEmail, user_id: context.userId }, { onConflict: "activity_key", ignoreDuplicates: true }).select("id").maybeSingle();
+    const { data: saved, error } = await db.from("admin_requests").insert({ kind: "fix", title: data.title, description: data.description, lovable_prompt: data.prompt, page: data.page, activity_key: data.activityKey, operation_id: data.operationId, requested_by: context.teamEmail, user_id: context.userId }).select("id").maybeSingle();
+    if (error?.code === "23505") {
+      const { data: linked } = await db.from("admin_requests").select("id").eq("activity_key",data.activityKey).single();
+      return { id:linked?.id || "",existing:true };
+    }
     if (error) throw new Error("Could not save the linked fix request.");
     return { id: saved?.id || "", existing: false };
   });
