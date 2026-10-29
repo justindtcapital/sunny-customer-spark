@@ -40,6 +40,6 @@ export function snapshotEqual(a: string, b: string): boolean {
 }
 export function activityEvidence(operation: BulkOperation): string {
   return `${operation.kind} · ${operation.status}\nOperation: ${operation.id}\nPage: ${operation.page}\nWhen: ${operation.created_at}\n${operation.summary}\n` +
-    operation.outcomes.slice(0, 80).map(o => `${o.label}: ${o.status} — ${o.reason}`).join("\n") +
-    `\nAttempts: ${operation.attempts.length}`;
+    operation.outcomes.slice(0, 80).map((o,i) => `Item ${i+1}: ${o.status} — ${o.reason}`).join("\n") +
+    `\nAttempts: ${operation.attempts.length}\n` + operation.attempts.map(a => `${a.at} · ${a.status}`).join("\n");
 }

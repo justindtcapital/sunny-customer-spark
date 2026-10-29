@@ -81,7 +81,8 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
             const saved = await setContactRating(cell(headers,source,"email"), destination, cell(headers,source,"urid"), current);
             const check = await fetchSheetTab(TAB_NAMES.contacts, true), ch = (check[0] || []).map(norm);
             const verified = check.slice(1).filter(r => cell(headers,source,"urid") ? cell(ch,r,"urid") === cell(headers,source,"urid") : cell(ch,r,"email") === cell(headers,source,"email"));
-            outcome = { ...base, status: saved.success && verified.length === 1 && rating(cell(ch,verified[0],"relationship status")) === destination ? "changed" : "blocked", reason: saved.success ? `Saved ${destination}.` : "Contact changed before the write; refresh and review." };
+            const confirmed = saved.success && verified.length === 1 && rating(cell(ch,verified[0],"relationship status")) === destination;
+            outcome = { ...base, status: confirmed ? "changed" : saved.success ? "uncertain" : "blocked", reason: confirmed ? `Saved ${destination}.` : saved.success ? "Saved rating could not be verified; reconciliation required." : "Contact changed before the write; refresh and review." };
           }
         }
       }
