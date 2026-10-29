@@ -3,7 +3,7 @@
 const STOP = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "do", "does", "any", "is", "are", "what", "who", "we", "our", "about"]);
 
 export function kbTerms(query: string): string[] {
-  return [...new Set(query.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w)))].slice(0, 6);
+  return [...new Set(query.toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, " ").split(/\s+/).filter((w) => w.length > 1 && !STOP.has(w)))].slice(0, 6);
 }
 
 /** Drive query: every term must appear in the file's indexed text or name. */
