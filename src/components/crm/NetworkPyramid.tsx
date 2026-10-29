@@ -47,19 +47,21 @@ function MiniPyramid() {
 
 function TierChart({ counts }: { counts: Record<PyramidTier, number | null> }) {
   return <div className="network-tier-chart" aria-label="Relationship tiers">
-    <svg viewBox="0 0 160 250" className="h-full w-full" aria-hidden="true" preserveAspectRatio="none">
+    <svg viewBox="0 0 200 250" className="h-full w-full" preserveAspectRatio="xMidYMid meet" role="img"
+      aria-label={PYRAMID_TIERS.map(t => `${t === "Prospect" ? "Prospects" : t} ${counts[t] ?? "pending"}`).join(", ")}>
       {PYRAMID_TIERS.map((tier, i) => {
-        const top = i * 50 + 2, bottom = (i + 1) * 50 - 2;
-        const topWidth = i * 32, bottomWidth = (i + 1) * 32;
-        return <polygon key={tier} className={cn("fill-current", tierTone[tier])} points={`${80-topWidth/2},${top} ${80+topWidth/2},${top} ${80+bottomWidth/2},${bottom} ${80-bottomWidth/2},${bottom}`} />;
+        const top = i * 50 + 1.5, bottom = (i + 1) * 50 - 1.5;
+        const topWidth = i * 40, bottomWidth = (i + 1) * 40;
+        const label = tier === "Prospect" ? "Prospects" : tier;
+        const n = counts[tier];
+        const small = i === 0;
+        return <g key={tier} className={tierTone[tier]}>
+          <polygon className="fill-current" points={`${100-topWidth/2},${top} ${100+topWidth/2},${top} ${100+bottomWidth/2},${bottom} ${100-bottomWidth/2},${bottom}`} />
+          <text x={100} y={small ? bottom - 17 : bottom - 21} textAnchor="middle" className="fill-background font-semibold tabular-nums" style={{ fontSize: small ? 11 : 17 }}>{n?.toLocaleString() ?? "—"}</text>
+          <text x={100} y={bottom - 5} textAnchor="middle" className="fill-background font-medium uppercase" style={{ fontSize: small ? 6.5 : 8, letterSpacing: small ? 0.2 : 1 }}>{label}</text>
+        </g>;
       })}
     </svg>
-    <div className="grid grid-rows-5">
-      {PYRAMID_TIERS.map(tier => <div key={tier} className="flex min-w-0 items-center justify-between gap-3 border-b border-border/60 last:border-0">
-        <span className={cn("text-xs font-medium", tierTone[tier])}>{tier === "Prospect" ? "Prospects" : tier}</span>
-        <span className="text-xl font-semibold tabular-nums text-foreground">{counts[tier]?.toLocaleString() ?? "—"}</span>
-      </div>)}
-    </div>
   </div>;
 }
 
