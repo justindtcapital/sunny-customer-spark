@@ -68,15 +68,18 @@ export async function importContactRows(input: ContactImportInput, journal: Jour
   });
   await appendSheetRows(TAB_NAMES.contacts,sourceRows);
   const verify = await fetchSheetTab(TAB_NAMES.contacts,true), vh = (verify[0] || []).map(norm);
-  if (accepted.some(a => verify.slice(1).filter(r => r[vh.indexOf("urid")] === a.urid).length !== 1)) throw new Error("Imported people could not be verified.");
-  for (const a of accepted) outcomes.push({ key:a.key,label:a.row.name,status:"changed",reason:"Contact created; associations pending verification." });
+  if (accepted.some((a,index) => {
+    const matches=verify.slice(1).filter(r=>r[vh.indexOf("urid")]===a.urid);
+    return matches.length!==1 || h.some((header,col)=> (matches[0]?.[vh.indexOf(header)] || "") !== (sourceRows[index][col] || ""));
+  })) throw new Error("Imported people could not be verified.");
+  for (const a of accepted) outcomes.push({ key:a.key,label:a.row.name,status:"uncertain",reason:"Person saved; association completion is not yet verified. Do not repeat the creation." });
   await journal.checkpoint(outcomes);
   journal.step("saving event, PortCo and source associations");
   const today = new Date().toISOString().slice(0,10);
   if (input.event) await ensureEventAttendanceBatch(accepted.map(a => ({ email:a.row.email, urid:a.urid, eventName:input.event || "", type:"attended", ensureCatalog:true })));
   if (input.portcos?.length) await appendPortcoIntroRows(accepted.flatMap(a => (input.portcos || []).map(portcoName => ({ email:a.row.email,urid:a.urid,portcoName,date:today,source:formatEngagementSources(input.portcoSources?.length ? input.portcoSources : ["direct introduction"]) }))));
   if (input.sourceNote) await appendInteractionRows(accepted.map(a => ({ email:a.row.email,urid:a.urid,date:today,summary:`Source: ${input.sourceNote}`,type:"note",requiresFollowUp:!!a.row.followUp,sourceRef:`import:${journal.id}:${a.key}:source` })));
-  for (const o of outcomes) if (o.status === "changed") o.reason = "Contact and requested associations saved.";
+  for (const o of outcomes) if (accepted.some(a=>a.key===o.key)) { o.status="changed";o.reason = "Contact and requested associations saved."; }
   await journal.checkpoint(outcomes);
   return { added:accepted.length, duplicates:outcomes.filter(o => o.status === "duplicate").length, review:outcomes.filter(o => o.status === "review").length, outcomes };
 }
@@ -99,6 +102,13 @@ export async function importTargetRows(input: TargetImportInput, journal: Journa
   await journal.checkpoint(outcomes.filter(o => o.status !== "changed"));
   journal.step("saving unique prospects");
   await appendTargetRows(accepted);
+  const verified = await savedPeople();
+  for (const r of accepted) {
+    const name=`${r.firstName} ${r.lastName}`.trim();
+    const matches=peopleCandidates({name,email:r.email,company:r.company,linkedin:r.linkedin},verified).filter(p=>p.where==="Prospecting");
+    const expected={name,email:r.email,company:r.company,role:r.role,phone:r.phone,location:r.location,sector:r.sector,stage:r.stage,source:r.source,researchPurpose:r.researchPurpose,reasonSurfaced:r.reasonSurfaced,campaign:r.campaign,event:r.event,portcoTags:r.portcoTags,prime:r.prime};
+    if(matches.length!==1 || !suppliedFieldsMatch(expected,matches[0].fields)) throw new Error("Prospect persistence could not be verified; do not replay the append.");
+  }
   for (const o of outcomes) if (o.status === "changed") o.reason = "Prospect saved.";
   await journal.checkpoint(outcomes);
   return { added:accepted.length,duplicates:outcomes.filter(o => o.status === "duplicate").length,review:outcomes.filter(o => o.status === "review").length,outcomes };

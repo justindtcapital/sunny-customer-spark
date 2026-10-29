@@ -61,11 +61,15 @@ export const runJournalOperation = createServerOnlyFn(async <T>(options: {
     // A request can time out while provider I/O is still active. Never expire its lock automatically.
     release = false;
     const attempts = [...((existing?.attempts || []) as unknown as BulkOperation["attempts"]), { at: new Date().toISOString(), status: "uncertain", outcomes }];
-    await db.from("bulk_operations").update({ status: "uncertain", summary: "Interrupted operation. Saved-state reconciliation required before further bulk writes.", outcomes: json(outcomes), attempts: json(attempts), updated_at: new Date().toISOString() }).eq("id", id);
+    const { error: failedJournal } = await db.from("bulk_operations").update({ status: "uncertain", summary: "Interrupted operation. Saved-state reconciliation required before further bulk writes.", outcomes: json(outcomes), attempts: json(attempts), updated_at: new Date().toISOString() }).eq("id", id);
+    if(failedJournal) console.error("[bulk-journal] could not record interruption",id);
     console.error("[bulk-journal] operation interrupted", id, e instanceof Error ? e.message : "error");
     throw new Error(`The operation was interrupted. Open Admin to review operation ${id}; do not repeat the whole batch.`);
   } finally {
-    if (release) await db.from("bulk_operation_locks").delete().eq("resource", "shared-bulk-writes").eq("operation_id", id);
+    if (release) {
+      const { error } = await db.from("bulk_operation_locks").delete().eq("resource", "shared-bulk-writes").eq("operation_id", id);
+      if(error) console.error("[bulk-journal] lock release requires reconciliation",id);
+    }
   }
 });
 

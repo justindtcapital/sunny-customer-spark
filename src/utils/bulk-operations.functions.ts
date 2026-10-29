@@ -31,6 +31,11 @@ export const createActivityFixRequest = createServerFn({ method: "POST" }).middl
   .handler(async ({ data, context }) => {
     const { journalClient } = await import("./bulk-journal.server");
     const db = await journalClient();
+    if(data.operationId) {
+      const { data: operation,error }=await db.from("bulk_operations").select("id,page").eq("id",data.operationId).single();
+      if(error||!operation||data.activityKey!==`operation:${operation.id}`) throw new Error("The linked activity could not be verified.");
+      data.page=operation.page;
+    }
     const { data: existing, error: readError } = await db.from("admin_requests").select("id").eq("activity_key",data.activityKey).maybeSingle();
     if (readError) throw new Error("Could not check the existing request.");
     if (existing) return { id: existing.id, existing: true };
