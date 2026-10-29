@@ -1,8 +1,11 @@
 # Roadmap
 
 ## Network bulk-action fixes
-- [ ] Fix safe, idempotent Network-to-Prospecting transfers and reconcile the list — awaiting plan approval
-- [ ] Fix promotion/demotion rejections, show per-contact outcomes, and verify mixed batches/retries — awaiting plan approval
+- [ ] Fix safe, idempotent Network-to-Prospecting transfers and reconcile the list
+- [ ] Fix promotion/demotion rejections, show per-contact outcomes, and verify mixed batches/retries
+- [ ] Add durable bulk-operation logging and Admin troubleshoot/fix-request/safe-retry actions
+- [ ] Prevent duplicate people/event imports and repeat writes without losing tags
+- [ ] Test persistence, retries, access and the signed-in Admin flow
 
 ## Network dashboard visual refresh
 - [x] Refine the pyramid, statistics and controls without changing counts or data
