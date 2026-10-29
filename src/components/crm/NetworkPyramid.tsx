@@ -156,7 +156,7 @@ export function NetworkPyramid({
             })}
           </div>
           <div className="inline-flex rounded-md border p-1" aria-label="Network scope">
-            {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My Network" : "Our Network"}</Button>)}
+            {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My contacts" : "Everyone"}</Button>)}
           </div>
         </div>
       </header>
