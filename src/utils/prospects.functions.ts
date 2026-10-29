@@ -1,3 +1,4 @@
+import { requireTeamAuth } from "./team-auth";
 import { expandLocations } from "@/lib/metro-areas";
 import { createServerFn } from "@tanstack/react-start";
 import { buildProspects, discoverProspectCompanies, fetchProspectPeople, type ProspectsResult, type ProspectCompany, type ProspectCompaniesResult, type SumbleProspect } from "./sumble.server";
@@ -253,7 +254,10 @@ export interface AddProspectsResult {
 // Dedupes against existing contact emails. Logs each add to Sumble Prospects.
 export const addProspectsToContacts = createServerFn({ method: "POST" })
   .inputValidator((data: { prospects: SumbleProspect[]; focus?: string }) => data)
-  .handler(async ({ data }): Promise<AddProspectsResult> => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data,context }): Promise<AddProspectsResult> => {
+    const { auditBulk }=await import("./bulk-journal.server");
+    return auditBulk("addProspectsToContacts",data,context,async()=>{
     const result: AddProspectsResult = { success: true, added: 0, duplicates: 0, enriched: 0, failed: 0 };
     if (!data.prospects?.length) return result;
 
@@ -265,7 +269,7 @@ export const addProspectsToContacts = createServerFn({ method: "POST" })
         contacts.flatMap((c) => (c.email || "").split(";").map((e) => e.trim().toLowerCase())).filter(Boolean),
       );
     } catch {
-      /* if we can't read contacts, proceed without dedupe */
+      throw new Error("Contact duplicate checking is unavailable; no contacts were imported.");
     }
 
     // Ensure the canonical Source column exists before header-aware appends.
@@ -354,6 +358,8 @@ export const addProspectsToContacts = createServerFn({ method: "POST" })
     }
 
     return result;
+  
+    });
   });
 
 // Enrich selected prospects via Apollo and add them to the TARGETS pipeline
@@ -372,7 +378,10 @@ export const addProspectsToTargets = createServerFn({ method: "POST" })
       focus?: string;
     }) => data,
   )
-  .handler(async ({ data }): Promise<AddProspectsResult> => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data,context }): Promise<AddProspectsResult> => {
+    const { auditBulk }=await import("./bulk-journal.server");
+    return auditBulk("addProspectsToTargets",data,context,async()=>{
     const result: AddProspectsResult = { success: true, added: 0, duplicates: 0, enriched: 0, failed: 0 };
     if (!data.prospects?.length) return result;
 
@@ -384,7 +393,7 @@ export const addProspectsToTargets = createServerFn({ method: "POST" })
         targets.flatMap((t) => (t.email || "").split(";").map((e) => e.trim().toLowerCase())).filter(Boolean),
       );
     } catch {
-      /* if we can't read targets, proceed without dedupe */
+      throw new Error("Prospect duplicate checking is unavailable; no prospects were imported.");
     }
 
     const today2 = new Date().toISOString().split("T")[0];
@@ -481,4 +490,6 @@ export const addProspectsToTargets = createServerFn({ method: "POST" })
     }
 
     return result;
+  
+    });
   });
