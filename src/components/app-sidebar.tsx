@@ -252,6 +252,7 @@ export function AppSidebar({
     company: "Company",
     contactType: "Contact Type",
     areasOfInterest: "Area of Interest",
+    primaryArea: "Primary Area of Interest",
     source: "Source",
   };
 
