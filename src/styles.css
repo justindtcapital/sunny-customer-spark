@@ -84,7 +84,7 @@
   --primary-glow: oklch(0.55 0.16 250);
   --pyramid: oklch(0.32 0.03 250);
   --pyramid-foreground: oklch(0.97 0.005 250);
-  --pyramid-figure: oklch(0.82 0.16 80);
+  --pyramid-figure: oklch(0.97 0.005 250);
   --pyramid-dot: oklch(0.45 0.09 235);
   --pyramid-grid: oklch(0.9 0.04 230);
   --secondary: oklch(0.965 0.005 250);
@@ -499,6 +499,72 @@
 }
 
 /* Event Planner — subcategory tile colours and sector dots */
+
+/* Network dashboard: respond to the content width, not the browser width. */
+.network-overview { container-type: inline-size; }
+.network-overview-body {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.9fr) minmax(0, 2.4fr);
+  gap: 24px;
+}
+.network-tier-chart {
+  display: grid;
+  grid-template-columns: minmax(48px, 0.85fr) minmax(92px, 1fr);
+  gap: 12px;
+  height: 280px;
+  padding-top: 30px;
+}
+.network-breakdown { --network-columns: 4; }
+.network-breakdown-geo { --network-columns: 8; }
+.network-breakdown-kpis { --network-columns: 7; }
+.network-column-headings,
+.network-data-row {
+  display: grid;
+  grid-template-columns: repeat(var(--network-columns), minmax(0, 1fr));
+}
+.network-column-headings { height: 30px; align-items: start; }
+.network-data-row {
+  height: 50px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.network-data-row:last-child { border-bottom: 0; }
+.network-cell {
+  height: 44px;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+.network-cell-dots { max-width: 100%; overflow: hidden; }
+.network-metric { display: flex; justify-content: center; align-items: center; }
+.network-mobile-label, .network-mobile-tier { display: none; }
+@container (max-width: 720px) {
+  .network-overview-body { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .network-tier-chart {
+    width: min(100%, 360px);
+    height: 220px;
+    justify-self: center;
+    padding-top: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 24px;
+  }
+  .network-column-headings { display: none; }
+  .network-data-row { height: auto; gap: 4px; padding: 10px 0; }
+  .network-mobile-tier { display: flex; grid-column: 1 / -1; padding: 0 4px 6px; }
+  .network-mobile-label { display: block; white-space: normal; line-height: 1.3; }
+  .network-cell { height: 64px; gap: 3px; }
+  .network-metric { flex-direction: column; gap: 5px; text-align: center; min-height: 50px; }
+  .network-breakdown-geo { --network-columns: 4; }
+  .network-breakdown-kpis { --network-columns: 4; }
+}
+@container (max-width: 380px) {
+  .network-breakdown-domain { --network-columns: 2; }
+  .network-breakdown-geo { --network-columns: 2; }
+  .network-breakdown-kpis { --network-columns: 3; }
+  .network-tier-chart { height: 200px; gap: 18px; }
+  .network-cell { height: 58px; }
+}
+
 :root {
   --planner-violet: oklch(0.62 0.17 300);
   --planner-purple: oklch(0.55 0.2 290);
