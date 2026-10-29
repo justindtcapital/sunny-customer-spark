@@ -883,6 +883,11 @@ function PortfolioPage() {
         open={addOpen}
         onOpenChange={setAddOpen}
         onAdded={() => router.invalidate()}
+        companies={companies}
+        onOpenExisting={(c) => {
+          setSelectedCompany(c);
+          setDetailOpen(true);
+        }}
       />
 
       <ContactDetail
