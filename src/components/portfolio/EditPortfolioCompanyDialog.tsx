@@ -18,6 +18,8 @@ import { updatePortfolioCompany } from "@/utils/sheets.functions";
 import { normalizeFocusArea } from "@/lib/focus-area-utils";
 import { toast } from "sonner";
 import { parseDomainList } from "@/lib/company-domains";
+import { isLinkedInCompanyUrl } from "@/lib/portco-fields";
+import { normalizeLinkedinUrl } from "@/lib/linkedin";
 
 const labelClass =
   "text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block";
@@ -46,6 +48,8 @@ export function EditPortfolioCompanyDialog({
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
   const [aliases, setAliases] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const linkedinInvalid = !isLinkedInCompanyUrl(linkedin);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -56,11 +60,12 @@ export function EditPortfolioCompanyDialog({
     setLocation(company.location || "");
     setDescription(company.description || "");
     setAliases((company.domainAliases || []).join(", "));
+    setLinkedin(company.linkedinUrl || "");
     setBusy(false);
   }, [open, company]);
 
   const submit = async () => {
-    if (!company || !name.trim()) return;
+    if (!company || !name.trim() || linkedinInvalid) return;
     setBusy(true);
     try {
       const payload = {
@@ -72,6 +77,7 @@ export function EditPortfolioCompanyDialog({
         location: location.trim(),
         description: description.trim(),
         domainAliases: parseDomainList(aliases),
+        linkedinUrl: normalizeLinkedinUrl(linkedin),
         // Companies that live only in Asana (no sheet row yet) get one created
         // on save so they become editable like every other portfolio company.
         upsertNew: company.id.startsWith("asana-pc-"),
@@ -93,6 +99,7 @@ export function EditPortfolioCompanyDialog({
         domain: domainFromFocus(payload.focusArea),
         location: payload.location,
         description: payload.description,
+        linkedinUrl: payload.linkedinUrl,
       };
       toast.success(
         res.created ? `Added ${payload.name} to the portfolio sheet.` : `Updated ${payload.name}.`,
@@ -139,6 +146,21 @@ export function EditPortfolioCompanyDialog({
             />
           </div>
           <div className="col-span-2">
+            <Label className={labelClass}>LinkedIn page</Label>
+            <Input
+              className="h-8 text-sm"
+              value={linkedin}
+              onChange={(e) => setLinkedin(e.target.value)}
+              placeholder="linkedin.com/company/coactive-ai"
+              aria-invalid={linkedinInvalid}
+            />
+            {linkedinInvalid && (
+              <p className="mt-1 text-[10px] text-destructive">
+                Enter a LinkedIn company page, e.g. linkedin.com/company/acme.
+              </p>
+            )}
+          </div>
+          <div className="col-span-2">
             <Label className={labelClass}>Other email domains</Label>
             <Input
               className="h-8 text-sm"
@@ -183,7 +205,7 @@ export function EditPortfolioCompanyDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => void submit()} disabled={busy || !name.trim()}>
+          <Button onClick={() => void submit()} disabled={busy || !name.trim() || linkedinInvalid}>
             {busy ? (
               <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
             ) : (

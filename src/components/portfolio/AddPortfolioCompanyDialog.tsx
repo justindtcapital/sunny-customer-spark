@@ -1,3 +1,4 @@
+import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useState } from "react";
 import {
   Dialog,
@@ -208,7 +209,10 @@ export function AddPortfolioCompanyDialog({
           </div>
           <div>
             <Label className={labelClass}>Website</Label>
-            <Input className="h-8 text-sm" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="coactive.ai" />
+            <div className="flex items-center gap-2">
+              <Input className="h-8 text-sm" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="coactive.ai" />
+              {website.trim() && <PortcoLogo name={name || website} website={website} size="sm" />}
+            </div>
           </div>
           <div>
             <Label className={labelClass}>LinkedIn company URL</Label>

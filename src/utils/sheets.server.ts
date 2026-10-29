@@ -3908,6 +3908,8 @@ export async function updatePortfolioCompany(entry: {
   domainAliases?: string[];
   /** Dismissed suggestion domains; undefined leaves the cell untouched. */
   dismissedDomains?: string[];
+  /** Company LinkedIn page; undefined leaves the cell untouched, "" clears it. */
+  linkedinUrl?: string;
   /** Create the sheet row when no matching row is found (Asana-only portcos). */
   upsertNew?: boolean;
 }): Promise<{ updated: number; created?: boolean; urid?: string; rejectedDomains?: { domain: string; reason: string }[] }> {
@@ -3935,6 +3937,7 @@ export async function updatePortfolioCompany(entry: {
     await ensureColumn(TAB_NAMES.portfolio, "Domain Aliases");
   }
   if (entry.dismissedDomains) await ensureColumn(TAB_NAMES.portfolio, "Dismissed Domains");
+  if (entry.linkedinUrl !== undefined) await ensureColumn(TAB_NAMES.portfolio, "LinkedIn URL");
 
   const rows = await fetchSheetTab(TAB_NAMES.portfolio);
   if (rows.length < 2) return { updated: 0 };
@@ -3979,6 +3982,7 @@ export async function updatePortfolioCompany(entry: {
     summary: (entry.description || "").trim(),
   };
   if (aliasCell !== undefined) valueByHeader["domain aliases"] = aliasCell;
+  if (entry.linkedinUrl !== undefined) valueByHeader["linkedin url"] = normalizeLinkedinUrl(entry.linkedinUrl);
   if (entry.dismissedDomains) valueByHeader["dismissed domains"] = parseDomainList(entry.dismissedDomains).join(", ");
 
   if (rowNumber === -1) {
