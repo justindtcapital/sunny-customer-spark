@@ -57,7 +57,13 @@ export function PortfolioCard({
           <Badge variant="outline" className="text-[10px] shrink-0">{company.domain}</Badge>
         </div>
 
-        <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{company.description}</p>
+        {company.description ? (
+          <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{company.description}</p>
+        ) : (
+          <p className="text-xs italic text-muted-foreground/70 mb-3">
+            {company.website?.trim() ? "No summary yet — open and use Web Sync." : "No website yet — open and Edit to add it."}
+          </p>
+        )}
 
         <div className="space-y-1.5 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
