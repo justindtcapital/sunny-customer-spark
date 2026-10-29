@@ -87,3 +87,10 @@
 - [x] Planner timeline: category rows, subcategory tile colors, sector dots, week/month/year with prev/next, per-view totals
 - [x] Confirmed / Potential views, detail pane, add/edit, CSV import with field matching, add from link
 - [x] My Actions feed polish: split company/item toggles (PortCos, Network, Port DevOps | Workstreams, Follow-ups), logo-colored icon bullets, follow-ups nest under their workstream (editor link or Action Now origin)
+
+## Vic assistant
+- [x] Phase 1: Vic button on every page, Vic page with saved chats, read tools (Network, Prospecting, PortCos, Partners, Events), reviewed relationship changes and email drafts
+- [ ] Phase 1b: reviewed follow-up create/complete, event attendees, log action
+- [ ] Phase 2: Venture Pulse KB Drive index + folder picker + cited answers
+- [ ] Phase 3: skills — PortCo questions, new-company overlap, intro matching, skill registry
+- [ ] Phase 4: scheduled skills — daily digest, Monday actions, weekly report

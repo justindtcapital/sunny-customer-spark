@@ -20,6 +20,10 @@ import { Route as MyActionsRouteImport } from './routes/my-actions'
 import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as TargetingRouteImport } from './routes/targeting'
+import { Route as VicRouteImport } from './routes/vic'
+import { Route as ApiVicRouteImport } from './routes/api/vic'
+import { Route as VicIndexRouteImport } from './routes/vic.index'
+import { Route as VicThreadIdRouteImport } from './routes/vic.$threadId'
 import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activity-sync'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
 import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
@@ -83,6 +87,26 @@ const TargetingRoute = TargetingRouteImport.update({
   path: '/targeting',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VicRoute = VicRouteImport.update({
+  id: '/vic',
+  path: '/vic',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVicRoute = ApiVicRouteImport.update({
+  id: '/api/vic',
+  path: '/api/vic',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VicIndexRoute = VicIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => VicRoute,
+} as any)
+const VicThreadIdRoute = VicThreadIdRouteImport.update({
+  id: '/$threadId',
+  path: '/$threadId',
+  getParentRoute: () => VicRoute,
+} as any)
 const ApiCronActivitySyncRoute = ApiCronActivitySyncRouteImport.update({
   id: '/api/cron/activity-sync',
   path: '/api/cron/activity-sync',
@@ -133,6 +157,10 @@ export interface FileRoutesByFullPath {
   '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/vic': typeof VicRouteWithChildren
+  '/api/vic': typeof ApiVicRoute
+  '/vic/$threadId': typeof VicThreadIdRoute
+  '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -153,6 +181,9 @@ export interface FileRoutesByTo {
   '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/api/vic': typeof ApiVicRoute
+  '/vic/$threadId': typeof VicThreadIdRoute
+  '/vic': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -174,6 +205,10 @@ export interface FileRoutesById {
   '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/vic': typeof VicRouteWithChildren
+  '/api/vic': typeof ApiVicRoute
+  '/vic/$threadId': typeof VicThreadIdRoute
+  '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -196,6 +231,10 @@ export interface FileRouteTypes {
     | '/partners'
     | '/portfolio'
     | '/targeting'
+    | '/vic'
+    | '/api/vic'
+    | '/vic/$threadId'
+    | '/vic/'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -216,6 +255,9 @@ export interface FileRouteTypes {
     | '/partners'
     | '/portfolio'
     | '/targeting'
+    | '/api/vic'
+    | '/vic/$threadId'
+    | '/vic'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -236,6 +278,10 @@ export interface FileRouteTypes {
     | '/partners'
     | '/portfolio'
     | '/targeting'
+    | '/vic'
+    | '/api/vic'
+    | '/vic/$threadId'
+    | '/vic/'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -257,6 +303,8 @@ export interface RootRouteChildren {
   PartnersRoute: typeof PartnersRoute
   PortfolioRoute: typeof PortfolioRoute
   TargetingRoute: typeof TargetingRoute
+  VicRoute: typeof VicRouteWithChildren
+  ApiVicRoute: typeof ApiVicRoute
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
@@ -345,6 +393,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TargetingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/vic': {
+      id: '/vic'
+      path: '/vic'
+      fullPath: '/vic'
+      preLoaderRoute: typeof VicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/vic': {
+      id: '/api/vic'
+      path: '/api/vic'
+      fullPath: '/api/vic'
+      preLoaderRoute: typeof ApiVicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vic/': {
+      id: '/vic/'
+      path: '/'
+      fullPath: '/vic/'
+      preLoaderRoute: typeof VicIndexRouteImport
+      parentRoute: typeof VicRoute
+    }
+    '/vic/$threadId': {
+      id: '/vic/$threadId'
+      path: '/$threadId'
+      fullPath: '/vic/$threadId'
+      preLoaderRoute: typeof VicThreadIdRouteImport
+      parentRoute: typeof VicRoute
+    }
     '/api/cron/activity-sync': {
       id: '/api/cron/activity-sync'
       path: '/api/cron/activity-sync'
@@ -397,6 +473,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface VicRouteChildren {
+  VicThreadIdRoute: typeof VicThreadIdRoute
+  VicIndexRoute: typeof VicIndexRoute
+}
+
+const VicRouteChildren: VicRouteChildren = {
+  VicThreadIdRoute: VicThreadIdRoute,
+  VicIndexRoute: VicIndexRoute,
+}
+
+const VicRouteWithChildren = VicRoute._addFileChildren(VicRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
@@ -409,6 +497,8 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersRoute: PartnersRoute,
   PortfolioRoute: PortfolioRoute,
   TargetingRoute: TargetingRoute,
+  VicRoute: VicRouteWithChildren,
+  ApiVicRoute: ApiVicRoute,
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,

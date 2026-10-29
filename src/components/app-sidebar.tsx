@@ -1,3 +1,4 @@
+import { VicMark } from "@/components/vic/VicMark";
 import { useState } from "react";
 import {
   Users,
@@ -97,6 +98,7 @@ const navItems = [
   { title: "PortCo", url: "/portfolio", icon: PortCoIcon },
   { title: "Partners", url: "/partners", icon: Handshake },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
+  { title: "Vic", url: "/vic", icon: VicMark },
   { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
   { title: "Admin", url: "/activity", icon: ScrollText },
 ];
