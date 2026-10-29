@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronUp, Loader2, Maximize2, X, Users, Globe2, LayoutGrid, ChartNoAxesCombined, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,12 @@ import {
   type PyramidTier, type WindowKey,
 } from "@/lib/network-pyramid";
 
-export interface PyramidSelection { tier: PyramidTier; view: "domain" | "geo"; column: string }
+export interface PyramidSelection { tier: PyramidTier; view: "domain" | "geo" | "tier"; column: string }
 type View = "kpis" | "domain" | "geo";
 
 export function contactMatchesPyramid(c: Contact, sel: PyramidSelection): boolean {
   if (c.temperature !== sel.tier) return false;
+  if (sel.view === "tier") return true;
   const col = sel.view === "domain" ? primaryDomainFor(c.primaryArea, c.areasOfInterest) : marketFor(c.location);
   return col === sel.column;
 }
@@ -46,7 +48,7 @@ function MiniPyramid() {
   </svg>;
 }
 
-function TierChart({ counts }: { counts: Record<PyramidTier, number | null> }) {
+function TierChart({ counts, active, onTier }: { counts: Record<PyramidTier, number | null>; active: PyramidTier | null; onTier: (t: PyramidTier) => void }) {
   return <div className="network-tier-chart" aria-label="Relationship tiers">
     <svg viewBox="0 0 240 250" className="h-full w-full" preserveAspectRatio="xMidYMid meet" role="img"
       aria-label={PYRAMID_TIERS.map(t => `${t === "Prospect" ? "Prospects" : t} ${counts[t] ?? "pending"}`).join(", ")}>
@@ -59,7 +61,10 @@ function TierChart({ counts }: { counts: Record<PyramidTier, number | null> }) {
         // Left edge x at the label baseline (edge slopes 24 units per band).
         const labelY = bottom - 4;
         const leftAtLabel = 120 - topWidth / 2 - ((labelY - top) / (bottom - top)) * 24;
-        return <g key={tier} className={tierTone[tier]}>
+        return <g key={tier} role="button" tabIndex={0} aria-label={`Show everyone in ${label}`} aria-pressed={active === tier}
+          onClick={() => onTier(tier)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTier(tier); } }}
+          className={cn("network-tier cursor-pointer outline-none", tierTone[tier], active && active !== tier && "opacity-45")}>
+          <title>{tier === "Prospect" ? "Open the Prospecting page" : `Show everyone in ${label}`}</title>
           <polygon className="fill-current" points={`${120-topWidth/2},${top} ${120+topWidth/2},${top} ${120+bottomWidth/2},${bottom} ${120-bottomWidth/2},${bottom}`} />
           <text x={120} y={apex ? top + 30 : (top + bottom) / 2 + 4} textAnchor="middle" className="fill-background font-semibold tabular-nums" style={{ fontSize: apex ? 12 : 18 }}>{n?.toLocaleString() ?? "—"}</text>
           <text x={leftAtLabel + (apex ? 3 : 6)} y={labelY} textAnchor="start" className="fill-background font-medium uppercase" style={{ fontSize: apex ? 6 : 7.5, letterSpacing: apex ? 0.2 : 0.8 }}>{label}</text>
@@ -81,6 +86,7 @@ export function NetworkPyramid({
   onSelect: (s: PyramidSelection | null) => void;
 }) {
   const [view, setView] = useState<View>("domain");
+  const navigate = useNavigate();
   // Scope is shared with the sidebar's "My contacts / Everyone" switch so both always agree.
   const { filters, setFilters } = useFilters();
   const scope: "mine" | "ours" = filters.ownershipScope === "everyone" ? "ours" : "mine";
@@ -177,7 +183,10 @@ export function NetworkPyramid({
         <div className="flex items-center gap-1">{editing ? <><Button size="sm" className="h-7" onClick={saveTargets}><Check />Save targets</Button><Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(false)}>Cancel</Button></> : <Button size="sm" variant="outline" className="h-7" disabled={!data} onClick={() => { setDraft({}); setEditing(true); }}><Pencil />Edit targets</Button>}</div>
       </div>}
       <div className="network-overview-body mt-5">
-        <TierChart counts={counts} />
+        <TierChart counts={counts} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
+          if (t === "Prospect") { navigate({ to: "/targeting" }); return; }
+          onSelect(selection?.view === "tier" && selection.tier === t ? null : { tier: t, view: "tier", column: "" });
+        }} />
         <div className={cn("network-breakdown min-w-0", view === "geo" ? "network-breakdown-geo" : view === "kpis" ? "network-breakdown-kpis" : "network-breakdown-domain")}>
           <div className="network-column-headings">{displayCols.map(col => <div key={col} className="min-w-0 px-1 text-center text-[11px] font-medium leading-tight text-muted-foreground">{col}</div>)}</div>
           {PYRAMID_TIERS.map(tier => {
@@ -204,7 +213,7 @@ export function NetworkPyramid({
         </div>
       </div>
       {selection && <div className="mt-4 flex min-w-0 items-center gap-2 border-t pt-3 text-xs">
-        <span className="min-w-0 text-primary">{selection.tier} · {selection.column}</span>
+        <span className="min-w-0 text-primary">{selection.view === "tier" ? `Everyone in ${selection.tier}` : `${selection.tier} · ${selection.column}`}</span>
         <Button size="sm" variant="ghost" className="h-7 shrink-0" onClick={() => onSelect(null)}><X className="size-3" />Clear</Button>
       </div>}
     </section>
