@@ -171,8 +171,13 @@ export const deletePortfolioCompany = createServerFn({ method: "POST" })
 // Delete many portfolio companies in one sheet pass (URID preferred, name fallback).
 export const bulkDeletePortfolioCompanies = createServerFn({ method: "POST" })
   .inputValidator((data: { entries: { urid?: string; name?: string }[] }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkDeletePortfolioCompanies", data, context, async () => {
     return await bulkDeletePortfolioCompaniesServer(data.entries || []);
+  
+    });
   });
 
 // App-added events (stored in the Sheet's "App Events" tab — never written to Asana).
@@ -593,7 +598,10 @@ export const updateTargetFields = createServerFn({ method: "POST" })
 
 // Backfill missing / de-duplicate URIDs on the Targets tab so every row is stably
 // keyable (URID column only — data columns untouched). Idempotent.
-export const repairTargetUrids = createServerFn({ method: "POST" }).handler(async () => {
+export const repairTargetUrids = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .handler(async ({ context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("repairTargetUrids", {}, context, async () => {
   const res = await repairTargetUridsServer();
   if (res.filled > 0 || res.deduped > 0) {
     await logOpsEventServer({
@@ -606,11 +614,16 @@ export const repairTargetUrids = createServerFn({ method: "POST" }).handler(asyn
     });
   }
   return res;
-});
+
+    });
+  });
 
 // Clean the Targets "Sector" column: canonical industry casing, and job-title
 // text cleared (moved into a blank Role). Idempotent; only Sector/blank Role.
-export const repairTargetSectors = createServerFn({ method: "POST" }).handler(async () => {
+export const repairTargetSectors = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .handler(async ({ context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("repairTargetSectors", {}, context, async () => {
   const res = await repairTargetSectorsServer();
   if (res.cleared > 0 || res.normalized > 0) {
     await logOpsEventServer({
@@ -623,7 +636,9 @@ export const repairTargetSectors = createServerFn({ method: "POST" }).handler(as
     });
   }
   return res;
-});
+
+    });
+  });
 
 
 
@@ -636,7 +651,10 @@ export const bulkUpdateTargetFields = createServerFn({ method: "POST" })
       fillOnly?: boolean;
     }) => data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkUpdateTargetFields", data, context, async () => {
     const res = await bulkUpdateTargetFieldsServer(data.entries, { fillOnly: data.fillOnly });
     if (res.updated > 0) {
       // Distinct field names touched across the batch (e.g. "stage").
@@ -653,6 +671,8 @@ export const bulkUpdateTargetFields = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Mass Apollo research over selected targets: enrich each person and
@@ -672,7 +692,10 @@ export const bulkResearchTargets = createServerFn({ method: "POST" })
       }[];
     }) => data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkResearchTargets", data, context, async () => {
     const entries: {
       key?: string;
       urid?: string;
@@ -736,6 +759,8 @@ export const bulkResearchTargets = createServerFn({ method: "POST" })
       });
     }
     return { matched, notFound, failed, updated: res.updated };
+  
+    });
   });
 
 // Persist the latest AI connection plan for a target (Target Strategy tab).
@@ -979,7 +1004,10 @@ export const clearContactRatingOverride = createServerFn({ method: "POST" })
 // across many contacts, persisted to the Contacts sheet in one batched write.
 export const bulkUpdateContacts = createServerFn({ method: "POST" })
   .inputValidator((data: { emails: string[]; field: BulkEditField; value: string }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkUpdateContacts", data, context, async () => {
     const res = await bulkUpdateContactsServer(data.emails, data.field, data.value);
     if (res.updated > 0) {
       await logOpsEventServer({
@@ -992,12 +1020,17 @@ export const bulkUpdateContacts = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Hard-delete the given contacts (by email) from the Contacts sheet. Permanent.
 export const bulkDeleteContacts = createServerFn({ method: "POST" })
   .inputValidator((data: { emails: string[] }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkDeleteContacts", data, context, async () => {
     const res = await bulkDeleteContactsServer(data.emails);
     if (res.deleted > 0) {
       await logOpsEventServer({
@@ -1010,13 +1043,18 @@ export const bulkDeleteContacts = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Hard-delete the given targets (by stable URID, or derived target key) from the
 // Targets sheet. Permanent.
 export const bulkDeleteTargets = createServerFn({ method: "POST" })
   .inputValidator((data: { entries: { key?: string; urid?: string }[] }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkDeleteTargets", data, context, async () => {
     const res = await bulkDeleteTargetsServer(data.entries);
     if (res.deleted > 0) {
       await logOpsEventServer({
@@ -1029,6 +1067,8 @@ export const bulkDeleteTargets = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Non-destructive contact field merge. source "user" = human edit (writes all,
@@ -1067,7 +1107,10 @@ export const bulkEnrichContacts = createServerFn({ method: "POST" })
     (data: { contacts: { email: string; name: string; company?: string; urid?: string }[] }) =>
       data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkEnrichContacts", data, context, async () => {
     const updates: BulkMergeUpdate[] = [];
     let matched = 0;
     let notFound = 0;
@@ -1142,6 +1185,8 @@ export const bulkEnrichContacts = createServerFn({ method: "POST" })
       });
     }
     return { matched, notFound, failed, updated: res.updated };
+  
+    });
   });
 
 // Mass "areas of interest" load: infer each contact's interest domains from
@@ -1161,7 +1206,10 @@ export const bulkLoadInterests = createServerFn({ method: "POST" })
       }[];
     }) => data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkLoadInterests", data, context, async () => {
     const { inferInterestAreas } = await import("@/lib/interest-domains");
     const updates: BulkMergeUpdate[] = [];
     let inferred = 0;
@@ -1180,6 +1228,8 @@ export const bulkLoadInterests = createServerFn({ method: "POST" })
     // Fill-only: persist inferred areas only where the sheet cell is blank.
     const res = await bulkMergeContactFieldsServer(updates, "user", true);
     return { inferred, updated: res.updated };
+  
+    });
   });
 
 // Fresh existing-contact emails (lowercased), for commit-time dedup.
