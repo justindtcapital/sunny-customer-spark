@@ -101,10 +101,10 @@ function useApprove() {
   };
   return { state, note, go };
 }
-function ApproveRow({ a, label }: { a: ReturnType<typeof useApprove>; label: string }) {
+function ApproveRow({ a, run, label }: { a: ReturnType<typeof useApprove>; run: () => Promise<string>; label: string }) {
   return a.state === "done"
     ? <div className="text-xs text-muted-foreground">✓ {a.note}</div>
-    : <Button size="sm" disabled={a.state === "busy"} onClick={() => void a.go(a.run!)}>{a.state === "busy" ? "Saving…" : label}</Button>;
+    : <Button size="sm" disabled={a.state === "busy"} onClick={() => void a.go(run)}>{a.state === "busy" ? "Saving…" : label}</Button>;
 }
 const field = "w-full rounded border border-input bg-background px-2 py-1 text-xs";
 
@@ -124,7 +124,7 @@ export function FollowUpReview({ p, me }: { p: { title: string; date: string; ow
         <input className={field} disabled={done} value={f.portco} onChange={(e) => setF({ ...f, portco: e.target.value })} placeholder="Company" />
         <input className={field} disabled={done} value={f.person} onChange={(e) => setF({ ...f, person: e.target.value })} placeholder="Person" />
       </div>
-      <ApproveRow a={{ ...a, run } as never} label="Add follow-up" />
+      <ApproveRow a={a} run={run} label="Add follow-up" />
     </Card>
   );
 }
@@ -146,7 +146,7 @@ export function CompleteFollowUpsReview({ p }: { p: { items: { activityId: strin
           <span className="font-medium">{i.title}</span><span className="text-muted-foreground">{i.due}</span>
         </li>))}
       </ul>
-      {picked.size > 0 && <ApproveRow a={{ ...a, run } as never} label={`Complete ${picked.size}`} />}
+      {picked.size > 0 && <ApproveRow a={a} run={run} label={`Complete ${picked.size}`} />}
     </Card>
   );
 }
@@ -169,7 +169,7 @@ export function LogActionReview({ p, me, threadId }: { p: { subject: string; not
         {[p.tracks.join("/"), p.portcos.join(", "), p.people.map((x) => x.name).join(", ")].filter(Boolean).join(" · ")}
         {p.nextFollowUp?.date ? ` · next follow-up ${p.nextFollowUp.date}` : ""}
       </div>
-      <ApproveRow a={{ ...a, run } as never} label="Log action" />
+      <ApproveRow a={a} run={run} label="Log action" />
     </Card>
   );
 }
@@ -191,7 +191,7 @@ export function AttendeesReview({ p }: { p: { eventUrid: string; eventName: stri
           <span className="font-medium">{x.name}</span><span className="text-muted-foreground truncate">{x.email} · {x.kind} · {x.status}</span>
         </li>))}
       </ul>
-      {picked.size > 0 && <ApproveRow a={{ ...a, run } as never} label={`Add ${picked.size}`} />}
+      {picked.size > 0 && <ApproveRow a={a} run={run} label={`Add ${picked.size}`} />}
     </Card>
   );
 }
