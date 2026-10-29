@@ -20,6 +20,7 @@ import { Route as MyActionsRouteImport } from './routes/my-actions'
 import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as TargetingRouteImport } from './routes/targeting'
+import { Route as ApiVicRouteImport } from './routes/api/vic'
 import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activity-sync'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
 import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
@@ -83,6 +84,11 @@ const TargetingRoute = TargetingRouteImport.update({
   path: '/targeting',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVicRoute = ApiVicRouteImport.update({
+  id: '/api/vic',
+  path: '/api/vic',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronActivitySyncRoute = ApiCronActivitySyncRouteImport.update({
   id: '/api/cron/activity-sync',
   path: '/api/cron/activity-sync',
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/api/vic': typeof ApiVicRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/api/vic': typeof ApiVicRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
+  '/api/vic': typeof ApiVicRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/portfolio'
     | '/targeting'
+    | '/api/vic'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/portfolio'
     | '/targeting'
+    | '/api/vic'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/portfolio'
     | '/targeting'
+    | '/api/vic'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/cron/scan-signals'
@@ -257,6 +269,7 @@ export interface RootRouteChildren {
   PartnersRoute: typeof PartnersRoute
   PortfolioRoute: typeof PortfolioRoute
   TargetingRoute: typeof TargetingRoute
+  ApiVicRoute: typeof ApiVicRoute
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
@@ -345,6 +358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TargetingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/vic': {
+      id: '/api/vic'
+      path: '/api/vic'
+      fullPath: '/api/vic'
+      preLoaderRoute: typeof ApiVicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/activity-sync': {
       id: '/api/cron/activity-sync'
       path: '/api/cron/activity-sync'
@@ -409,6 +429,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersRoute: PartnersRoute,
   PortfolioRoute: PortfolioRoute,
   TargetingRoute: TargetingRoute,
+  ApiVicRoute: ApiVicRoute,
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,
