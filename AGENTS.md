@@ -31,3 +31,4 @@
 - vite.config.ts seeds public VITE_ backend env into process.env; .env is git-ignored, so published builds would crash.
 - Admin fix/feature requests live in the Lovable Cloud admin_requests table (not Sheets); the in-app assistant only drafts tickets and never changes code — avoids Sheets quota/conflicts and false "fixed" claims.
 - Admin dictation uses complete PCM WAV capture and the existing transcription service; transcripts append to the editable message without sending, and leaving the page releases microphone tracks.
+- Network Pyramid counts come from pure helpers in src/lib/network-pyramid.ts (one primary domain per person, market roll-up from free-text location, no market column). Movements reuse the append-only Rating History tab (deletes log "Removed", moves log "Prospecting"), and per-tier targets live in "Network Targets". Data loads only when the pyramid is expanded, so the Network page stays fast.
