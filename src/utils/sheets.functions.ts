@@ -1,3 +1,4 @@
+import { requireTeamAuth } from "./team-auth";
 import { createServerFn } from "@tanstack/react-start";
 import { parseToIsoDate, todayIso } from "@/lib/sheet-date";
 import {
@@ -170,8 +171,13 @@ export const deletePortfolioCompany = createServerFn({ method: "POST" })
 // Delete many portfolio companies in one sheet pass (URID preferred, name fallback).
 export const bulkDeletePortfolioCompanies = createServerFn({ method: "POST" })
   .inputValidator((data: { entries: { urid?: string; name?: string }[] }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkDeletePortfolioCompanies", data, context, async () => {
     return await bulkDeletePortfolioCompaniesServer(data.entries || []);
+  
+    });
   });
 
 // App-added events (stored in the Sheet's "App Events" tab — never written to Asana).
@@ -505,90 +511,15 @@ export const importTargets = createServerFn({ method: "POST" })
       followUp?: boolean;
     }) => data,
   )
-  .handler(async ({ data }): Promise<{ added: number; duplicates: number }> => {
-    const incoming = (data.targets || []).filter(
-      (t) => t.firstName || t.lastName || t.email || t.linkedin,
-    );
-    if (incoming.length === 0) return { added: 0, duplicates: 0 };
-
-    // Authoritative dedup: re-read existing targets at commit time so a re-click
-    // (or a concurrent import) can't double-create the same person.
-    let existingKeys = new Set<string>();
-    try {
-      const existing = await buildTargets();
-      existingKeys = new Set(existing.map((t) => targetKeyOf(t)).filter(Boolean));
-    } catch (e) {
-      console.error("importTargets: dedup read failed (proceeding):", e);
-    }
-
-    const seen = new Set<string>();
-    const toAdd: typeof incoming = [];
-    let duplicates = 0;
-    for (const r of incoming) {
-      const name = `${r.firstName} ${r.lastName}`.trim();
-      const key = targetKeyOf({ email: r.email, name, company: r.company });
-      if (key && (existingKeys.has(key) || seen.has(key))) {
-        duplicates++;
-        continue;
-      }
-      if (key) seen.add(key);
-      toAdd.push(r);
-    }
-
-    if (toAdd.length > 0) {
-      await appendTargetRowsServer(
-        toAdd.map((t) => ({
-          firstName: t.firstName,
-          lastName: t.lastName,
-          company: t.company,
-          role: t.role,
-          linkedin: t.linkedin,
-          email: t.email,
-          phone: t.phone || "",
-          location: t.location,
-          sector: t.sector,
-          stage: t.stage,
-          source: t.source,
-          researchPurpose: t.researchPurpose,
-          reasonSurfaced: t.reasonSurfaced || "",
-          campaign: (data.campaign || "").trim(),
-          event: (data.event || "").trim(),
-          portcoTags: data.portcoTags || [],
-          followUp: data.followUp === true,
-          prime: (data.prime || "").trim(),
-        })),
-      );
-      await logOpsEventServer({
-        action: "import",
-        source: "targets",
-        status: "ok",
-        summary: `Imported ${toAdd.length} target${toAdd.length !== 1 ? "s" : ""}${duplicates ? ` · ${duplicates} duplicate${duplicates !== 1 ? "s" : ""} skipped` : ""}`,
-        records: toAdd.length,
-        details: {
-          duplicates,
-          source: toAdd[0]?.source,
-          campaign: (data.campaign || "").trim() || undefined,
-          event: (data.event || "").trim() || undefined,
-          portcoTags: (data.portcoTags || []).length
-            ? (data.portcoTags || []).join(", ")
-            : undefined,
-        },
-        items: toAdd.map((t) =>
-          [`${t.firstName} ${t.lastName}`.trim(), t.company].filter(Boolean).join(" · "),
-        ),
-      });
-    } else if (duplicates > 0) {
-      // Nothing added — still record the attempt so the Ops Log has no gaps.
-      await logOpsEventServer({
-        action: "import",
-        source: "targets",
-        status: "warning",
-        summary: `Target import skipped · all ${duplicates} row${duplicates !== 1 ? "s" : ""} already in Targets`,
-        records: 0,
-        details: { duplicates },
-      });
-    }
-    return { added: toAdd.length, duplicates };
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { runJournalOperation } = await import("./bulk-journal.server");
+    const { importTargetRows } = await import("./bulk-import.server");
+    const result = await runJournalOperation({ kind:"target-import",page:"/targeting",input:data,actor:context,run:async journal => {
+      const value=await importTargetRows(data,journal);
+      return { value,outcomes:value.outcomes };
+    } });
+    return { ...result.value,operationId:result.operationId };
   });
 
 // Persist a single outreach attempt for a target (Target Outreach tab).
@@ -667,7 +598,10 @@ export const updateTargetFields = createServerFn({ method: "POST" })
 
 // Backfill missing / de-duplicate URIDs on the Targets tab so every row is stably
 // keyable (URID column only — data columns untouched). Idempotent.
-export const repairTargetUrids = createServerFn({ method: "POST" }).handler(async () => {
+export const repairTargetUrids = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .handler(async ({ context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("repairTargetUrids", {}, context, async () => {
   const res = await repairTargetUridsServer();
   if (res.filled > 0 || res.deduped > 0) {
     await logOpsEventServer({
@@ -680,11 +614,16 @@ export const repairTargetUrids = createServerFn({ method: "POST" }).handler(asyn
     });
   }
   return res;
-});
+
+    });
+  });
 
 // Clean the Targets "Sector" column: canonical industry casing, and job-title
 // text cleared (moved into a blank Role). Idempotent; only Sector/blank Role.
-export const repairTargetSectors = createServerFn({ method: "POST" }).handler(async () => {
+export const repairTargetSectors = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .handler(async ({ context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("repairTargetSectors", {}, context, async () => {
   const res = await repairTargetSectorsServer();
   if (res.cleared > 0 || res.normalized > 0) {
     await logOpsEventServer({
@@ -697,7 +636,9 @@ export const repairTargetSectors = createServerFn({ method: "POST" }).handler(as
     });
   }
   return res;
-});
+
+    });
+  });
 
 
 
@@ -710,7 +651,10 @@ export const bulkUpdateTargetFields = createServerFn({ method: "POST" })
       fillOnly?: boolean;
     }) => data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkUpdateTargetFields", data, context, async () => {
     const res = await bulkUpdateTargetFieldsServer(data.entries, { fillOnly: data.fillOnly });
     if (res.updated > 0) {
       // Distinct field names touched across the batch (e.g. "stage").
@@ -727,6 +671,8 @@ export const bulkUpdateTargetFields = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Mass Apollo research over selected targets: enrich each person and
@@ -746,7 +692,10 @@ export const bulkResearchTargets = createServerFn({ method: "POST" })
       }[];
     }) => data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkResearchTargets", data, context, async () => {
     const entries: {
       key?: string;
       urid?: string;
@@ -810,6 +759,8 @@ export const bulkResearchTargets = createServerFn({ method: "POST" })
       });
     }
     return { matched, notFound, failed, updated: res.updated };
+  
+    });
   });
 
 // Persist the latest AI connection plan for a target (Target Strategy tab).
@@ -1053,7 +1004,10 @@ export const clearContactRatingOverride = createServerFn({ method: "POST" })
 // across many contacts, persisted to the Contacts sheet in one batched write.
 export const bulkUpdateContacts = createServerFn({ method: "POST" })
   .inputValidator((data: { emails: string[]; field: BulkEditField; value: string }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkUpdateContacts", data, context, async () => {
     const res = await bulkUpdateContactsServer(data.emails, data.field, data.value);
     if (res.updated > 0) {
       await logOpsEventServer({
@@ -1066,12 +1020,17 @@ export const bulkUpdateContacts = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Hard-delete the given contacts (by email) from the Contacts sheet. Permanent.
 export const bulkDeleteContacts = createServerFn({ method: "POST" })
   .inputValidator((data: { emails: string[] }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkDeleteContacts", data, context, async () => {
     const res = await bulkDeleteContactsServer(data.emails);
     if (res.deleted > 0) {
       await logOpsEventServer({
@@ -1084,13 +1043,18 @@ export const bulkDeleteContacts = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Hard-delete the given targets (by stable URID, or derived target key) from the
 // Targets sheet. Permanent.
 export const bulkDeleteTargets = createServerFn({ method: "POST" })
   .inputValidator((data: { entries: { key?: string; urid?: string }[] }) => data)
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkDeleteTargets", data, context, async () => {
     const res = await bulkDeleteTargetsServer(data.entries);
     if (res.deleted > 0) {
       await logOpsEventServer({
@@ -1103,6 +1067,8 @@ export const bulkDeleteTargets = createServerFn({ method: "POST" })
       });
     }
     return res;
+  
+    });
   });
 
 // Non-destructive contact field merge. source "user" = human edit (writes all,
@@ -1141,7 +1107,10 @@ export const bulkEnrichContacts = createServerFn({ method: "POST" })
     (data: { contacts: { email: string; name: string; company?: string; urid?: string }[] }) =>
       data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkEnrichContacts", data, context, async () => {
     const updates: BulkMergeUpdate[] = [];
     let matched = 0;
     let notFound = 0;
@@ -1216,6 +1185,8 @@ export const bulkEnrichContacts = createServerFn({ method: "POST" })
       });
     }
     return { matched, notFound, failed, updated: res.updated };
+  
+    });
   });
 
 // Mass "areas of interest" load: infer each contact's interest domains from
@@ -1235,7 +1206,10 @@ export const bulkLoadInterests = createServerFn({ method: "POST" })
       }[];
     }) => data,
   )
-  .handler(async ({ data }) => {
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { auditBulk } = await import("./bulk-journal.server");
+    return auditBulk("bulkLoadInterests", data, context, async () => {
     const { inferInterestAreas } = await import("@/lib/interest-domains");
     const updates: BulkMergeUpdate[] = [];
     let inferred = 0;
@@ -1254,6 +1228,8 @@ export const bulkLoadInterests = createServerFn({ method: "POST" })
     // Fill-only: persist inferred areas only where the sheet cell is blank.
     const res = await bulkMergeContactFieldsServer(updates, "user", true);
     return { inferred, updated: res.updated };
+  
+    });
   });
 
 // Fresh existing-contact emails (lowercased), for commit-time dedup.
@@ -1270,7 +1246,7 @@ export const logImportResult = createServerFn({ method: "POST" })
   });
 
 // Append a row to the unified Ops Log (import / export / sync audit trail).
-export const logOpsEvent = createServerFn({ method: "POST" })
+export const logOpsEvent = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
   .inputValidator((data: OpsLogInput) => data)
   .handler(async ({ data }) => {
     await logOpsEventServer(data);
@@ -1317,13 +1293,13 @@ export const fetchImportHistory = createServerFn({ method: "GET" }).handler(asyn
 );
 
 // The per-action audit trail (Ops Log tab), newest first — powers the /activity view.
-export const fetchOpsLog = createServerFn({ method: "GET" }).handler(
+export const fetchOpsLog = createServerFn({ method: "GET" }).middleware([requireTeamAuth]).handler(
   async (): Promise<OpsLogEntry[]> => {
     try {
       return await buildOpsLogServer();
     } catch (error) {
       console.error("Failed to fetch ops log from Google Sheets:", error);
-      return [];
+      throw new Error("Activity history is unavailable. Please refresh later.");
     }
   },
 );

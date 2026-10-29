@@ -15,6 +15,13 @@
       "when": 1793200484517,
       "tag": "0001_admin_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793309988322,
+      "tag": "0002_bulk_operation_journal",
+      "breakpoints": true
     }
   ]
 }

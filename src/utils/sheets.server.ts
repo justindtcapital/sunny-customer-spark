@@ -131,7 +131,9 @@ async function runSheetsRequest(url: string, init: RequestInit): Promise<Respons
     const timeout = AbortSignal.timeout(20_000);
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
     const res = await fetch(url, { ...init, signal });
-    const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
+    // Non-idempotent appends and positional deletes may have committed on 5xx.
+    // Return that uncertainty to the operation journal instead of replaying it.
+    const retryable = res.status === 429 || (isRead && res.status >= 500 && res.status < 600);
     if (!retryable || attempt >= maxRetries) return res;
     const backoff = Math.min(capMs, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 300);
     console.warn(
@@ -1100,7 +1102,7 @@ export interface OpsLogEntry {
 // column order / a missing "Items" column on older workbooks). Returns [] if the
 // tab doesn't exist yet.
 export async function buildOpsLog(limit = 500): Promise<OpsLogEntry[]> {
-  const rows = await fetchSheetTab(TAB_NAMES.opsLog).catch(() => [] as string[][]);
+  const rows = await fetchSheetTab(TAB_NAMES.opsLog, true);
   if (rows.length < 2) return [];
   const headers = rows[0].map((h) => h.trim().toLowerCase());
   const idx = (name: string) => headers.indexOf(name);
@@ -2746,8 +2748,9 @@ export async function setContactRating(
   email: string,
   tier: Temperature,
   urid?: string,
+  expected?: Temperature,
 ): Promise<{ success: boolean }> {
-  const rows = await fetchSheetTab(TAB_NAMES.contacts);
+  const rows = await fetchSheetTab(TAB_NAMES.contacts, true);
   if (rows.length < 2) return { success: false };
 
   const headers = rows[0].map((h) => h.trim().toLowerCase());
@@ -2761,14 +2764,19 @@ export async function setContactRating(
 
   const target = email.trim().toLowerCase();
   const uridKey = (urid || "").trim().toLowerCase();
+  const matches = rows.slice(1).filter(r => uridKey ? (r[uridIdx] || "").trim().toLowerCase() === uridKey : (r[emailIdx] || "").trim().toLowerCase() === target);
+  if (matches.length !== 1) return { success: false };
   const ts = new Date().toISOString();
   for (let i = 1; i < rows.length; i++) {
     const rowUrid = uridIdx !== -1 ? (rows[i][uridIdx] || "").trim().toLowerCase() : "";
     const rowEmail = (rows[i][emailIdx] || "").trim().toLowerCase();
-    const match = (uridKey && rowUrid === uridKey) || (!!target && rowEmail === target);
+    const match = uridKey ? rowUrid === uridKey : !!target && rowEmail === target;
     if (!match) continue;
     const rowUridVal = uridIdx !== -1 ? rows[i][uridIdx] || "" : "";
     const prev = (rows[i][statusIdx] || "").trim();
+    const normalized = ({ council: "Council", hot: "Hot", warm: "Warm", cold: "Cold" } as Record<string, Temperature>)[prev.toLowerCase()] || "Cold";
+    if (expected && expected !== normalized) return { success: false };
+    if (normalized === tier) return { success: true };
     await updateSheetCell(TAB_NAMES.contacts, `${colLetters(statusIdx)}${i + 1}`, tier);
     await setRatingOverride(rows[i][emailIdx] || email, rowUridVal || urid, true, tier, ts);
     await ensureTab(TAB_NAMES.ratingHistory, RATING_HISTORY_HEADERS);
@@ -3164,7 +3172,7 @@ export interface ImportHistoryRow extends Omit<ImportResultInput, "totalRows"> {
 // re-import in the same session can't double-create rows the client snapshot
 // doesn't know about yet (idempotency).
 export async function fetchContactEmails(): Promise<string[]> {
-  const rows = await fetchSheetTab(TAB_NAMES.contacts).catch(() => [] as string[][]);
+  const rows = await fetchSheetTab(TAB_NAMES.contacts, true);
   if (rows.length < 2) return [];
   const headers = rows[0].map((h) => h.trim().toLowerCase());
   const emailIdx = headers.indexOf("email");
@@ -3195,7 +3203,7 @@ export async function logImportResult(data: ImportResultInput): Promise<void> {
   await logOpsEvent({
     action: "import",
     source: data.source,
-    status: data.failed > 0 && data.imported === 0 ? "error" : "ok",
+    status: data.failed > 0 ? (data.imported === 0 ? "error" : "warning") : "ok",
     summary: data.filename ? `Imported from ${data.filename}` : `Imported via ${data.source}`,
     records: data.imported,
     details: {
@@ -3332,6 +3340,7 @@ export async function bulkUpdateContacts(
     const e = (rows[i][emailIdx] || "").trim().toLowerCase();
     if (!wanted.has(e)) continue;
     const prev = (rows[i][colIdx] || "").trim();
+    if (prev === value) continue;
     cellUpdates.push({ range: `${col}${i + 1}`, value });
     if (field === "status") {
       const name = nameIdx !== -1 ? rows[i][nameIdx] || "" : "";

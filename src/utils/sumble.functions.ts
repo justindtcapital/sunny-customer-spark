@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireTeamAuth } from "./team-auth";
 import {
   buildPortcoIntel,
   buildPortcoBrief,
@@ -529,6 +530,7 @@ export const annotateSavedTechStack = createServerFn({ method: "POST" })
 // count. Contacts whose company can't be resolved are skipped.
 const TECH_STACK_MAX = 12; // how many technologies to store per contact
 export const bulkLoadTechStack = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
   .inputValidator(
     (data: {
       contacts: {
@@ -540,7 +542,9 @@ export const bulkLoadTechStack = createServerFn({ method: "POST" })
       }[];
     }) => data,
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data,context }) => {
+    const { auditBulk }=await import("./bulk-journal.server");
+    return auditBulk("bulkLoadTechStack",data,context,async()=>{
     if (!isSumbleConfigured()) {
       return {
         companies: 0,
@@ -565,7 +569,7 @@ export const bulkLoadTechStack = createServerFn({ method: "POST" })
       }
       const key = company.toLowerCase();
       if (!groups.has(key)) groups.set(key, { company, website: c.website, members: [] });
-      groups.get(key)!.members.push(c);
+      groups.get(key)?.members.push(c);
     }
 
     const updates: BulkMergeUpdate[] = [];
@@ -611,4 +615,5 @@ export const bulkLoadTechStack = createServerFn({ method: "POST" })
 
     const merge = await bulkMergeContactFields(updates, "user");
     return { companies: groups.size, resolved, updated: merge.updated, skipped, creditsRemaining };
+    });
   });

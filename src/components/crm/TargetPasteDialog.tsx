@@ -134,7 +134,6 @@ export function TargetPasteDialog({ open, onOpenChange, existingKeys = [], onImp
       if (key) {
         if (existing.has(key) || seen.has(key)) {
           dupes++;
-          continue;
         }
         seen.add(key);
       }
@@ -218,7 +217,8 @@ export function TargetPasteDialog({ open, onOpenChange, existingKeys = [], onImp
       const parts = [`Added ${res.added} prospecting target${res.added !== 1 ? "s" : ""}`];
       if (enrich) parts.push(`${enriched} enriched`);
       if (res.duplicates) parts.push(`${res.duplicates} duplicate${res.duplicates !== 1 ? "s" : ""} skipped`);
-      toast.success(parts.join(" · "));
+      if (res.review) parts.push(`${res.review} need review in Admin`);
+      if (res.review) toast.warning(parts.join(" · ")); else toast.success(parts.join(" · "));
       if (res.added > 0) await onImported?.();
       reset();
       onOpenChange(false);

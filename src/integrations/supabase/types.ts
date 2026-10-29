@@ -16,12 +16,14 @@ export type Database = {
     Tables: {
       admin_requests: {
         Row: {
+          activity_key: string | null
           created_at: string
           description: string
           effort: string
           id: string
           kind: string
           lovable_prompt: string
+          operation_id: string | null
           page: string
           priority: string
           requested_by: string
@@ -31,12 +33,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          activity_key?: string | null
           created_at?: string
           description?: string
           effort?: string
           id?: string
           kind?: string
           lovable_prompt?: string
+          operation_id?: string | null
           page?: string
           priority?: string
           requested_by?: string
@@ -46,17 +50,82 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          activity_key?: string | null
           created_at?: string
           description?: string
           effort?: string
           id?: string
           kind?: string
           lovable_prompt?: string
+          operation_id?: string | null
           page?: string
           priority?: string
           requested_by?: string
           status?: string
           title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      bulk_operation_locks: {
+        Row: {
+          acquired_at: string
+          operation_id: string
+          resource: string
+        }
+        Insert: {
+          acquired_at?: string
+          operation_id: string
+          resource: string
+        }
+        Update: {
+          acquired_at?: string
+          operation_id?: string
+          resource?: string
+        }
+        Relationships: []
+      }
+      bulk_operations: {
+        Row: {
+          actor: string
+          attempts: Json
+          created_at: string
+          id: string
+          input: Json
+          kind: string
+          outcomes: Json
+          page: string
+          status: string
+          summary: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actor: string
+          attempts?: Json
+          created_at?: string
+          id: string
+          input?: Json
+          kind: string
+          outcomes?: Json
+          page?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          actor?: string
+          attempts?: Json
+          created_at?: string
+          id?: string
+          input?: Json
+          kind?: string
+          outcomes?: Json
+          page?: string
+          status?: string
+          summary?: string
           updated_at?: string
           user_id?: string
         }
@@ -88,7 +157,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_bulk_operation_lock: {
+        Args: { p_operation_id: string; p_resource: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

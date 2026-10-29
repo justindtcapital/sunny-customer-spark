@@ -678,7 +678,8 @@ function EventForm({
         onSaved(next);
       } else {
         const r = await add({ data: { events: [form], by: email || "" } });
-        if (r.skipped.length) toast.warning("An event with that name and date already exists");
+        if (r.review.length) toast.warning("A possible matching event needs review in Admin; your incoming fields and tags were retained.");
+        else if (r.skipped.length) toast.warning("This exact event already exists");
         else toast.success("Event added");
         onSaved(null);
       }
@@ -828,7 +829,8 @@ function CsvImportDialog({ open, onClose, onDone }: { open: boolean; onClose: ()
     setBusy(true);
     try {
       const r = await add({ data: { events, by: email || "" } });
-      toast.success(`Imported ${r.added} event${r.added === 1 ? "" : "s"}${r.skipped.length ? ` · ${r.skipped.length} duplicates skipped` : ""}`);
+      const message = `Imported ${r.added} event${r.added === 1 ? "" : "s"}${r.skipped.length ? ` · ${r.skipped.length} exact duplicates skipped` : ""}${r.review.length ? ` · ${r.review.length} need review in Admin` : ""}`;
+      if (r.review.length) toast.warning(message); else toast.success(message);
       setRows([]);
       onDone();
       onClose();

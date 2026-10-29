@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Bug, Lightbulb, LifeBuoy, Send, Copy, ArrowRightLeft, Trash2, Loader2, ClipboardList, ExternalLink } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buildHandoffPrompt, buildHandoffUrl } from "@/lib/lovable-handoff";
+import type { ActivityDraftContext } from "./BulkActivityLog";
+import { createActivityFixRequest } from "@/utils/bulk-operations.functions";
 
 type Draft = NonNullable<AssistantReply["draft"]>;
 interface RequestRow {
@@ -23,9 +25,11 @@ interface RequestRow {
 const STATUSES = ["open", "planned", "in progress", "done", "won't do"];
 const PRI_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
-export function AdminWorkspace() {
+export function AdminWorkspace({ activity, activityMode, onActivityHandled }: { activity?: ActivityDraftContext | null; activityMode?: "troubleshoot" | "fix"; onActivityHandled?: () => void }) {
   const { email } = useAuth();
   const ask = useServerFn(askAdminAssistantFn);
+  const saveActivity = useServerFn(createActivityFixRequest);
+  const [linkedActivity,setLinkedActivity] = useState<ActivityDraftContext|null>(null);
   const [turns, setTurns] = useState<AssistantTurn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,6 +46,13 @@ export function AdminWorkspace() {
   }
   useEffect(() => { void load(); void supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null)); }, []);
   useEffect(() => { endRef.current?.scrollIntoView({ block: "nearest" }); }, [turns, busy]);
+  useEffect(() => {
+    if (!activity) return;
+    setLinkedActivity(activity);
+    if (activityMode === "fix") setDraft({ kind:"fix",title:activity.title,description:activity.evidence,lovablePrompt:`Investigate this activity, preserve all data and tags, and write a build plan before changes.\n\n${activity.evidence}`,priority:"medium",effort:"medium" });
+    else setInput(`Help troubleshoot this recorded activity:\n\n${activity.evidence}`);
+    onActivityHandled?.();
+  },[activity,activityMode,onActivityHandled]);
 
   async function send() {
     const text = input.trim();
@@ -49,7 +60,7 @@ export function AdminWorkspace() {
     const next = [...turns, { role: "user" as const, text }];
     setTurns(next); setInput(""); setBusy(true);
     try {
-      const r = await ask({ data: { turns: next, page: document.referrer } });
+      const r = await ask({ data: { turns: next, page: linkedActivity?.page || window.location.pathname } });
       if (r.error) { toast.error(r.error); setTurns(next); return; }
       setTurns([...next, { role: "assistant", text: r.reply }]);
       if (r.draft) setDraft(r.draft);
@@ -60,9 +71,17 @@ export function AdminWorkspace() {
 
   async function saveDraft() {
     if (!draft) return;
+    if (linkedActivity && draft.kind === "fix") {
+      try {
+        const r=await saveActivity({ data:{ activityKey:linkedActivity.key,operationId:linkedActivity.operationId,title:draft.title,description:draft.description,prompt:draft.lovablePrompt,page:linkedActivity.page } });
+        toast.success(r.existing ? "Existing linked fix request opened in the queue" : "Linked fix request logged");
+        setDraft(null);setTurns([]);setLinkedActivity(null);void load();
+      } catch(e) { toast.error(e instanceof Error ? e.message : "Couldn't save the linked request."); }
+      return;
+    }
     const { error } = await supabase.from("admin_requests").insert({
       kind: draft.kind, title: draft.title, description: draft.description, lovable_prompt: draft.lovablePrompt,
-      priority: draft.priority, effort: draft.effort, requested_by: email || "",
+      priority: draft.priority, effort: draft.effort, requested_by: email || "", page:linkedActivity?.page || window.location.pathname,
     });
     if (error) return toast.error("Couldn't save the request");
     toast.success(draft.kind === "fix" ? "Fix request logged" : "Feature request logged");

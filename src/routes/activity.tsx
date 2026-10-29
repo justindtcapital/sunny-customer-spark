@@ -5,6 +5,7 @@ import { fetchOpsLog } from "@/utils/sheets.functions";
 import { repairGmailNotesFn } from "@/utils/gmail-notes-repair.functions";
 import type { OpsLogEntry } from "@/utils/sheets.server";
 import { AdminWorkspace } from "@/components/admin/AdminWorkspace";
+import { BulkActivityLog, type ActivityDraftContext } from "@/components/admin/BulkActivityLog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +99,9 @@ function ActivityPage() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [repairing, setRepairing] = useState(false);
+  const [activityContext,setActivityContext]=useState<ActivityDraftContext|null>(null);
+  const [activityMode,setActivityMode]=useState<"troubleshoot"|"fix">("troubleshoot");
+  const actOnActivity=(context:ActivityDraftContext,mode:"troubleshoot"|"fix")=>{setActivityContext(context);setActivityMode(mode);window.scrollTo({top:0,behavior:"smooth"});};
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -161,9 +165,10 @@ function ActivityPage() {
   return (
     <div className="p-6 max-w-[1200px] mx-auto">
       <h1 className="text-lg font-bold text-foreground mb-4">Admin</h1>
-      <AdminWorkspace />
+      <AdminWorkspace activity={activityContext} activityMode={activityMode} onActivityHandled={()=>setActivityContext(null)} />
       <details className="mt-8 rounded-xl border bg-card p-4">
       <summary className="cursor-pointer text-sm font-semibold">Activity log</summary>
+      <BulkActivityLog onAction={actOnActivity} />
       <div className="flex items-center justify-between mb-5 mt-4">
         <div>
           <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
@@ -219,6 +224,7 @@ function ActivityPage() {
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="ok">OK</SelectItem>
             <SelectItem value="error">Error</SelectItem>
+            <SelectItem value="warning">Warning / partial</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -267,8 +273,8 @@ function ActivityPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-foreground truncate">{e.summary || "—"}</span>
-                      {e.status === "error" ? (
-                        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-600" />
+                      {e.status === "error" || e.status === "warning" ? (
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
                       ) : (
                         <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600/70" />
                       )}
@@ -296,6 +302,7 @@ function ActivityPage() {
 
                 {isOpen && hasDetail && (
                   <div className="px-3 pb-3 pl-17 space-y-2">
+                    <div className="flex gap-2">{(["troubleshoot","fix"] as const).map(mode=><Button key={mode} size="sm" variant="outline" onClick={()=>actOnActivity({ key:`legacy:${e.timestamp}:${e.source}:${e.summary}`.slice(0,250),page:e.source,evidence:`${e.summary}\n${e.timestamp} · ${e.status}\n${e.details}\n${e.items.slice(0,40).join("\n")}`,title:`Review ${e.summary}`.slice(0,200) },mode)}>{mode==="fix"?"Create fix request":"Troubleshoot"}</Button>)}<Button size="sm" variant="outline" disabled title="Legacy activities have no verified retry context">Retry</Button></div>
                     {e.details && (
                       <div className="text-[11px] text-muted-foreground">
                         <span className="font-semibold uppercase tracking-wider text-[10px]">Details</span>

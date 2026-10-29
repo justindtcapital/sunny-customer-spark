@@ -7,7 +7,8 @@ describe("manual bulk relationship ladder", () => {
   it("demotes Cold to Prospecting", () => expect(nextRelationshipLevel("Cold", "demote")).toBe("Prospecting"));
   it("promotes Cold to Warm", () => expect(nextRelationshipLevel("Cold", "promote")).toBe("Warm"));
   it("promotes Warm to Hot", () => expect(nextRelationshipLevel("Warm", "promote")).toBe("Hot"));
-  it("leaves Hot at the top of the ordinary ladder", () => expect(nextRelationshipLevel("Hot", "promote")).toBeNull());
-  it("preserves Council records", () => expect(nextRelationshipLevel("Council", "demote")).toBeNull());
+  it("promotes Hot to Council", () => expect(nextRelationshipLevel("Hot", "promote")).toBe("Council"));
+  it("demotes Council to Hot", () => expect(nextRelationshipLevel("Council", "demote")).toBe("Hot"));
+  it("blocks promotion above Council", () => expect(nextRelationshipLevel("Council", "promote")).toBeNull());
   it("allows direct transfer to Prospecting", () => expect(nextRelationshipLevel("Hot", "prospecting")).toBe("Prospecting"));
 });
