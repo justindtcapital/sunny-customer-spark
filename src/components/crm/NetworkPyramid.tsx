@@ -20,7 +20,7 @@ export interface PyramidSelection { tier: PyramidTier; view: "domain" | "geo" | 
 type View = "kpis" | "domain" | "geo";
 
 export function contactMatchesPyramid(c: Contact, sel: PyramidSelection): boolean {
-  if (c.temperature !== sel.tier) return false;
+  if (c.portco || c.temperature !== sel.tier) return false;
   if (sel.view === "tier") return true;
   const col = sel.view === "domain" ? primaryDomainFor(c.primaryArea, c.areasOfInterest) : marketFor(c.location);
   return col === sel.column;

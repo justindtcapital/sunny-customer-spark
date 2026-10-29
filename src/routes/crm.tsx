@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ENGAGEMENT_SOURCES, type EngagementSource } from "@/lib/types";
 import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagement-source";
 import type { Contact, PortfolioCompany } from "@/lib/types";
+import { isPortCoContact, portcoKeys } from "@/lib/portco-contacts";
 
 import { ContactList } from "@/components/crm/ContactList";
 import { syncAsanaActivities, syncActivityTracks } from "@/utils/activity-sync.functions";
@@ -81,9 +82,6 @@ export const Route = createFileRoute("/crm")({
   component: CrmPage,
 });
 
-function isPortfolioContact(c: Contact) {
-  return (c.sector || "").trim().toLowerCase() === "portfolio";
-}
 
 function CrmPage() {
   const { contacts: allContacts, companies } = Route.useLoaderData() as {
@@ -91,8 +89,12 @@ function CrmPage() {
     companies: PortfolioCompany[];
   };
   const { contact: focusEmail } = Route.useSearch();
-  // Portfolio-tagged contacts belong to portfolio companies — surface them on the Portfolio page instead.
-  const contacts = useMemo(() => allContacts.filter((c) => !isPortfolioContact(c)), [allContacts]);
+  // PortCo people stay searchable in Network but are tagged "PortCo" and kept out of the tiers.
+  const contacts = useMemo(() => {
+    const keys = portcoKeys(companies.map((c) => c.name));
+    return allContacts.map((c) => (isPortCoContact(c, keys) ? { ...c, portco: true } : c));
+  }, [allContacts, companies]);
+  const tierContacts = useMemo(() => contacts.filter((c) => !c.portco), [contacts]);
   const { filters } = useFilters();
   const { email, ready: authReady } = useAuth();
   const profile = useMemo(() => teamProfile(email), [email]);
@@ -533,7 +535,7 @@ function CrmPage() {
         </div>
         <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 xl:col-span-1 xl:justify-end">
           {!pyramidOpen && (
-            <NetworkPyramid contacts={contacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded={false} onExpandedChange={setPyramidOpen} />
+            <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded={false} onExpandedChange={setPyramidOpen} />
           )}
           <Button
             variant="outline"
@@ -619,7 +621,7 @@ function CrmPage() {
       </div>
 
       {pyramidOpen && (
-        <NetworkPyramid contacts={contacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded onExpandedChange={setPyramidOpen} />
+        <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded onExpandedChange={setPyramidOpen} />
       )}
       <ContactList
         contacts={listContacts}

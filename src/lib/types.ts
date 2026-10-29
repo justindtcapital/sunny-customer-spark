@@ -210,6 +210,8 @@ export interface Contact {
   /** Single approved primary area (Security / AI & Data / Logistics / Other); blank = derived. */
   primaryArea?: string;
   temperature: Temperature;
+  /** Derived at read time: works at a PortCo, so excluded from the Network tiers. Never saved. */
+  portco?: boolean;
   portCoIntros: string[];
   /** Portfolio engagements with their source category (richer than portCoIntros). */
   portCoEngagements?: PortCoEngagement[];
