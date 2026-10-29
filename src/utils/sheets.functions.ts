@@ -1468,3 +1468,24 @@ export const recordEmailSent = createServerFn({ method: "POST" })
 
     return { ok: true as const, summary };
   });
+
+
+// Network Pyramid inputs (movement log, per-tier targets, prospects). Fetched
+// only when the pyramid is expanded.
+export const fetchNetworkPyramid = createServerFn({ method: "GET" }).handler(async () => {
+  const { buildNetworkPyramidData } = await import("./sheets.server");
+  try {
+    return { ...(await buildNetworkPyramidData()), error: null as string | null };
+  } catch (e) {
+    console.error("fetchNetworkPyramid failed", e);
+    return { movements: [], targets: {} as Record<string, number>, prospects: [], error: "Couldn't load network movement data." };
+  }
+});
+
+export const saveNetworkTargets = createServerFn({ method: "POST" })
+  .inputValidator((data: { targets: Record<string, number> }) => data)
+  .handler(async ({ data }) => {
+    const { saveNetworkTargets: save } = await import("./sheets.server");
+    await save(data.targets);
+    return { success: true };
+  });

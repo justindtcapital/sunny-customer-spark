@@ -43,6 +43,7 @@ import { useFilterOptions } from "@/lib/filter-options-context";
 import { useSelection } from "@/lib/selection-context";
 import { useAuth } from "@/lib/auth-context";
 import { teamProfile } from "@/lib/user-ownership";
+import { NetworkPyramid, contactMatchesPyramid, type PyramidSelection } from "@/components/crm/NetworkPyramid";
 import { BulkUploadDialog } from "@/components/crm/BulkUploadDialog";
 import { SmartPasteDialog } from "@/components/crm/SmartPasteDialog";
 import { canonicalLocations } from "@/lib/location-utils";
@@ -110,6 +111,12 @@ function CrmPage() {
   const router = useRouter();
   const navigate = useNavigate({ from: "/crm" });
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
+  const [pyramidOpen, setPyramidOpen] = useState(false);
+  const [pyramidSel, setPyramidSel] = useState<PyramidSelection | null>(null);
+  const listContacts = useMemo(
+    () => (pyramidSel ? contacts.filter((c) => contactMatchesPyramid(c, pyramidSel)) : contacts),
+    [contacts, pyramidSel],
+  );
   const [pasteOpen, setPasteOpen] = useState(false);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
@@ -524,7 +531,10 @@ function CrmPage() {
             Manage and track your DTC network relationships
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {!pyramidOpen && (
+            <NetworkPyramid contacts={contacts} profile={profile} selection={pyramidSel} onSelect={setPyramidSel} expanded={false} onExpandedChange={setPyramidOpen} />
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -608,8 +618,11 @@ function CrmPage() {
         </div>
       </div>
 
+      {pyramidOpen && (
+        <NetworkPyramid contacts={contacts} profile={profile} selection={pyramidSel} onSelect={setPyramidSel} expanded onExpandedChange={setPyramidOpen} />
+      )}
       <ContactList
-        contacts={contacts}
+        contacts={listContacts}
         filters={filters}
         focusEmail={focusEmail}
         teamProfile={profile}

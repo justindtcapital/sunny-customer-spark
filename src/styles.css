@@ -21,6 +21,11 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-glow: var(--primary-glow);
+  --color-pyramid: var(--pyramid);
+  --color-pyramid-foreground: var(--pyramid-foreground);
+  --color-pyramid-figure: var(--pyramid-figure);
+  --color-pyramid-dot: var(--pyramid-dot);
+  --color-pyramid-grid: var(--pyramid-grid);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -77,6 +82,11 @@
   --primary: oklch(0.46 0.175 250);
   --primary-foreground: oklch(1 0 0);
   --primary-glow: oklch(0.55 0.16 250);
+  --pyramid: oklch(0.32 0.03 250);
+  --pyramid-foreground: oklch(0.97 0.005 250);
+  --pyramid-figure: oklch(0.82 0.16 80);
+  --pyramid-dot: oklch(0.45 0.09 235);
+  --pyramid-grid: oklch(0.9 0.04 230);
   --secondary: oklch(0.965 0.005 250);
   --secondary-foreground: oklch(0.22 0.035 256);
   --muted: oklch(0.965 0.005 250);
@@ -157,6 +167,9 @@
 }
 
 .dark {
+  --pyramid: oklch(0.3 0.03 250);
+  --pyramid-grid: oklch(0.3 0.04 235);
+  --pyramid-dot: oklch(0.6 0.1 235);
   --background: oklch(0.145 0.005 285);
   --foreground: oklch(0.985 0.002 264);
   --card: oklch(0.205 0.008 285);

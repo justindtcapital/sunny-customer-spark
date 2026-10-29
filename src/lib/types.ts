@@ -85,6 +85,7 @@ export type BulkEditField =
   | "company"
   | "contactType"
   | "areasOfInterest"
+  | "primaryArea"
   | "source";
 
 // How a contact is used by DTC — the three prioritized categories.
@@ -206,6 +207,8 @@ export interface Contact {
   prime: string;
   sector: string;
   areasOfInterest: string[];
+  /** Single approved primary area (Security / AI & Data / Logistics / Other); blank = derived. */
+  primaryArea?: string;
   temperature: Temperature;
   portCoIntros: string[];
   /** Portfolio engagements with their source category (richer than portCoIntros). */

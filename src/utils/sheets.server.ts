@@ -1475,6 +1475,7 @@ const CONTACT_COLS: Record<string, string> = {
   "date added": "dateAdded",
   "contact type": "contactType",
   "areas of interest": "areasOfInterest",
+  "primary area of interest": "primaryArea",
   // Canonical record source (accept a couple of legacy header names).
   source: "source",
   "lead source": "source",
@@ -2594,6 +2595,7 @@ export async function buildContacts(): Promise<Contact[]> {
       prime: c.prime || "",
       sector: c.sector || "",
       areasOfInterest,
+      primaryArea: c.primaryArea || undefined,
       temperature,
       portCoIntros,
       portCoEngagements,
@@ -3291,6 +3293,7 @@ const BULK_FIELD_HEADERS: Record<BulkEditField, string> = {
   company: "company",
   contactType: "contact type",
   areasOfInterest: "areas of interest",
+  primaryArea: "primary area of interest",
   source: "source",
 };
 
@@ -3698,8 +3701,66 @@ export async function bulkDeleteContacts(emails: string[]): Promise<{ deleted: n
     const e = (rows[i][emailIdx] || "").trim().toLowerCase();
     if (e && wanted.has(e)) rowNumbers.push(i + 1);
   }
+  const statusIdx = headers.indexOf("relationship status");
+  const nameIdx = headers.indexOf("name");
+  const removedRows = rowNumbers.map((n) => rows[n - 1]);
   const deleted = await deleteSheetRows(TAB_NAMES.contacts, rowNumbers);
+  if (deleted > 0) {
+    await logNetworkMovements(removedRows.map((r) => ({
+      email: r[emailIdx] || "", name: nameIdx !== -1 ? r[nameIdx] || "" : "",
+      from: (statusIdx !== -1 ? r[statusIdx] : "") || "Cold", to: "Removed", reason: "Deleted",
+    })));
+  }
   return { deleted };
+}
+
+/** Append-only movement log (shares the Rating History tab). Never throws. */
+export async function logNetworkMovements(
+  items: { email: string; name?: string; from: string; to: string; reason: string }[],
+): Promise<void> {
+  if (!items.length) return;
+  try {
+    const ts = new Date().toISOString();
+    await ensureTab(TAB_NAMES.ratingHistory, RATING_HISTORY_HEADERS);
+    await appendSheetRows(TAB_NAMES.ratingHistory, items.map((m) => [ts, m.email, m.name || "", m.from, m.to, "", "manual", m.reason]));
+  } catch (e) {
+    console.error("logNetworkMovements failed", e);
+  }
+}
+
+export const NETWORK_TARGETS_TAB = "Network Targets";
+
+/** Read-only inputs for the Network Pyramid: movement log, per-tier targets, prospects. */
+export async function buildNetworkPyramidData() {
+  const [history, targetRows, prospects] = await Promise.all([
+    fetchSheetTab(TAB_NAMES.ratingHistory).catch(() => [] as string[][]),
+    fetchSheetTab(NETWORK_TARGETS_TAB).catch(() => [] as string[][]),
+    buildTargets().catch(() => [] as Awaited<ReturnType<typeof buildTargets>>),
+  ]);
+  const h = (history[0] || []).map((x) => x.trim().toLowerCase());
+  const at = (r: string[], k: string) => (h.indexOf(k) === -1 ? "" : r[h.indexOf(k)] || "").trim();
+  const movements = history.slice(1).map((r) => ({ ts: at(r, "timestamp"), email: at(r, "email"), from: at(r, "previous"), to: at(r, "new") }))
+    .filter((m) => m.ts && m.to && m.from !== m.to);
+  const targets: Record<string, number> = {};
+  for (const r of targetRows.slice(1)) {
+    const n = Number((r[1] || "").replace(/[^0-9.]/g, ""));
+    if (r[0] && Number.isFinite(n)) targets[r[0].trim()] = n;
+  }
+  return {
+    movements,
+    targets,
+    prospects: prospects.map((p) => ({
+      email: p.email || "", prime: p.prime || "", location: p.location || "",
+      areas: [p.sector, p.title].filter(Boolean) as string[], dateAdded: p.dateAdded || "",
+    })),
+  };
+}
+
+export async function saveNetworkTargets(targets: Record<string, number>): Promise<void> {
+  await ensureTab(NETWORK_TARGETS_TAB, ["Tier", "Target", "Updated"]);
+  const ts = new Date().toISOString();
+  const rows = Object.entries(targets).map(([tier, n]) => [tier, String(Math.max(0, Math.round(n))), ts]);
+  await updateSheetCells(NETWORK_TARGETS_TAB, rows.flatMap((r, i) => r.map((value, j) => ({ range: `${"ABC"[j]}${i + 2}`, value }))));
 }
 
 // Hard-delete targets from the Targets tab. Each entry is matched by stable URID
