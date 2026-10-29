@@ -533,7 +533,7 @@ function CrmPage() {
         </div>
         <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 xl:col-span-1 xl:justify-end">
           {!pyramidOpen && (
-            <NetworkPyramid contacts={contacts} profile={profile} selection={pyramidSel} onSelect={setPyramidSel} expanded={false} onExpandedChange={setPyramidOpen} />
+            <NetworkPyramid contacts={contacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded={false} onExpandedChange={setPyramidOpen} />
           )}
           <Button
             variant="outline"
@@ -619,7 +619,7 @@ function CrmPage() {
       </div>
 
       {pyramidOpen && (
-        <NetworkPyramid contacts={contacts} profile={profile} selection={pyramidSel} onSelect={setPyramidSel} expanded onExpandedChange={setPyramidOpen} />
+        <NetworkPyramid contacts={contacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded onExpandedChange={setPyramidOpen} />
       )}
       <ContactList
         contacts={listContacts}

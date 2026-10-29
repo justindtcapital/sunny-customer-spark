@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useFilters } from "@/lib/filter-context";
 import type { Contact } from "@/lib/types";
-import { ownerMatches, type TeamProfile } from "@/lib/user-ownership";
+import { isMyContact, ownerMatches, type TeamProfile } from "@/lib/user-ownership";
 import { fetchNetworkPyramid, saveNetworkTargets } from "@/utils/sheets.functions";
 import {
   dotBreakdown, marketFor, movementKpis, primaryDomainFor, MARKETS, PRIMARY_DOMAINS, PYRAMID_TIERS, WINDOWS,
@@ -85,12 +86,12 @@ export function NetworkPyramid({
   const pyramidQuery = useQuery({ queryKey: ["network-pyramid"], queryFn: () => fetchNetworkPyramid(), enabled: expanded, staleTime: 5 * 60_000 });
   const data = pyramidQuery.data;
 
-  const mine = scope === "mine" && profile;
+  const mine = scope === "mine";
   const people = useMemo(() => {
     const net = contacts.filter((c) => !mine || (!profile || ownerMatches(c.prime, profile))).map((c) => ({
       email: c.email, tier: c.temperature as PyramidTier, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), dateAdded: c.dateAdded,
     }));
-    const pros = (data?.prospects || []).filter((p) => !mine || (!profile || ownerMatches(p.prime, profile))).map((p) => ({
+    const pros = (data?.prospects || []).filter((p) => !mine || (!!profile && ownerMatches(p.prime, profile))).map((p) => ({
       email: p.email, tier: "Prospect" as PyramidTier, domain: primaryDomainFor("", p.areas), market: marketFor(p.location), dateAdded: p.dateAdded,
     }));
     return [...net, ...pros];
