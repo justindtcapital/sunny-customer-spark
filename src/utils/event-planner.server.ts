@@ -471,3 +471,26 @@ export async function mergeEventsManually(keeper: PlannerEvent, loserUrids: stri
   cache.delete(EVENTS_TAB);
   return { merged: losers.length };
 }
+
+/** Delete an event: archive its row + attendee rows to "Deleted Events", then blank them. Contacts are untouched. */
+export async function deletePlannerEvent(urid: string, expectedUpdated: string, by: string): Promise<{ attendees: number }> {
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const i = rows.findIndex((r, n) => n > 0 && (r[idx["URID"]] || "").trim() === urid);
+  if (i < 1) throw new Error("That event was already deleted. Reload to refresh.");
+  const current = fromRow(rows[i], idx);
+  if (expectedUpdated && current.updated && current.updated !== expectedUpdated)
+    throw new Error("Someone else just changed this event. Reload and try again.");
+  const att = await readTab(ATTENDEES_TAB, true).catch(() => [] as string[][]);
+  const attIdx = att.flatMap((r, n) => (n > 0 && (r[0] || "").trim() === urid ? [n] : []));
+  await ensureTab("Deleted Events", ["Deleted At", "Deleted By", "Event URID", "Event Row (JSON)", "Attendees (JSON)"]);
+  await appendRows("Deleted Events", [[
+    new Date().toISOString(), by, urid,
+    JSON.stringify(Object.fromEntries((rows[0] || []).map((h, c) => [h, rows[i][c] || ""]))),
+    JSON.stringify(attIdx.map((n) => att[n])),
+  ]]);
+  await writeRange(EVENTS_TAB, i + 1, 0, [EVENT_HEADERS.map(() => "")]);
+  for (const n of attIdx) await writeRange(ATTENDEES_TAB, n + 1, 0, [ATTENDEE_HEADERS.map(() => "")]);
+  cache.delete(EVENTS_TAB);
+  return { attendees: attIdx.length };
+}
