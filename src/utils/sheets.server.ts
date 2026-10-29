@@ -1102,7 +1102,7 @@ export interface OpsLogEntry {
 // column order / a missing "Items" column on older workbooks). Returns [] if the
 // tab doesn't exist yet.
 export async function buildOpsLog(limit = 500): Promise<OpsLogEntry[]> {
-  const rows = await fetchSheetTab(TAB_NAMES.opsLog).catch(() => [] as string[][]);
+  const rows = await fetchSheetTab(TAB_NAMES.opsLog, true);
   if (rows.length < 2) return [];
   const headers = rows[0].map((h) => h.trim().toLowerCase());
   const idx = (name: string) => headers.indexOf(name);

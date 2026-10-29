@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { PlannerAttendee, PlannerEvent } from "@/lib/event-planner";
+import { requireTeamAuth } from "./team-auth";
 
 export const fetchPlannerFn = createServerFn({ method: "GET" }).handler(async () => {
   const { readPlannerEvents, readAttendees } = await import("./event-planner.server");
@@ -13,18 +14,21 @@ export const fetchPlannerFn = createServerFn({ method: "GET" }).handler(async ()
 });
 
 export const addPlannerEventsFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
   .inputValidator((d: { events: Partial<PlannerEvent>[]; by: string }) => {
     if (!Array.isArray(d?.events) || d.events.length === 0) throw new Error("No events to add");
     if (d.events.length > 1000) throw new Error("Too many rows (max 1000)");
     return d;
   })
-  .handler(async ({ data }) => {
-    const { withDeadline } = await import("./request-deadline.server");
+  .handler(async ({ data,context }) => {
+    const { runJournalOperation } = await import("./bulk-journal.server");
     const { addPlannerEvents } = await import("./event-planner.server");
-    return withDeadline("addPlannerEvents", 55_000, async (step) => {
-      step("saving events");
-      return addPlannerEvents(data.events, data.by || "");
-    });
+    const r = await runJournalOperation({ kind:"event-import",page:"/events",input:data.events,actor:context,run:async journal => {
+      journal.step("checking event duplicates and preserving conflicts");
+      const value=await addPlannerEvents(data.events,context.teamEmail);
+      return { value,outcomes:value.outcomes };
+    } });
+    return { ...r.value,operationId:r.operationId };
   });
 
 export const updatePlannerEventFn = createServerFn({ method: "POST" })

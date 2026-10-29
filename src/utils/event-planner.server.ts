@@ -18,6 +18,8 @@ import {
   type PlannerStatus,
 } from "@/lib/event-planner";
 import type { AsanaEvent } from "@/lib/types";
+import { suppliedFieldsMatch } from "@/lib/import-dedupe";
+import type { BulkOutcome } from "@/lib/bulk-operation";
 
 const DEFAULT_TRACKER_ID = "1awv_VNFHvndOfu4DnyrM4PnMPb65UOms-sJym7AlG0M";
 export const EVENTS_TAB = "Events DB";
@@ -137,7 +139,7 @@ function headerIndex(rows: string[][]): Record<string, number> {
 }
 
 export async function readPlannerEvents(fresh = false): Promise<PlannerEvent[]> {
-  const rows = await readTab(EVENTS_TAB, fresh).catch(() => [] as string[][]);
+  const rows = await readTab(EVENTS_TAB, fresh);
   const idx = headerIndex(rows);
   return rows.slice(1).filter((r) => (r[idx["URID"]] || "").trim()).map((r) => fromRow(r, idx));
 }
@@ -173,25 +175,31 @@ function clean(e: Partial<PlannerEvent>, by: string): PlannerEvent {
 export async function addPlannerEvents(
   inputs: Partial<PlannerEvent>[],
   by: string,
-): Promise<{ added: number; skipped: string[] }> {
+): Promise<{ added: number; skipped: string[]; review: string[]; outcomes: BulkOutcome[] }> {
   await ensureTab(EVENTS_TAB, EVENT_HEADERS);
-  const existing = new Set((await readPlannerEvents(true)).map(duplicateKey));
+  const existing = await readPlannerEvents(true);
   const now = new Date().toISOString();
   const rows: string[][] = [];
   const skipped: string[] = [];
-  for (const i of inputs) {
+  const review: string[] = [];
+  const outcomes: BulkOutcome[] = [];
+  for (const [index,i] of inputs.entries()) {
     const e = clean({ ...i, urid: crypto.randomUUID() }, by);
     if (!e.name) continue;
     const k = duplicateKey(e);
-    if (existing.has(k)) {
-      skipped.push(e.name);
+    const candidates = existing.filter(saved => (i.urid && saved.urid === i.urid) || (i.asanaGid && saved.asanaGid === i.asanaGid) || duplicateKey(saved) === k);
+    if (candidates.length) {
+      const exact = candidates.length === 1 && suppliedFieldsMatch(i as Record<string,unknown>, candidates[0] as unknown as Record<string,unknown>, ["urid","createdBy","updated"]);
+      if (exact) skipped.push(e.name); else review.push(e.name);
+      outcomes.push({ key:String(index),label:e.name,status:exact ? "duplicate" : "review",reason:exact ? "Exact existing event; no repeat write." : "Possible matching event has different fields or tags; incoming version retained for review." });
       continue;
     }
-    existing.add(k);
+    existing.push(e);
+    outcomes.push({ key:String(index),label:e.name,status:"changed",reason:"Unique event saved." });
     rows.push(toRow(e, now));
   }
   await appendRows(EVENTS_TAB, rows);
-  return { added: rows.length, skipped };
+  return { added: rows.length, skipped, review, outcomes };
 }
 
 /** Write only changed cells of one event after re-reading its current row. */
