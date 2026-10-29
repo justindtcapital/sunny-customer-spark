@@ -34,6 +34,9 @@ import { RECORD_SOURCES, CONTACT_TYPES, type BulkEditField, type Temperature, ty
 import { useServerFn } from "@tanstack/react-start";
 import { bulkChangeRelationshipLevels } from "@/utils/relationship-levels.functions";
 import { nextRelationshipLevel, type RelationshipChange } from "@/lib/relationship-rating";
+import { OperationResults } from "@/components/admin/OperationResults";
+import type { BulkOutcome } from "@/lib/bulk-operation";
+import { useQueryClient } from "@tanstack/react-query";
 
 // Fields the bulk-edit bar can set, in display order. Mirrors the BulkEditField
 // union; each maps to a Contacts-sheet column via bulkUpdateContacts.
@@ -73,8 +76,11 @@ export function BulkEditBar() {
   const [techConfirmOpen, setTechConfirmOpen] = useState(false);
   const [changingLevel, setChangingLevel] = useState(false);
   const changeLevels = useServerFn(bulkChangeRelationshipLevels);
+  const queryClient = useQueryClient();
+  const [levelResults, setLevelResults] = useState<{ outcomes: BulkOutcome[]; operationId: string } | null>(null);
+  const [request, setRequest] = useState<{ contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange; operationId: string } | null>(null);
 
-  if (selectedIds.size === 0) return null;
+  if (selectedIds.size === 0 && !levelResults) return null;
 
   const count = selectedIds.size;
   const anyBusy = busy || deleting || changingLevel || action !== "";
@@ -86,23 +92,25 @@ export function BulkEditBar() {
     return summary;
   }, {});
   const applyLevelChange = async () => {
-    if (!levelChange) return;
+    if (!levelChange || selectedContacts.length === 0 || selectedContacts.length > 500) return;
+    const payload = request || { contacts: selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change: levelChange, operationId: crypto.randomUUID() };
+    setRequest(payload);
     setChangingLevel(true);
     try {
-      const result = await changeLevels({ data: {
-        contacts: selectedContacts.map((c) => ({ urid: c.urid, email: c.email, temperature: c.temperature })),
-        change: levelChange,
-      } });
-      toast.success(`${result.updated} level${result.updated === 1 ? "" : "s"} changed · ${result.moved} moved to Prospecting`);
-      if (result.skipped) toast.warning(`${result.skipped} unchanged — already at the limit, changed by a teammate, or couldn't be safely moved.`);
+      const result = await changeLevels({ data: payload });
+      setLevelResults({ outcomes: result.outcomes, operationId: result.operationId });
+      const message = `${result.updated} levels changed · ${result.moved} moved · ${result.alreadyComplete} already complete · ${result.skipped} unresolved`;
+      if (result.skipped) toast.warning(message); else toast.success(message);
       clearSelection();
-      await router.invalidate();
       setLevelChange(null);
+      setRequest(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Couldn't change the selected contacts.");
-      // Some writes may have succeeded; always read the current saved state.
-      await router.invalidate();
+      setLevelChange(null);
+      clearSelection();
     } finally {
+      try { await router.invalidate(); await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] }); }
+      catch { toast.warning("Saved results are available in Admin; the list could not refresh. Refresh the page before another action."); }
       setChangingLevel(false);
     }
   };
@@ -359,10 +367,10 @@ export function BulkEditBar() {
 
       {/* Mass actions — operations over the selection (not a single field set). */}
       <div className="mx-1 h-5 w-px bg-border" />
-      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setLevelChange("promote")} disabled={anyBusy}>
+      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setRequest(null); setLevelChange("promote"); }} disabled={anyBusy || !count}>
         <ArrowUp className="mr-1 h-3.5 w-3.5" /> Bulk promote
       </Button>
-      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setLevelChange("demote")} disabled={anyBusy}>
+      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setRequest(null); setLevelChange("demote"); }} disabled={anyBusy || !count}>
         <ArrowDown className="mr-1 h-3.5 w-3.5" /> Bulk demote
       </Button>
       <Button size="sm" variant="outline" className="h-8 text-xs" onClick={runEnrich} disabled={anyBusy}>
@@ -410,13 +418,14 @@ export function BulkEditBar() {
           <div className="space-y-2 text-sm">{Object.entries(levelPreview).map(([label, total]) => <div key={label} className="flex justify-between"><span>{label}</span><span className="font-semibold tabular-nums">{total}</span></div>)}</div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={changingLevel}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={changingLevel} onClick={(event) => { event.preventDefault(); void applyLevelChange(); }}>
+            <AlertDialogAction disabled={changingLevel || !count || count > 500} onClick={(event) => { event.preventDefault(); void applyLevelChange(); }}>
               {changingLevel && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirm {levelChange === "promote" ? "promotion" : "demotion"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
+      {levelResults && <OperationResults {...levelResults} onClose={() => setLevelResults(null)} />}
       <AlertDialog open={techConfirmOpen} onOpenChange={setTechConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
