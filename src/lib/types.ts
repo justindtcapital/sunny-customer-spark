@@ -437,6 +437,10 @@ export interface PortfolioCompany {
   /** Event-exposure tags from completed portco events (PortCo Event Exposure tab). */
   exposures?: PortCoExposure[];
   asanaFields?: Record<string, string>;
+  /** Verified extra email domains (sheet "Domain Aliases"); used to link Key People. */
+  domainAliases?: string[];
+  /** Suggested domains a teammate dismissed (sheet "Dismissed Domains"). */
+  dismissedDomains?: string[];
 }
 
 export interface PortfolioFilters {

@@ -1,3 +1,4 @@
+import { findCompanyClash, parseDomainList, validateDomainAliases } from "@/lib/company-domains";
 import type {
   Contact,
   TargetLead,
@@ -2369,6 +2370,8 @@ const PORTFOLIO_COLS: Record<string, string> = {
   "focus area(s)": "domain",
   hq: "location",
   summary: "description",
+  "domain aliases": "domainAliases",
+  "dismissed domains": "dismissedDomains",
 };
 
 // Canonical header row used when the Portfolio Companies tab is created from
@@ -3839,17 +3842,18 @@ export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<
   const name = data.name.trim();
   if (!name) throw new Error("Company name is required");
 
-  // Reject duplicates up front: same normalized name or same website domain.
-  const existing = await buildPortfolioCompanies().catch(() => [] as PortfolioCompany[]);
+  // Reject duplicates up front: same name, website domain or a verified alias.
+  // Read failures stop the add rather than risk a second record.
+  const existing = await buildPortfolioCompanies();
   const nameKey = normalizePortcoName(name);
-  const domainKey = portcoDomainKey(data.website);
-  const clash = existing.find(
-    (c) =>
-      (nameKey && normalizePortcoName(c.name) === nameKey) ||
-      (domainKey && portcoDomainKey(c.website) === domainKey),
-  );
+  const nameClash = existing.find((c) => nameKey && normalizePortcoName(c.name) === nameKey);
+  const clash = nameClash
+    ? { company: nameClash, reason: "same name" }
+    : findCompanyClash(existing, { name, website: data.website });
   if (clash) {
-    throw new Error(`${clash.name} is already in the portfolio — edit that company instead.`);
+    throw new Error(
+      `${clash.company.name} is already in the portfolio (${clash.reason}) — open that company or add this domain to it instead.`,
+    );
   }
 
   await ensureTab(TAB_NAMES.portfolio, PORTFOLIO_HEADERS);
@@ -3901,9 +3905,13 @@ export async function updatePortfolioCompany(entry: {
   focusArea?: string;
   location?: string;
   description?: string;
+  /** Verified extra email domains; undefined leaves the cell untouched. */
+  domainAliases?: string[];
+  /** Dismissed suggestion domains; undefined leaves the cell untouched. */
+  dismissedDomains?: string[];
   /** Create the sheet row when no matching row is found (Asana-only portcos). */
   upsertNew?: boolean;
-}): Promise<{ updated: number; created?: boolean; urid?: string }> {
+}): Promise<{ updated: number; created?: boolean; urid?: string; rejectedDomains?: { domain: string; reason: string }[] }> {
   const wantUrid = (entry.urid || "").trim().toLowerCase();
   const wantName = (entry.matchName || entry.name || "").trim().toLowerCase();
   const newName = (entry.name || "").trim();
@@ -3912,6 +3920,22 @@ export async function updatePortfolioCompany(entry: {
 
   await ensureTab(TAB_NAMES.portfolio, PORTFOLIO_HEADERS);
   await ensureColumn(TAB_NAMES.portfolio, "URID");
+
+  // Aliases are checked against every other company so one domain never links two.
+  let rejectedDomains: { domain: string; reason: string }[] | undefined;
+  let aliasCell: string | undefined;
+  if (entry.domainAliases) {
+    const others = await buildPortfolioCompanies();
+    const check = validateDomainAliases(
+      entry.domainAliases,
+      { name: entry.matchName || newName, website: entry.website },
+      others.filter((o) => (wantUrid ? (o.urid || "").toLowerCase() !== wantUrid : true)),
+    );
+    rejectedDomains = check.rejected;
+    aliasCell = check.accepted.join(", ");
+    await ensureColumn(TAB_NAMES.portfolio, "Domain Aliases");
+  }
+  if (entry.dismissedDomains) await ensureColumn(TAB_NAMES.portfolio, "Dismissed Domains");
 
   const rows = await fetchSheetTab(TAB_NAMES.portfolio);
   if (rows.length < 2) return { updated: 0 };
@@ -3955,6 +3979,8 @@ export async function updatePortfolioCompany(entry: {
     hq: (entry.location || "").trim(),
     summary: (entry.description || "").trim(),
   };
+  if (aliasCell !== undefined) valueByHeader["domain aliases"] = aliasCell;
+  if (entry.dismissedDomains) valueByHeader["dismissed domains"] = parseDomainList(entry.dismissedDomains).join(", ");
 
   if (rowNumber === -1) {
     // Not in the sheet yet (e.g. an Asana-only portco): create the row instead
@@ -3963,7 +3989,7 @@ export async function updatePortfolioCompany(entry: {
     const urid = crypto.randomUUID();
     const appendMap: Record<string, string> = { urid, ...valueByHeader };
     await appendSheetRow(TAB_NAMES.portfolio, headers.map((h) => appendMap[h] ?? ""));
-    return { updated: 1, created: true, urid };
+    return { updated: 1, created: true, urid, rejectedDomains };
   }
 
   const updates: { range: string; value: string }[] = [];
@@ -3974,7 +4000,7 @@ export async function updatePortfolioCompany(entry: {
   }
   if (updates.length === 0) return { updated: 0 };
   await updateSheetCells(TAB_NAMES.portfolio, updates);
-  return { updated: 1 };
+  return { updated: 1, rejectedDomains };
 }
 
 // Hard-delete a portfolio company from the Portfolio Companies tab. Matched by
@@ -4333,6 +4359,8 @@ export async function buildPortfolioCompanies(): Promise<PortfolioCompany[]> {
       sector: rawDomain,
       domain,
       website: c.website || "",
+      domainAliases: parseDomainList(c.domainAliases),
+      dismissedDomains: parseDomainList(c.dismissedDomains),
       linkedinUrl: "",
       location: c.location || "",
       description: c.description || "",
