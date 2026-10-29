@@ -161,7 +161,7 @@ function RatingControl({
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-1.5 py-1 hover:bg-accent transition-colors disabled:opacity-50"
           title="Click to set the rating manually"
         >
-          <TemperatureBadge temperature={contact.temperature} />
+          <TemperatureBadge temperature={contact.temperature} portco={contact.portco} />
           {(() => {
             const days = daysSinceLastContact(contact);
             if (days === null) return null;

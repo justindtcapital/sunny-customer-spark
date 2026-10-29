@@ -8,6 +8,8 @@ interface TemperatureBadgeProps {
   /** Prefer Pulse mark (default). Set false for legacy pill only. */
   pulse?: boolean;
   showLabel?: boolean;
+  /** PortCo people show a PortCo tag instead of a Network tier. */
+  portco?: boolean;
 }
 
 export function TemperatureBadge({
@@ -15,7 +17,11 @@ export function TemperatureBadge({
   className,
   pulse = true,
   showLabel = true,
+  portco = false,
 }: TemperatureBadgeProps) {
+  if (portco) {
+    return <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground", className)} title="Works at a PortCo — not counted in Network tiers">PortCo</span>;
+  }
   if (pulse) {
     return (
       <PulseTemperature
