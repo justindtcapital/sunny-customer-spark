@@ -171,7 +171,7 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const res = await updatePortfolioCompanyServer(data);
     if (data.domainAliases && res.updated) {
-      const who = (context as { email?: string }).email || "teammate";
+      const who = context.teamEmail || "teammate";
       await logOpsEventServer({
         action: "maintenance",
         source: "company_domains",
