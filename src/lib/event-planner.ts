@@ -199,6 +199,58 @@ export function parseTrackerDate(raw: string, year: number, monthHint = ""): { s
   return { start: "", end: "" };
 }
 
+/** Month name/abbrev → 1-12, or 0. */
+function monthNum(v: string): number {
+  return MONTHS.indexOf(v.trim().slice(0, 3).toLowerCase()) + 1;
+}
+
+/**
+ * Read a CSV date cell keeping any explicit year. Year-less dates use defaultYear.
+ * Returns { start:"", end:"", error } when the value cannot be read.
+ */
+export function parseEventDate(raw: string, defaultYear: number): { start: string; end: string; error?: string } {
+  const s = (raw || "").trim().replace(/\s+/g, " ");
+  if (!s) return { start: "", end: "", error: "No date" };
+  const ok = (start: string, end = start) =>
+    !start ? { start: "", end: "", error: `Unreadable date "${s}"` }
+    : !end || end < start ? { start: "", end: "", error: `End date before start in "${s}"` }
+    : { start, end };
+  const y4 = (v: string | undefined) => (!v ? defaultYear : +v < 100 ? 2000 + +v : +v);
+  let m: RegExpMatchArray | null;
+  // 2027-01-15 or 2027-01-15 - 2027-01-17
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s*(?:-|–|to)\s*(\d{4})-(\d{1,2})-(\d{1,2}))?$/)))
+    return ok(iso(+m[1], +m[2], +m[3]), m[4] ? iso(+m[4], +m[5], +m[6]) : undefined);
+  // 1/15[/2027] [- [1/]17[/2027]]
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?:\s*(?:-|–|to)\s*(?:(\d{1,2})\/)?(\d{1,2})(?:\/(\d{2,4}))?)?$/))) {
+    const yEnd = m[6] ? y4(m[6]) : m[3] ? y4(m[3]) : defaultYear;
+    const yStart = m[3] ? y4(m[3]) : yEnd;
+    const start = iso(yStart, +m[1], +m[2]);
+    return ok(start, m[5] ? iso(yEnd, m[4] ? +m[4] : +m[1], +m[5]) : undefined);
+  }
+  // 15-Jan[-2027] or 15 Jan 2027
+  if ((m = s.match(/^(\d{1,2})[-\s]([A-Za-z]{3,9})\.?(?:[-\s,]+(\d{2,4}))?$/)) && monthNum(m[2]))
+    return ok(iso(y4(m[3]), monthNum(m[2]), +m[1]));
+  // Jan 15[-17][, 2027]
+  if ((m = s.match(/^([A-Za-z]{3,9})\.? (\d{1,2})(?:\s*(?:-|–)\s*(\d{1,2}))?(?:,? (\d{4}))?$/)) && monthNum(m[1])) {
+    const y = y4(m[4]);
+    return ok(iso(y, monthNum(m[1]), +m[2]), m[3] ? iso(y, monthNum(m[1]), +m[3]) : undefined);
+  }
+  return { start: "", end: "", error: `Unreadable date "${s}"` };
+}
+
+/** Most common explicit 4-digit year in the given cells, else fallback. */
+export function dominantYear(cells: string[], fallback: number): number {
+  const counts = new Map<number, number>();
+  for (const c of cells) for (const y of c.match(/\b(20\d{2})\b/g) || []) counts.set(+y, (counts.get(+y) || 0) + 1);
+  let best = fallback, n = 0;
+  counts.forEach((v, k) => { if (v > n) { best = k; n = v; } });
+  return best;
+}
+
+export function isIsoDate(v: string | undefined): boolean {
+  return !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v));
+}
+
 export function splitList(v: string): string[] {
   return (v || "")
     .split(/[;,|]/)
