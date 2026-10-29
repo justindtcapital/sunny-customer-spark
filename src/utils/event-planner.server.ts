@@ -8,6 +8,7 @@ import {
   mapTrackerStatus,
   normalizeSector,
   parseTrackerDate,
+  isIsoDate,
   planAsanaEnrichment,
   trackerYearFor,
   splitList,
@@ -175,7 +176,7 @@ function clean(e: Partial<PlannerEvent>, by: string): PlannerEvent {
 export async function addPlannerEvents(
   inputs: Partial<PlannerEvent>[],
   by: string,
-): Promise<{ added: number; skipped: string[]; review: string[]; outcomes: BulkOutcome[] }> {
+): Promise<{ added: number; skipped: string[]; review: string[]; rejected: { name: string; reason: string }[]; outcomes: BulkOutcome[] }> {
   await ensureTab(EVENTS_TAB, EVENT_HEADERS);
   const existing = await readPlannerEvents(true);
   const now = new Date().toISOString();
@@ -183,9 +184,16 @@ export async function addPlannerEvents(
   const skipped: string[] = [];
   const review: string[] = [];
   const outcomes: BulkOutcome[] = [];
+  const rejected: { name: string; reason: string }[] = [];
   for (const [index,i] of inputs.entries()) {
     const e = clean({ ...i, urid: crypto.randomUUID() }, by);
     if (!e.name) continue;
+    const reason = !isIsoDate(e.start) ? "Missing or unreadable start date" : e.end && (!isIsoDate(e.end) || e.end < e.start) ? "End date is invalid or before start" : "";
+    if (reason) {
+      rejected.push({ name: e.name, reason });
+      outcomes.push({ key:String(index),label:e.name,status:"failed",reason });
+      continue;
+    }
     const k = duplicateKey(e);
     const candidates = existing.filter(saved => (i.urid && saved.urid === i.urid) || (i.asanaGid && saved.asanaGid === i.asanaGid) || duplicateKey(saved) === k);
     if (candidates.length) {
@@ -198,8 +206,8 @@ export async function addPlannerEvents(
     outcomes.push({ key:String(index),label:e.name,status:"changed",reason:"Unique event saved." });
     rows.push(toRow(e, now));
   }
-  await appendRows(EVENTS_TAB, rows);
-  return { added: rows.length, skipped, review, outcomes };
+  if (rows.length) await appendRows(EVENTS_TAB, rows);
+  return { added: rows.length, skipped, review, rejected, outcomes };
 }
 
 /** Write only changed cells of one event after re-reading its current row. */

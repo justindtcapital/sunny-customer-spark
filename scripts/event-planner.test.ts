@@ -127,3 +127,27 @@ describe("Asana enrichment", () => {
     expect(m.website).toBe("https://a.com");
   });
 });
+
+import { parseEventDate, dominantYear } from "../src/lib/event-planner";
+describe("CSV event dates keep their year", () => {
+  it("reads explicit 2027 dates in common formats", () => {
+    expect(parseEventDate("1/15/2027", 2026)).toEqual({ start: "2027-01-15", end: "2027-01-15" });
+    expect(parseEventDate("2027-03-04", 2026)).toEqual({ start: "2027-03-04", end: "2027-03-04" });
+    expect(parseEventDate("15-Jan-2027", 2026)).toEqual({ start: "2027-01-15", end: "2027-01-15" });
+    expect(parseEventDate("Jan 15, 2027", 2026)).toEqual({ start: "2027-01-15", end: "2027-01-15" });
+    expect(parseEventDate("1/15-1/17/2027", 2026)).toEqual({ start: "2027-01-15", end: "2027-01-17" });
+    expect(parseEventDate("2/3/27", 2026)).toEqual({ start: "2027-02-03", end: "2027-02-03" });
+  });
+  it("uses the chosen year for year-less dates", () => {
+    expect(parseEventDate("3/30-31", 2027)).toEqual({ start: "2027-03-30", end: "2027-03-31" });
+    expect(parseEventDate("24-Feb", 2027)).toEqual({ start: "2027-02-24", end: "2027-02-24" });
+  });
+  it("rejects unreadable dates", () => {
+    expect(parseEventDate("TBD", 2027).error).toBeTruthy();
+    expect(parseEventDate("", 2027).error).toBeTruthy();
+    expect(parseEventDate("13/45/2027", 2027).error).toBeTruthy();
+  });
+  it("defaults the year to the file's most common year", () => {
+    expect(dominantYear(["1/2/2027", "Feb 3, 2027", "5/5/2026"], 2026)).toBe(2027);
+  });
+});

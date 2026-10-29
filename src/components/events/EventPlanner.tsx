@@ -23,7 +23,7 @@ import type { AsanaEvent, Contact } from "@/lib/types";
 import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
-  sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, parseTrackerDate, splitList,
+  sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
   duplicateKey,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
@@ -351,7 +351,12 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         onClose={() => setEditing(null)}
         onSaved={(e) => { setEditing(null); if (e) setSelected(e); refresh(); }}
       />
-      <CsvImportDialog open={csvOpen} onClose={() => setCsvOpen(false)} onDone={refresh} />
+      <CsvImportDialog open={csvOpen} onClose={() => setCsvOpen(false)} onDone={({ firstDate, statuses }) => {
+        refresh();
+        if (firstDate) setAnchor(firstDate);
+        const hidden = statuses.filter((s) => !dtcFilter.includes(s));
+        if (hidden.length) { setDtcFilter((f) => [...new Set([...f, ...hidden])]); toast.info(`Showing ${hidden.join(", ")} events so your import is visible`); }
+      }} />
       <LinkDialog open={linkOpen} onClose={() => setLinkOpen(false)} onExtracted={(e) => { setLinkOpen(false); setEditing(e); }} />
     </div>
   );
@@ -770,24 +775,9 @@ function L({ label, children, full, hint }: { label: string; children: React.Rea
 }
 
 // ── CSV import ────────────────────────────────────────────────
-function toIsoDate(raw: string): { start: string; end: string } {
-  const s = raw.trim();
-  const full = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-  if (full) {
-    const y = +full[3] < 100 ? 2000 + +full[3] : +full[3];
-    return parseTrackerDate(s.replace(/\/\d{2,4}/, ""), y);
-  }
-  const p = parseTrackerDate(s, new Date().getFullYear());
-  if (p.start) return p;
-  const t = Date.parse(s);
-  if (!Number.isNaN(t)) {
-    const d = new Date(t).toISOString().slice(0, 10);
-    return { start: d, end: d };
-  }
-  return { start: "", end: "" };
-}
+type CsvRow = { event: Partial<PlannerEvent>; error?: string; line: number };
 
-function CsvImportDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+function CsvImportDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: (r: { firstDate: string; statuses: string[] }) => void }) {
   const { email } = useAuth();
   const add = useServerFn(addPlannerEventsFn);
   const [rows, setRows] = useState<string[][]>([]);
@@ -795,45 +785,79 @@ function CsvImportDialog({ open, onClose, onDone }: { open: boolean; onClose: ()
   const [status, setStatus] = useState<"Potential" | "Confirmed">("Potential");
   const [busy, setBusy] = useState(false);
   const [fileName, setFileName] = useState("");
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [result, setResult] = useState<null | { added: number; skipped: number; review: number; rejected: { name: string; reason: string }[] }>(null);
 
   async function onFile(f: File) {
     const r = parsePlannerCsv(await f.text());
     setFileName(f.name);
     setRows(r);
-    setMap(guessImportMapping(r[0] || []));
+    const m = guessImportMapping(r[0] || []);
+    setMap(m);
+    const dateCols = Object.entries(m).filter(([, f]) => f === "start" || f === "end").map(([i]) => +i);
+    setYear(dominantYear(r.slice(1).flatMap((row) => dateCols.map((i) => row[i] || "")), new Date().getFullYear()));
+    setResult(null);
   }
   const headers = rows[0] || [];
   const body = rows.slice(1);
   const nameCol = Object.entries(map).find(([, f]) => f === "name")?.[0];
 
-  function build(): Partial<PlannerEvent>[] {
-    return body.map((r) => {
+  function buildRows(): CsvRow[] {
+    return body.map((r, n) => {
       const e: Partial<PlannerEvent> = { status, source: "CSV", sourceRef: fileName, subcategory: "Unassigned" };
+      let error: string | undefined;
+      let sawDate = false;
       Object.entries(map).forEach(([i, f]) => {
         const v = (r[+i] || "").trim();
         if (!f || !v) return;
-        if (f === "start") Object.assign(e, toIsoDate(v));
-        else if (f === "end") e.end = toIsoDate(v).start;
+        if (f === "start") {
+          sawDate = true;
+          const d = parseEventDate(v, year);
+          if (d.error) error = d.error; else { e.start = d.start; e.end = e.end && e.end > d.end ? e.end : d.end; }
+        } else if (f === "end") {
+          const d = parseEventDate(v, year);
+          if (d.error) error = `End: ${d.error}`; else e.end = d.end;
+        }
         else if (f === "sectors" || f === "portcos" || f === "partners") e[f] = splitList(v);
         else if (f === "status") e.status = mapTrackerStatus(v);
         else if (f === "subcategory") e.subcategory = SUBCATS.find((s) => s.toLowerCase() === v.toLowerCase()) || "Unassigned";
         else (e as Record<string, unknown>)[f] = v;
       });
-      return e;
-    }).filter((e) => e.name);
+      if (!error && !sawDate) error = "No start date";
+      if (!error && e.start && e.end && e.end < e.start) error = "End date before start";
+      return { event: e, error, line: n + 2 };
+    }).filter((x) => x.event.name);
+  }
+  const built = buildRows();
+  const valid = built.filter((x) => !x.error);
+  const invalid = built.filter((x) => x.error);
+
+  function downloadRejected(list: { name: string; reason: string }[]) {
+    const csv = ["Event,Reason", ...list.map((x) => `"${x.name.replace(/"/g, '""')}","${x.reason.replace(/"/g, '""')}"`)].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `rejected-${fileName || "events"}.csv`; a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function run() {
-    const events = build();
-    if (!events.length) return toast.error("Map a column to Event name first");
+    if (nameCol === undefined) return toast.error("Map a column to Event name first");
+    const events = valid.map((x) => x.event);
+    const clientRejected = invalid.map((x) => ({ name: `${x.event.name} (row ${x.line})`, reason: x.error || "Invalid" }));
+    if (!events.length) { setResult({ added: 0, skipped: 0, review: 0, rejected: clientRejected }); return toast.error("No rows have a readable date"); }
     setBusy(true);
     try {
       const r = await add({ data: { events, by: email || "" } });
-      const message = `Imported ${r.added} event${r.added === 1 ? "" : "s"}${r.skipped.length ? ` · ${r.skipped.length} exact duplicates skipped` : ""}${r.review.length ? ` · ${r.review.length} need review in Admin` : ""}`;
-      if (r.review.length) toast.warning(message); else toast.success(message);
+      const rejected = [...clientRejected, ...(r.rejected || [])];
+      setResult({ added: r.added, skipped: r.skipped.length, review: r.review.length, rejected });
+      const message = `Imported ${r.added} event${r.added === 1 ? "" : "s"}${r.skipped.length ? ` · ${r.skipped.length} exact duplicates skipped` : ""}${r.review.length ? ` · ${r.review.length} need review in Admin` : ""}${rejected.length ? ` · ${rejected.length} rejected` : ""}`;
+      if (!r.added) toast.error(message); else if (r.review.length || rejected.length) toast.warning(message); else toast.success(message);
+      const savedNames = new Set(r.outcomes.filter((o: { status: string }) => o.status === "changed").map((o: { label: string }) => o.label));
+      const saved = events.filter((e) => savedNames.has((e.name || "").trim()));
+      const firstDate = saved.map((e) => e.start || "").filter(Boolean).sort()[0] || "";
       setRows([]);
-      onDone();
-      onClose();
+      onDone({ firstDate, statuses: [...new Set(saved.map((e) => dtcStatusOf(e as PlannerEvent, today())))] });
+      if (!rejected.length) onClose();
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -864,22 +888,37 @@ function CsvImportDialog({ open, onClose, onDone }: { open: boolean; onClose: ()
               ))}
             </div>
             <div className="flex items-center gap-2 text-xs">
+              Year for dates without one
+              <Input type="number" className="h-7 w-20 text-xs" value={year} onChange={(e) => setYear(+e.target.value || new Date().getFullYear())} aria-label="Default year" />
+            </div>
+            <div className="flex items-center gap-2 text-xs">
               Add as
               <Seg value={status} onChange={(v) => setStatus(v as "Potential" | "Confirmed")} options={["Potential", "Confirmed"]} />
               <span className="text-muted-foreground">(a mapped Status column overrides this)</span>
             </div>
             {nameCol !== undefined && (
               <div className="rounded border border-border p-2 text-xs space-y-0.5 max-h-40 overflow-y-auto">
-                {build().slice(0, 8).map((e, i) => (
-                  <div key={i}>{e.name} <span className="text-muted-foreground">· {e.start || "no date"} {e.location ? `· ${e.location}` : ""}</span></div>
+                <div className="font-medium">{valid.length} ready · {invalid.length} will be rejected</div>
+                {invalid.slice(0, 20).map((x) => (
+                  <div key={`x${x.line}`} className="text-destructive">Row {x.line}: {x.event.name} — {x.error}</div>
+                ))}
+                {valid.slice(0, 8).map((x) => (
+                  <div key={x.line}>{x.event.name} <span className="text-muted-foreground">· {x.event.start}{x.event.end && x.event.end !== x.event.start ? ` → ${x.event.end}` : ""} {x.event.location ? `· ${x.event.location}` : ""}</span></div>
                 ))}
               </div>
             )}
           </>
         )}
+        {result && (
+          <div className="rounded border border-border p-2 text-xs space-y-1">
+            <div className="font-medium">Imported {result.added} · Duplicates {result.skipped} · Need review {result.review} · Rejected {result.rejected.length}</div>
+            {result.rejected.slice(0, 20).map((x, i) => <div key={i} className="text-destructive">{x.name} — {x.reason}</div>)}
+            {result.rejected.length > 0 && <Button size="sm" variant="outline" onClick={() => downloadRejected(result.rejected)}>Download rejected rows</Button>}
+          </div>
+        )}
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={run} disabled={busy || !body.length}>{busy ? "Importing…" : `Import ${build().length || ""} events`}</Button>
+          <Button variant="outline" onClick={onClose}>{result ? "Close" : "Cancel"}</Button>
+          <Button onClick={run} disabled={busy || !valid.length}>{busy ? "Importing…" : `Import ${valid.length || ""} events`}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
