@@ -67,8 +67,9 @@ function TierChart({ counts }: { counts: Record<PyramidTier, number | null> }) {
 }
 
 export function NetworkPyramid({
-  contacts, profile, selection, onSelect, expanded, onExpandedChange: setExpanded,
+  contacts, profile, ownedGids, selection, onSelect, expanded, onExpandedChange: setExpanded,
 }: {
+  ownedGids?: Set<string>;
   expanded: boolean;
   onExpandedChange: (v: boolean) => void;
   contacts: Contact[];
@@ -77,7 +78,11 @@ export function NetworkPyramid({
   onSelect: (s: PyramidSelection | null) => void;
 }) {
   const [view, setView] = useState<View>("domain");
-  const [scope, setScope] = useState<"mine" | "ours">("ours");
+  // Scope is shared with the sidebar's "My contacts / Everyone" switch so both always agree.
+  const { filters, setFilters } = useFilters();
+  const scope: "mine" | "ours" = filters.ownershipScope === "everyone" ? "ours" : "mine";
+  const setScope = (s: "mine" | "ours") => setFilters({ ...filters, ownershipScope: s === "mine" ? "mine" : "everyone" });
+  const owned = useMemo(() => ownedGids || new Set<string>(), [ownedGids]);
   const [win, setWin] = useState<WindowKey>("30d");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -88,14 +93,15 @@ export function NetworkPyramid({
 
   const mine = scope === "mine";
   const people = useMemo(() => {
-    const net = contacts.filter((c) => !mine || (!profile || ownerMatches(c.prime, profile))).map((c) => ({
+    const net = contacts.filter((c) => !mine || (!!profile && isMyContact(c, owned, profile))).map((c) => ({
       email: c.email, tier: c.temperature as PyramidTier, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), dateAdded: c.dateAdded,
     }));
     const pros = (data?.prospects || []).filter((p) => !mine || (!!profile && ownerMatches(p.prime, profile))).map((p) => ({
       email: p.email, tier: "Prospect" as PyramidTier, domain: primaryDomainFor("", p.areas), market: marketFor(p.location), dateAdded: p.dateAdded,
     }));
     return [...net, ...pros];
-  }, [contacts, data, mine, profile]);
+  }, [contacts, data, mine, profile, owned]);
+  const sidebarCount = Object.entries(filters).filter(([k, v]) => !["search", "ownershipScope", "dateField"].includes(k) && (Array.isArray(v) ? v.length > 0 : typeof v === "boolean" ? v : typeof v === "string" ? !!v : false)).length;
 
   const counts = useMemo(() => {
     const out = Object.fromEntries(PYRAMID_TIERS.map((t) => [t, 0])) as Record<PyramidTier, number | null>;
@@ -145,7 +151,7 @@ export function NetworkPyramid({
             <h2 className="text-base font-semibold text-foreground">Network overview</h2>
             {pyramidQuery.isFetching && <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">{scope === "mine" ? "My relationships" : "DTC relationships"} · {people.length.toLocaleString()} people{!data && " · prospects pending"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{scope === "mine" ? "My contacts" : "Everyone at DTC"} · {people.length.toLocaleString()} people{!data && " · prospects pending"}{sidebarCount > 0 && ` · ${sidebarCount} sidebar filter${sidebarCount > 1 ? "s" : ""} also narrow the list below`}</p>
         </div>
         <Button size="icon" variant="ghost" className="size-8 shrink-0" onClick={() => setExpanded(false)} title="Collapse" aria-label="Collapse Network overview"><ChevronUp /></Button>
         <div className="network-view-controls col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-3">
