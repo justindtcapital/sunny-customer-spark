@@ -1,5 +1,9 @@
 # Roadmap
 
+## Network dashboard visual refresh
+- [ ] Refine the pyramid, statistics and controls without changing counts or data
+- [ ] Verify signed-in desktop and mobile layouts, views and contact filtering
+
 ## Unified My Actions feed
 - [x] Merge Workstreams and Follow-ups into one My Actions tab grouped by PortCo/company
 - [x] Workstream/follow-up icons, attached follow-ups under the workstream detail pane

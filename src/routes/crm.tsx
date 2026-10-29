@@ -523,15 +523,15 @@ function CrmPage() {
   }, [contacts, companies, updateOptions]);
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
+    <div className="min-w-0 p-4 sm:p-6 max-w-[1400px] mx-auto">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 mb-6">
+        <div className="min-w-0">
           <h1 className="text-lg font-bold text-foreground">Network CRM</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage and track your DTC network relationships
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 xl:col-span-1 xl:justify-end">
           {!pyramidOpen && (
             <NetworkPyramid contacts={contacts} profile={profile} selection={pyramidSel} onSelect={setPyramidSel} expanded={false} onExpandedChange={setPyramidOpen} />
           )}
