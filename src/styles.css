@@ -527,6 +527,14 @@
   border-bottom: 1px solid var(--border);
 }
 .network-data-row:last-child { border-bottom: 0; }
+/* Faint tint of each tier's pyramid colour carried across its row. */
+.network-data-row {
+  background: color-mix(in oklab, currentColor 9%, var(--background));
+  border-bottom: 2px solid var(--background);
+  border-radius: 6px;
+}
+.network-tier:hover polygon, .network-tier:focus-visible polygon { filter: brightness(1.12); }
+.network-tier[aria-pressed="true"] polygon { stroke: var(--foreground); stroke-width: 1.5; }
 .network-cell {
   height: 44px;
   flex-direction: column;
