@@ -22,6 +22,7 @@ import {
 import { EventPicker } from "@/components/events/EventPicker";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { addContact, addEvent as addEventToSheet, addPortcoIntro, addNote, fetchContactEmails, logImportResult, fetchImportHistory, storeApolloRaw } from "@/utils/sheets.functions";
+import { importContactsBatch } from "@/utils/bulk-import.functions";
 import { enrichContact } from "@/utils/apollo.functions";
 import { toast } from "sonner";
 import { contactImportRejectReason } from "@/lib/contact-noise";
@@ -335,7 +336,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       if (!r.name || !r.email) { missingRequired++; continue; }
       if (!EMAIL_RE.test(firstEmail(r.email))) { invalid++; continue; }
       const key = r.email.toLowerCase();
-      if (existing.has(key) || seen.has(key)) { dupes++; continue; }
+      if (existing.has(key) || seen.has(key)) { dupes++; }
       seen.add(key);
       unique.push(r);
     }
@@ -379,163 +380,22 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     });
 
   const submit = async () => {
-    if (rows.length === 0) return;
+    if (!rows.length) return;
     setBusy(true);
-    const importId =
-      typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `imp-${Date.now()}`;
-    const evt = eventName.trim();
-    const portcos = portcoNames.map((p) => p.trim()).filter(Boolean);
-    const src = source.trim();
-
-    // Idempotency: re-read existing emails server-side right before committing so
-    // re-importing the same file in one session can't double-create rows the
-    // client snapshot didn't know about.
-    let toImport = rows;
-    let commitDupes = 0;
     try {
-      const fresh = new Set((await fetchContactEmails()).map((e) => e.toLowerCase()));
-      const filtered = rows.filter((r) => !fresh.has(r.email.toLowerCase()));
-      commitDupes = rows.length - filtered.length;
-      toImport = filtered;
-    } catch (e) {
-      console.error("commit-time dedup failed (proceeding with client dedup):", e);
-    }
-
-    const beforeNoise = toImport.length;
-    toImport = toImport.filter(
-      (r) =>
-        !contactImportRejectReason({
-          name: r.name,
-          email: r.email,
-          company: r.company,
-        }),
-    );
-    const skippedNoise = beforeNoise - toImport.length;
-
-    let added = 0;
-    let enrichedCount = 0;
-    let taggedEvent = 0;
-    let taggedPortco = 0;
-    let taggedSource = 0;
-    for (const original of toImport) {
-      let r = original;
-      if (enrichOnImport) {
-        const res = await enrichRow(original);
-        r = res.row;
-        if (res.enriched) enrichedCount++;
+      const prepared = [];
+      for (const original of rows) {
+        const enriched = enrichOnImport ? await enrichRow(original) : { row: original };
+        const r = enriched.row;
+        prepared.push({ name:r.name,email:r.email,role:r.title,company:r.company,phone:r.phone,location:r.location,prime:r.prime,sector:r.sector,linkedin:r.linkedin,headline:r.headline,employmentHistory:r.employmentHistory,source:"CSV Import",followUp:Boolean(eventName.trim()) || isFlaggedForFollowUp(r.email) });
       }
-      try {
-        await addContact({
-          data: {
-            name: r.name,
-            role: r.title,
-            company: r.company,
-            email: r.email,
-            phone: r.phone,
-            location: r.location,
-            prime: r.prime,
-            sector: r.sector,
-            linkedinUrl: r.linkedin,
-            headline: r.headline,
-            employmentHistory: r.employmentHistory,
-            temperature: "Cold",
-            source: "CSV Import",
-            // Event-tagged imports always get Follow Up; otherwise honor the checkbox.
-            followUp: Boolean(evt) || isFlaggedForFollowUp(r.email),
-          },
-        });
-        added++;
-        // Each tag is best-effort and independent — a failure on one doesn't
-        // block the others or the import as a whole.
-        if (evt) {
-          try {
-            // addEvent also stamps Follow Up Flag for attended (default on).
-            await addEventToSheet({
-              data: { contactEmail: r.email, eventName: evt, type: "attended", flagFollowUp: true },
-            });
-            taggedEvent++;
-          } catch (e) {
-            console.error("event tag failed", r.email, e);
-          }
-        }
-        if (portcos.length > 0) {
-          // Tag the contact with each selected portfolio company (independent,
-          // best-effort). Count the contact once if any tag lands.
-          let taggedAny = false;
-          for (const portco of portcos) {
-            try {
-              await addPortcoIntro({
-                data: {
-                  contactEmail: r.email,
-                  portcoName: portco,
-                  sources: mergeEngagementSources([], portcoSources),
-                },
-              });
-              taggedAny = true;
-            } catch (e) {
-              console.error("portco tag failed", r.email, portco, e);
-            }
-          }
-          if (taggedAny) taggedPortco++;
-        }
-        if (src) {
-          try {
-            await addNote({ data: { contactEmail: r.email, noteContent: `Source: ${src}`, requiresFollowUp: isFlaggedForFollowUp(r.email) } });
-            taggedSource++;
-          } catch (e) {
-            console.error("source tag failed", r.email, e);
-          }
-        }
-      } catch (e) {
-        console.error("add contact failed", r.email, e);
-      }
-    }
-    setBusy(false);
-
-    const failed = toImport.length - added;
-    const totalDupes = skipped + commitDupes;
-
-    // Persist the import report (best-effort) so it shows in Import History.
-    try {
-      await logImportResult({
-        data: {
-          importId,
-          filename: fileName || "upload.csv",
-          source: "bulk_upload",
-          totalRows: report.dataRows,
-          imported: added,
-          duplicates: totalDupes,
-          invalid: report.invalid,
-          enriched: enrichedCount,
-          failed,
-        },
-      });
-    } catch (e) {
-      console.error("logImportResult failed:", e);
-    }
-
-    const parts = [`Imported ${added} contact${added !== 1 ? "s" : ""}`];
-    if (enrichOnImport) parts.push(`${enrichedCount} enriched`);
-    if (totalDupes > 0) parts.push(`${totalDupes} duplicate${totalDupes !== 1 ? "s" : ""} skipped`);
-    if (skippedNoise > 0) {
-      parts.push(`${skippedNoise} garbage/noise skipped`);
-    }
-    if (evt) parts.push(`${taggedEvent} → event "${evt}"`);
-    if (portcos.length > 0)
-      parts.push(
-        `${taggedPortco} → ${portcos.length === 1 ? `portco "${portcos[0]}"` : `${portcos.length} portcos`}`,
-      );
-    if (src) parts.push(`${taggedSource} → source "${src}"`);
-    const message = parts.join(" · ");
-    if (failed > 0) toast.warning(`${message} · ${failed} failed (see console)`);
-    else toast.success(message);
-
-    // Refresh the caller's data (re-runs the route loader) so the new contacts
-    // show up immediately and stay accounted for by dedupe on the next upload.
-    if (added > 0) await onImported?.();
-
-    reset();
-    onOpenChange(false);
+      const result = await importContactsBatch({ data: { contacts:prepared,event:eventName.trim(),portcos:portcoNames,portcoSources:portcoSources,sourceNote:source.trim() } });
+      const message = `${result.added} imported · ${result.duplicates} exact duplicates · ${result.review} need review in Admin`;
+      if (result.review) toast.warning(message); else toast.success(message);
+      if (result.added) await onImported?.();
+      reset(); onOpenChange(false);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Import failed; review Admin before retrying."); }
+    finally { setBusy(false); }
   };
 
 

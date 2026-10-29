@@ -1,3 +1,4 @@
+import { requireTeamAuth } from "./team-auth";
 import { createServerFn } from "@tanstack/react-start";
 import { parseToIsoDate, todayIso } from "@/lib/sheet-date";
 import {
@@ -505,90 +506,15 @@ export const importTargets = createServerFn({ method: "POST" })
       followUp?: boolean;
     }) => data,
   )
-  .handler(async ({ data }): Promise<{ added: number; duplicates: number }> => {
-    const incoming = (data.targets || []).filter(
-      (t) => t.firstName || t.lastName || t.email || t.linkedin,
-    );
-    if (incoming.length === 0) return { added: 0, duplicates: 0 };
-
-    // Authoritative dedup: re-read existing targets at commit time so a re-click
-    // (or a concurrent import) can't double-create the same person.
-    let existingKeys = new Set<string>();
-    try {
-      const existing = await buildTargets();
-      existingKeys = new Set(existing.map((t) => targetKeyOf(t)).filter(Boolean));
-    } catch (e) {
-      console.error("importTargets: dedup read failed (proceeding):", e);
-    }
-
-    const seen = new Set<string>();
-    const toAdd: typeof incoming = [];
-    let duplicates = 0;
-    for (const r of incoming) {
-      const name = `${r.firstName} ${r.lastName}`.trim();
-      const key = targetKeyOf({ email: r.email, name, company: r.company });
-      if (key && (existingKeys.has(key) || seen.has(key))) {
-        duplicates++;
-        continue;
-      }
-      if (key) seen.add(key);
-      toAdd.push(r);
-    }
-
-    if (toAdd.length > 0) {
-      await appendTargetRowsServer(
-        toAdd.map((t) => ({
-          firstName: t.firstName,
-          lastName: t.lastName,
-          company: t.company,
-          role: t.role,
-          linkedin: t.linkedin,
-          email: t.email,
-          phone: t.phone || "",
-          location: t.location,
-          sector: t.sector,
-          stage: t.stage,
-          source: t.source,
-          researchPurpose: t.researchPurpose,
-          reasonSurfaced: t.reasonSurfaced || "",
-          campaign: (data.campaign || "").trim(),
-          event: (data.event || "").trim(),
-          portcoTags: data.portcoTags || [],
-          followUp: data.followUp === true,
-          prime: (data.prime || "").trim(),
-        })),
-      );
-      await logOpsEventServer({
-        action: "import",
-        source: "targets",
-        status: "ok",
-        summary: `Imported ${toAdd.length} target${toAdd.length !== 1 ? "s" : ""}${duplicates ? ` · ${duplicates} duplicate${duplicates !== 1 ? "s" : ""} skipped` : ""}`,
-        records: toAdd.length,
-        details: {
-          duplicates,
-          source: toAdd[0]?.source,
-          campaign: (data.campaign || "").trim() || undefined,
-          event: (data.event || "").trim() || undefined,
-          portcoTags: (data.portcoTags || []).length
-            ? (data.portcoTags || []).join(", ")
-            : undefined,
-        },
-        items: toAdd.map((t) =>
-          [`${t.firstName} ${t.lastName}`.trim(), t.company].filter(Boolean).join(" · "),
-        ),
-      });
-    } else if (duplicates > 0) {
-      // Nothing added — still record the attempt so the Ops Log has no gaps.
-      await logOpsEventServer({
-        action: "import",
-        source: "targets",
-        status: "warning",
-        summary: `Target import skipped · all ${duplicates} row${duplicates !== 1 ? "s" : ""} already in Targets`,
-        records: 0,
-        details: { duplicates },
-      });
-    }
-    return { added: toAdd.length, duplicates };
+  .middleware([requireTeamAuth])
+  .handler(async ({ data, context }) => {
+    const { runJournalOperation } = await import("./bulk-journal.server");
+    const { importTargetRows } = await import("./bulk-import.server");
+    const result = await runJournalOperation({ kind:"target-import",page:"/targeting",input:data,actor:context,run:async journal => {
+      const value=await importTargetRows(data,journal);
+      return { value,outcomes:value.outcomes };
+    } });
+    return { ...result.value,operationId:result.operationId };
   });
 
 // Persist a single outreach attempt for a target (Target Outreach tab).
@@ -1270,7 +1196,7 @@ export const logImportResult = createServerFn({ method: "POST" })
   });
 
 // Append a row to the unified Ops Log (import / export / sync audit trail).
-export const logOpsEvent = createServerFn({ method: "POST" })
+export const logOpsEvent = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
   .inputValidator((data: OpsLogInput) => data)
   .handler(async ({ data }) => {
     await logOpsEventServer(data);
@@ -1317,13 +1243,13 @@ export const fetchImportHistory = createServerFn({ method: "GET" }).handler(asyn
 );
 
 // The per-action audit trail (Ops Log tab), newest first — powers the /activity view.
-export const fetchOpsLog = createServerFn({ method: "GET" }).handler(
+export const fetchOpsLog = createServerFn({ method: "GET" }).middleware([requireTeamAuth]).handler(
   async (): Promise<OpsLogEntry[]> => {
     try {
       return await buildOpsLogServer();
     } catch (error) {
       console.error("Failed to fetch ops log from Google Sheets:", error);
-      return [];
+      throw new Error("Activity history is unavailable. Please refresh later.");
     }
   },
 );

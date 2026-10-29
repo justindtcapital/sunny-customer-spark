@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Mail, Linkedin, User } from "lucide-react";
 import { contactImportRejectReason } from "@/lib/contact-noise";
 import { addContact, fetchContactEmails, logImportResult, storeApolloRaw } from "@/utils/sheets.functions";
+import { importContactsBatch } from "@/utils/bulk-import.functions";
 import { enrichContact } from "@/utils/apollo.functions";
 import { toast } from "sonner";
 
@@ -117,7 +118,6 @@ export function SmartPasteDialog({ open, onOpenChange, existingEmails = [], onIm
       if (key) {
         if (existing.has(key) || seen.has(key)) {
           dupes++;
-          continue;
         }
         seen.add(key);
       }
@@ -133,156 +133,26 @@ export function SmartPasteDialog({ open, onOpenChange, existingEmails = [], onIm
   };
 
   const submit = async () => {
-    if (rows.length === 0) return;
+    if (!rows.length) return;
     setBusy(true);
-    const importId =
-      typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `imp-${Date.now()}`;
-
-    // Idempotency: re-read existing emails server-side right before committing so
-    // a re-click (or another tab's import) can't double-create the same contact.
-    let toImport = rows;
-    let commitDupes = 0;
     try {
-      const fresh = new Set((await fetchContactEmails()).map((e) => e.toLowerCase()));
-      const filtered = rows.filter((r) => !r.email || !fresh.has(r.email.trim().toLowerCase()));
-      commitDupes = rows.length - filtered.length;
-      toImport = filtered;
-    } catch (e) {
-      console.error("smart-paste commit-time dedup failed (proceeding with client dedup):", e);
-    }
-
-    let added = 0;
-    let enriched = 0;
-    let skippedNoise = 0;
-    for (const p of toImport) {
-      const c: {
-        name: string;
-        title: string;
-        company: string;
-        email: string;
-        phone: string;
-        location: string;
-        linkedinUrl: string;
-        sector: string;
-        headline?: string;
-        employmentHistory?: string;
-      } = {
-        name: p.name,
-        title: p.title,
-        company: p.company,
-        email: p.email,
-        phone: "",
-        location: "",
-        linkedinUrl: p.linkedinUrl,
-        sector: "",
-      };
-      if (enrich) {
-        try {
-          const parts = p.name.trim().split(/\s+/);
-          const r = await enrichContact({
-            data: {
-              email: p.email || undefined,
-              firstName: parts[0] || undefined,
-              lastName: parts.slice(1).join(" ") || undefined,
-              company: p.company || undefined,
-              linkedinUrl: p.linkedinUrl || undefined,
-            },
-          });
-          if (r.found) {
-            c.name = c.name || r.name || [r.firstName, r.lastName].filter(Boolean).join(" ");
-            c.title = c.title || r.title || "";
-            c.company = c.company || r.company || "";
-            c.phone = r.phone || "";
-            c.location = [r.city, r.state].filter(Boolean).join(", ");
-            c.email = c.email || r.email || "";
-            c.linkedinUrl = c.linkedinUrl || r.linkedinUrl || "";
-            c.sector = r.industry || "";
-            c.headline = r.headline || undefined;
-            c.employmentHistory = (r.employmentHistory || [])
-              .map((j) => {
-                const base = [j.title, j.company].filter(Boolean).join(" @ ");
-                return j.current ? `${base} (current)` : base;
-              })
-              .filter(Boolean)
-              .join("; ");
-            if (c.email) {
-              storeApolloRaw({ data: { email: c.email, payload: r } }).catch(() => {});
-            }
-            enriched++;
-          }
-        } catch (e) {
-          console.error("paste enrich failed", e);
+      const prepared = [];
+      for (const p of rows) {
+        let name=p.name, role=p.title, company=p.company, email=p.email, linkedin=p.linkedinUrl, phone="", location="", sector="";
+        if (enrich) {
+          const parts=p.name.trim().split(/\s+/);
+          const r=await enrichContact({ data:{ email:p.email || undefined,firstName:parts[0],lastName:parts.slice(1).join(" ") || undefined,company:p.company || undefined,linkedinUrl:p.linkedinUrl || undefined } });
+          if (r.found) { name=name || r.name || "";role=role || r.title || "";company=company || r.company || "";email=email || r.email || "";linkedin=linkedin || r.linkedinUrl || "";phone=r.phone || "";location=[r.city,r.state].filter(Boolean).join(", ");sector=r.industry || ""; }
         }
+        prepared.push({ name,email,role,company,linkedin,phone,location,sector,prime:"",source:"Manual Entry" });
       }
-      const finalName = c.name || c.email;
-      if (!finalName) continue;
-      if (
-        contactImportRejectReason({
-          name: finalName,
-          email: c.email,
-          company: c.company,
-        })
-      ) {
-        skippedNoise++;
-        continue;
-      }
-      try {
-        await addContact({
-          data: {
-            name: finalName,
-            role: c.title,
-            company: c.company,
-            email: c.email,
-            phone: c.phone,
-            location: c.location,
-            linkedinUrl: c.linkedinUrl,
-            prime: "",
-            sector: c.sector,
-            temperature: "Cold",
-            source: "Manual Entry",
-            headline: c.headline,
-            employmentHistory: c.employmentHistory,
-          },
-        });
-        added++;
-      } catch (e) {
-        console.error("paste add failed", c.email || finalName, e);
-      }
-    }
-    const failed = toImport.length - added - skippedNoise;
-    const totalDupes = skipped + commitDupes;
-
-    // Log the import to the Import History tab (audit trail), best-effort.
-    try {
-      await logImportResult({
-        data: {
-          importId,
-          filename: "smart paste",
-          source: "smart_paste",
-          totalRows: rows.length + skipped + headerSkipped + unparseable,
-          imported: added,
-          duplicates: totalDupes,
-          invalid: headerSkipped + unparseable,
-          enriched,
-          failed,
-        },
-      });
-    } catch (e) {
-      console.error("smart-paste import-log failed:", e);
-    }
-
-    setBusy(false);
-
-    const parts = [`Added ${added} contact${added !== 1 ? "s" : ""}`];
-    if (enrich) parts.push(`${enriched} enriched`);
-    if (totalDupes > 0) parts.push(`${totalDupes} duplicate${totalDupes !== 1 ? "s" : ""} skipped`);
-    if (skippedNoise > 0) parts.push(`${skippedNoise} garbage/noise skipped`);
-    if (failed > 0) toast.warning(`${parts.join(" · ")} · ${failed} failed (see console)`);
-    else toast.success(parts.join(" · "));
-
-    if (added > 0) await onImported?.();
-    reset();
-    onOpenChange(false);
+      const result=await importContactsBatch({ data:{ contacts:prepared } });
+      const message=`${result.added} added · ${result.duplicates} exact duplicates · ${result.review} need review in Admin`;
+      if (result.review) toast.warning(message); else toast.success(message);
+      if (result.added) await onImported?.();
+      reset();onOpenChange(false);
+    } catch(e) { toast.error(e instanceof Error ? e.message : "Import failed; review Admin before retrying."); }
+    finally { setBusy(false); }
   };
 
   const preview = rows.slice(0, 8);
