@@ -2,8 +2,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, Pencil, CheckCircle2, Search, Check,
+  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, Pencil, CheckCircle2, Search, Check, Trash2,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +33,7 @@ import {
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
 import {
-  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
+  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, deletePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
   extractEventFromUrlFn, addPlannerAttendeesFn,
 } from "@/utils/event-planner.functions";
 
@@ -344,6 +348,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         onClose={() => setSelected(null)}
         onEdit={(e) => setEditing(e)}
         onSaved={(e) => { setSelected(e); refresh(); }}
+        onDeleted={() => { setSelected(null); refresh(); }}
       />
       <EventForm
         initial={editing}
@@ -464,8 +469,9 @@ function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
 
 // ── Detail pane ────────────────────────────────────────────────
 function EventDetail({
-  event, all, attendees, contacts, onClose, onEdit, onSaved,
+  event, all, attendees, contacts, onClose, onEdit, onSaved, onDeleted,
 }: {
+  onDeleted: () => void;
   event: PlannerEvent | null;
   all: PlannerEvent[];
   attendees: PlannerAttendee[];
@@ -476,6 +482,9 @@ function EventDetail({
 }) {
   const update = useServerFn(updatePlannerEventFn);
   const addAtt = useServerFn(addPlannerAttendeesFn);
+  const del = useServerFn(deletePlannerEventFn);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [q, setQ] = useState("");
   const e = event;
   const asanaOnly = !!e && e.urid.startsWith("asana:");
@@ -499,6 +508,20 @@ function EventDetail({
     ? contacts.filter((c) => `${c.name} ${c.email} ${c.company}`.toLowerCase().includes(q.toLowerCase())).slice(0, 6)
     : [];
 
+  async function remove() {
+    if (!e) return;
+    setDeleting(true);
+    try {
+      const r = await del({ data: { urid: e.urid, expectedUpdated: e.updated, name: e.name } });
+      toast.success(`Deleted ${e.name}${r.attendees ? ` and ${r.attendees} attendance record${r.attendees === 1 ? "" : "s"}` : ""}. Contacts were not changed.`);
+      setConfirmDelete(false);
+      onDeleted();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  }
   async function promote() {
     if (!e) return;
     try {
@@ -543,6 +566,11 @@ function EventDetail({
                 )}
                 {!asanaOnly && e.status !== "Confirmed" && (
                   <Button size="sm" onClick={promote}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark confirmed</Button>
+                )}
+                {!asanaOnly && (
+                  <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:text-destructive" onClick={() => setConfirmDelete(true)}>
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                  </Button>
                 )}
                 {asanaOnly && <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>}
               </div>
@@ -614,6 +642,22 @@ function EventDetail({
             </div>
           </>
         )}
+        <AlertDialog open={confirmDelete} onOpenChange={(o) => !deleting && setConfirmDelete(o)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {e?.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Removes this event and its attendance records from the tracker. People stay in the CRM. A copy is kept in the "Deleted Events" tab so it can be restored.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction disabled={deleting} onClick={(x) => { x.preventDefault(); void remove(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                {deleting ? "Deleting…" : "Delete event"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

@@ -120,3 +120,28 @@ export const mergePlannerEventsFn = createServerFn({ method: "POST" })
       return mergeEventsManually(data.keeper, data.loserUrids);
     });
   });
+
+export const deletePlannerEventFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .inputValidator((d: { urid: string; expectedUpdated: string; name?: string }) => {
+    if (!d?.urid) throw new Error("Missing event");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { withDeadline } = await import("./request-deadline.server");
+    const { deletePlannerEvent } = await import("./event-planner.server");
+    const { logOpsEvent } = await import("./sheets.server");
+    return withDeadline("deletePlannerEvent", 55_000, async (step) => {
+      step("archiving and deleting event");
+      const r = await deletePlannerEvent(data.urid, data.expectedUpdated, context.teamEmail);
+      step("logging deletion");
+      await logOpsEvent({
+        action: "maintenance",
+        source: "events",
+        status: "ok",
+        summary: `Deleted event ${data.name || data.urid}`,
+        details: { by: context.teamEmail, urid: data.urid, attendees: String(r.attendees), archive: "Deleted Events tab" },
+      }).catch(() => undefined);
+      return r;
+    });
+  });
