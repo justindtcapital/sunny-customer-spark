@@ -61,46 +61,35 @@ Shared selection context, Bulk Edit bar and confirmation/results views, relation
 - Keep helpers server-only and require verified teammate access for operation creation, reads and retries. No CRM storage migration or new contact schema is planned. Add a small durable Lovable Cloud operation journal for deduplication, outcomes and retry context, not a second CRM store. Apply explicit grants and access policies; clients cannot forge completion states or execute arbitrary logged instructions.
 
 ## 3. Admin activity log → troubleshoot, retry or fix request
-
-### Confirmed starting point
-The existing Admin page reads the workbook’s Ops Log, with expandable items and OK/Error filters. The log writer accepts warnings too, but the page lacks a Warning filter. Logs have no explicit operation ID or structured retry context, and log-write errors are swallowed. Network CSV imports record totals, but some tagging failures are only sent to the console; relationship-change and planner-event entry points do not write an Ops Log entry themselves. Coverage of remaining bulk entry points will be inventoried before implementation.
+**Starting point:** Admin reads the workbook’s Ops Log. It has expandable entries but no stable operation IDs or retry context. Warnings are accepted by the writer but not selectable in the status filter. Logging errors are swallowed; some CSV tagging failures only reach the console. The full entry-point inventory is still required.
 
 ### Approach
-1. Keep the activity log collapsible at the bottom of Admin and preserve existing log history. Display new journal-backed operations alongside legacy entries without duplicate display rows.
-2. Record each bulk upload/CSV import, event import, promotion/demotion, transfer and other existing bulk mutation entry point found in the inventory. Capture who initiated it, originating page, time, operation ID, intended action, totals, per-item outcomes and safe error explanations. Represent running, succeeded, partial, failed and uncertain outcomes accurately; interrupted runs must not appear successful.
-3. Make an activity selectable and expandable. Show its original attempt and subsequent retries as a linked history.
-4. **Troubleshoot:** load the selected activity’s sanitized details into the existing assistant for discussion. The assistant may explain or draft requests, never run writes or claim it fixed code.
-5. **Create fix request:** open an editable draft with the activity ID, observed failure, affected items and attempt history; save through the existing request workflow. Include this evidence in the Lovable handoff. Repeated clicks should reopen/link the existing request rather than create duplicate tickets.
-6. **Retry:** offer only for operations supported by a safe server-side retry handler. Preview unresolved items and original destinations, revalidate access and current saved data, then require confirmation. Already successful items are excluded. Disable retry for legacy entries with insufficient context, conflicts requiring review, and unsupported/destructive operations, with a clear reason.
-7. Capture failures before/after each persisted stage in the durable journal. If journaling cannot start, do not begin the bulk mutation; if result finalization fails after a write, reconcile from saved data rather than reporting an untouched batch.
+- Keep the log collapsible at the bottom, preserve old entries, and display new journal-backed operations without duplicate display rows.
+- Cover CSV/bulk people and event uploads, promotions/demotions, transfers, and other existing bulk mutations found in the inventory. Record actor, page, time, operation ID, intent, totals and per-item results. Distinguish running, success, partial, failure and uncertain/interrupted outcomes.
+- Track creation, enrichment and each tagging/membership step separately so retrying a failed tag never recreates an already-saved person.
+- Selecting an entry reveals linked attempts and three actions: **Troubleshoot** supplies previewable, sanitized evidence to the existing assistant; **Create fix request** opens an editable draft linked to the activity/history; **Retry** previews unresolved supported steps and requires confirmation.
+- Request creation is idempotent: repeated clicks reopen/link the existing request. Include redacted evidence in the Lovable handoff. The assistant only discusses/drafts; it never authorizes retries or changes code.
+- Disable retry for unsupported/destructive actions, conflicting records and legacy entries without sufficient context. Revalidate saved state and teammate access server-side; never execute log text.
+- Journal intent before mutation. If that fails, do not start. If recording the result fails after a write, reconcile persisted state before any retry. Do not label partial or uncertain operations successful.
 
-### Affected areas and risks
-Admin activity page, Admin assistant and request drafts/handoff; shared operation journal and logging wrapper; the inventoried bulk/import entry points; additive operation metadata and request linkage.
+**Affected areas:** Admin log/assistant, request creation/handoff, operation journal, bulk/import wrappers and additive request linkage.
 
-- Do not store credentials, raw provider responses or whole uploaded files in visible logs or prompts. Store only validated retry fields and minimal necessary evidence with teammate-only access.
-- Old entries are historical evidence, not automatically replayable commands. Retrying from text alone is forbidden.
-- Existing log coverage is not a complete historical record. New coverage starts when deployed; no invented backfill of missing failures.
+**Risks:** New logs cannot recreate missing historical failures. Protect evidence/retry inputs with verified-team access; derive actors server-side. Redact secrets, raw provider responses and unnecessary personal data from visible logs, AI prompts and URL handoffs. Read failures must show unavailable, not an empty history. Validate deployed access before making exposure claims.
 
-## 4. Automatic duplicate prevention for imports and bulk writes
-
-### Confirmed starting point
-Prospecting imports already check a target key (email, otherwise name/company), but proceed when that lookup fails. Event additions check a series-name/date key within the incoming batch and existing events. These are useful checks, but separate reads/appends are not cross-request uniqueness protection. Network CSV uploads also fall back to client checks if their fresh duplicate read fails.
+## 4. Automatic duplicate prevention
+**Starting point:** Prospecting checks email or name/company but proceeds if its lookup fails. Network CSV similarly falls back to client checks. Events check normalized series/date, ignoring potentially conflicting tags/location. Separate reads and appends do not enforce cross-request uniqueness.
 
 ### Approach
-1. Reuse existing normalizers through shared, pure identity helpers for people, events and operation items. Run checks within each batch and against fresh persisted data before writing; if authoritative duplicate checks are unavailable, stop/retry later rather than import unchecked.
-2. **People:** prefer URID, then normalized email aliases/LinkedIn where reliable. Name/company alone is a candidate match, not permission to merge two people. Check Network and Prospecting together so imports do not create a second CRM identity across tabs. Recognized existing people retain their ratings, owner and profile.
-3. **Events:** distinguish repeat delivery of the same source/event from recurring events and same-day events in different locations. An exact replay is skipped; a likely match with new tags, dates, venue, notes or status goes into review with both versions preserved. Never silently skip information just because a series/date key matches.
-4. For existing people/events, preserve incoming campaign memberships, attendance and new tags as reviewable association changes; dedupe those associations by their established keys. Do not overwrite the underlying record or silently discard new information.
-5. **Transfers and rating changes:** dedupe selected identities and operation-item writes, preserve intended destinations across attempts and verify completion before replay. A retry must not add a second prospect, movement record or rating step.
-6. Assign operation/item identities before writes and coordinate overlapping app requests. Reconcile provider timeouts against saved rows before retrying non-idempotent appends/deletions.
-7. Report added/changed, exact duplicates skipped, already complete, conflicts awaiting review and failures separately in both the results screen and Admin log. Keep unresolved input available through the operation record for review/retry.
+- Centralize conservative server-side classification: **new**, **exact replay**, **needs review**, **invalid**. Check fresh persisted data and the incoming batch. Fail closed when authoritative checking is unavailable.
+- People: URID first; normalized individual emails/aliases and reliable LinkedIn matches identify candidates. Check Network and Prospecting together. Weak or contradictory identifiers require review, not a new identity or automatic merge.
+- Events: use source identity and business fields to prove a replay; series/date alone identifies candidates. Preserve recurring and different-location events. New/conflicting tags, venue, notes or status go to review with both versions retained.
+- Exact replay/review rows cause no profile, rating, tag, attendance, note or enrichment writes. Keep incoming associations available for explicit review/approval and dedupe approved memberships/attendance by their established keys.
+- Deduplicate transfers by resolved identity; freeze intended ratings and use operation/item replay keys. No second prospect, history entry or ladder step on retries. Same-value rating requests do not append fictitious movements.
+- Coordinate overlapping app writes and reconcile ambiguous provider responses before replay. Report new, duplicate, already complete, review and failed counts in the results and activity log.
 
-### Affected areas and risks
-Network and Prospecting upload/paste entry points, event CSV/bulk creation and shared ingestion paths identified in the inventory; membership/attendance helpers; relationship transitions; journal and duplicate-policy tests.
+**Affected areas:** Network/Prospecting upload and paste, event CSV/bulk ingestion, discovery producers feeding these imports, association helpers and relationship writes. Confirm any legacy bypass is reachable before rerouting it.
 
-- False matches can lose information: automatic prevention applies to exact/replayed identities; uncertain semantic matches require review. Existing duplicates are not automatically merged or deleted.
-- Sheets has no cross-tab transaction. The journal coordinates participating app writers but cannot lock direct spreadsheet edits; uncertain states remain blocked until reconciled.
-- No paid enrichment calls or new matching credits are needed for duplicate checks.
+**Risks:** Do not auto-merge/delete existing duplicates or discard differing tags. The journal coordinates participating app writers, not direct Sheets edits; uncertain states stay blocked. No paid matching/enrichment is needed.
 
 ## Implementation sequence
 1. Inventory entry points and repair baseline tests.
