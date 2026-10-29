@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, getToolName, type UIMessage } from "ai";
 import { toast } from "sonner";
@@ -8,13 +8,16 @@ import { Conversation, ConversationContent, ConversationEmptyState, Conversation
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
-import { EmailReview, RelationshipReview } from "./VicReviewCards";
+import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, LogActionReview, RelationshipReview } from "./VicReviewCards";
+import { KbFolderPicker } from "./KbFolderPicker";
+import { useAuth } from "@/lib/auth-context";
 import { VicMark } from "./VicMark";
 
 const SUGGESTIONS = [
   "Do any PortCos work with vector databases?",
   "Who in my network is a CISO in healthcare?",
   "What events do we have in 2027?",
+  "What do our meeting notes say about Maven pricing?",
 ];
 
 /** Loads a thread's saved messages, then renders the chat. */
@@ -36,8 +39,13 @@ export function VicChat({ threadId, page }: { threadId: string; page?: string })
 
 function VicChatWindow({ threadId, initial, page }: { threadId: string; initial: UIMessage[]; page?: string }) {
   const [text, setText] = useState("");
+  const { email } = useAuth();
+  const me = email || "";
+  const [folders, setFolders] = useState<string[]>([]);
+  const foldersRef = useRef(folders);
+  foldersRef.current = folders;
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: "/api/vic", fetch: vicFetch, body: () => ({ threadId, page }) }),
+    () => new DefaultChatTransport({ api: "/api/vic", fetch: vicFetch, body: () => ({ threadId, page, kbFolderIds: foldersRef.current }) }),
     [threadId, page],
   );
   const { messages, sendMessage, status, stop } = useChat({
@@ -78,6 +86,10 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
                       return <RelationshipReview key={i} proposal={out as never} />;
                     if (out?.status === "awaiting_review" && name === "proposeEmailDraft")
                       return <EmailReview key={i} draft={out as never} />;
+                    if (out?.status === "awaiting_review" && name === "proposeFollowUp") return <FollowUpReview key={i} p={out as never} me={me} />;
+                    if (out?.status === "awaiting_review" && name === "proposeCompleteFollowUps") return <CompleteFollowUpsReview key={i} p={out as never} />;
+                    if (out?.status === "awaiting_review" && name === "proposeLogAction") return <LogActionReview key={i} p={out as never} me={me} threadId={threadId} />;
+                    if (out?.status === "awaiting_review" && name === "proposeEventAttendees") return <AttendeesReview key={i} p={out as never} />;
                     return (
                       <Tool key={i} defaultOpen={false}>
                         <ToolHeader type={p.type as never} state={p.state} title={name.replace(/([A-Z])/g, " $1").toLowerCase()} />
@@ -102,7 +114,8 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
           <PromptInputBody>
             <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask Vic…" />
           </PromptInputBody>
-          <PromptInputFooter className="justify-end">
+          <PromptInputFooter className="justify-between">
+            <KbFolderPicker value={folders} onChange={setFolders} />
             <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()} />
           </PromptInputFooter>
         </PromptInput>
