@@ -3751,7 +3751,7 @@ export async function buildNetworkPyramidData() {
     targets,
     prospects: prospects.map((p) => ({
       email: p.email || "", prime: p.prime || "", location: p.location || "",
-      areas: [p.sector, p.role].filter(Boolean) as string[], dateAdded: p.dateAdded || "",
+      areas: [p.sector, p.title].filter(Boolean) as string[], dateAdded: p.dateAdded || "",
     })),
   };
 }
