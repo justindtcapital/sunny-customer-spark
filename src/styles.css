@@ -504,7 +504,8 @@
 .network-overview { container-type: inline-size; }
 .network-overview-body {
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) minmax(0, 2.4fr);
+  --chart-w: clamp(210px, 28cqi, 320px);
+  grid-template-columns: var(--chart-w) minmax(0, 1fr);
   gap: 24px;
 }
 .network-tier-chart {
@@ -532,6 +533,17 @@
   background: color-mix(in oklab, currentColor 9%, var(--background));
   border-bottom: 2px solid var(--background);
   border-radius: 6px;
+}
+/* Desktop: each band reaches back to the centre of the pyramid and tucks behind it. */
+@container (min-width: 721px) {
+  .network-overview-body { position: relative; isolation: isolate; }
+  .network-tier-chart { position: relative; z-index: 1; }
+  .network-data-row { position: relative; background: transparent; }
+  .network-data-row::before {
+    content: ""; position: absolute; inset: 0 0 0 calc(-1 * (24px + var(--chart-w) / 2));
+    z-index: -1; border-radius: 0 6px 6px 0;
+    background: color-mix(in oklab, currentColor 9%, var(--background));
+  }
 }
 .network-tier:hover polygon, .network-tier:focus-visible polygon { filter: brightness(1.12); }
 .network-tier[aria-pressed="true"] polygon { stroke: var(--foreground); stroke-width: 1.5; }
