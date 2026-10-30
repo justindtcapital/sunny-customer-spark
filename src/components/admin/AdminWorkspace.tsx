@@ -10,7 +10,7 @@ import { DictationButton } from "@/components/admin/DictationButton";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bug, Lightbulb, LifeBuoy, Send, Copy, ArrowRightLeft, Trash2, Loader2, ClipboardList, ExternalLink } from "lucide-react";
+import { Bug, Lightbulb, LifeBuoy, Send, Copy, ArrowRightLeft, Trash2, Loader2, ClipboardList, ExternalLink, CheckCircle2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { buildHandoffPrompt, buildHandoffUrl } from "@/lib/lovable-handoff";
 import type { ActivityDraftContext } from "./BulkActivityLog";
@@ -179,11 +179,14 @@ function RequestList({ kind, rows, uid, onUpdate, onRemove }: {
     try { await navigator.clipboard.writeText(prompt); } catch { /* ignore */ }
     window.open(url, "_blank", "noopener");
     toast.success(prefilled ? "Opened Lovable with your build sheet — review it, then send" : "Build sheet copied — paste it into Lovable's chat");
-    for (const r of chosen) if (r.status === "open") onUpdate(r.id, { status: "planned" });
+    for (const r of chosen) if (r.status === "open" || r.status === "planned") onUpdate(r.id, { status: "in progress" });
+    setSel(new Set());
   }
+  const closed = sorted.filter((r) => r.status === "done" || r.status === "won't do");
+  const [showClosed, setShowClosed] = useState(false);
   return (
     <section className="rounded-xl border bg-card p-4">
-      <h3 className="flex items-center gap-2 text-sm font-semibold mb-3"><Icon className="h-4 w-4 text-primary" /> {kind === "fix" ? "Fix requests" : "Feature requests"} <Badge variant="secondary">{rows.length}</Badge></h3>
+      <h3 className="flex items-center gap-2 text-sm font-semibold mb-3"><Icon className="h-4 w-4 text-primary" /> {kind === "fix" ? "Fix requests" : "Feature requests"} <Badge variant="secondary">{active.length}</Badge></h3>
       {active.length > 0 && (
         <div className="mb-3 flex items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -194,9 +197,9 @@ function RequestList({ kind, rows, uid, onUpdate, onRemove }: {
           </Button>
         </div>
       )}
-      {sorted.length === 0 && <p className="text-xs text-muted-foreground">None yet.</p>}
+      {active.length === 0 && <p className="text-xs text-muted-foreground">No open requests.</p>}
       <div className="space-y-2">
-        {sorted.map((r) => (
+        {[...active, ...(showClosed ? closed : [])].map((r) => (
           <div key={r.id} className={`rounded-lg border p-3 ${r.status === "done" || r.status === "won't do" ? "opacity-60" : ""}`}>
             <div className="flex items-start gap-2 text-sm font-medium"><Checkbox className="mt-0.5" checked={sel.has(r.id)} onCheckedChange={() => toggle(r.id)} aria-label={`Select ${r.title}`} />{r.title}</div>
             <div className="text-xs text-muted-foreground mt-0.5">{r.description}</div>
@@ -214,12 +217,20 @@ function RequestList({ kind, rows, uid, onUpdate, onRemove }: {
             </div>
             <div className="mt-2 flex gap-1">
               <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { void navigator.clipboard.writeText(r.lovable_prompt); toast.success("Build prompt copied"); }}><Copy className="h-3 w-3 mr-1" /> Copy prompt</Button>
+              {r.status !== "done" && r.status !== "won't do"
+                ? <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { onUpdate(r.id, { status: "done" }); toast.success("Marked complete — moved to hidden completed list"); }}><CheckCircle2 className="h-3 w-3 mr-1" /> Complete</Button>
+                : <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => onUpdate(r.id, { status: "open" })}>Reopen</Button>}
               <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => onUpdate(r.id, { kind: kind === "fix" ? "feature" : "fix" })}><ArrowRightLeft className="h-3 w-3 mr-1" /> Move to {kind === "fix" ? "features" : "fixes"}</Button>
               {uid === r.user_id && <Button size="sm" variant="ghost" className="h-6 text-xs text-destructive" onClick={() => onRemove(r.id)}><Trash2 className="h-3 w-3" /></Button>}
             </div>
           </div>
         ))}
       </div>
+      {closed.length > 0 && (
+        <button type="button" className="mt-3 text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowClosed((v) => !v)}>
+          {showClosed ? "Hide" : "Show"} completed ({closed.length})
+        </button>
+      )}
     </section>
   );
 }
