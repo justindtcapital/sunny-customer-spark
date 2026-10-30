@@ -202,7 +202,7 @@ export function NetworkPyramid({
               {displayCols.map((col, j) => {
                 if (embedded) {
                   const inn = k.added + k.promotedIn, out = k.removed + k.demotedOut, v = [inn, out, inn - out][j];
-                  const txt = j === 0 ? `+${v}` : j === 1 ? `−${v}` : v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0";
+                  const txt = !v ? "0" : j === 0 ? `+${v}` : j === 1 ? `−${v}` : v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0";
                   return <div key={col} className="network-metric min-w-0 px-1"><span className={cn("text-sm font-semibold tabular-nums", v ? "text-foreground" : "text-muted-foreground/50")}>{txt}</span></div>;
                 }
                 if (view === "kpis") return <div key={col} className="network-metric min-w-0 px-1">
