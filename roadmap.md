@@ -101,3 +101,4 @@
 - [x] Phase 3: shared skill picker and evidence-grounded PortCo questions, company overlap, introduction matching; verified signed-in runs and saved messages after reload
 - [x] Phase 3: company TXT/Markdown/CSV upload into an editable overlap draft; verified draft-before-send and completed comparison without CRM writes
 - [ ] Phase 4: scheduled skills — daily digest, Monday actions, weekly report
+- [x] Link past PortCo event history to 2027 potential events (Event Planner → Link past history)

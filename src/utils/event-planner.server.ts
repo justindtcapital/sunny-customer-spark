@@ -21,6 +21,7 @@ import {
 import type { AsanaEvent } from "@/lib/types";
 import { suppliedFieldsMatch } from "@/lib/import-dedupe";
 import type { BulkOutcome } from "@/lib/bulk-operation";
+import { newLinksOnly, type HistoryLink } from "@/lib/event-history";
 
 const DEFAULT_TRACKER_ID = "1awv_VNFHvndOfu4DnyrM4PnMPb65UOms-sJym7AlG0M";
 export const EVENTS_TAB = "Events DB";
@@ -493,4 +494,43 @@ export async function deletePlannerEvent(urid: string, expectedUpdated: string, 
   for (const n of attIdx) await writeRange(ATTENDEES_TAB, n + 1, 0, [ATTENDEE_HEADERS.map(() => "")]);
   cache.delete(EVENTS_TAB);
   return { attendees: attIdx.length };
+}
+
+// ── Event history links (append-only; never edits events/activities) ──
+export const HISTORY_TAB = "Event History Links";
+export const HISTORY_HEADERS = [
+  "Target URID", "Source Kind", "Source ID", "Source Name", "Source Date", "PortCos",
+  "Match Reason", "Source URL", "Linked By", "Linked At", "Removed At",
+];
+
+export async function readHistoryLinks(fresh = false): Promise<Array<HistoryLink & { row: number; removedAt: string }>> {
+  const rows = await readTab(HISTORY_TAB, fresh).catch(() => [] as string[][]);
+  return rows.flatMap((r, n) => (n > 0 && r[0] ? [{
+    targetUrid: r[0], kind: (r[1] === "activity" ? "activity" : "event") as HistoryLink["kind"], sourceId: r[2] || "",
+    sourceName: r[3] || "", sourceDate: r[4] || "", portcos: splitList(r[5] || ""), reason: r[6] || "",
+    sourceUrl: r[7] || "", linkedBy: r[8] || "", linkedAt: r[9] || "", removedAt: r[10] || "", row: n + 1,
+  }] : []));
+}
+
+export async function activeHistoryLinks(fresh = false): Promise<HistoryLink[]> {
+  return (await readHistoryLinks(fresh)).filter((l) => !l.removedAt);
+}
+
+export async function saveHistoryLinks(links: HistoryLink[]): Promise<{ added: number; skipped: number }> {
+  await ensureTab(HISTORY_TAB, HISTORY_HEADERS);
+  const existing = await activeHistoryLinks(true); // re-read right before append
+  const fresh = newLinksOnly(links, existing);
+  await appendRows(HISTORY_TAB, fresh.map((l) => [
+    l.targetUrid, l.kind, l.sourceId, l.sourceName, l.sourceDate, l.portcos.join("; "),
+    l.reason, l.sourceUrl, l.linkedBy, l.linkedAt, "",
+  ]));
+  return { added: fresh.length, skipped: links.length - fresh.length };
+}
+
+/** Marks only the link row removed; sources and events are untouched. */
+export async function removeHistoryLink(targetUrid: string, kind: string, sourceId: string): Promise<boolean> {
+  const rows = await readHistoryLinks(true);
+  const hit = rows.filter((l) => !l.removedAt && l.targetUrid === targetUrid && l.kind === kind && l.sourceId === sourceId);
+  for (const l of hit) await writeRange(HISTORY_TAB, l.row, 10, [[new Date().toISOString()]]);
+  return hit.length > 0;
 }

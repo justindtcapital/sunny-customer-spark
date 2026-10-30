@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, Pencil, CheckCircle2, Search, Check, Trash2,
+  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, Pencil, CheckCircle2, Search, Check, Trash2, History,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -36,6 +36,8 @@ import {
   fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, deletePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
   extractEventFromUrlFn, addPlannerAttendeesFn,
 } from "@/utils/event-planner.functions";
+import { EventHistoryDialog, EventHistorySection } from "./EventHistory";
+import type { HistoryLink } from "@/lib/event-history";
 
 const SUBCATS = PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -113,6 +115,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [editing, setEditing] = useState<Partial<PlannerEvent> | null>(null);
   const [csvOpen, setCsvOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const enrichFn = useServerFn(enrichFromAsanaFn);
   const [merging, setMerging] = useState(false);
 
@@ -242,6 +245,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLinkOpen(true)}>
               <Link2 className="h-3.5 w-3.5 mr-1" /> Add from link
             </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setHistoryOpen(true)}>
+              <History className="h-3.5 w-3.5 mr-1" /> Link past history
+            </Button>
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
               <Checkbox checked={showAsana} onCheckedChange={(v) => setShowAsana(!!v)} /> Show Asana data
             </label>
@@ -344,6 +350,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         event={selected}
         all={events}
         attendees={attendees}
+        historyLinks={data?.historyLinks ?? []}
+        onOpen={setSelected}
+        onHistoryChanged={refresh}
         contacts={contacts}
         onClose={() => setSelected(null)}
         onEdit={(e) => setEditing(e)}
@@ -362,6 +371,12 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         const hidden = statuses.filter((s) => !dtcFilter.includes(s));
         if (hidden.length) { setDtcFilter((f) => [...new Set([...f, ...hidden])]); toast.info(`Showing ${hidden.join(", ")} events so your import is visible`); }
       }} />
+      <EventHistoryDialog
+        open={historyOpen}
+        year={Math.max(Number(anchor.slice(0, 4)) || 0, new Date().getFullYear() + 1)}
+        onClose={() => setHistoryOpen(false)}
+        onSaved={refresh}
+      />
       <LinkDialog open={linkOpen} onClose={() => setLinkOpen(false)} onExtracted={(e) => { setLinkOpen(false); setEditing(e); }} />
     </div>
   );
@@ -469,8 +484,11 @@ function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
 
 // ── Detail pane ────────────────────────────────────────────────
 function EventDetail({
-  event, all, attendees, contacts, onClose, onEdit, onSaved, onDeleted,
+  event, all, attendees, contacts, onClose, onEdit, onSaved, onDeleted, historyLinks, onOpen, onHistoryChanged,
 }: {
+  historyLinks: HistoryLink[];
+  onOpen: (e: PlannerEvent) => void;
+  onHistoryChanged: () => void;
   onDeleted: () => void;
   event: PlannerEvent | null;
   all: PlannerEvent[];
@@ -628,6 +646,8 @@ function EventDetail({
                   {people.length === 0 && <p className="text-xs text-muted-foreground">No attendees yet.</p>}
                 </div>
               </section>
+
+              <EventHistorySection event={e} links={historyLinks} all={all} attendees={attendees} onChanged={onHistoryChanged} onOpen={onOpen} />
 
               <section className="space-y-1">
                 <h3 className="text-xs font-semibold">Prior years</h3>
