@@ -10,8 +10,7 @@
 - External notes preserve origins. Harvested activities skip existing IDs on save and collapse repeated IDs on read, with completion winning — prevents repeated reminders.
 - Granola stays manual-only; personal auth/storage rules live in src/utils/AGENTS.md.
 
-- Bulk Network transfers preserve URID and a full profile snapshot in Targets, verify the copy and re-read the source before deletion; history and campaign tabs stay untouched to prevent data loss.
-- Relationship changes use bounded authenticated slices with frozen destinations and request-scoped abort/fenced checkpoints; pending items require explicit Resume, and inspection never releases uncertain locks or assigns IDs, preventing whole-batch replays after interruption.
+- One people list: Prospecting is a Relationship Status on Contacts (Targets archived). sheets.server serves legacy Targets reads/writes as a view over prospect-flagged rows resolved by URID; Network reads exclude them. Relationship moves are batched in-place status flags, never copy/delete — no half-moved people or quota-bound jobs.
 
 - The homepage is fixed-size panels (src/components/home/HomePanels.tsx) that reuse existing read functions (home aggregate, planner, campaigns) plus pure helpers in src/lib/home-panels.ts; V.I.C. is the only AI surface, and panels show "unavailable" rather than demo rows so counts reflect real records.
 - Contact creation uses a shared manual-rating policy and the legacy recalculation endpoint is inert; this prevents imports and sync callers from silently overriding human ratings.
