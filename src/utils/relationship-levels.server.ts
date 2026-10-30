@@ -13,8 +13,6 @@ const rating = (s: string): Temperature => ({ council: "Council", hot: "Hot", wa
 async function moveToProspecting(headers: string[], source: string[]): Promise<{ status: BulkOutcome["status"]; reason: string }> {
   const urid = cell(headers, source, "urid");
   if (!urid) return { status: "blocked", reason: "Missing stable contact ID; source was retained." };
-  await ensureTab(TAB_NAMES.targets, TARGET_HEADERS);
-  for (const header of [...TARGET_HEADERS, "Network Profile", "Prime", "Phone"]) await ensureColumn(TAB_NAMES.targets, header);
   const targets = await fetchSheetTab(TAB_NAMES.targets, true), th = (targets[0] || []).map(norm);
   const snapshot = JSON.stringify(sourceProfile(headers,source));
   const names = cell(headers, source, "name").trim().split(/\s+/);
@@ -25,7 +23,7 @@ async function moveToProspecting(headers: string[], source: string[]): Promise<{
   if (matches.length > 1) return { status: "blocked", reason: "Multiple matching prospects; review identities before moving." };
   const existing = matches[0];
   if (existing && (cell(th,existing,"urid") !== urid || !exactProfile(verifiedProspect(th,existing,urid) || {},sourceProfile(headers,source)))) return { status: "blocked", reason: "Existing prospect has a different ID or profile; no data was overwritten." };
-  if (!existing) await appendSheetRows(TAB_NAMES.targets, [th.map(h => fields[h] || "")]);
+  if (!existing) await appendSheetRows(TAB_NAMES.targets, [th.map(h => fields[h] || "")],true);
   const verified = await fetchSheetTab(TAB_NAMES.targets, true), vh = (verified[0] || []).map(norm);
   const copies = verified.slice(1).filter(r => cell(vh,r,"urid") === urid);
   const copy = copies[0];
@@ -47,6 +45,7 @@ async function moveToProspecting(headers: string[], source: string[]): Promise<{
 export async function changeRelationshipLevels(input: RelationshipInput, prior: BulkOutcome[] = [], checkpoint?: (outcomes: BulkOutcome[]) => Promise<void>, limits?: { maxItems:number; maxMs:number }) {
   const outcomes: BulkOutcome[] = [], seen = new Set<string>();
   const started=Date.now();let processed=0;
+  let prepared=false;
   // Moves need a stable ID; give blank rows one first (blank cells only, never guessed).
   await fillMissingUrids(TAB_NAMES.contacts);
   await fillMissingUrids(TAB_NAMES.targets);
@@ -85,6 +84,11 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
           if (!destination) outcome = { ...base, status: "blocked", reason: "Council is already the highest relationship tier." };
           else if (current !== selected.temperature) outcome = { ...base, status: prior.length && current === destination ? "already_complete" : "blocked", reason: prior.length && current === destination ? "Original destination is already saved; no second step applied." : `Saved rating is ${current}, not ${selected.temperature}; reload and review the teammate change.` };
           else if (destination === "Prospecting") {
+            if(!prepared) {
+              await ensureTab(TAB_NAMES.targets,TARGET_HEADERS);
+              for(const header of [...TARGET_HEADERS,"Network Profile","Prime","Phone"]) await ensureColumn(TAB_NAMES.targets,header);
+              prepared=true;
+            }
             const moved = await moveToProspecting(headers, source);
             outcome = { ...base, ...moved };
             if (moved.status === "moved") await logNetworkMovements([{ email: cell(headers,source,"email"), name: cell(headers,source,"name"), from: current, to: "Prospecting", reason: "Moved to Prospecting" }]);

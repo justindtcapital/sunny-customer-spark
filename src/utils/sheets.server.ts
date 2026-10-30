@@ -242,12 +242,12 @@ export async function appendSheetRow(tabName: string, values: string[]): Promise
 }
 
 // ── Append multiple rows to a sheet tab in one call ──────────
-export async function appendSheetRows(tabName: string, rows: string[][]): Promise<void> {
+export async function appendSheetRows(tabName: string, rows: string[][], literal = false): Promise<void> {
   if (rows.length === 0) return;
   const spreadsheetId = requireSpreadsheetId();
 
   const token = await getAccessToken();
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=${literal ? "RAW" : "USER_ENTERED"}&insertDataOption=INSERT_ROWS`;
 
   const res = await sheetsFetch(url, {
     method: "POST",
@@ -280,7 +280,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
       const metaRes = await sheetsFetch(`${base}?fields=sheets.properties.title`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!metaRes.ok) return null;
+      if (!metaRes.ok) throw new Error("Could not verify sheet structure; no tab or header was created.");
       const meta = (await metaRes.json()) as { sheets?: Array<{ properties?: { title?: string } }> };
       return (meta.sheets || []).map((s) => s.properties?.title || "");
     })().finally(() => { state.tabTitlesInflight = null; });
@@ -303,15 +303,17 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
     if (!body.includes("already exists")) {
       throw new Error(`Sheets addSheet error for "${tabName}" [${addRes.status}]: ${body}`);
     }
+    return;
   }
 
   // Write the header row.
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await sheetsFetch(headerUrl, {
+  const headerRes = await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
   });
+  if (!headerRes.ok) throw new Error("New sheet header could not be saved; review structure before retrying.");
   cache.delete(tabName);
 }
 
