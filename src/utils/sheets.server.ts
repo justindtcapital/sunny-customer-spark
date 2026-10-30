@@ -39,6 +39,7 @@ import {
 } from "@/lib/engagement-source";
 import { getGoogleOAuthCreds, requireSpreadsheetId } from "./google.server";
 import { createRequestState } from "./request-state.server";
+import { assertBulkWrite, bulkExecutionSignal, recordBulkRequest } from "./bulk-execution.server";
 import {
   compareIsoDatesDesc,
   isoToSheetDate,
@@ -129,13 +130,18 @@ async function runSheetsRequest(url: string, init: RequestInit): Promise<Respons
   const capMs = isRead ? 1_200 : 30_000;
   let attempt = 0;
   for (;;) {
+    bulkExecutionSignal()?.throwIfAborted();
+    if (!isRead && (bulkExecutionSignal() || /Contacts|Targets/.test(decodeURIComponent(url)+String(init.body || "")))) await assertBulkWrite();
     const timeout = AbortSignal.timeout(20_000);
-    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    const operationSignal = bulkExecutionSignal();
+    const signal = AbortSignal.any([timeout,...(init.signal ? [init.signal] : []),...(operationSignal ? [operationSignal] : [])]);
+    recordBulkRequest(isRead);
     const res = await fetch(url, { ...init, signal });
     // Non-idempotent appends and positional deletes may have committed on 5xx.
     // Return that uncertainty to the operation journal instead of replaying it.
     const retryable = res.status === 429 || (isRead && res.status >= 500 && res.status < 600);
     if (!retryable || attempt >= maxRetries) return res;
+    await res.body?.cancel();
     const backoff = Math.min(capMs, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 300);
     console.warn(
       `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${maxRetries})`,
@@ -155,6 +161,9 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
   const run = state.writeChain.then(async () => {
     const wait = WRITE_MIN_SPACING_MS - (Date.now() - state.lastWriteAt);
     if (wait > 0) await sleep(wait);
+    const writingPeople = /Contacts|Targets/.test(decodeURIComponent(url)+String(init.body || ""));
+    if (writingPeople) await assertBulkWrite();
+    bulkExecutionSignal()?.throwIfAborted();
     try {
       return await runSheetsRequest(url, init);
     } finally {
@@ -234,12 +243,12 @@ export async function appendSheetRow(tabName: string, values: string[]): Promise
 }
 
 // ── Append multiple rows to a sheet tab in one call ──────────
-export async function appendSheetRows(tabName: string, rows: string[][]): Promise<void> {
+export async function appendSheetRows(tabName: string, rows: string[][], literal = false): Promise<void> {
   if (rows.length === 0) return;
   const spreadsheetId = requireSpreadsheetId();
 
   const token = await getAccessToken();
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}:append?valueInputOption=${literal ? "RAW" : "USER_ENTERED"}&insertDataOption=INSERT_ROWS`;
 
   const res = await sheetsFetch(url, {
     method: "POST",
@@ -272,7 +281,7 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
       const metaRes = await sheetsFetch(`${base}?fields=sheets.properties.title`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!metaRes.ok) return null;
+      if (!metaRes.ok) throw new Error("Could not verify sheet structure; no tab or header was created.");
       const meta = (await metaRes.json()) as { sheets?: Array<{ properties?: { title?: string } }> };
       return (meta.sheets || []).map((s) => s.properties?.title || "");
     })().finally(() => { state.tabTitlesInflight = null; });
@@ -295,15 +304,17 @@ export async function ensureTab(tabName: string, headers: string[]): Promise<voi
     if (!body.includes("already exists")) {
       throw new Error(`Sheets addSheet error for "${tabName}" [${addRes.status}]: ${body}`);
     }
+    return;
   }
 
   // Write the header row.
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
-  await sheetsFetch(headerUrl, {
+  const headerRes = await sheetsFetch(headerUrl, {
     method: "PUT",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ values: [headers] }),
   });
+  if (!headerRes.ok) throw new Error("New sheet header could not be saved; review structure before retrying.");
   cache.delete(tabName);
 }
 
@@ -413,7 +424,7 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
 // a new rightmost column (the header cell is written). Used to add the
 // "Engagement Source" column to the existing PortCos Introduced tab in place.
 export async function ensureColumn(tabName: string, header: string): Promise<number> {
-  const rows = await fetchSheetTab(tabName).catch(() => [] as string[][]);
+  const rows = await fetchSheetTab(tabName);
   const headerRow = rows[0] || [];
   const idx = headerRow.findIndex((h) => h.trim().toLowerCase() === header.trim().toLowerCase());
   if (idx !== -1) return idx;
@@ -3703,6 +3714,7 @@ export async function bulkUpdateTargetFields(
 // deletions don't shift the indices of later ones. Best-effort: no-op if the tab's
 // sheetId can't be resolved. Invalidates the cache so the next read is fresh.
 export async function deleteSheetRows(tabName: string, rowNumbers: number[]): Promise<number> {
+  if (tabName === TAB_NAMES.contacts || tabName === TAB_NAMES.targets) await assertBulkWrite();
   const rows = [...new Set(rowNumbers)].filter((n) => n >= 2).sort((a, b) => b - a);
   if (rows.length === 0) return 0;
   const sheetId = await getSheetId(tabName);

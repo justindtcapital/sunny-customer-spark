@@ -2,6 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireTeamAuth } from "./team-auth";
 import { activityEvidence, type BulkOperation, type BulkOutcome } from "@/lib/bulk-operation";
+import type { Json } from "@/integrations/supabase/types";
+
+export const inspectBulkOperation = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .inputValidator(input => z.object({ id:z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const { journalClient } = await import("./bulk-journal.server");
+    const db = await journalClient();
+    const { data:op,error } = await db.from("bulk_operations").select("*").eq("id",data.id).single();
+    if(error || !op || op.kind !== "relationship-change") throw new Error("This operation cannot be inspected as a relationship change.");
+    const { inspectRelationshipState } = await import("./relationship-reconciliation.server");
+    const { withDeadline } = await import("./request-deadline.server");
+    const outcomes = await withDeadline("inspect relationship saved state",40_000,step => { step("reading Network and Prospecting without writes");return inspectRelationshipState(op.input as unknown as import("./relationship-levels.server").RelationshipInput); });
+    const { error:saveError }=await db.from("bulk_operations").update({reconciliation:JSON.parse(JSON.stringify({at:new Date().toISOString(),outcomes,inspectionOnly:true,lockReleased:false})) as Json}).eq("id",op.id);
+    if(saveError) throw new Error("Saved state was read but inspection evidence could not be recorded; the safety lock remains.");
+    return { operationId:op.id,outcomes,active: Boolean(op.execution_token),status:op.status,inspectionOnly:true as const };
+  });
 
 export const fetchBulkOperations = createServerFn({ method: "GET" }).middleware([requireTeamAuth]).handler(async () => {
   const { readOperations } = await import("./bulk-journal.server");
@@ -21,7 +37,7 @@ export const retryBulkOperation = createServerFn({ method: "POST" }).middleware(
     const input = op.input as unknown as import("./relationship-levels.server").RelationshipInput;
     return runJournalOperation({ id: op.id, kind: op.kind, page: op.page, input, actor: context, run: async journal => {
       journal.step("revalidating original destinations");
-      const value = await changeRelationshipLevels(input, journal.prior, journal.checkpoint);
+      const value = await changeRelationshipLevels(input, journal.prior, journal.checkpoint,{maxItems:2,maxMs:25_000});
       return { value, outcomes: value.outcomes };
     } });
   });
