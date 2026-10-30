@@ -6,10 +6,10 @@ import { createVicThread } from "@/lib/vic-client";
 
 export const Route = createFileRoute("/vic/")({
   head: () => ({ meta: [
-    { title: "Vic workspace — Venture Pulse" },
-    { name: "description", content: "Open your private Vic chats and shared portfolio, overlap and introduction skills." },
-    { property: "og:title", content: "Vic workspace — Venture Pulse" },
-    { property: "og:description", content: "Portfolio intelligence and reviewed actions with Vic." },
+    { title: "V.I.C. workspace — Venture Pulse" },
+    { name: "description", content: "Open your private V.I.C. chats and shared portfolio, overlap and introduction skills." },
+    { property: "og:title", content: "V.I.C. workspace — Venture Pulse" },
+    { property: "og:description", content: "Portfolio intelligence and reviewed actions with V.I.C." },
     { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
   ] }),
   component: VicHome,
@@ -30,5 +30,5 @@ function VicHome() {
       } catch (e) { toast.error((e as Error).message); }
     })();
   }, [navigate]);
-  return <div className="p-6 text-sm text-muted-foreground">Opening Vic…</div>;
+  return <div className="p-6 text-sm text-muted-foreground">Opening V.I.C.…</div>;
 }

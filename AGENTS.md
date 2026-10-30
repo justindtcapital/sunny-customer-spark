@@ -38,3 +38,4 @@
 - Vic (src/routes/api/vic.ts, src/utils/vic-ai.server.ts) only proposes changes; approved proposals run through the existing journaled server functions, and chats are per-teammate rows under RLS — so the assistant can never write data without human review.
 - Vic knowledge search uses Google Drive full-text search on the KB shared drive (GOOGLE_KB_DRIVE_ID) plus live text export for snippets — no copied index to keep in sync.
 - Vic's shared in-app skill registry is browser-safe metadata plus fixed server instructions; introduction shortlists use recorded evidence and canonical Relationship Prime identity, never change ratings or infer consent, and all writes remain reviewed proposals.
+- Assistant layouts own shared skill/folder selection through VicWorkspaceProvider so left-menu controls and the chat transport use the same state on full pages and panels.
