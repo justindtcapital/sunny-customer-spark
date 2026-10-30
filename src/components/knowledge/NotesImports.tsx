@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -96,16 +97,30 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
   }, [history, actionOwner, kind]);
   useEffect(() => { void load(); }, [load]);
 
+  const [granolaProgress, setGranolaProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Runs one small batch at a time, waiting for each to finish, until nothing is left.
   async function syncGranola() {
     setBusy("granola");
+    let done = 0;
+    let problems = 0;
+    setGranolaProgress({ done: 0, total: 0 });
     try {
-      const r = await importMyGranola({ data: {} });
-      const errs = r.errors.length;
-      toast.success(`${r.granolaNotesAdded} new Granola notes imported${errs ? `, ${errs} problems` : ""}.`);
-      await load();
+      for (let round = 0; round < 100; round++) {
+        const r = await importMyGranola({ data: {} });
+        done += r.granolaNotesAdded;
+        problems += r.errors.length;
+        const left = r.granolaRemaining ?? 0;
+        setGranolaProgress({ done, total: done + left });
+        if (round === 0 || r.granolaNotesAdded) await load();
+        if (!left || !r.granolaNotesAdded) break;
+      }
+      toast.success(`${done} new Granola notes imported${problems ? `, ${problems} problems` : ""}.`);
     } catch (e) {
-      toast.error(`Granola import failed: ${(e as Error).message}`);
+      toast.error(`Granola import stopped after ${done} notes: ${(e as Error).message}`);
     } finally {
+      await load();
+      setGranolaProgress(null);
       setBusy("");
     }
   }
@@ -190,8 +205,13 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
           {granolaConnected && !isActivity && (
             <Button size="sm" disabled={!!busy} onClick={syncGranola}>
               {busy === "granola" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-              Import from my Granola
+              {granolaProgress ? `Importing ${granolaProgress.done}${granolaProgress.total ? ` of ${granolaProgress.total}` : ""}…` : "Import from my Granola"}
             </Button>
+          )}
+          {granolaProgress && (
+            <div className="flex w-40 items-center gap-2">
+              <Progress value={granolaProgress.total ? (granolaProgress.done / granolaProgress.total) * 100 : 5} className="h-2" />
+            </div>
           )}
           <input
             ref={fileRef} type="file" multiple accept=".md,.txt,.markdown,.vtt,.srt,.docx,.doc,.pdf,.rtf,text/plain,text/markdown" className="hidden"
