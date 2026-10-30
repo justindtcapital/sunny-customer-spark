@@ -2550,6 +2550,8 @@ export async function buildContacts(): Promise<Contact[]> {
     // first cell so names never render blank on the Network page.
     r.name ? r : { ...r, name: (contactRows[i + 1]?.[0] || "").trim() },
   );
+  // Prospecting-flagged people share the Contacts tab but are not part of the Network.
+  const networkContacts = rawContacts.filter((r) => !isProspectStatus(r.temperature || ""));
 
   const rawEvents = mapRows<Record<string, string>>(eventRows, EVENT_COLS);
   const rawIntros = mapRows<Record<string, string>>(introRows, PORTCO_INTRO_COLS).map((r) =>
@@ -2568,7 +2570,7 @@ export async function buildContacts(): Promise<Contact[]> {
   const intros = splitByParent(rawIntros);
   const interactionsByParent = splitByParent(rawInteractions);
 
-  return rawContacts.map((c, idx) => {
+  return networkContacts.map((c, idx) => {
     const email = c.email || "";
     const emailKeys = email
       .split(/[;,]/)
