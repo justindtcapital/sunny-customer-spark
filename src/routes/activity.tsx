@@ -43,6 +43,8 @@ export const Route = createFileRoute("/activity")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  // Protected data: SSR has no bearer token, so load in the browser only.
+  ssr: false,
   loader: async (): Promise<{ entries: OpsLogEntry[] }> => ({ entries: await fetchOpsLog() }),
   component: ActivityPage,
 });
