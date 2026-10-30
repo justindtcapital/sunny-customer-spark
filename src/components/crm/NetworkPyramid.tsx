@@ -154,7 +154,8 @@ export function NetworkPyramid({
   };
 
   const kpiCols = ["Target", "Current", "Gap", "Added", "Removed", "Promoted in", "Demoted out"];
-  const displayCols = view === "kpis" ? kpiCols : columns;
+  const changeCols = ["+ In", "− Out", "Net 30 days"];
+  const displayCols = embedded ? changeCols : view === "kpis" ? kpiCols : columns;
 
   return (
     <section className={cn("network-overview min-w-0", embedded ? "network-overview-embedded" : "mb-6 border-y py-5")} aria-label="Network Pyramid">
@@ -191,7 +192,7 @@ export function NetworkPyramid({
           if (t === "Prospect") { navigate({ to: "/targeting" }); return; }
           onSelect(selection?.view === "tier" && selection.tier === t ? null : { tier: t, view: "tier", column: "" });
         }} />
-        <div className={cn("network-breakdown min-w-0", view === "geo" ? "network-breakdown-geo" : view === "kpis" ? "network-breakdown-kpis" : "network-breakdown-domain")}>
+        <div className={cn("network-breakdown min-w-0", view === "geo" && !embedded ? "network-breakdown-geo" : embedded ? "network-breakdown-change" : view === "kpis" ? "network-breakdown-kpis" : "network-breakdown-domain")}>
           <div className="network-column-headings">{displayCols.map(col => <div key={col} className="min-w-0 px-1 text-center text-[11px] font-medium leading-tight text-muted-foreground">{col}</div>)}</div>
           {PYRAMID_TIERS.map(tier => {
             const n = counts[tier], k = kpis[tier], target = data?.targets[tier];
@@ -199,6 +200,11 @@ export function NetworkPyramid({
             return <div key={tier} className={cn("network-data-row", tierTone[tier])}>
               <div className="network-mobile-tier text-xs font-semibold">{tier === "Prospect" ? "Prospects" : tier}<span className="ml-auto tabular-nums text-foreground">{n?.toLocaleString() ?? "—"}</span></div>
               {displayCols.map((col, j) => {
+                if (embedded) {
+                  const inn = k.added + k.promotedIn, out = k.removed + k.demotedOut, v = [inn, out, inn - out][j];
+                  const txt = !v ? "0" : j === 0 ? `+${v}` : j === 1 ? `−${v}` : v > 0 ? `+${v}` : v < 0 ? `−${-v}` : "0";
+                  return <div key={col} className="network-metric min-w-0 px-1"><span className={cn("text-sm font-semibold tabular-nums", v ? "text-foreground" : "text-muted-foreground/50")}>{txt}</span></div>;
+                }
                 if (view === "kpis") return <div key={col} className="network-metric min-w-0 px-1">
                   <span className="network-mobile-label text-[11px] text-muted-foreground">{col}</span>
                   {editing && j === 0 ? <Input aria-label={`${tier} target`} type="number" min={0} className="h-7 min-w-0 px-1 text-center text-xs" value={draft[tier] ?? String(target ?? "")} onChange={e => setDraft(d => ({...d, [tier]: e.target.value}))} /> : <span className="text-sm font-semibold tabular-nums text-foreground">{typeof values[j] === "number" ? values[j].toLocaleString() : values[j]}</span>}

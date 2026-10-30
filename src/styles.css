@@ -599,6 +599,16 @@
   --sector-other: oklch(0.6 0.02 250);
 }
 /* Homepage tile: same pyramid, shorter bands so the whole tile fits without scrolling. */
-.network-overview-embedded .network-tier-chart { height: 230px; }
-.network-overview-embedded .network-data-row { height: 40px; }
-.network-overview-embedded .network-cell { height: 36px; }
+.network-breakdown-change { --network-columns: 3; }
+.network-overview-embedded .network-overview-body { --chart-w: 200px; gap: 16px; }
+.network-overview-embedded .network-tier-chart { height: 200px; padding-top: 24px; }
+.network-overview-embedded .network-column-headings { height: 24px; }
+.network-overview-embedded .network-data-row { height: 35px; }
+@container (max-width: 720px) {
+  .network-overview-embedded .network-overview-body { grid-template-columns: 170px minmax(0, 1fr); gap: 16px; }
+  .network-overview-embedded .network-tier-chart { width: 170px; height: 200px; padding-top: 24px; justify-self: start; }
+  .network-overview-embedded .network-column-headings { display: grid; }
+  .network-overview-embedded .network-data-row { height: 35px; padding: 0; gap: 0; }
+  .network-overview-embedded .network-mobile-tier, .network-overview-embedded .network-mobile-label { display: none; }
+  .network-overview-embedded .network-metric { flex-direction: row; min-height: 0; }
+}
