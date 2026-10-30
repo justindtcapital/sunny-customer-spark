@@ -29,15 +29,15 @@ type Range = { from: string; to: string } | null;
 
 function Panel({ title, icon, to, search, cta, className = "h-[270px]", children }: { title: string; icon: ReactNode; to: PanelTo; search?: Record<string, string | undefined>; cta: string; className?: string; children: ReactNode }) {
   return <section aria-label={title} className={`flex flex-col rounded-lg border border-border bg-card p-4 ${className}`}>
-    <h2 className="mb-2 font-display text-sm font-semibold text-foreground">
-      <Link to={to} search={(search || {}) as never} className="inline-flex items-center gap-2 hover:text-primary">{icon}{title}</Link>
-    </h2>
-    <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
-    <div className="mt-2 flex justify-end">
-      <Button asChild size="sm" variant="outline" className="group h-7 text-xs">
-        <Link to={to} search={(search || {}) as never}>{cta}<ArrowRight className="ml-1.5 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" /></Link>
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <h2 className="font-display text-sm font-semibold text-foreground">
+        <Link to={to} search={(search || {}) as never} className="inline-flex items-center gap-2 hover:text-primary">{icon}{title}</Link>
+      </h2>
+      <Button asChild size="sm" variant="ghost" className="group h-6 px-2 text-xs text-muted-foreground">
+        <Link to={to} search={(search || {}) as never}>{cta}<ArrowRight className="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" /></Link>
       </Button>
     </div>
+    <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
   </section>;
 }
 
