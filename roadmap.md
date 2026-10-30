@@ -89,6 +89,7 @@
 - [x] My Actions feed polish: split company/item toggles (PortCos, Network, Port DevOps | Workstreams, Follow-ups), logo-colored icon bullets, follow-ups nest under their workstream (editor link or Action Now origin)
 
 ## Vic assistant
+- [x] Place Skills and Knowledge below recent chats as direct selectable boxes and verify selections
 - [x] Move Skills and Knowledge selectors to the assistant's left menu, rename visible assistant to V.I.C., and verify selection still applies to chats and the floating panel
 - [x] Phase 1: Vic button on every page, Vic page with saved chats, read tools (Network, Prospecting, PortCos, Partners, Events), reviewed relationship changes and email drafts
 - [x] Phase 1b: reviewed follow-up create/complete, event attendees, log action
