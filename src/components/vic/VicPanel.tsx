@@ -7,7 +7,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { createVicThread } from "@/lib/vic-client";
 import { VicChat } from "./VicChat";
 import { VicMark } from "./VicMark";
-import { VicWorkspaceControls, VicWorkspaceProvider } from "./VicWorkspaceControls";
+import { VicWorkspaceProvider } from "./VicWorkspaceControls";
+
+const PAGE_LABELS: Record<string, string> = {
+  "/": "your workspace",
+  "/portfolio": "PortCos",
+  "/events": "Events",
+  "/partners": "Partners",
+  "/crm": "Network",
+  "/targeting": "Prospecting",
+  "/campaigns": "Campaigns",
+  "/my-actions": "My Actions",
+  "/dashboard": "Notes & Activity",
+  "/activity": "Admin",
+};
 
 /** Floating Vic button on every page; opens the latest chat with the current page as context. */
 export function VicButton() {
@@ -16,6 +29,7 @@ export function VicButton() {
   const [threadId, setThreadId] = useState<string | null>(null);
   if (location.pathname.startsWith("/vic")) return null;
   const page = `${location.pathname}${location.searchStr || ""}`;
+  const pageLabel = PAGE_LABELS[location.pathname] || "this page";
 
   const openPanel = async () => {
     setOpen(true);
@@ -50,9 +64,12 @@ export function VicButton() {
               )}
             </div>
           </SheetHeader>
+          <div className="border-b border-border px-4 py-3">
+            <p className="text-sm font-medium">Ask V.I.C. about {pageLabel}</p>
+            <p className="mt-1 text-xs text-muted-foreground">What can I help you with in {pageLabel}?</p>
+          </div>
           <VicWorkspaceProvider><div className="flex flex-1 min-h-0">
-            <aside className="w-36 shrink-0 overflow-y-auto border-r border-border"><VicWorkspaceControls /></aside>
-            <div className="min-w-0 flex-1">{threadId ? <VicChat threadId={threadId} page={page} /> : <div className="p-6 text-sm text-muted-foreground">Starting…</div>}</div>
+            <div className="min-w-0 flex-1">{threadId ? <VicChat threadId={threadId} page={page} pageLabel={pageLabel} /> : <div className="p-6 text-sm text-muted-foreground">Starting…</div>}</div>
           </div></VicWorkspaceProvider>
         </SheetContent>
       </Sheet>
