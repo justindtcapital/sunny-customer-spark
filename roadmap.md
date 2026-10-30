@@ -92,6 +92,6 @@
 - [x] Phase 1: Vic button on every page, Vic page with saved chats, read tools (Network, Prospecting, PortCos, Partners, Events), reviewed relationship changes and email drafts
 - [x] Phase 1b: reviewed follow-up create/complete, event attendees, log action
 - [x] Phase 2: Venture Pulse KB search (Drive full-text) + folder picker + cited answers
-- [ ] Phase 3: shared skill picker and evidence-grounded PortCo questions, company overlap, introduction matching; verify signed-in runs
-- [ ] Phase 3: company TXT/Markdown/CSV upload into an editable overlap draft; verify no automatic save
+- [x] Phase 3: shared skill picker and evidence-grounded PortCo questions, company overlap, introduction matching; verified signed-in runs and saved messages after reload
+- [x] Phase 3: company TXT/Markdown/CSV upload into an editable overlap draft; verified draft-before-send and completed comparison without CRM writes
 - [ ] Phase 4: scheduled skills — daily digest, Monday actions, weekly report
