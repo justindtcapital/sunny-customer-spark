@@ -609,7 +609,6 @@ export const TAB_NAMES = {
   targetOutreach: "Target Outreach",
   targetStrategy: "Target Strategy",
   dailySnapshots: "Daily Snapshots",
-  dailyBriefing: "Daily Briefing",
   activityInsights: "Activity Insights Log",
   activityConnections: "Activity Connections",
   portcoExposure: "PortCo Event Exposure",
@@ -956,37 +955,6 @@ export async function recordDailySnapshot(m: DailyMetrics): Promise<SnapshotResu
   return { today: m, baseline: chosen?.metrics ?? null, baselineDate: chosen?.date ?? null };
 }
 
-// One row per generated morning briefing — the full briefing payload stored as
-// JSON so it's produced once and ready when the user arrives. Append-only;
-// latest row for a given day wins (a regenerate appends a fresh row).
-export const DAILY_BRIEFING_HEADERS = ["Date", "GeneratedAt", "JSON"];
-
-export async function readTodayBriefing(): Promise<{
-  date: string;
-  generatedAt: string;
-  json: string;
-} | null> {
-  const rows = await fetchSheetTab(TAB_NAMES.dailyBriefing).catch(() => [] as string[][]);
-  const today = isoDay(Date.now());
-  let found: { date: string; generatedAt: string; json: string } | null = null;
-  for (const r of rows.slice(1)) {
-    if ((r[0] || "").trim() === today) {
-      found = { date: r[0], generatedAt: r[1] || "", json: r[2] || "" }; // latest wins
-    }
-  }
-  return found;
-}
-
-export async function saveBriefingRow(
-  date: string,
-  generatedAt: string,
-  json: string,
-): Promise<void> {
-  await ensureTab(TAB_NAMES.dailyBriefing, DAILY_BRIEFING_HEADERS);
-  await appendSheetRow(TAB_NAMES.dailyBriefing, [date, generatedAt, json]);
-}
-
-// Persisted outreach trail for targets (append-only; joined to a target by key).
 export const TARGET_OUTREACH_HEADERS = [
   "Target Key",
   "Date",
