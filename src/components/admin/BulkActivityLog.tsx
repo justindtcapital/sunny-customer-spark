@@ -48,7 +48,7 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
     finally { await qc.invalidateQueries({ queryKey:["bulk-operations"] });await qc.invalidateQueries({ queryKey:["network-pyramid"] });await router.invalidate();setBusy(false);setProgress(""); }
   }
   return <section aria-label="Bulk operation activity" className="mb-5">
-    <div className="flex flex-wrap items-center gap-2 py-3"><h3 className="mr-auto text-sm font-semibold">Bulk operations</h3>
+    <div className="flex flex-wrap items-center gap-2 py-3"><h3 className="mr-auto text-sm font-semibold">Bulk operations</h3>{progress&&<span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin"/>Resuming: {progress}</span>}
       <select aria-label="Operation status" className="rounded border bg-background p-1 text-xs" value={status} onChange={e=>setStatus(e.target.value)}>{["all","running","pending","succeeded","partial","failed","uncertain"].map(s=><option key={s} value={s}>{s}</option>)}</select>
       <Button variant="outline" size="sm" onClick={()=>void query.refetch()}><RefreshCw className="size-3.5" />Refresh</Button>
     </div>

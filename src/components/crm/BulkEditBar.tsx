@@ -428,6 +428,7 @@ export function BulkEditBar() {
           </Select>}
           <div className="space-y-2 text-sm">{Object.entries(levelPreview).map(([label, total]) => <div key={label} className="flex justify-between"><span>{label}</span><span className="font-semibold tabular-nums">{total}</span></div>)}</div>
           <AlertDialogFooter>
+            {progress && <span className="mr-auto self-center text-xs text-muted-foreground">{progress} continuing automatically</span>}
             <AlertDialogCancel disabled={changingLevel}>Cancel</AlertDialogCancel>
             <AlertDialogAction disabled={changingLevel || !count || count > 500} onClick={(event) => { event.preventDefault(); void applyLevelChange(); }}>
               {changingLevel && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirm {levelChange === "promote" ? "promotion" : "demotion"}
