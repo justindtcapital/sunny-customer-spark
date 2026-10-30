@@ -36,6 +36,9 @@ describe("safe contact defaults", () => {
   it("never substitutes a name match when a different email is present", () => {
     expect(uniqueReviewPerson({ name: "Ananta Nair", email: "other@example.com" }, dir)).toBeUndefined();
   });
+  it("keeps a unique name with a shared destination email for manual review", () => {
+    expect(uniqueReviewPerson({ name: "Ananta Nair" }, [...dir, { ...dir[0], name: "Another Person" }])).toBeUndefined();
+  });
   it("reads both views once from unified Contacts status flags", () => {
     expect(reviewPeopleFromRows([["Name", "Email", "Company", "Relationship Status"], ["Brian Cobb", "brian@example.com", "CVG", "Cold"], ["Ananta Nair", "ananta@example.com", "Dell", "Prospecting"]]).map((p) => p.where)).toEqual(["Network", "Prospecting"]);
   });

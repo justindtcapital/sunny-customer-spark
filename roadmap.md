@@ -1,9 +1,9 @@
 # Roadmap
 
 ## Meeting review automation
-- [ ] Complete PortCo options and normalized workstream lookup in both review views
-- [ ] Add Investor/NWK title defaults and safe full-name contact matching from unified Contacts
-- [ ] Test tagging rules and verify signed-in review defaults without registering notes
+- [x] Complete PortCo options and normalized workstream lookup in both review views
+- [x] Add Investor/NWK title defaults and safe full-name contact matching from unified Contacts
+- [x] Test tagging rules and verify signed-in review defaults without registering notes
 
 ## Network bulk-action fixes
 - [x] Align historical fixes, bounded execution, writer coordination and saved-state reconciliation

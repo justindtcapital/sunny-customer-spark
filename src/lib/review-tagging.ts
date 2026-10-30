@@ -43,7 +43,8 @@ export function uniqueReviewPerson<T extends DirPerson>(person: { name: string; 
   if (!hit) return undefined;
   const emails = extractEmails(hit.email);
   const primary = email || emails[0];
-  return primary ? { ...hit, email: primary } : undefined;
+  if (!primary || directory.filter((p) => extractEmails(p.email).includes(primary)).length !== 1) return undefined;
+  return { ...hit, email: primary };
 }
 
 /** Formatting/suffix variants only, not substring/fuzzy guesses; ties stay separate. */
