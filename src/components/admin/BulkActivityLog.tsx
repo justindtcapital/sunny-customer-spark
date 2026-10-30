@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { fetchBulkOperations, retryBulkOperation } from "@/utils/bulk-operations.functions";
+import { fetchBulkOperations, retryBulkOperation, inspectBulkOperation } from "@/utils/bulk-operations.functions";
+import type { BulkOutcome } from "@/lib/bulk-operation";
 import { activityEvidence, completeOutcome, type BulkOperation } from "@/lib/bulk-operation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,15 @@ import { teamMemberFor } from "@/lib/user-ownership";
 export interface ActivityDraftContext { key: string; operationId?: string; page: string; evidence: string; title: string }
 export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraftContext, action: "troubleshoot" | "fix") => void }) {
   const read=useServerFn(fetchBulkOperations), retry=useServerFn(retryBulkOperation), qc=useQueryClient();
+  const inspect=useServerFn(inspectBulkOperation);
+  const [inspection,setInspection]=useState<{id:string;outcomes:BulkOutcome[]}|null>(null);
+  const [inspecting,setInspecting]=useState<string|null>(null);
+  async function inspectSaved(id:string) {
+    setInspecting(id);
+    try { const result=await inspect({data:{id}});setInspection({id,outcomes:result.outcomes}); }
+    catch(e) { toast.error(e instanceof Error ? e.message : "Saved state could not be verified; no changes made."); }
+    finally {setInspecting(null);}
+  }
   const { email }=useAuth();
   const query=useQuery({ queryKey:["bulk-operations"],queryFn:()=>read(),refetchInterval:15000 });
   const [selected,setSelected]=useState<string|null>(null), [confirm,setConfirm]=useState<BulkOperation|null>(null),[busy,setBusy]=useState(false),[status,setStatus]=useState("all");
@@ -46,7 +56,9 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
           <Button size="sm" variant="outline" onClick={()=>action(op,"troubleshoot")}><Wrench className="size-3.5" />Troubleshoot</Button>
           <Button size="sm" variant="outline" onClick={()=>action(op,"fix")}><Bug className="size-3.5" />Create fix request</Button>
           <Button size="sm" variant="outline" disabled={!retryable} title={retryable ? "Retry only unfinished steps" : "No safely retryable items; review saved state or create a fix request."} onClick={()=>setConfirm(op)}><RefreshCw className="size-3.5" />Retry</Button>
+          {op.kind==="relationship-change" && <Button size="sm" variant="outline" disabled={!!inspecting} onClick={()=>void inspectSaved(op.id)}>{inspecting===op.id ? <Loader2 className="size-3.5 animate-spin"/> : <RefreshCw className="size-3.5"/>}Inspect saved state</Button>}
         </div><OperationResults outcomes={op.outcomes} />
+          {inspection?.id===op.id && <div className="mt-4 border-t pt-3"><h4 className="text-sm font-semibold">Saved-state inspection</h4><p className="mt-1 text-xs text-muted-foreground">All original items checked. Inspection does not move contacts, replay writes or release the safety lock.</p><OperationResults outcomes={inspection.outcomes}/></div>}
           <details className="mt-3 text-xs"><summary className="cursor-pointer">Attempt history ({op.attempts.length})</summary>{op.attempts.map((a,i)=><div key={i} className="border-t py-2">{new Date(a.at).toLocaleString()} · {a.status}<ul>{a.outcomes.map((o,j)=><li key={j}>{o.label} · {o.reason}</li>)}</ul></div>)}</details>
         </div>}
       </div>;
