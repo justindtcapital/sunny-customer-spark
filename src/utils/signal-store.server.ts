@@ -6,7 +6,7 @@
 // NOTE: this module is retained in the CLIENT bundle (via gmail.functions), so
 // it must never import the event pipeline (whose chain reaches node-only
 // google-auth-library). Digest rows are stored unenriched here; the nightly
-// signals-reconcile job (server-only) clusters any recent rows missing an
+// (former) reconcile job clusters any recent rows missing an
 // Event ID.
 import type { SignalRecommendation, SignalAwarenessItem } from "./gemini.server";
 import type { GmailSignal } from "./gmail.functions";
