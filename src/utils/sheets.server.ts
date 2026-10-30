@@ -27,6 +27,7 @@ import { inferInterestAreas } from "@/lib/interest-domains";
 import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { planMissingUrids } from "@/lib/contact-ids";
+import { buildProspectView, contactHeaderFor, contactRowFromTarget, isProspectStatus, UNIFIED_CONTACT_COLUMNS, viewHeaders, type ProspectView } from "@/lib/unified-contacts";
 import { normalizeSource, targetKeyOf, normalizeInteractionType } from "@/lib/types";
 import { buildPortCoCanonicalMap, canonicalizePortCo } from "@/lib/portco-canonical";
 import { normalizePortcoName } from "@/lib/portco-names";
@@ -175,10 +176,68 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
   return run;
 }
 
+
+// ── Unified people list ──────────────────────────────────────
+// Prospecting is a Relationship Status on Contacts. Once Contacts carries the
+// "Prospecting Stage" column, every legacy Targets read/write is served from the
+// prospect-flagged Contacts rows (same row, same URID — never copied).
+async function unifiedProspects(): Promise<boolean> {
+  const rows = await fetchSheetTab(TAB_NAMES.contacts);
+  return (rows[0] || []).some((h) => h.trim().toLowerCase() === "prospecting stage");
+}
+const prospectHeaders = () => viewHeaders(TARGET_HEADERS);
+const prospectViewState = createRequestState(() => ({ view: null as ProspectView | null }));
+async function prospectViewRows(fresh: boolean): Promise<string[][]> {
+  const view = buildProspectView(await fetchSheetTab(TAB_NAMES.contacts, fresh), prospectHeaders());
+  prospectViewState().view = view;
+  return view.rows;
+}
+async function ensureUnifiedColumns(): Promise<void> {
+  for (const h of [...UNIFIED_CONTACT_COLUMNS, ...prospectHeaders().map(contactHeaderFor)]) await ensureColumn(TAB_NAMES.contacts, h);
+}
+/** Resolve legacy view row numbers to live Contacts rows by URID, so concurrent edits never misdirect a write. */
+async function prospectContactRows(viewRows: number[]): Promise<number[]> {
+  const view = prospectViewState().view || buildProspectView(await fetchSheetTab(TAB_NAMES.contacts), prospectHeaders());
+  const live = await fetchSheetTab(TAB_NAMES.contacts, true);
+  const ch = (live[0] || []).map((h) => h.trim().toLowerCase()), u = ch.indexOf("urid"), st = ch.indexOf("relationship status");
+  return viewRows.map((n) => {
+    const urid = view.uridByViewRow[n - 1];
+    if (!urid) throw new Error("Prospect row could not be identified; no change was saved.");
+    const hits = live.flatMap((r, i) => (i > 0 && r[u] === urid && isProspectStatus(r[st] || "") ? [i + 1] : []));
+    if (hits.length !== 1) throw new Error("Prospect changed while saving; refresh and try again.");
+    return hits[0];
+  });
+}
+async function updateProspectCells(updates: { range: string; value: string }[]): Promise<void> {
+  if (!updates.length) return;
+  const vh = prospectHeaders();
+  const parsed = updates.map((x) => { const m = /^([A-Z]+)(\d+)$/.exec(x.range.trim()); if (!m) throw new Error(`Unsupported prospect range ${x.range}`); return { col: m[1], row: Number(m[2]), value: x.value }; });
+  const letterIdx = (l: string) => [...l].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
+  const rows = await prospectContactRows(parsed.map((p) => p.row));
+  const live = await fetchSheetTab(TAB_NAMES.contacts);
+  const ch = (live[0] || []).map((h) => h.trim().toLowerCase());
+  const out: { range: string; value: string }[] = [];
+  for (const [i, p] of parsed.entries()) {
+    const header = vh[letterIdx(p.col)];
+    if (!header) throw new Error(`Prospect column ${p.col} is not mapped.`);
+    if (p.row === 1) continue; // header writes are handled by ensureColumn
+    const c = ch.indexOf(contactHeaderFor(header).toLowerCase());
+    if (c === -1) throw new Error(`Contacts is missing the "${contactHeaderFor(header)}" column.`);
+    out.push({ range: `${colLetters(c)}${rows[i]}`, value: p.value });
+  }
+  await updateSheetCells(TAB_NAMES.contacts, out);
+}
+async function appendProspectRows(rows: string[][], literal = false): Promise<void> {
+  if (!rows.length) return;
+  await ensureUnifiedColumns();
+  const ch = (await fetchSheetTab(TAB_NAMES.contacts, true))[0] || [];
+  await appendSheetRows(TAB_NAMES.contacts, rows.map((r) => contactRowFromTarget(prospectHeaders(), r, ch)), literal);
+}
 // ── Fetch a single sheet tab ─────────────────────────────────
 // Share pending reads only within the current request. Completed rows stay cached.
 
 export async function fetchSheetTab(tabName: string, fresh = false): Promise<string[][]> {
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return prospectViewRows(fresh);
   if (fresh) {
     cache.delete(tabName);
     sheetsRequestState().inflightTabs.delete(tabName);
@@ -218,6 +277,7 @@ export async function fetchSheetTab(tabName: string, fresh = false): Promise<str
 
 // ── Append a row to a sheet tab ──────────────────────────────
 export async function appendSheetRow(tabName: string, values: string[]): Promise<void> {
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return appendProspectRows([values]);
   const spreadsheetId = requireSpreadsheetId();
 
 
@@ -244,6 +304,7 @@ export async function appendSheetRow(tabName: string, values: string[]): Promise
 
 // ── Append multiple rows to a sheet tab in one call ──────────
 export async function appendSheetRows(tabName: string, rows: string[][], literal = false): Promise<void> {
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return appendProspectRows(rows, literal);
   if (rows.length === 0) return;
   const spreadsheetId = requireSpreadsheetId();
 
@@ -269,6 +330,7 @@ export async function appendSheetRows(tabName: string, rows: string[][], literal
 const knownTabs = new Set<string>();
 
 export async function ensureTab(tabName: string, headers: string[]): Promise<void> {
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return ensureUnifiedColumns();
   if (knownTabs.has(tabName)) return;
   const spreadsheetId = requireSpreadsheetId();
   const token = await getAccessToken();
@@ -424,6 +486,13 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
 // a new rightmost column (the header cell is written). Used to add the
 // "Engagement Source" column to the existing PortCos Introduced tab in place.
 export async function ensureColumn(tabName: string, header: string): Promise<number> {
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) {
+    await ensureColumn(TAB_NAMES.contacts, contactHeaderFor(header));
+    const vh = prospectHeaders();
+    const at = vh.findIndex((h) => h.trim().toLowerCase() === header.trim().toLowerCase());
+    if (at === -1) throw new Error(`Prospect field "${header}" is not mapped to the unified contact list.`);
+    return at;
+  }
   const rows = await fetchSheetTab(tabName);
   const headerRow = rows[0] || [];
   const idx = headerRow.findIndex((h) => h.trim().toLowerCase() === header.trim().toLowerCase());
@@ -439,6 +508,7 @@ export async function updateSheetCell(
   cellRange: string,
   value: string,
 ): Promise<void> {
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return updateProspectCells([{ range: cellRange, value }]);
   const spreadsheetId = requireSpreadsheetId();
 
   const token = await getAccessToken();
@@ -470,6 +540,7 @@ export async function updateSheetCells(
   updates: { range: string; value: string }[],
 ): Promise<void> {
   if (updates.length === 0) return;
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return updateProspectCells(updates);
   const spreadsheetId = requireSpreadsheetId();
 
   const token = await getAccessToken();
@@ -3682,6 +3753,7 @@ export async function bulkUpdateTargetFields(
 // deletions don't shift the indices of later ones. Best-effort: no-op if the tab's
 // sheetId can't be resolved. Invalidates the cache so the next read is fresh.
 export async function deleteSheetRows(tabName: string, rowNumbers: number[]): Promise<number> {
+  if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return deleteSheetRows(TAB_NAMES.contacts, await prospectContactRows(rowNumbers));
   if (tabName === TAB_NAMES.contacts || tabName === TAB_NAMES.targets) await assertBulkWrite();
   const rows = [...new Set(rowNumbers)].filter((n) => n >= 2).sort((a, b) => b - a);
   if (rows.length === 0) return 0;
