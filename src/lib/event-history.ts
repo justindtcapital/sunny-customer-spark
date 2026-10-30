@@ -20,6 +20,8 @@ export interface HistorySource {
   status?: string;
   url?: string;
   summary?: string;
+  /** Activity type (event, meeting, email…); only "event" activities match by dates. */
+  type?: string;
 }
 
 export interface HistoryLink {
@@ -178,7 +180,7 @@ export function planHistoryLinks({ targets, pastEvents, activities, existing }: 
       if (hit) cands.set(t.urid, { urid: t.urid, name: t.name, start: t.start, reason: "activity names the event" });
     }
     // Inside a past event's dates with a shared PortCo → inherit that event's matches.
-    if (a.date && a.portcos.length) {
+    if (a.type === "event" && a.date && a.portcos.length) {
       for (const p of pastEvents) {
         if (!p.start || !overlap(a.portcos, p.portcos)) continue;
         if (a.date < addDays(p.start, -2) || a.date > addDays(p.end || p.start, 2)) continue;

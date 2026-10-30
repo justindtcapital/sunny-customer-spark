@@ -178,7 +178,7 @@ export const previewEventHistoryFn = createServerFn({ method: "POST" })
         .filter((a) => typeOf.has(a.recordId) && isRegisteredActivity(typeOf.get(a.recordId) || "", reviews.get(a.recordId)))
         .map((a) => ({
           kind: "activity" as const, id: a.activityId, name: a.title, date: a.date,
-          portcos: splitList(a.portco), url: a.sourceUrl, summary: a.summary,
+          portcos: splitList(a.portco), url: a.sourceUrl, summary: a.summary, type: a.type,
         }));
       step("matching");
       const resolved = existing.map((l) => ({ ...l, targetUrid: resolveMergedUrid(l.targetUrid, events) }));

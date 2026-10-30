@@ -46,9 +46,16 @@ describe("event history linking", () => {
 
   it("links an activity during a past event with a shared PortCo", () => {
     const past = ev({ urid: "P1", name: "RSAC 2026", start: "2026-04-20", end: "2026-04-23", portcos: ["Nox"] });
-    const act = { kind: "activity" as const, id: "A1", name: "Booth follow-up", date: "2026-04-22", portcos: ["Nox"] };
+    const act = { kind: "activity" as const, id: "A1", name: "Booth follow-up", date: "2026-04-22", portcos: ["Nox"], type: "event" };
     const { proposals } = planHistoryLinks({ targets: [rsac27], pastEvents: [past], activities: [act], existing: [] });
     expect(proposals.find((p) => p.source.id === "A1")?.status).toBe("clear");
+  });
+
+  it("ignores ordinary meetings that merely fall during a past event", () => {
+    const past = ev({ urid: "P1", name: "RSAC 2026", start: "2026-04-20", end: "2026-04-23", portcos: ["Nox"] });
+    const act = { kind: "activity" as const, id: "A2", name: "Pricing call", date: "2026-04-22", portcos: ["Nox"], type: "meeting" };
+    const { proposals } = planHistoryLinks({ targets: [rsac27], pastEvents: [past], activities: [act], existing: [] });
+    expect(proposals.find((p) => p.source.id === "A2")).toBeUndefined();
   });
 
   it("running again adds nothing for already-linked pairs", () => {
