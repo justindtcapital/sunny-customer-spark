@@ -7,7 +7,7 @@
 - Workstream bars separate status/priority from program fields. Edits re-read Asana, conflict-check, and write changed fields only (enum gids); title edits preserve company/track prefixes and compare the original task name.
 
 - Campaign membership lives in the "Campaign Members" sheet tab, one append-only row per (campaign, person); adding existing Network/Prospecting people never edits their records — so people can join many campaigns without data loss.
-- External notes preserve origins. Harvested activities skip existing IDs on save and collapse repeated IDs on read, with completion winning — prevents repeated reminders.
+- External notes preserve origins. Knowledge tabs (records, activities, workstream links, suggested contacts) check fresh, uncached rows before appending and collapse repeated IDs on read (completion wins for activities); Granola Drive copies are reused by appProperties.granola — Worker instances hold stale caches, so this prevents repeated imports and reminders.
 - Granola stays manual-only; personal auth/storage rules live in src/utils/AGENTS.md.
 
 - One people list: Prospecting is a Relationship Status on Contacts (Targets archived). sheets.server serves legacy Targets reads/writes as a view over prospect-flagged rows resolved by URID; Network reads exclude them. Relationship moves are batched in-place status flags, never copy/delete — no half-moved people or quota-bound jobs.
