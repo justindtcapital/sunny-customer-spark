@@ -11,6 +11,7 @@
 - Granola stays manual-only; personal auth/storage rules live in src/utils/AGENTS.md.
 
 - Bulk Network transfers preserve URID and a full profile snapshot in Targets, verify the copy and re-read the source before deletion; history and campaign tabs stay untouched to prevent data loss.
+- Relationship changes use bounded authenticated slices with frozen destinations and request-scoped abort/fenced checkpoints; pending items require explicit Resume, and inspection never releases uncertain locks or assigns IDs, preventing whole-batch replays after interruption.
 
 - Home momentum uses a dedicated read-only Sheets/Asana aggregate and pure date/scope helpers; provider failures must never fall back to demo rows because KPI counts must reflect real records.
 - Contact creation uses a shared manual-rating policy and the legacy recalculation endpoint is inert; this prevents imports and sync callers from silently overriding human ratings.

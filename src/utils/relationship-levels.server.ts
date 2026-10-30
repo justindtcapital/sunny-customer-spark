@@ -3,7 +3,7 @@ import type { Temperature } from "@/lib/types";
 import { snapshotEqual, outcomeTotals, type BulkOutcome } from "@/lib/bulk-operation";
 import { emailIdentities } from "@/lib/import-dedupe";
 import { verifiedProspect, sheetHeaders, exactProfile, sourceProfile } from "@/lib/relationship-reconciliation";
-import { fillMissingUrids, logNetworkMovements, appendSheetRows, setContactRating, deleteSheetRows, ensureColumn, ensureTab, fetchSheetTab, TAB_NAMES, TARGET_HEADERS } from "./sheets.server";
+import { logNetworkMovements, appendSheetRows, setContactRating, deleteSheetRows, ensureColumn, ensureTab, fetchSheetTab, TAB_NAMES, TARGET_HEADERS } from "./sheets.server";
 
 const norm = (value: string) => value.trim().toLowerCase();
 const cell = (headers: string[], row: string[], name: string) => row[headers.indexOf(norm(name))] || "";
@@ -14,6 +14,7 @@ async function moveToProspecting(headers: string[], source: string[]): Promise<{
   const urid = cell(headers, source, "urid");
   if (!urid) return { status: "blocked", reason: "Missing stable contact ID; source was retained." };
   const targets = await fetchSheetTab(TAB_NAMES.targets, true), th = (targets[0] || []).map(norm);
+  sheetHeaders(targets);
   const snapshot = JSON.stringify(sourceProfile(headers,source));
   const names = cell(headers, source, "name").trim().split(/\s+/);
   const fields: Record<string, string> = Object.fromEntries(headers.map((h, i) => [h, source[i] || ""]));
@@ -46,9 +47,7 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
   const outcomes: BulkOutcome[] = [], seen = new Set<string>();
   const started=Date.now();let processed=0;
   let prepared=false;
-  // Moves need a stable ID; give blank rows one first (blank cells only, never guessed).
-  await fillMissingUrids(TAB_NAMES.contacts);
-  await fillMissingUrids(TAB_NAMES.targets);
+  // Preserve established IDs; transfer requests must never trigger global backfills.
   for (const selected of input.contacts) {
     const key = selected.urid || norm(selected.email);
     const destination = selected.destination !== undefined ? selected.destination : nextRelationshipLevel(selected.temperature, input.change);
