@@ -58,8 +58,8 @@ describe("event history linking", () => {
   });
 
   it("links an activity that names the event as clear", () => {
-    const act = { kind: "activity" as const, id: "A3", name: "Booth at RSAC 2026 with Nox", date: "2026-04-22", portcos: ["Nox"], type: "meeting" };
-    const { proposals } = planHistoryLinks({ targets: [rsac27], pastEvents: [], activities: [act], existing: [] });
+    const act = { kind: "activity" as const, id: "A3", name: "Booth at Black Hat 2026 with Nox", date: "2026-04-22", portcos: ["Nox"], type: "meeting" };
+    const { proposals } = planHistoryLinks({ targets: [ev({ urid: "T6", name: "Black Hat 2027", start: "2027-08-01" })], pastEvents: [], activities: [act], existing: [] });
     expect(proposals[0].status).toBe("clear");
   });
 
