@@ -157,7 +157,7 @@ export function NetworkPyramid({
   const displayCols = view === "kpis" ? kpiCols : columns;
 
   return (
-    <section className={cn("network-overview min-w-0", !embedded && "mb-6 border-y py-5")} aria-label="Network Pyramid">
+    <section className={cn("network-overview min-w-0", embedded ? "network-overview-embedded" : "mb-6 border-y py-5")} aria-label="Network Pyramid">
       {!embedded && <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

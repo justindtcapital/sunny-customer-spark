@@ -598,3 +598,7 @@
   --sector-industry: oklch(0.75 0.14 85);
   --sector-other: oklch(0.6 0.02 250);
 }
+/* Homepage tile: same pyramid, shorter bands so the whole tile fits without scrolling. */
+.network-overview-embedded .network-tier-chart { height: 230px; }
+.network-overview-embedded .network-data-row { height: 40px; }
+.network-overview-embedded .network-cell { height: 36px; }

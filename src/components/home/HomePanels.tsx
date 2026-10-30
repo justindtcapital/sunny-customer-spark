@@ -27,7 +27,7 @@ export const campaignsQuery = queryOptions({ queryKey: ["home-campaigns"], query
 type PanelTo = "/crm" | "/my-actions" | "/events" | "/campaigns" | "/vic";
 type Range = { from: string; to: string } | null;
 
-function Panel({ title, icon, to, search, cta, className = "h-[300px]", children }: { title: string; icon: ReactNode; to: PanelTo; search?: Record<string, string | undefined>; cta: string; className?: string; children: ReactNode }) {
+function Panel({ title, icon, to, search, cta, className = "h-[270px]", children }: { title: string; icon: ReactNode; to: PanelTo; search?: Record<string, string | undefined>; cta: string; className?: string; children: ReactNode }) {
   return <section aria-label={title} className={`flex flex-col rounded-lg border border-border bg-card p-4 ${className}`}>
     <h2 className="mb-2 font-display text-sm font-semibold text-foreground">
       <Link to={to} search={(search || {}) as never} className="inline-flex items-center gap-2 hover:text-primary">{icon}{title}</Link>
@@ -41,7 +41,7 @@ function Panel({ title, icon, to, search, cta, className = "h-[300px]", children
   </section>;
 }
 
-export function PanelSkeleton({ className = "h-[300px]" }: { className?: string }) { return <div className={`animate-pulse rounded-lg border border-border bg-muted ${className}`} />; }
+export function PanelSkeleton({ className = "h-[270px]" }: { className?: string }) { return <div className={`animate-pulse rounded-lg border border-border bg-muted ${className}`} />; }
 
 function Unavailable({ what }: { what: string }) { return <p className="text-xs text-muted-foreground">{what} couldn't be loaded right now.</p>; }
 
@@ -67,7 +67,7 @@ function MiniMonth({ today, marker, label, range, onRange }: { today: string; ma
         onPointerDown={(e) => { e.preventDefault(); setAnchor(key); onRange(range && range.from === key && range.to === key ? null : { from: key, to: key }); }}
         onPointerEnter={() => { if (anchor) onRange(span(anchor, key)); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onRange({ from: key, to: key }); } }}
-        className={`flex h-7 flex-col items-center justify-start rounded-sm pt-0.5 text-[11px] leading-none ${on ? "bg-primary/15" : "hover:bg-muted"} ${key === today ? "ring-1 ring-primary" : ""} ${d.getMonth() !== month.getMonth() ? "opacity-35" : ""}`}>
+        className={`flex h-6 flex-col items-center justify-start rounded-sm pt-0.5 text-[11px] leading-none ${on ? "bg-primary/15" : "hover:bg-muted"} ${key === today ? "ring-1 ring-primary" : ""} ${d.getMonth() !== month.getMonth() ? "opacity-35" : ""}`}>
         <span className="text-foreground">{d.getDate()}</span>{marker(key)}
       </button>;
     })}</div>
@@ -91,7 +91,7 @@ export function NetworkPanel({ email }: { email: string }) {
   const navigate = useNavigate();
   const profile = teamProfile(email);
   const people = data.contacts.filter((c) => !c.portco);
-  return <Panel title="My network" icon={<NetworkIcon className="h-4 w-4 text-primary" />} to="/crm" cta="Open Network" className="h-[340px]">
+  return <Panel title="My network" icon={<NetworkIcon className="h-4 w-4 text-primary" />} to="/crm" cta="Open Network" className="h-[300px]">
     {data.errors.includes("Network") ? <Unavailable what="Network" /> :
       <NetworkPyramid embedded expanded onExpandedChange={() => {}} contacts={people} profile={profile} selection={null} onSelect={() => void navigate({ to: "/crm" })} />}
   </Panel>;
@@ -149,7 +149,7 @@ function initials(name: string) { return name.split(/\s+/).filter(Boolean).slice
 export function CampaignsPanel() {
   const { data } = useSuspenseQuery(campaignsQuery);
   const active = data.campaigns.filter((c) => c.status === "saved" || c.status === "actioning").sort((a, b) => (b.updated || b.created).localeCompare(a.updated || a.created));
-  return <Panel title="Active campaigns" icon={<Megaphone className="h-4 w-4 text-primary" />} to="/campaigns" cta="Open Campaigns" className="h-[230px]">
+  return <Panel title="Active campaigns" icon={<Megaphone className="h-4 w-4 text-primary" />} to="/campaigns" cta="Open Campaigns" className="h-[190px]">
     {data.error ? <Unavailable what="Campaigns" /> : active.length === 0 ? <p className="text-xs text-muted-foreground">No campaigns in progress.</p> :
       <ul className="h-full space-y-1.5 overflow-y-auto text-xs">{active.map((c) => { const who = teamMemberFor(c.owner)?.displayName || c.owner || "Unassigned"; return <li key={c.id} className="flex items-center gap-2">
         <span title={who} aria-label={`Run by ${who}`} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[9px] font-semibold text-primary">{initials(who)}</span>
@@ -172,13 +172,13 @@ export function VicPanel() {
       void navigate({ to: "/vic/$threadId", params: { threadId: id } });
     } catch (e) { toast.error((e as Error).message); setBusy(false); }
   };
-  return <Panel title="V.I.C." icon={<VicMark className="h-4 w-4" />} to="/vic" cta="Open V.I.C." className="h-[230px]">
+  return <Panel title="V.I.C." icon={<VicMark className="h-4 w-4" />} to="/vic" cta="Open V.I.C." className="h-[190px]">
     <div className="flex h-full flex-col gap-2">
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); void ask(); }}>
         <Textarea value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask V.I.C. a question…" aria-label="Ask V.I.C. a question"
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void ask(); } }}
-          className="min-h-[52px] flex-1 resize-none text-xs" />
-        <Button type="submit" size="icon" className="h-[52px] w-9 shrink-0" disabled={!q.trim() || busy} aria-label="Ask V.I.C."><Send className="h-4 w-4" /></Button>
+          className="min-h-[44px] flex-1 resize-none text-xs" />
+        <Button type="submit" size="icon" className="h-[44px] w-9 shrink-0" disabled={!q.trim() || busy} aria-label="Ask V.I.C."><Send className="h-4 w-4" /></Button>
       </form>
       <div className="min-h-0 flex-1 border-t border-border pt-2">
         <p className="mb-1.5 text-[11px] font-semibold uppercase text-muted-foreground">Run an agent</p>

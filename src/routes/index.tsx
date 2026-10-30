@@ -32,11 +32,11 @@ function HomePage() {
     {loaded ? <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <Slot><ActionsPanel email={email!} today={today} /></Slot>
       <Slot><EventsPanel today={today} /></Slot>
-      <div className="lg:col-span-2"><Slot h="h-[340px]"><NetworkPanel email={email!} /></Slot></div>
-      <Slot h="h-[230px]"><CampaignsPanel /></Slot>
+      <div className="lg:col-span-2"><Slot h="h-[300px]"><NetworkPanel email={email!} /></Slot></div>
+      <Slot h="h-[190px]"><CampaignsPanel /></Slot>
       <VicPanel />
     </div> : <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <PanelSkeleton /><PanelSkeleton /><div className="lg:col-span-2"><PanelSkeleton className="h-[340px]" /></div><PanelSkeleton className="h-[230px]" /><PanelSkeleton className="h-[230px]" />
+      <PanelSkeleton /><PanelSkeleton /><div className="lg:col-span-2"><PanelSkeleton className="h-[300px]" /></div><PanelSkeleton className="h-[190px]" /><PanelSkeleton className="h-[190px]" />
     </div>}
   </div>;
 }
