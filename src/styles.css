@@ -612,3 +612,12 @@
   .network-overview-embedded .network-mobile-tier, .network-overview-embedded .network-mobile-label { display: none; }
   .network-overview-embedded .network-metric { flex-direction: row; min-height: 0; }
 }
+/* Homepage tile: tint bands reach back behind the pyramid, as on the Network page. */
+.network-overview-embedded .network-overview-body { position: relative; isolation: isolate; }
+.network-overview-embedded .network-tier-chart { position: relative; z-index: 1; }
+.network-overview-embedded .network-data-row { position: relative; background: transparent; }
+.network-overview-embedded .network-data-row::before {
+  content: ""; position: absolute; inset: 0 0 0 -101px;
+  z-index: -1; border-radius: 0 6px 6px 0;
+  background: color-mix(in oklab, currentColor 9%, var(--background));
+}
