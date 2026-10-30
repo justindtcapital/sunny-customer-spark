@@ -24,7 +24,7 @@ const SUGGESTIONS = [
 ];
 
 /** Loads a thread's saved messages, then renders the chat. */
-export function VicChat({ threadId, page }: { threadId: string; page?: string }) {
+export function VicChat({ threadId, page, pageLabel }: { threadId: string; page?: string; pageLabel?: string }) {
   const [initial, setInitial] = useState<UIMessage[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -37,10 +37,10 @@ export function VicChat({ threadId, page }: { threadId: string; page?: string })
     return () => { live = false; };
   }, [threadId]);
   if (!initial) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
-  return <VicChatWindow key={threadId} threadId={threadId} initial={initial} page={page} />;
+  return <VicChatWindow key={threadId} threadId={threadId} initial={initial} page={page} pageLabel={pageLabel} />;
 }
 
-function VicChatWindow({ threadId, initial, page }: { threadId: string; initial: UIMessage[]; page?: string }) {
+function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: string; initial: UIMessage[]; page?: string; pageLabel?: string }) {
   const [text, setText] = useState("");
   const { skillId, setSkillId, folders } = useVicWorkspace();
   const skillRef = useRef(skillId);
@@ -71,12 +71,12 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
       <Conversation className="flex-1 min-h-0">
         <ConversationContent>
           {messages.length === 0 && (
-            <ConversationEmptyState icon={<VicMark className="h-10 w-10" />} title="Ask V.I.C.">
-              <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <ConversationEmptyState icon={<VicMark className="h-10 w-10" />} title={pageLabel ? `Ask V.I.C. about ${pageLabel}` : "Ask V.I.C."}>
+              {!pageLabel && <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {SUGGESTIONS.map((s) => (
                   <Button key={s} type="button" variant="outline" size="sm" onClick={() => send(s)} className="h-auto whitespace-normal text-left">{s}</Button>
                 ))}
-              </div>
+              </div>}
             </ConversationEmptyState>
           )}
           {messages.map((m) => (
@@ -118,7 +118,7 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
       <div className="border-t border-border p-3">
         <PromptInput onSubmit={(msg) => send(msg.text || "")}>
           <PromptInputBody>
-            <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={getVicSkill(skillId)?.placeholder || "Ask V.I.C.…"} />
+            <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={pageLabel ? `Ask V.I.C. about ${pageLabel}…` : getVicSkill(skillId)?.placeholder || "Ask V.I.C.…"} />
           </PromptInputBody>
           <PromptInputFooter className="flex-wrap justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1">
