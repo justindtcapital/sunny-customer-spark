@@ -20,6 +20,7 @@ import { emailMatchesName, extractEmails, isNetworkTitle, matchesQuery, personIn
 import { suggestPeople } from "@/lib/meeting-roster";
 import { CORE_TEAM, teamMemberFor } from "@/lib/user-ownership";
 import { coreAssignee, normalizeAssignedStep } from "@/lib/team-next-steps";
+import { meetingTitleDefaults, reviewPeopleFromRows, uniqueReviewPerson } from "@/lib/review-tagging";
 
 const REVIEW_PREFIX = "review:";
 const NOTE_SOURCES = new Set(["granola", "upload", "drive-doc"]);
@@ -97,25 +98,6 @@ export function isPendingNote(recordId: string, reviews: Map<string, NoteReview>
   return !reviews.has(recordId);
 }
 
-/** Lowercased emails + names already in Contacts (Network) and Targets (Prospecting). */
-async function directory(): Promise<{ network: Set<string>; prospects: Set<string> }> {
-  const build = async (tab: string) => {
-    const set = new Set<string>();
-    try {
-      const rows = await fetchSheetTab(tab);
-      for (const row of rows.slice(1)) for (const c of row) {
-        const v = (c || "").trim().toLowerCase();
-        if (!v || v.length > 200) continue;
-        set.add(v);
-        for (const m of v.match(/[\w.+-]+@[\w-]+\.[\w.]+/g) || []) set.add(m);
-      }
-    } catch { /* missing tab */ }
-    return set;
-  };
-  const [network, prospects] = await Promise.all([build("Contacts"), build("Targets")]);
-  return { network, prospects };
-}
-
 function parseParticipants(s: string): Array<{ name: string; email: string }> {
   return (s || "").split(";").map((p) => p.trim()).filter(Boolean).map((p) => {
     const m = p.match(/^(.*?)\s*<([^>]+)>$/);
@@ -152,16 +134,12 @@ function sourceLabel(r: KnowledgeRecord): NoteInboxItem["source"] {
 }
 
 export async function listNotesInbox(history: boolean, owner?: string, kind: InboxKind = "notes"): Promise<NoteInboxItem[]> {
-  const [records, links, contacts, reviews, dir, importers] = await Promise.all([
-    listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(), directory(), importedByMap(),
+  const [records, links, contacts, reviews, people, importers] = await Promise.all([
+    listKnowledgeRecords(), listWorkstreamLinks(), listSuggestedContacts(), reviewMap(), peopleDirectory(), importedByMap(),
   ]);
-  const people = await peopleDirectory();
   const ownerKey = (owner || "").trim().toLowerCase();
   const whereOf = (email: string, name: string): NotePerson["where"] => {
-    const keys = [email, name.toLowerCase()].filter(Boolean);
-    if (keys.some((k) => dir.network.has(k))) return "Network";
-    if (keys.some((k) => dir.prospects.has(k))) return "Prospecting";
-    return "New";
+    return uniqueReviewPerson({ email, name }, people)?.where || "New";
   };
   const { listGranolaImports } = await import("./granola.server");
   const granola = new Map((await listGranolaImports().catch(() => [])).map((g) => [g.noteId, g]));
@@ -220,6 +198,12 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
             map.set(tm.email, { key: tm.email, suggestionId: "", name: tm.displayName, email: tm.email, company: "DT Capital", where: "Team", status: "", suggestions: [] });
             return;
           }
+          const match = uniqueReviewPerson({ name, email }, people);
+          if (match) {
+            name = match.name;
+            email = match.email;
+            company = match.company;
+          }
           const key = (email || name).toLowerCase();
           if (!key) return;
           const prev = map.get(key);
@@ -232,6 +216,7 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
         };
         for (const p of parseParticipants(r.participants)) put(p.name, p.email, "");
         for (const p of ex.people || []) put(p.name, (p.email || "").toLowerCase(), p.company);
+        for (const p of meetingTitleDefaults(r.title).people) put(p.name, p.email, p.company);
         for (const c of contacts.filter((c) => c.recordId === r.recordId)) put(c.name, c.email, c.company, c.suggestionId, c.status);
         // Names only heard in next steps ("Brent to send contract") join the roster too.
         const known = [...map.values()].map((p) => p.name.toLowerCase());
@@ -287,26 +272,9 @@ export interface ReviewNoteInput {
 
 export interface PersonMatch { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" | "Team" }
 
-/** Read people (name/email/company) from the Contacts and Targets tabs by header name. */
+/** Read one canonical Contacts list; status flags distinguish Network and Prospecting. */
 export async function peopleDirectory(): Promise<Array<PersonMatch & { where: "Network" | "Prospecting" }>> {
-  const out: Array<PersonMatch & { where: "Network" | "Prospecting" }> = [];
-  for (const [tab, where] of [["Contacts", "Network"], ["Targets", "Prospecting"]] as const) {
-    try {
-      const rows = await fetchSheetTab(tab);
-      const h = (rows[0] || []).map((x) => (x || "").trim().toLowerCase());
-      const col = (re: RegExp) => h.findIndex((x) => re.test(x));
-      const n = col(/^(full )?name$|^contact name$/), e = col(/e-?mail/), c = col(/^company|organization|employer/);
-      const t = col(/^(job )?title$|^position$|^role$/);
-      const first = col(/^first name$/), last = col(/^last name$/);
-      for (const r of rows.slice(1)) {
-        const name = (n >= 0 ? r[n] : [first >= 0 ? r[first] : "", last >= 0 ? r[last] : ""].join(" ")) || "";
-        const email = (e >= 0 ? r[e] : "") || "";
-        if (!name.trim() && !email.trim()) continue;
-        out.push({ name: name.trim(), email: email.trim().toLowerCase(), company: ((c >= 0 ? r[c] : "") || "").trim(), title: ((t >= 0 ? r[t] : "") || "").trim(), where });
-      }
-    } catch { /* missing tab */ }
-  }
-  return out;
+  return reviewPeopleFromRows(await fetchSheetTab("Contacts"));
 }
 
 /** Contact search for the review cards. */
