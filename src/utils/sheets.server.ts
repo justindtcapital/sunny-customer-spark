@@ -39,6 +39,7 @@ import {
 } from "@/lib/engagement-source";
 import { getGoogleOAuthCreds, requireSpreadsheetId } from "./google.server";
 import { createRequestState } from "./request-state.server";
+import { assertBulkWrite, bulkExecutionSignal, recordBulkRequest } from "./bulk-execution.server";
 import {
   compareIsoDatesDesc,
   isoToSheetDate,
@@ -129,8 +130,11 @@ async function runSheetsRequest(url: string, init: RequestInit): Promise<Respons
   const capMs = isRead ? 1_200 : 30_000;
   let attempt = 0;
   for (;;) {
+    bulkExecutionSignal()?.throwIfAborted();
     const timeout = AbortSignal.timeout(20_000);
-    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    const operationSignal = bulkExecutionSignal();
+    const signal = AbortSignal.any([timeout,...(init.signal ? [init.signal] : []),...(operationSignal ? [operationSignal] : [])]);
+    recordBulkRequest(isRead);
     const res = await fetch(url, { ...init, signal });
     // Non-idempotent appends and positional deletes may have committed on 5xx.
     // Return that uncertainty to the operation journal instead of replaying it.
@@ -155,6 +159,9 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
   const run = state.writeChain.then(async () => {
     const wait = WRITE_MIN_SPACING_MS - (Date.now() - state.lastWriteAt);
     if (wait > 0) await sleep(wait);
+    const writingPeople = /Contacts|Targets/.test(decodeURIComponent(url));
+    if (writingPeople) await assertBulkWrite();
+    bulkExecutionSignal()?.throwIfAborted();
     try {
       return await runSheetsRequest(url, init);
     } finally {
@@ -413,7 +420,7 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
 // a new rightmost column (the header cell is written). Used to add the
 // "Engagement Source" column to the existing PortCos Introduced tab in place.
 export async function ensureColumn(tabName: string, header: string): Promise<number> {
-  const rows = await fetchSheetTab(tabName).catch(() => [] as string[][]);
+  const rows = await fetchSheetTab(tabName);
   const headerRow = rows[0] || [];
   const idx = headerRow.findIndex((h) => h.trim().toLowerCase() === header.trim().toLowerCase());
   if (idx !== -1) return idx;
