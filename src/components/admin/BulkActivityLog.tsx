@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useAuth } from "@/lib/auth-context";
 import { teamMemberFor } from "@/lib/user-ownership";
 import { useRouter } from "@tanstack/react-router";
+import { autoResume, pendingCount } from "@/lib/auto-resume";
 
 export interface ActivityDraftContext { key: string; operationId?: string; page: string; evidence: string; title: string }
 export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraftContext, action: "troubleshoot" | "fix") => void }) {
@@ -29,15 +30,22 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
   const { email }=useAuth();
   const router=useRouter();
   const query=useQuery({ queryKey:["bulk-operations"],queryFn:()=>read(),refetchInterval:15000 });
-  const [selected,setSelected]=useState<string|null>(null), [confirm,setConfirm]=useState<BulkOperation|null>(null),[busy,setBusy]=useState(false),[status,setStatus]=useState("all");
+  const [selected,setSelected]=useState<string|null>(null), [confirm,setConfirm]=useState<BulkOperation|null>(null),[busy,setBusy]=useState(false),[status,setStatus]=useState("all"),[progress,setProgress]=useState("");
   const rows=(query.data || []).filter(o=>status==="all" || o.status===status);
   const action=(op:BulkOperation,mode:"troubleshoot"|"fix")=>onAction({ key:`operation:${op.id}`,operationId:op.id,page:op.page,evidence:activityEvidence(op),title:`Review ${op.kind}` },mode);
   async function runRetry() {
     if (!confirm || busy) return;
     setBusy(true);
-    try { await retry({ data:{ id:confirm.id,confirmed:true } });toast.success("Retry finished; saved outcomes refreshed.");setConfirm(null); }
+    try {
+      const total=confirm.outcomes.length, id=confirm.id;
+      const first=await retry({ data:{ id,confirmed:true } });setConfirm(null);
+      const tick=(o:BulkOutcome[])=>{setProgress(`${total-pendingCount(o)} of ${total} processed…`);void qc.invalidateQueries({ queryKey:["bulk-operations"] });};
+      tick(first.outcomes);
+      const done=await autoResume({ outcomes:first.outcomes,onProgress:tick,step:()=>retry({ data:{ id,confirmed:true } }) });
+      if(done.stalled) toast.warning("Some contacts stopped making progress; review their reasons."); else toast.success("All steps finished; saved outcomes refreshed.");
+    }
     catch(e) { toast.error(e instanceof Error ? e.message : "Retry unavailable."); }
-    finally { await qc.invalidateQueries({ queryKey:["bulk-operations"] });await qc.invalidateQueries({ queryKey:["network-pyramid"] });await router.invalidate();setBusy(false); }
+    finally { await qc.invalidateQueries({ queryKey:["bulk-operations"] });await qc.invalidateQueries({ queryKey:["network-pyramid"] });await router.invalidate();setBusy(false);setProgress(""); }
   }
   return <section aria-label="Bulk operation activity" className="mb-5">
     <div className="flex flex-wrap items-center gap-2 py-3"><h3 className="mr-auto text-sm font-semibold">Bulk operations</h3>
