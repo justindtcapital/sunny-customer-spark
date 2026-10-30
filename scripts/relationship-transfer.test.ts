@@ -88,6 +88,7 @@ describe("replay and mixed batches",()=>{
   store.tabs.Targets=[["URID","First Name","Last Name","Email","Role","Company","Stage","Prime","Phone","Sector","Network Profile"],
     ["stable-id","Sample","Person","person@example.com","Director","Example Co","Prospecting","Falloon","12345","Technology",snapshot]];
   const r=await changeRelationshipLevels({contacts:[{urid:"stable-id",email:"person@example.com",temperature:"Cold"}],change:"demote"});
+  console.log("DEBUG",JSON.stringify(r.outcomes));
   expect(r.moved).toBe(1);
   expect(store.tabs.Targets.filter(row=>row[0]==="stable-id")).toHaveLength(1);
   expect(store.tabs.Contacts.some(row=>row[0]==="stable-id")).toBe(false);
