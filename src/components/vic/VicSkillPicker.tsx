@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Blocks, Building2, GitCompareArrows, Users, Upload, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { VIC_SKILLS, getVicSkill, type VicSkillId } from "@/lib/vic-skills";
 
@@ -10,14 +11,15 @@ export function VicSkillPicker({ value, onChange, onDraft, disabled, placement =
   const [open, setOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const selected = getVicSkill(value);
-  if (placement === "sidebar") return <section aria-label="Skills" className="space-y-2">
-    <h2 className="text-xs font-semibold text-muted-foreground">Skills</h2>
-    <div className="grid gap-1.5">
+  if (placement === "sidebar") return <section aria-label="Skills" className="space-y-1.5">
+    <h2 className="text-sm font-semibold">Skills</h2>
+    <div className="grid gap-0.5">
       {VIC_SKILLS.map((skill, index) => {
         const Icon = icons[index] || Blocks;
-        return <Button key={skill.id} type="button" variant={value === skill.id ? "secondary" : "outline"} disabled={disabled} aria-pressed={value === skill.id} onClick={() => onChange(value === skill.id ? undefined : skill.id)} className="h-auto min-h-10 w-full justify-start gap-2 whitespace-normal px-2.5 py-2 text-left text-xs">
-          <Icon className="shrink-0" /><span className="min-w-0 flex-1">{skill.name}</span>{value === skill.id && <Check className="h-3.5 w-3.5 shrink-0" />}
-        </Button>;
+        return <label key={skill.id} className="flex min-h-6 cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-[11px] leading-4 hover:bg-muted/60">
+          <Checkbox checked={value === skill.id} disabled={disabled} onCheckedChange={(checked) => onChange(checked === true ? skill.id : undefined)} className="size-3.5" />
+          <Icon aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1">{skill.name}</span>
+        </label>;
       })}
     </div>
   </section>;

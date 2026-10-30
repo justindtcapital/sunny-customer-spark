@@ -24,7 +24,7 @@ export function useVicWorkspace() {
 
 export function VicWorkspaceControls() {
   const { skillId, setSkillId, folders, setFolders } = useVicWorkspace();
-  return <nav aria-label="V.I.C. tools" className="space-y-4 border-t border-border p-3">
+  return <nav aria-label="V.I.C. tools" className="space-y-3 border-t border-border px-3 py-2.5">
     <VicSkillPicker value={skillId} onChange={setSkillId} onDraft={() => {}} disabled={false} placement="sidebar" />
     <KbFolderPicker value={folders} onChange={setFolders} placement="sidebar" />
   </nav>;
