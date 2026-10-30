@@ -179,6 +179,7 @@ export interface GranolaHarvestOutput {
   links: WorkstreamLink[];
   contacts: SuggestedContact[];
   notesSeen: number;
+  remaining: number;
   copiedToDrive: number;
   errors: string[];
   cursor?: { key: string; value: string };
@@ -188,7 +189,7 @@ const VERIFIED_PREFIX = "granola:verified:";
 
 /** Pull new Granola notes; caller persists the returned rows. */
 export async function harvestGranola(input: GranolaHarvestInput): Promise<GranolaHarvestOutput> {
-  const out: GranolaHarvestOutput = { records: [], activities: [], links: [], contacts: [], notesSeen: 0, copiedToDrive: 0, errors: [] };
+  const out: GranolaHarvestOutput = { records: [], activities: [], links: [], contacts: [], notesSeen: 0, remaining: 0, copiedToDrive: 0, errors: [] };
   if (!input.access && !isGranolaConfigured()) return out;
 
   const cursorKey = granolaCursorKey(input.access?.userId);
@@ -211,7 +212,9 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
   let processed = 0;
   let hitCap = false;
 
-  for (const item of list.sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+  out.remaining = list.filter((i) => !existing.has(i.id)).length;
+  // Newest first so each click brings in the latest meetings before backlog.
+  for (const item of list.sort((a, b) => b.created_at.localeCompare(a.created_at))) {
     out.notesSeen++;
     if (existing.has(item.id)) continue;
     if (processed >= input.maxNotes) { hitCap = true; break; }
@@ -287,6 +290,7 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
       out.errors.push(`Granola note "${item.title || item.id}": ${(e as Error).message}`);
     }
   }
+  out.remaining = Math.max(0, out.remaining - processed);
   // Only advance the cursor once everything in the window was handled.
   // Caller advances only after all returned records and related rows are saved.
   if (!hitCap && !out.errors.length && list.length < 200) out.cursor = { key: cursorKey, value: startedAt };

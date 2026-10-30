@@ -55,6 +55,7 @@ export interface HarvestResult {
   linksAdded: number;
   contactsSuggested: number;
   granolaNotesAdded: number;
+  granolaRemaining?: number;
   granolaCopiedToDrive: number;
   driveNotesAdded?: number;
   recordingsFiled?: number;
@@ -314,6 +315,7 @@ export async function runKnowledgeHarvest(
     newContacts.push(...g.contacts);
     result.errors.push(...g.errors);
     result.granolaNotesAdded = g.records.length;
+    result.granolaRemaining = g.remaining;
     result.granolaCopiedToDrive = g.copiedToDrive;
     await saveKnowledgeRecords(newRecords);
     if (g.records.length) await verifyGranolaImports({ noteIds: g.records.map((r) => r.sourceId), access: opts.granolaAccess });
