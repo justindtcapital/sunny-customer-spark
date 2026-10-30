@@ -1,10 +1,11 @@
 # Roadmap
 
 ## Network bulk-action fixes
-- [ ] Align historical fixes, bounded execution, writer coordination and saved-state reconciliation
+- [x] Align historical fixes, bounded execution, writer coordination and saved-state reconciliation
 - [x] Inspect all 22 contacts in interrupted operation fb66f977-4422-49e1-a2a7-61506a6d6e09; no automatic replay (12 complete, 10 retained)
-- [ ] Resolve legacy interrupted lock only after independent proof its unfenced worker is stopped; no force unlock
-- [ ] Fix safe, idempotent Network-to-Prospecting transfers and reconcile the list
+- [x] Resolve legacy interrupted lock only after independent proof its unfenced worker is stopped; no force unlock
+- [x] Fix safe, idempotent Network-to-Prospecting transfers and reconcile the list
+- [x] Reconcile interrupted operation 3155327a (36 people: 18 moved, 17 untouched, 1 half-moved with complete Prospecting copy); released stale lock, marked partial; Julia's Resume finishes the rest
 - [ ] Fix promotion/demotion rejections, show per-contact outcomes, and verify mixed batches/retries
 - [ ] Add durable bulk-operation logging and Admin troubleshoot/fix-request/safe-retry actions
 - [ ] Prevent duplicate people/event imports and repeat writes without losing tags
