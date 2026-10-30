@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Network bulk-action fixes
+- [ ] Align historical fixes, bounded execution, writer coordination and saved-state reconciliation
+- [ ] Inspect all 22 contacts in interrupted operation fb66f977-4422-49e1-a2a7-61506a6d6e09; no automatic replay
 - [ ] Fix safe, idempotent Network-to-Prospecting transfers and reconcile the list
 - [ ] Fix promotion/demotion rejections, show per-contact outcomes, and verify mixed batches/retries
 - [ ] Add durable bulk-operation logging and Admin troubleshoot/fix-request/safe-retry actions

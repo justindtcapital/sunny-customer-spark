@@ -4,6 +4,7 @@ vi.mock("../src/utils/sheets.server", () => ({
   TAB_NAMES: { contacts: "Contacts", targets: "Targets" },
   TARGET_HEADERS: ["URID", "First Name", "Last Name", "Email", "Role", "Company", "Stage", "Prime", "Phone", "Sector"],
   fetchSheetTab: async (tab: string) => store.tabs[tab],
+  fillMissingUrids: vi.fn(async () => ({ filled: 0 })),
   ensureTab: async (tab: string, headers: string[]) => { store.tabs[tab] ||= [headers]; },
   ensureColumn: async (tab: string, header: string) => { if (!store.tabs[tab][0].includes(header)) store.tabs[tab][0].push(header); },
   appendSheetRows: async (tab: string, rows: string[][]) => store.tabs[tab].push(...rows),
