@@ -106,3 +106,5 @@
 ## Homepage
 - [x] Fresh five-panel homepage; Ask/Tell, briefing and signal scan/reconcile jobs removed; Daily Briefing + Signals tabs backed up and deleted
 - [ ] Rebuild signals from scratch (PortCo signals panel, email digest archiving and intel still use old signal code)
+
+- [x] Unified Contacts: Prospecting is a status flag; Targets archived; bulk moves are one write. Review 67 shared-email + 95 shifted-stage prospects in "Prospect Merge Review" tab.
