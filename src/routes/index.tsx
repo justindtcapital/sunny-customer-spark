@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
-function Slot({ children, h }: { children: ReactNode; h?: string }) { return <Suspense fallback={<PanelSkeleton className={h} />}>{children}</Suspense>; }
+function Slot({ children }: { children: ReactNode }) { return <Suspense fallback={<PanelSkeleton />}>{children}</Suspense>; }
 
 function HomePage() {
   const { email, ready } = useAuth();
@@ -32,11 +32,14 @@ function HomePage() {
     {loaded ? <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <Slot><ActionsPanel email={email!} today={today} /></Slot>
       <Slot><EventsPanel today={today} /></Slot>
-      <div className="lg:col-span-2"><Slot h="h-[300px]"><NetworkPanel email={email!} /></Slot></div>
-      <Slot h="h-[190px]"><CampaignsPanel /></Slot>
-      <VicPanel />
+      <Slot><NetworkPanel email={email!} /></Slot>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Slot><CampaignsPanel /></Slot>
+        <VicPanel />
+      </div>
     </div> : <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-      <PanelSkeleton /><PanelSkeleton /><div className="lg:col-span-2"><PanelSkeleton className="h-[300px]" /></div><PanelSkeleton className="h-[190px]" /><PanelSkeleton className="h-[190px]" />
+      <PanelSkeleton /><PanelSkeleton /><PanelSkeleton />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><PanelSkeleton /><PanelSkeleton /></div>
     </div>}
   </div>;
 }

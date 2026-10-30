@@ -599,6 +599,8 @@
   --sector-other: oklch(0.6 0.02 250);
 }
 /* Homepage tile: same pyramid, shorter bands so the whole tile fits without scrolling. */
-.network-overview-embedded .network-tier-chart { height: 230px; }
-.network-overview-embedded .network-data-row { height: 40px; }
-.network-overview-embedded .network-cell { height: 36px; }
+.network-breakdown-change { --network-columns: 3; }
+.network-overview-embedded .network-overview-body { --chart-w: 200px; gap: 16px; }
+.network-overview-embedded .network-tier-chart { height: 200px; padding-top: 24px; }
+.network-overview-embedded .network-column-headings { height: 24px; }
+.network-overview-embedded .network-data-row { height: 35px; }
