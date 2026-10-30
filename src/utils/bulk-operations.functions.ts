@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireTeamAuth } from "./team-auth";
 import { activityEvidence, type BulkOperation, type BulkOutcome } from "@/lib/bulk-operation";
+import type { Json } from "@/integrations/supabase/types";
 
 export const inspectBulkOperation = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
   .inputValidator(input => z.object({ id:z.string().uuid() }).parse(input))
@@ -13,7 +14,7 @@ export const inspectBulkOperation = createServerFn({ method: "POST" }).middlewar
     const { inspectRelationshipState } = await import("./relationship-reconciliation.server");
     const { withDeadline } = await import("./request-deadline.server");
     const outcomes = await withDeadline("inspect relationship saved state",40_000,step => { step("reading Network and Prospecting without writes");return inspectRelationshipState(op.input as unknown as import("./relationship-levels.server").RelationshipInput); });
-    const { error:saveError }=await db.from("bulk_operations").update({reconciliation:{at:new Date().toISOString(),outcomes,inspectionOnly:true,lockReleased:false}}).eq("id",op.id);
+    const { error:saveError }=await db.from("bulk_operations").update({reconciliation:JSON.parse(JSON.stringify({at:new Date().toISOString(),outcomes,inspectionOnly:true,lockReleased:false})) as Json}).eq("id",op.id);
     if(saveError) throw new Error("Saved state was read but inspection evidence could not be recorded; the safety lock remains.");
     return { operationId:op.id,outcomes,active: Boolean(op.execution_token),status:op.status,inspectionOnly:true as const };
   });
