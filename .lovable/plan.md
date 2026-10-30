@@ -6,6 +6,36 @@
 - Safe transfer checks and per-contact outcomes already exist. There is currently no reconciliation action for uncertain operations; Retry explicitly refuses them.
 - The 11 recorded successes have **not yet been independently checked against live Network and Prospecting rows**. No code, lock, journal status or contact record has been changed for this investigation.
 
+## One coordinated repair, not two patches
+Both requests concern the same workflow: identify the person → preserve the requested destination → write and verify the transfer → checkpoint progress → finish the job → refresh the list. Item 1 fixes completion and visibility; item 2 supplies safe recovery when that workflow is interrupted. They will share the same identity, verification, job-state and retry rules.
+
+### Historical alignment review
+- The October 16 request established manual tier changes and full-profile-preserving transfers. Keep those semantics unchanged.
+- The October 21 change normalized blank/mixed-case ratings. Keep a single interpretation of ratings; do not reintroduce raw-text comparisons.
+- The October 29 changes added specific outcomes, duplicate safeguards, an operation journal and safety locks. Preserve them, but complete the missing reconciliation lifecycle.
+- The later missing-ID repair addressed a different confirmed failure. Preserve assigned IDs; review its read-time self-healing and concurrency rather than repeating a global ID backfill.
+- Current database evidence shows four later bulk operations rejected by the retained lock without starting writes. This connects today's symptoms to the interrupted job, but does not prove the cause of every historical failure.
+- The transfer test fixture currently omits the ID-fill helper called by production code. Repair that fixture before relying on previous passing-test claims.
+- The precise provider error or stalled step that interrupted the named operation is still unconfirmed. A volume/time-budget problem is a supported risk to investigate, not a claimed diagnosis.
+- Code review confirms a capacity mismatch: each changed person entails several Sheets reads and three writes, but all 500 permitted selections run under one 55-second deadline. This needs bounded execution, not another error-message patch. Actual latency/quota attribution remains unverified.
+
+### Shared execution and storage review before changing behavior
+- **Competing writers:** inventory bulk actions, manual edits, imports, enrichment, syncs, ID repair and V.I.C.; coordinate interfering paths, not just bulk buttons. App locks cannot protect arbitrary edits/reordering directly in Sheets. Retain sources when deletion safety cannot be established.
+- **Volume:** the API accepts 500 people inside a 55-second journal deadline; the named job became uncertain after **55.13 seconds** with only 11/22 outcomes. Measure request counts/phase timings before attributing this to quota or latency. Use bounded, resumable units with persisted pause/continue instead of a larger timeout or silently reduced batch size.
+- **Google quotas:** this app uses direct OAuth, not the Sheets gateway. Check Google's documented 60 reads/60 writes per minute per user. Current write spacing is request-local, not team-wide. Consolidate safe reads/writes and prepare columns once; do not parallelize positional deletions or replay uncertain appends/deletes.
+- **Preparation:** fail closed on read errors. `ensureColumn` currently substitutes an empty sheet after a failed read; the transfer path must not confuse unavailable data with missing headers.
+- **Job lifecycle:** persist attempt/phase ownership; prevent further side effects after deadline, propagate cancellation, and retain uncertainty for dispatched writes. Cancellation does not prove non-commit. A safe pause differs from an uncertain write. Verify existing Signal Radar job infrastructure before reuse; no new service, sweeper or automatic replay is assumed.
+- **Data integrity:** keep Sheets contacts and Cloud journals; review headers, projections, email aliases, URIDs and row indices across both tabs. No storage migration or Google permission/account change is assumed necessary.
+- **Related paths:** Prospecting → Network uses a separate promotion path with different identity/profile guarantees. Review it against the shared invariants and prevent conflicting writes during this repair; do not silently redesign reverse transfers or unrelated imports. Any larger follow-on change requires a separate scope decision.
+- **Schema/literal safety:** reject ambiguous normalized headers before creating a preservation snapshot; verify header writes and use literal values for opaque transfer evidence. Do not globally change existing sheet formulas or formatting.
+- **Audit and refresh:** separate committed membership/rating changes from subsequent history/override writes; resume only missing audit steps with deterministic IDs. Force authoritative refresh across server instances rather than relying on one instance's cache invalidation.
+
+### Delivery order
+1. Repair the regression-test fixtures and add shared safety/volume tests before changing transfer behavior.
+2. Build inspect-only reconciliation and the complete item report for the named operation.
+3. Harden coordinated, bounded execution and immutable per-item evidence; then implement safe continuation and unified refresh/results. Start with short authenticated chunks and explicit Resume: closing the browser pauses progress safely, rather than pretending a background job is still running.
+4. Verify the same invariants through Network, Admin and V.I.C.; deploy together so recovery and transfer rules cannot diverge.
+
 ## 1. Fix inconsistent Network → Prospecting demotion
 **Priority:** High · **Effort:** Medium
 
@@ -50,8 +80,10 @@ Admin activity detail/actions; authenticated bulk-operation helpers; journal/loc
 - Add targeted tests for eligible + already-moved + blocked mixed batches; duplicate selections; source/destination ambiguity; altered profiles; teammate rating changes; and preserved canonical IDs.
 - Test interruptions before copy, after copy, after deletion and before checkpoint/finalization; verify retry never repeats completed moves or changes a rating twice.
 - Test full-request reconciliation when the journal has only 11 outcomes for 22 inputs, unavailable reads, retained locks, concurrent requests and owner-only retries.
+- Test small, 22-person and maximum-supported selections; quota/backoff pauses; page navigation/reload; late callbacks after timeout; and competing imports, ID repairs and edits. Confirm no dropped items, repeated writes, unrelated row deletions or silent reductions in supported volume.
+- Include phase timings, request counts and the failed step in Admin evidence without logging credentials or unnecessary personal data. Verify the transfer tests actually exercise production helpers, including the ID-fill dependency.
 - Exercise the signed-in Network → Admin → reconcile/retry → reload flow, confirming membership, accurate counts, per-person reasons and preserved filters.
 - After approval, verify and reconcile the named operation first. Show the results before executing any unfinished-contact retry; this plan does **not** authorize replaying the remaining batch automatically.
 
 ## Scope
-No automatic deduplication/merge of ambiguous people, no wholesale replay, no disabling safety checks, and no unrelated UI changes. If a profile discrepancy needs a human decision, leave that item blocked and report it.
+No automatic deduplication/merge of ambiguous people, no wholesale replay, no disabling safety checks, and no unrelated UI changes. If a profile discrepancy needs a human decision, leave that item blocked and report it. Check direct spreadsheet editing before enabling destructive continuation; if app-side coordination cannot protect the source, present the safer alternative for approval rather than weaken verification.
