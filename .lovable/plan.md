@@ -6,6 +6,34 @@
 - Safe transfer checks and per-contact outcomes already exist. There is currently no reconciliation action for uncertain operations; Retry explicitly refuses them.
 - The 11 recorded successes have **not yet been independently checked against live Network and Prospecting rows**. No code, lock, journal status or contact record has been changed for this investigation.
 
+## One coordinated repair, not two patches
+Both requests concern the same workflow: identify the person → preserve the requested destination → write and verify the transfer → checkpoint progress → finish the job → refresh the list. Item 1 fixes completion and visibility; item 2 supplies safe recovery when that workflow is interrupted. They will share the same identity, verification, job-state and retry rules.
+
+### Historical alignment review
+- The October 16 request established manual tier changes and full-profile-preserving transfers. Keep those semantics unchanged.
+- The October 21 change normalized blank/mixed-case ratings. Keep a single interpretation of ratings; do not reintroduce raw-text comparisons.
+- The October 29 changes added specific outcomes, duplicate safeguards, an operation journal and safety locks. Preserve them, but complete the missing reconciliation lifecycle.
+- The later missing-ID repair addressed a different confirmed failure. Preserve assigned IDs; review its read-time self-healing and concurrency rather than repeating a global ID backfill.
+- Current database evidence shows four later bulk operations rejected by the retained lock without starting writes. This connects today's symptoms to the interrupted job, but does not prove the cause of every historical failure.
+- The precise provider error or stalled step that interrupted the named operation is still unconfirmed. A volume/time-budget problem is a supported risk to investigate, not a claimed diagnosis.
+
+### Shared execution and storage review before changing behavior
+- Inventory every app writer of Network/Prospecting rows: bulk actions, manual edits, imports, enrichment, syncs, ID repair and V.I.C. Confirm which share coordination and which can overlap. Address interfering paths within this repair rather than merely adding another lock.
+- Measure API requests, timings, retries and transfer phases for representative batch sizes. The current interface accepts up to 500 people in one request; the journal wraps execution in a 55-second deadline. Ensure supported volume is actually resumable rather than silently limited by elapsed time.
+- Move repeated tab/column preparation outside the per-person loop; consolidate safe reads and writes. Do not reuse stale snapshots for deletion authorization or parallelize positional deletions.
+- Preserve Google Sheets as the contact store and Lovable Cloud as the operation journal. Review headers, profile projections, email aliases, URIDs and row positions for consistency across both tabs; no CRM migration or Google account/permission change is assumed necessary.
+- Check documented Google read/write quotas, actual direct-OAuth usage, request-local write spacing, competing invocations and retry waits. Respect provider retry guidance without replaying an append/delete whose outcome is unknown.
+- Make deadline handling stop further work, not just stop waiting: persist an attempt/phase identifier, check ownership before each new side effect, propagate cancellation, and retain uncertainty for any already-dispatched provider request. Abort alone is not proof that a write did not commit.
+- Use bounded, resumable work units with persisted progress, explicit pause/continue and one coordinated writer. Do not attempt an entire large batch inside one deadline or silently run work after the caller has timed out. A paused, safely completed chunk is different from an uncertain write.
+- Existing background-work code is for Signal Radar, not relationship changes. Verify its hosted readiness before considering reuse; no new scheduled sweeper, external job service or automatic bulk replay is included by default.
+- Sheets does not provide the application's conditional row-delete guarantee. Inventory external spreadsheet editing/reordering and retain a source whenever safe deletion cannot be established. Do not claim an app lock protects arbitrary direct edits in Google Sheets.
+
+### Delivery order
+1. Repair the regression-test fixtures and add shared safety/volume tests before changing transfer behavior.
+2. Build inspect-only reconciliation and the complete item report for the named operation.
+3. Harden coordinated, bounded execution and immutable per-item evidence; then implement safe continuation and unified refresh/results.
+4. Verify the same invariants through Network, Admin and V.I.C.; deploy together so recovery and transfer rules cannot diverge.
+
 ## 1. Fix inconsistent Network → Prospecting demotion
 **Priority:** High · **Effort:** Medium
 
@@ -50,6 +78,8 @@ Admin activity detail/actions; authenticated bulk-operation helpers; journal/loc
 - Add targeted tests for eligible + already-moved + blocked mixed batches; duplicate selections; source/destination ambiguity; altered profiles; teammate rating changes; and preserved canonical IDs.
 - Test interruptions before copy, after copy, after deletion and before checkpoint/finalization; verify retry never repeats completed moves or changes a rating twice.
 - Test full-request reconciliation when the journal has only 11 outcomes for 22 inputs, unavailable reads, retained locks, concurrent requests and owner-only retries.
+- Test small, 22-person and maximum-supported selections; quota/backoff pauses; page navigation/reload; late callbacks after timeout; and competing imports, ID repairs and edits. Confirm no dropped items, repeated writes, unrelated row deletions or silent reductions in supported volume.
+- Include phase timings, request counts and the failed step in Admin evidence without logging credentials or unnecessary personal data. Verify the transfer tests actually exercise production helpers, including the ID-fill dependency.
 - Exercise the signed-in Network → Admin → reconcile/retry → reload flow, confirming membership, accurate counts, per-person reasons and preserved filters.
 - After approval, verify and reconcile the named operation first. Show the results before executing any unfinished-contact retry; this plan does **not** authorize replaying the remaining batch automatically.
 
