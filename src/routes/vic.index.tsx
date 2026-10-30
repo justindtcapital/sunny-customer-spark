@@ -4,7 +4,16 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { createVicThread } from "@/lib/vic-client";
 
-export const Route = createFileRoute("/vic/")({ component: VicHome });
+export const Route = createFileRoute("/vic/")({
+  head: () => ({ meta: [
+    { title: "Vic workspace — Venture Pulse" },
+    { name: "description", content: "Open your private Vic chats and shared portfolio, overlap and introduction skills." },
+    { property: "og:title", content: "Vic workspace — Venture Pulse" },
+    { property: "og:description", content: "Portfolio intelligence and reviewed actions with Vic." },
+    { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
+  ] }),
+  component: VicHome,
+});
 
 // Opens the most recent chat, or starts one, then navigates to its page.
 function VicHome() {

@@ -12,6 +12,9 @@ import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, 
 import { KbFolderPicker } from "./KbFolderPicker";
 import { useAuth } from "@/lib/auth-context";
 import { VicMark } from "./VicMark";
+import { VicSkillPicker } from "./VicSkillPicker";
+import { getVicSkill, type VicSkillId } from "@/lib/vic-skills";
+import { Button } from "@/components/ui/button";
 
 const SUGGESTIONS = [
   "Do any PortCos work with vector databases?",
@@ -39,13 +42,16 @@ export function VicChat({ threadId, page }: { threadId: string; page?: string })
 
 function VicChatWindow({ threadId, initial, page }: { threadId: string; initial: UIMessage[]; page?: string }) {
   const [text, setText] = useState("");
+  const [skillId, setSkillId] = useState<VicSkillId | undefined>();
+  const skillRef = useRef(skillId);
+  skillRef.current = skillId;
   const { email } = useAuth();
   const me = email || "";
   const [folders, setFolders] = useState<string[]>([]);
   const foldersRef = useRef(folders);
   foldersRef.current = folders;
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: "/api/vic", fetch: vicFetch, body: () => ({ threadId, page, kbFolderIds: foldersRef.current }) }),
+    () => new DefaultChatTransport({ api: "/api/vic", fetch: vicFetch, body: () => ({ threadId, page, kbFolderIds: foldersRef.current, skillId: skillRef.current }) }),
     [threadId, page],
   );
   const { messages, sendMessage, status, stop } = useChat({
@@ -57,7 +63,7 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
   const busy = status === "submitted" || status === "streaming";
   const send = (t: string) => {
     if (!t.trim() || busy) return;
-    void sendMessage({ text: t.trim() });
+    void sendMessage({ text: t.trim(), metadata: skillId ? { skillId } : undefined });
     setText("");
   };
 
@@ -69,7 +75,7 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
             <ConversationEmptyState icon={<VicMark className="h-10 w-10" />} title="Ask Vic" description="Questions across Network, PortCos, Partners and Events — or ask Vic to do something. Changes always wait for your review.">
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {SUGGESTIONS.map((s) => (
-                  <button key={s} type="button" onClick={() => send(s)} className="rounded-full border border-border px-3 py-1 text-xs hover:bg-muted">{s}</button>
+                  <Button key={s} type="button" variant="outline" size="sm" onClick={() => send(s)} className="h-auto whitespace-normal text-left">{s}</Button>
                 ))}
               </div>
             </ConversationEmptyState>
@@ -77,6 +83,7 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
           {messages.map((m) => (
             <Message key={m.id} from={m.role}>
               <MessageContent className={m.role === "user" ? "bg-primary text-primary-foreground" : "bg-transparent"}>
+                {m.role === "user" && getVicSkill((m.metadata as { skillId?: unknown } | undefined)?.skillId) && <p className="mb-2 text-xs font-semibold">{getVicSkill((m.metadata as { skillId?: unknown }).skillId)?.name}</p>}
                 {m.parts.map((p, i) => {
                   if (p.type === "text") return m.role === "user" ? <p key={i} className="whitespace-pre-wrap">{p.text}</p> : <MessageResponse key={i}>{p.text}</MessageResponse>;
                   if (isToolUIPart(p)) {
@@ -112,10 +119,13 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
       <div className="border-t border-border p-3">
         <PromptInput onSubmit={(msg) => send(msg.text || "")}>
           <PromptInputBody>
-            <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask Vic…" />
+            <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={getVicSkill(skillId)?.placeholder || "Ask Vic…"} />
           </PromptInputBody>
-          <PromptInputFooter className="justify-between">
-            <KbFolderPicker value={folders} onChange={setFolders} />
+          <PromptInputFooter className="flex-wrap justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <VicSkillPicker value={skillId} onChange={setSkillId} onDraft={setText} disabled={busy} />
+              <KbFolderPicker value={folders} onChange={setFolders} />
+            </div>
             <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()} />
           </PromptInputFooter>
         </PromptInput>
