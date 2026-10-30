@@ -2,14 +2,14 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import type { Contact, ContactFilters as Filters } from "@/lib/types";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { locationMatches } from "@/lib/location-utils";
-import { matchesTemperatureFilter } from "@/lib/portco-contacts";
+import { matchesTemperatureFilter, matchesPortCoVisibility } from "@/lib/portco-contacts";
 import { isMyContact, type TeamProfile } from "@/lib/user-ownership";
 import { ContactCard } from "./ContactCard";
 import { ContactTable } from "./ContactTable";
 import { ContactDetail } from "./ContactDetail";
 import { BulkEditBar } from "./BulkEditBar";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, List } from "lucide-react";
+import { LayoutGrid, List, ToggleLeft, ToggleRight } from "lucide-react";
 import { useSelection } from "@/lib/selection-context";
 import { scoreContactSearch } from "@/lib/contact-search";
 
@@ -24,6 +24,7 @@ interface ContactListProps {
   ownedGids?: Set<string>;
   /** True while the ownership index is still loading. */
   ownershipLoading?: boolean;
+  portcoVisibilityControl?: boolean;
 }
 
 export function ContactList({
@@ -33,8 +34,10 @@ export function ContactList({
   teamProfile: profile,
   ownedGids,
   ownershipLoading,
+  portcoVisibilityControl = false,
 }: ContactListProps) {
   const [view, setView] = useState<"cards" | "table">("cards");
+  const [showPortCo, setShowPortCo] = useState(true);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [localContacts, setLocalContacts] = useState(contacts);
@@ -43,6 +46,7 @@ export function ContactList({
   const filtered = useMemo(() => {
     const owned = ownedGids || new Set<string>();
     const result = localContacts.filter((c) => {
+      if (portcoVisibilityControl && !matchesPortCoVisibility(c, showPortCo)) return false;
       if (filters.ownershipScope === "mine") {
         if (!profile) return false;
         if (!isMyContact(c, owned, profile)) return false;
@@ -113,7 +117,7 @@ export function ContactList({
       if (bt !== at) return bt - at;
       return (sheetOrder.get(b.id) ?? 0) - (sheetOrder.get(a.id) ?? 0);
     });
-  }, [localContacts, filters, profile, ownedGids]);
+  }, [localContacts, filters, profile, ownedGids, portcoVisibilityControl, showPortCo]);
 
   useEffect(() => {
     setFilteredContacts(filtered);
@@ -186,16 +190,21 @@ export function ContactList({
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">{filtered.length}</span> contacts
           {filters.ownershipScope === "mine" ? " in your book" : ""}
         </p>
         <div className="flex items-center gap-1">
+          {portcoVisibilityControl && <Button type="button" variant={showPortCo ? "secondary" : "outline"} size="sm" aria-pressed={showPortCo} onClick={() => { setShowPortCo((value) => !value); clearSelection(); }} className="mr-2 h-8 gap-1.5 text-xs">
+            {showPortCo ? <ToggleRight className="size-4" /> : <ToggleLeft className="size-4" />}Show PortCo contacts
+          </Button>}
           <Button
             variant={view === "cards" ? "default" : "ghost"}
             size="icon"
             className="h-8 w-8"
+            aria-label="Card layout"
+            title="Card layout"
             onClick={() => {
               setView("cards");
               clearSelection();
@@ -207,6 +216,8 @@ export function ContactList({
             variant={view === "table" ? "default" : "ghost"}
             size="icon"
             className="h-8 w-8"
+            aria-label="Table layout"
+            title="Table layout"
             onClick={() => setView("table")}
           >
             <List className="h-4 w-4" />
