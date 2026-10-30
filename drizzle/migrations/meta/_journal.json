@@ -29,6 +29,13 @@
       "when": 1793315953474,
       "tag": "0003_vic_threads",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793376491478,
+      "tag": "0004_bulk_execution_fencing",
+      "breakpoints": true
     }
   ]
 }

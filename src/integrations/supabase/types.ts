@@ -91,11 +91,13 @@ export type Database = {
           actor: string
           attempts: Json
           created_at: string
+          execution_token: string | null
           id: string
           input: Json
           kind: string
           outcomes: Json
           page: string
+          reconciliation: Json
           status: string
           summary: string
           updated_at: string
@@ -105,11 +107,13 @@ export type Database = {
           actor: string
           attempts?: Json
           created_at?: string
+          execution_token?: string | null
           id: string
           input?: Json
           kind: string
           outcomes?: Json
           page?: string
+          reconciliation?: Json
           status?: string
           summary?: string
           updated_at?: string
@@ -119,11 +123,13 @@ export type Database = {
           actor?: string
           attempts?: Json
           created_at?: string
+          execution_token?: string | null
           id?: string
           input?: Json
           kind?: string
           outcomes?: Json
           page?: string
+          reconciliation?: Json
           status?: string
           summary?: string
           updated_at?: string
@@ -219,8 +225,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      begin_bulk_attempt: {
+        Args: { p_id: string; p_token: string }
+        Returns: boolean
+      }
+      checkpoint_bulk_attempt: {
+        Args: { p_id: string; p_outcomes: Json; p_token: string }
+        Returns: boolean
+      }
       claim_bulk_operation_lock: {
         Args: { p_operation_id: string; p_resource: string }
+        Returns: boolean
+      }
+      finish_bulk_attempt: {
+        Args: {
+          p_attempt: Json
+          p_id: string
+          p_outcomes: Json
+          p_status: string
+          p_summary: string
+          p_token: string
+        }
         Returns: boolean
       }
     }
