@@ -3,13 +3,13 @@
 ## What goes away
 - The Ask and Tell (voice capture) tiles, "Generate briefing", the daily briefing, prioritized signals, buying windows and recommended actions, plus the current momentum statistics, reminders and workstream lists on the homepage.
 - This is a full removal, not just hiding: the homepage components, their server functions, the briefing store and the signals scan/reconcile/prune/feedback/topics code, and the scheduled jobs that run them.
-- Saved Google Sheets tabs (old briefings, signals) are **left in place, untouched**. Only the code that reads and writes them is removed, so no history is lost.
+- The saved Google Sheets tabs for briefings and signals are also deleted. Each tab is backed up to a dated copy first, then removed. Signals will be rebuilt from scratch later.
 
 ## New homepage layout
 Same-sized panels in a responsive grid. Clicking a panel, or the button in its bottom corner, opens the matching page.
 
 1. **Network**: a small copy of the Network pyramid (Council, Hot, Warm, Cold, Prospects…) using the same counts as the Network page. Two figures: **New (last 30 days)** and **Total**. Button: "Open Network".
-2. **My Actions**: a compact calendar showing how many actions are due each day, and a list of today's actions. Button: "Open My Actions".
+2. **My Actions**: a compact calendar showing how many actions are due each day, and a "Do today" list: everything due today plus anything still incomplete from earlier days, with overdue items marked. Button: "Open My Actions".
 3. **Events**: a small month calendar with dots on days that have events, colored by event category. Beside it, a short text list of the next 5 to 8 upcoming events (date and name). Clicking anywhere opens the Event Planner.
 4. **Campaigns**: active campaigns in progress, each with a small badge showing who runs it. Button: "Open Campaigns".
 5. **V.I.C. agents**: the V.I.C. mark plus quick buttons for your V.I.C. skills/agents. A button opens V.I.C. with that skill already selected. Clicking the panel opens V.I.C.
