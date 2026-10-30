@@ -212,6 +212,26 @@ export async function findDriveFileByGmailAttachment(
   }
 }
 
+/** Find a file anywhere in a shared drive by one appProperties key/value. */
+export async function findKbFileByAppProperty(key: string, value: string, driveId: string): Promise<DriveDoc | null> {
+  if (!key || !value || !driveId) return null;
+  const esc = (v: string) => v.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const params = new URLSearchParams({
+    q: `trashed=false and appProperties has { key='${esc(key)}' and value='${esc(value)}' }`,
+    fields: "files(id,name,mimeType,modifiedTime,webViewLink,size)",
+    pageSize: "1",
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+    corpora: "drive",
+    driveId,
+  });
+  const token = await getAccessToken();
+  const res = await fetch(`${DRIVE_API}/files?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Drive lookup failed [${res.status}]: ${(await res.text()).slice(0, 200)}`);
+  const f = ((await res.json()) as { files?: Array<Record<string, unknown>> }).files?.[0];
+  return f ? mapDriveFile(f) : null;
+}
+
 /** Upload a PDF (base64) into the email-PDF / Signals folder. */
 export async function uploadDriveFile(opts: {
   name: string;

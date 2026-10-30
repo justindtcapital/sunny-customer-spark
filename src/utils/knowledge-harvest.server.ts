@@ -155,7 +155,7 @@ export async function runKnowledgeHarvest(
   };
 
   await ensureKnowledgeTabs();
-  const existing = new Set((await listKnowledgeRecords()).map((r) => `${r.sourceType}:${r.sourceId}`));
+  const existing = new Set((await listKnowledgeRecords(true)).map((r) => `${r.sourceType}:${r.sourceId}`));
   const known = await knownEmails();
   const suggested = new Set((await listSuggestedContacts()).map((c) => c.email));
   const candidates = await matchCandidates();
