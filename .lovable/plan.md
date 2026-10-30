@@ -17,6 +17,7 @@ Both requests concern the same workflow: identify the person → preserve the re
 - Current database evidence shows four later bulk operations rejected by the retained lock without starting writes. This connects today's symptoms to the interrupted job, but does not prove the cause of every historical failure.
 - The transfer test fixture currently omits the ID-fill helper called by production code. Repair that fixture before relying on previous passing-test claims.
 - The precise provider error or stalled step that interrupted the named operation is still unconfirmed. A volume/time-budget problem is a supported risk to investigate, not a claimed diagnosis.
+- Code review confirms a capacity mismatch: each changed person entails several Sheets reads and three writes, but all 500 permitted selections run under one 55-second deadline. This needs bounded execution, not another error-message patch. Actual latency/quota attribution remains unverified.
 
 ### Shared execution and storage review before changing behavior
 - **Competing writers:** inventory bulk actions, manual edits, imports, enrichment, syncs, ID repair and V.I.C.; coordinate interfering paths, not just bulk buttons. App locks cannot protect arbitrary edits/reordering directly in Sheets. Retain sources when deletion safety cannot be established.
@@ -25,12 +26,14 @@ Both requests concern the same workflow: identify the person → preserve the re
 - **Preparation:** fail closed on read errors. `ensureColumn` currently substitutes an empty sheet after a failed read; the transfer path must not confuse unavailable data with missing headers.
 - **Job lifecycle:** persist attempt/phase ownership; prevent further side effects after deadline, propagate cancellation, and retain uncertainty for dispatched writes. Cancellation does not prove non-commit. A safe pause differs from an uncertain write. Verify existing Signal Radar job infrastructure before reuse; no new service, sweeper or automatic replay is assumed.
 - **Data integrity:** keep Sheets contacts and Cloud journals; review headers, projections, email aliases, URIDs and row indices across both tabs. No storage migration or Google permission/account change is assumed necessary.
+- **Related paths:** Prospecting → Network uses a separate promotion path with different identity/profile guarantees. Review it against the shared invariants and prevent conflicting writes during this repair; do not silently redesign reverse transfers or unrelated imports. Any larger follow-on change requires a separate scope decision.
+- **Schema/literal safety:** reject ambiguous normalized headers before creating a preservation snapshot; verify header writes and use literal values for opaque transfer evidence. Do not globally change existing sheet formulas or formatting.
 - **Audit and refresh:** separate committed membership/rating changes from subsequent history/override writes; resume only missing audit steps with deterministic IDs. Force authoritative refresh across server instances rather than relying on one instance's cache invalidation.
 
 ### Delivery order
 1. Repair the regression-test fixtures and add shared safety/volume tests before changing transfer behavior.
 2. Build inspect-only reconciliation and the complete item report for the named operation.
-3. Harden coordinated, bounded execution and immutable per-item evidence; then implement safe continuation and unified refresh/results.
+3. Harden coordinated, bounded execution and immutable per-item evidence; then implement safe continuation and unified refresh/results. Start with short authenticated chunks and explicit Resume: closing the browser pauses progress safely, rather than pretending a background job is still running.
 4. Verify the same invariants through Network, Admin and V.I.C.; deploy together so recovery and transfer rules cannot diverge.
 
 ## 1. Fix inconsistent Network → Prospecting demotion
@@ -83,4 +86,4 @@ Admin activity detail/actions; authenticated bulk-operation helpers; journal/loc
 - After approval, verify and reconcile the named operation first. Show the results before executing any unfinished-contact retry; this plan does **not** authorize replaying the remaining batch automatically.
 
 ## Scope
-No automatic deduplication/merge of ambiguous people, no wholesale replay, no disabling safety checks, and no unrelated UI changes. If a profile discrepancy needs a human decision, leave that item blocked and report it.
+No automatic deduplication/merge of ambiguous people, no wholesale replay, no disabling safety checks, and no unrelated UI changes. If a profile discrepancy needs a human decision, leave that item blocked and report it. Check direct spreadsheet editing before enabling destructive continuation; if app-side coordination cannot protect the source, present the safer alternative for approval rather than weaken verification.
