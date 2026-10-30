@@ -162,7 +162,8 @@ export function planHistoryLinks({ targets, pastEvents, activities, existing }: 
       if (!nameHit && !domainHit) continue;
       const reasons = [nameHit && "same event name", domainHit && "same website"].filter(Boolean).join(" + ");
       cands.push({ urid: t.urid, name: t.name, start: t.start, reason: reasons });
-      if (p.category && t.category && p.category !== t.category) conflict = `Category differs (${p.category} vs ${t.category})`;
+      const known = (c?: string) => !!c && !/^unassigned$/i.test(c);
+      if (known(p.category) && known(t.category) && p.category !== t.category) conflict = `Category differs (${p.category} vs ${t.category})`;
       else if (p.portcos.length && t.portcos.length && !overlap(p.portcos, t.portcos)) conflict ||= "PortCos differ";
       else if (!nameHit) conflict ||= "Matched on website only";
     }
@@ -176,7 +177,7 @@ export function planHistoryLinks({ targets, pastEvents, activities, existing }: 
     const cands = new Map<string, HistoryCandidate>();
     let generic = false;
     for (const { t, names: tn } of tIndex) {
-      const hit = tn.find((n) => !isGenericName(n) && mentions(title, n));
+      const hit = tn.find((n) => !isGenericName(n) && n.split(" ").length >= 2 && mentions(title, n));
       if (hit) cands.set(t.urid, { urid: t.urid, name: t.name, start: t.start, reason: "activity names the event" });
     }
     // Inside a past event's dates with a shared PortCo → inherit that event's matches.

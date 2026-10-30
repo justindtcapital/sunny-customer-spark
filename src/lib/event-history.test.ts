@@ -32,6 +32,12 @@ describe("event history linking", () => {
     expect(proposals[0].status).toBe("review");
   });
 
+  it("ignores Unassigned categories when checking conflicts", () => {
+    const t = ev({ urid: "T5", name: "Big Data LDN 2027", start: "2027-09-23", category: "Unassigned" });
+    const { proposals } = planHistoryLinks({ targets: [t], pastEvents: [ev({ urid: "P5", name: "Big Data LDN", start: "2026-09-23", category: "DTC Partnered Events" })], activities: [], existing: [] });
+    expect(proposals[0].status).toBe("clear");
+  });
+
   it("never auto-links generic names", () => {
     const t = ev({ urid: "T3", name: "Dinner 2027", start: "2027-03-01" });
     const { proposals } = planHistoryLinks({ targets: [t], pastEvents: [ev({ urid: "P2", name: "Dinner", start: "2026-03-01" })], activities: [], existing: [] });
