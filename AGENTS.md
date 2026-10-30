@@ -13,7 +13,7 @@
 - Bulk Network transfers preserve URID and a full profile snapshot in Targets, verify the copy and re-read the source before deletion; history and campaign tabs stay untouched to prevent data loss.
 - Relationship changes use bounded authenticated slices with frozen destinations and request-scoped abort/fenced checkpoints; pending items require explicit Resume, and inspection never releases uncertain locks or assigns IDs, preventing whole-batch replays after interruption.
 
-- Home momentum uses a dedicated read-only Sheets/Asana aggregate and pure date/scope helpers; provider failures must never fall back to demo rows because KPI counts must reflect real records.
+- The homepage is fixed-size panels (src/components/home/HomePanels.tsx) that reuse existing read functions (home aggregate, planner, campaigns) plus pure helpers in src/lib/home-panels.ts; V.I.C. is the only AI surface, and panels show "unavailable" rather than demo rows so counts reflect real records.
 - Contact creation uses a shared manual-rating policy and the legacy recalculation endpoint is inert; this prevents imports and sync callers from silently overriding human ratings.
 - Follow-up edits use per-task Harvest State overlays before owner filtering; source match keys stay unchanged. Dates/completion use Notes or Harvested Activities; KB trails stay informational.
 
