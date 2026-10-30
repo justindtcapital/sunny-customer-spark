@@ -75,8 +75,10 @@ function TierChart({ counts, active, onTier }: { counts: Record<PyramidTier, num
 }
 
 export function NetworkPyramid({
-  contacts, profile, ownedGids, selection, onSelect, expanded, onExpandedChange: setExpanded,
+  contacts, profile, ownedGids, selection, onSelect, expanded, onExpandedChange: setExpanded, embedded = false,
 }: {
+  /** Homepage tile: contacts arrive already scoped to "mine"; header controls are hidden. */
+  embedded?: boolean;
   ownedGids?: Set<string>;
   expanded: boolean;
   onExpandedChange: (v: boolean) => void;
@@ -100,16 +102,16 @@ export function NetworkPyramid({
   const pyramidQuery = useQuery({ queryKey: ["network-pyramid"], queryFn: () => fetchNetworkPyramid(), enabled: expanded, staleTime: 5 * 60_000 });
   const data = pyramidQuery.data;
 
-  const mine = scope === "mine";
+  const mine = embedded || scope === "mine";
   const people = useMemo(() => {
-    const net = contacts.filter((c) => !mine || (!!profile && isMyContact(c, owned, profile))).map((c) => ({
+    const net = contacts.filter((c) => embedded || !mine || (!!profile && isMyContact(c, owned, profile))).map((c) => ({
       email: c.email, tier: c.temperature as PyramidTier, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), dateAdded: c.dateAdded,
     }));
     const pros = (data?.prospects || []).filter((p) => !mine || (!!profile && ownerMatches(p.prime, profile))).map((p) => ({
       email: p.email, tier: "Prospect" as PyramidTier, domain: primaryDomainFor("", p.areas), market: marketFor(p.location), dateAdded: p.dateAdded,
     }));
     return [...net, ...pros];
-  }, [contacts, data, mine, profile, owned]);
+  }, [contacts, data, mine, profile, owned, embedded]);
   const sidebarCount = Object.entries(filters).filter(([k, v]) => !["search", "ownershipScope", "dateField"].includes(k) && (Array.isArray(v) ? v.length > 0 : typeof v === "boolean" ? v : typeof v === "string" ? !!v : false)).length;
 
   const counts = useMemo(() => {
@@ -155,8 +157,8 @@ export function NetworkPyramid({
   const displayCols = view === "kpis" ? kpiCols : columns;
 
   return (
-    <section className="network-overview mb-6 min-w-0 border-y py-5" aria-label="Network Pyramid">
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+    <section className={cn("network-overview min-w-0", embedded ? "network-overview-embedded" : "mb-6 border-y py-5")} aria-label="Network Pyramid">
+      {!embedded && <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-semibold text-foreground">Network overview</h2>
@@ -176,7 +178,7 @@ export function NetworkPyramid({
             {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My contacts" : "Everyone"}</Button>)}
           </div>
         </div>
-      </header>
+      </header>}
       {data?.error && <p role="alert" className="mt-3 text-xs text-destructive">{data.error}</p>}
       {view === "kpis" && <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
         <div className="flex items-center gap-1">
@@ -184,7 +186,7 @@ export function NetworkPyramid({
         </div>
         <div className="flex items-center gap-1">{editing ? <><Button size="sm" className="h-7" onClick={saveTargets}><Check />Save targets</Button><Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(false)}>Cancel</Button></> : <Button size="sm" variant="outline" className="h-7" disabled={!data} onClick={() => { setDraft({}); setEditing(true); }}><Pencil />Edit targets</Button>}</div>
       </div>}
-      <div className="network-overview-body mt-5">
+      <div className={cn("network-overview-body", !embedded && "mt-5")}>
         <TierChart counts={counts} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
           if (t === "Prospect") { navigate({ to: "/targeting" }); return; }
           onSelect(selection?.view === "tier" && selection.tier === t ? null : { tier: t, view: "tier", column: "" });

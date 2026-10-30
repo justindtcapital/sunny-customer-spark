@@ -65,6 +65,18 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
     void sendMessage({ text: t.trim(), metadata: skillId ? { skillId } : undefined });
     setText("");
   };
+  // A question typed on the homepage tile is handed over once, then cleared.
+  const handedOff = useRef(false);
+  useEffect(() => {
+    if (handedOff.current) return;
+    handedOff.current = true;
+    const key = `vic-pending:${threadId}`;
+    const pending = sessionStorage.getItem(key);
+    if (!pending) return;
+    sessionStorage.removeItem(key);
+    if (initial.length === 0) send(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
