@@ -9,7 +9,8 @@ import { ContactTable } from "./ContactTable";
 import { ContactDetail } from "./ContactDetail";
 import { BulkEditBar } from "./BulkEditBar";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, List, ToggleLeft, ToggleRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LayoutGrid, List } from "lucide-react";
 import { useSelection } from "@/lib/selection-context";
 import { scoreContactSearch } from "@/lib/contact-search";
 
@@ -196,9 +197,10 @@ export function ContactList({
           {filters.ownershipScope === "mine" ? " in your book" : ""}
         </p>
         <div className="flex items-center gap-1">
-          {portcoVisibilityControl && <Button type="button" variant={showPortCo ? "secondary" : "outline"} size="sm" aria-pressed={showPortCo} onClick={() => { setShowPortCo((value) => !value); clearSelection(); }} className="mr-2 h-8 gap-1.5 text-xs">
-            {showPortCo ? <ToggleRight className="size-4" /> : <ToggleLeft className="size-4" />}Show PortCo contacts
-          </Button>}
+          {portcoVisibilityControl && <label className="mr-3 flex cursor-pointer items-center gap-2 text-xs">
+            <Checkbox checked={showPortCo} onCheckedChange={(checked) => { setShowPortCo(checked === true); clearSelection(); }} />
+            PortCo
+          </label>}
           <Button
             variant={view === "cards" ? "default" : "ghost"}
             size="icon"
