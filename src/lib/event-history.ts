@@ -191,7 +191,8 @@ export function planHistoryLinks({ targets, pastEvents, activities, existing }: 
       }
     }
     const list = [...cands.values()];
-    const conflict = a.portcos.length ? "" : "Activity has no PortCo";
+    const named = list.some((c) => c.reason === "activity names the event");
+    const conflict = !a.portcos.length ? "Activity has no PortCo" : named ? "" : "Same dates and PortCo as a past event — confirm";
     if (!list.length) continue; // non-event activities stay out of the list
     finish(a, list, generic, conflict);
   }
