@@ -33,8 +33,8 @@ export function KbFolderPicker({ value, onChange, placement = "composer" }: { va
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant={value.length ? "secondary" : "ghost"} size="sm" className={placement === "sidebar" ? "h-auto min-h-10 w-full justify-start whitespace-normal text-left" : "h-8 gap-1.5 text-xs text-muted-foreground"}>
-          <BookOpen className="h-3.5 w-3.5" /> {placement === "sidebar" ? <span>Knowledge<span className="block text-[11px] font-normal text-muted-foreground">{label}</span></span> : `Knowledge: ${label}`}
+        <Button type="button" variant={value.length ? "secondary" : "ghost"} size="sm" className="h-8 gap-1.5 text-xs text-muted-foreground">
+          <BookOpen className="h-3.5 w-3.5" /> {`Knowledge: ${label}`}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-1">

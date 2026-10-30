@@ -21,9 +21,9 @@ export function VicSkillPicker({ value, onChange, onDraft, disabled, placement =
       })}
     </div>
   </section>;
-  return <div className={placement === "sidebar" ? "flex w-full min-w-0 items-center gap-1" : "flex min-w-0 flex-wrap items-center gap-1"}>
+  return <div className="flex min-w-0 flex-wrap items-center gap-1">
     {placement !== "upload" && <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild><Button type="button" variant={selected ? "secondary" : "ghost"} size="sm" disabled={disabled} className={placement === "sidebar" ? "h-auto min-h-10 flex-1 justify-start whitespace-normal text-left" : "h-8 gap-1.5 text-xs"}><Blocks /><span>{placement === "sidebar" ? <>Skills{selected && <span className="block text-[11px] font-normal text-muted-foreground">{selected.name}</span>}</> : selected?.name || "Skills"}</span></Button></PopoverTrigger>
+      <PopoverTrigger asChild><Button type="button" variant={selected ? "secondary" : "ghost"} size="sm" disabled={disabled} className="h-8 gap-1.5 text-xs"><Blocks /><span>{selected?.name || "Skills"}</span></Button></PopoverTrigger>
       <PopoverContent align="start" className="w-64 p-1">
         {VIC_SKILLS.map((skill, index) => {
           const Icon = icons[index] || Blocks;
@@ -32,7 +32,7 @@ export function VicSkillPicker({ value, onChange, onDraft, disabled, placement =
       </PopoverContent>
     </Popover>}
     {selected && placement !== "upload" && <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={disabled} aria-label="Clear skill" title="Clear skill" onClick={() => onChange(undefined)}><X /></Button>}
-    {value === "company-overlap" && placement !== "sidebar" && <>
+    {value === "company-overlap" && <>
       <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => fileRef.current?.click()} title="Upload company text (.txt, .md, .csv)"><Upload />Company text</Button>
       <input ref={fileRef} type="file" className="hidden" accept=".txt,.md,.csv,text/plain,text/markdown,text/csv" aria-label="Upload company text" onChange={async (e) => {
         const file = e.target.files?.[0];
