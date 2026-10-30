@@ -31,7 +31,7 @@ export const runJournalOperation = createServerOnlyFn(async <T>(options: {
   if (existing && (existing.user_id !== options.actor.userId || existing.kind !== options.kind || canonicalValue(existing.input) !== canonicalValue(options.input))) throw new Error("This operation does not match the original request.");
   if (existing?.status === "running" || existing?.status === "uncertain") throw new Error("This operation is still running or needs saved-state reconciliation. No writes were retried.");
   if (!existing) {
-    const { error } = await db.from("bulk_operations").insert({ id, user_id: options.actor.userId, actor: options.actor.teamEmail, kind: options.kind, page: options.page, input: json(options.input) });
+    const { error } = await db.from("bulk_operations").insert({ id, status:"queued", user_id: options.actor.userId, actor: options.actor.teamEmail, kind: options.kind, page: options.page, input: json(options.input) });
     if (error) throw new Error("Cannot start: activity journal could not be saved. No records were changed.");
   }
   const { data: claimed, error: claimError } = await db.rpc("claim_bulk_operation_lock", { p_resource: "shared-bulk-writes", p_operation_id: id });
@@ -43,7 +43,6 @@ export const runJournalOperation = createServerOnlyFn(async <T>(options: {
   let outcomes = previous;
   const executionToken = crypto.randomUUID();
   const controller = new AbortController();
-  let release = true;
   try {
     const { data:started,error } = await db.rpc("begin_bulk_attempt",{p_id:id,p_token:executionToken});
     if (error || !started) throw new Error("Cannot start: execution ownership could not be established.");
@@ -61,15 +60,13 @@ export const runJournalOperation = createServerOnlyFn(async <T>(options: {
     outcomes = result.outcomes;
     const status = operationStatus(outcomes), summary = `${options.kind}: ${outcomes.filter(o => ["changed","moved","already_complete","duplicate"].includes(o.status)).length} complete · ${outcomes.filter(o => !["changed","moved","already_complete","duplicate"].includes(o.status)).length} unresolved`;
     const { data:finished,error: finishError } = await db.rpc("finish_bulk_attempt",{p_id:id,p_token:executionToken,p_status:status,p_summary:summary,p_outcomes:json(outcomes),p_attempt:json({at:new Date().toISOString(),status,outcomes,requests:bulkRequestCounts()})});
-    release = status !== "uncertain";
     if (finishError || !finished) throw new Error("Result finalization failed; saved-state reconciliation required.");
     return { ...result, operationId: id };
   } catch (e) {
     controller.abort(new Error("Bulk execution stopped; verify saved state before continuing."));
     // A request can time out while provider I/O is still active. Never expire its lock automatically.
-    release = false;
     const attempts = [...((existing?.attempts || []) as unknown as BulkOperation["attempts"]), { at: new Date().toISOString(), status: "uncertain", outcomes }];
-    const { error: failedJournal } = await db.from("bulk_operations").update({ status: "uncertain", summary: "Interrupted operation. Saved-state reconciliation required before further bulk writes.", outcomes: json(outcomes), attempts: json(attempts), updated_at: new Date().toISOString() }).eq("id", id);
+    const { error: failedJournal } = await db.from("bulk_operations").update({ status: "uncertain", summary: "Interrupted operation. Saved-state reconciliation required before further bulk writes.", outcomes: json(outcomes), attempts: json(attempts), updated_at: new Date().toISOString() }).eq("id", id).eq("execution_token",executionToken).eq("status","running");
     if(failedJournal) console.error("[bulk-journal] could not record interruption",id);
     console.error("[bulk-journal] operation interrupted", id, e instanceof Error ? e.message : "error");
     throw new Error(`The operation was interrupted. Open Admin to review operation ${id}; do not repeat the whole batch.`);
@@ -77,10 +74,7 @@ export const runJournalOperation = createServerOnlyFn(async <T>(options: {
     controller.abort();
     // Leave the aborted attempt attached to this request: late callbacks must not
     // fall back to the ordinary-writer path after finalization or a timeout.
-    if (release) {
-      const { error } = await db.from("bulk_operation_locks").delete().eq("resource", "shared-bulk-writes").eq("operation_id", id);
-      if(error) console.error("[bulk-journal] lock release requires reconciliation",id);
-    }
+    // Successful release belongs exclusively to the token-fenced finalization RPC.
   }
 });
 

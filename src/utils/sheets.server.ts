@@ -131,6 +131,7 @@ async function runSheetsRequest(url: string, init: RequestInit): Promise<Respons
   let attempt = 0;
   for (;;) {
     bulkExecutionSignal()?.throwIfAborted();
+    if (!isRead && (bulkExecutionSignal() || /Contacts|Targets/.test(decodeURIComponent(url)+String(init.body || "")))) await assertBulkWrite();
     const timeout = AbortSignal.timeout(20_000);
     const operationSignal = bulkExecutionSignal();
     const signal = AbortSignal.any([timeout,...(init.signal ? [init.signal] : []),...(operationSignal ? [operationSignal] : [])]);
@@ -160,7 +161,7 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
   const run = state.writeChain.then(async () => {
     const wait = WRITE_MIN_SPACING_MS - (Date.now() - state.lastWriteAt);
     if (wait > 0) await sleep(wait);
-    const writingPeople = /Contacts|Targets/.test(decodeURIComponent(url));
+    const writingPeople = /Contacts|Targets/.test(decodeURIComponent(url)+String(init.body || ""));
     if (writingPeople) await assertBulkWrite();
     bulkExecutionSignal()?.throwIfAborted();
     try {
