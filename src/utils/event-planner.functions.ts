@@ -1,15 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import type { PlannerAttendee, PlannerEvent } from "@/lib/event-planner";
+import type { HistoryLink } from "@/lib/event-history";
 import { requireTeamAuth } from "./team-auth";
 
 export const fetchPlannerFn = createServerFn({ method: "GET" }).handler(async () => {
-  const { readPlannerEvents, readAttendees } = await import("./event-planner.server");
+  const { readPlannerEvents, readAttendees, activeHistoryLinks } = await import("./event-planner.server");
   try {
-    const [events, attendees] = await Promise.all([readPlannerEvents(), readAttendees()]);
-    return { events, attendees, error: "" };
+    const [events, attendees, historyLinks] = await Promise.all([
+      readPlannerEvents(), readAttendees(), activeHistoryLinks().catch(() => [] as HistoryLink[]),
+    ]);
+    return { events, attendees, historyLinks, error: "" };
   } catch (e) {
     console.error("[event-planner] read failed", e);
-    return { events: [] as PlannerEvent[], attendees: [] as PlannerAttendee[], error: (e as Error).message };
+    return { events: [] as PlannerEvent[], attendees: [] as PlannerAttendee[], historyLinks: [] as HistoryLink[], error: (e as Error).message };
   }
 });
 
@@ -144,4 +147,84 @@ export const deletePlannerEventFn = createServerFn({ method: "POST" })
       }).catch(() => undefined);
       return r;
     });
+  });
+
+/** Read-only: propose links from past events + confirmed event activity to future Potential events. */
+export const previewEventHistoryFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .inputValidator((d: { year: number }) => {
+    const year = Math.trunc(Number(d?.year));
+    if (!(year >= 2000 && year <= 2100)) throw new Error("Pick a year");
+    return { year };
+  })
+  .handler(async ({ data }) => {
+    const { withDeadline } = await import("./request-deadline.server");
+    const { readPlannerEvents, activeHistoryLinks } = await import("./event-planner.server");
+    const { listHarvestedActivities, listKnowledgeRecords } = await import("./knowledge.server");
+    const { reviewMap, isRegisteredActivity } = await import("./notes-inbox.server");
+    const { planHistoryLinks, resolveMergedUrid } = await import("@/lib/event-history");
+    const { splitList } = await import("@/lib/event-planner");
+    return withDeadline("previewEventHistory", 50_000, async (step) => {
+      step("reading events, activities and existing links");
+      const [events, existing, acts, records, reviews] = await Promise.all([
+        readPlannerEvents(true), activeHistoryLinks(true), listHarvestedActivities(), listKnowledgeRecords(), reviewMap(),
+      ]);
+      const from = `${data.year}-01-01`, to = `${data.year}-12-31`;
+      const targets = events.filter((e) => e.status === "Potential" && e.start >= from && e.start <= to);
+      const pastEvents = events.filter((e) => e.start && e.start < from);
+      const typeOf = new Map(records.map((r) => [r.recordId, r.sourceType as string]));
+      const activities = acts
+        .filter((a) => a.date && a.date < from && a.track !== "News")
+        .filter((a) => typeOf.has(a.recordId) && isRegisteredActivity(typeOf.get(a.recordId) || "", reviews.get(a.recordId)))
+        .map((a) => ({
+          kind: "activity" as const, id: a.activityId, name: a.title, date: a.date,
+          portcos: splitList(a.portco), url: a.sourceUrl, summary: a.summary,
+        }));
+      step("matching");
+      const resolved = existing.map((l) => ({ ...l, targetUrid: resolveMergedUrid(l.targetUrid, events) }));
+      const plan = planHistoryLinks({ targets, pastEvents, activities, existing: resolved });
+      return { ...plan, targets: targets.length };
+    });
+  });
+
+export const saveEventHistoryLinksFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .inputValidator((d: { links: Array<Omit<HistoryLink, "linkedBy" | "linkedAt">> }) => {
+    if (!Array.isArray(d?.links) || !d.links.length) throw new Error("Nothing selected to link");
+    if (d.links.length > 1000) throw new Error("Too many links (max 1000)");
+    for (const l of d.links) if (!l?.targetUrid || !l.sourceId || !["event", "activity"].includes(l.kind)) throw new Error("Invalid link");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { withDeadline } = await import("./request-deadline.server");
+    const { saveHistoryLinks } = await import("./event-planner.server");
+    const { logOpsEvent } = await import("./sheets.server");
+    return withDeadline("saveEventHistoryLinks", 50_000, async (step) => {
+      step("saving links");
+      const now = new Date().toISOString();
+      const r = await saveHistoryLinks(data.links.map((l) => ({
+        targetUrid: String(l.targetUrid), kind: l.kind, sourceId: String(l.sourceId),
+        sourceName: String(l.sourceName || "").slice(0, 300), sourceDate: String(l.sourceDate || ""),
+        portcos: (l.portcos || []).map(String), reason: String(l.reason || "").slice(0, 200),
+        sourceUrl: String(l.sourceUrl || ""), linkedBy: context.teamEmail, linkedAt: now,
+      })));
+      step("logging");
+      await logOpsEvent({
+        action: "maintenance", source: "events", status: "ok",
+        summary: `Linked ${r.added} past history item${r.added === 1 ? "" : "s"} to future events`,
+        details: { by: context.teamEmail, added: String(r.added), skipped: String(r.skipped), tab: "Event History Links" },
+      }).catch(() => undefined);
+      return r;
+    });
+  });
+
+export const unlinkEventHistoryFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .inputValidator((d: { targetUrid: string; kind: string; sourceId: string }) => {
+    if (!d?.targetUrid || !d.sourceId) throw new Error("Missing link");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const { removeHistoryLink } = await import("./event-planner.server");
+    return { removed: await removeHistoryLink(data.targetUrid, data.kind, data.sourceId) };
   });
