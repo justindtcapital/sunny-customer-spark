@@ -178,7 +178,7 @@ export function EventHistoryDialog({ open, year, onClose, onSaved }: { open: boo
         {busy && <p className="text-xs text-muted-foreground">Reading past events and reviewed activity…</p>}
         {error && <p className="text-xs text-destructive">{error}</p>}
         {plan && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
               {plan.targets} potential event{plan.targets === 1 ? "" : "s"} in {year}
               {plan.alreadyLinked ? ` · ${plan.alreadyLinked} item${plan.alreadyLinked === 1 ? "" : "s"} already linked` : ""}.
