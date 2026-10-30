@@ -14,7 +14,7 @@ import { fetchHomeMomentum } from "@/utils/home.functions";
 import { fetchPlannerFn } from "@/utils/event-planner.functions";
 import { fetchCampaigns } from "@/utils/campaigns.functions";
 import { actionDayCounts } from "@/lib/action-calendar";
-import { dateKey } from "@/lib/home-momentum";
+import { dateKey, type HomeReminder } from "@/lib/home-momentum";
 import { doToday, dueInRange, eventsInRange, upcomingEvents } from "@/lib/home-panels";
 import { subcategoryColor } from "@/lib/event-planner";
 import { teamMemberFor, teamProfile } from "@/lib/user-ownership";
@@ -101,7 +101,7 @@ export function ActionsPanel({ email, today }: { email: string; today: string })
   const { data } = useSuspenseQuery(homeDataQuery(email));
   const [range, setRange] = useState<Range>(null);
   const counts = actionDayCounts(data.reminders);
-  const list: (Reminder & { overdue?: boolean })[] = range ? dueInRange(data.reminders, range.from, range.to) : doToday(data.reminders, today);
+  const list: (HomeReminder & { overdue?: boolean })[] = range ? dueInRange(data.reminders, range.from, range.to) : doToday(data.reminders, today);
   return <Panel title="My actions" icon={<DashboardIcon className="h-4 w-4 text-primary" />} to="/my-actions" search={{ owner: teamProfile(email)?.displayName, tab: "actions" }} cta="Open My Actions">
     <div className="flex h-full gap-4">
       <MiniMonth today={today} label="Actions due by day — click or drag to select days" range={range} onRange={setRange}
