@@ -29,7 +29,7 @@ function HomePage() {
       <h1 className="font-display text-3xl font-semibold text-foreground">Hello, {profile?.firstName || "there"}</h1>
       {today && <p className="mt-1 text-sm text-muted-foreground">{new Date(`${today}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>}
     </header>
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {loaded ? <>
         <Slot><NetworkPanel email={email!} today={today} /></Slot>
         <Slot><ActionsPanel email={email!} today={today} /></Slot>

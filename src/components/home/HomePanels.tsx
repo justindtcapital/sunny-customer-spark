@@ -46,7 +46,7 @@ function Unavailable({ what }: { what: string }) { return <p className="text-xs 
 function MiniMonth({ today, marker, label }: { today: string; marker: (key: string) => ReactNode; label: string }) {
   const t = new Date(`${today}T12:00:00`);
   const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(t), { weekStartsOn: 1 }), end: endOfWeek(endOfMonth(t), { weekStartsOn: 1 }) });
-  return <div aria-label={label} className="w-full max-w-[240px] select-none">
+  return <div aria-label={label} className="w-full max-w-[260px] shrink-0 select-none">
     <div className="mb-1 text-xs font-semibold text-foreground">{format(t, "MMMM yyyy")}</div>
     <div className="grid grid-cols-7 text-center text-[10px] text-muted-foreground">{["M", "T", "W", "T", "F", "S", "S"].map((d, i) => <span key={i}>{d}</span>)}</div>
     <div className="mt-0.5 grid grid-cols-7 gap-0.5">{days.map((d) => {
