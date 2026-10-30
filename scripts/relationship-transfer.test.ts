@@ -46,6 +46,20 @@ describe("verified Network to Prospecting transfer", () => {
   });
 });
 describe("replay and mixed batches",()=>{
+ it("pauses a 22-person request after two changes without dropping original destinations",async()=>{
+  const contacts=Array.from({length:22},(_,i)=>({urid:`id-${i}`,email:`p${i}@example.com`,temperature:"Warm" as const,destination:"Hot" as const}));
+  store.tabs.Contacts=[store.tabs.Contacts[0],...contacts.map(c=>[c.urid,"Person",c.email,"Warm"])];
+  const first=await changeRelationshipLevels({contacts,change:"promote"},[],undefined,{maxItems:2,maxMs:25000});
+  expect(first.updated).toBe(2);expect(first.outcomes).toHaveLength(22);expect(first.outcomes.filter(o=>o.status==="pending")).toHaveLength(20);expect(store.writes).toBe(2);
+  const second=await changeRelationshipLevels({contacts,change:"promote"},first.outcomes,undefined,{maxItems:2,maxMs:25000});
+  expect(second.updated).toBe(4);expect(second.outcomes.filter(o=>o.status==="pending")).toHaveLength(18);expect(store.writes).toBe(4);
+ });
+ it("keeps all 500 permitted selections across bounded slices",async()=>{
+  const contacts=Array.from({length:500},(_,i)=>({urid:`id-${i}`,email:`p${i}@example.com`,temperature:"Warm" as const,destination:"Hot" as const}));
+  store.tabs.Contacts=[store.tabs.Contacts[0],...contacts.map(c=>[c.urid,"Person",c.email,"Warm"])];
+  const result=await changeRelationshipLevels({contacts,change:"promote"},[],undefined,{maxItems:2,maxMs:25000});
+  expect(result.outcomes).toHaveLength(500);expect(result.outcomes.filter(o=>o.status==="pending")).toHaveLength(498);expect(store.writes).toBe(2);
+ });
  it("treats completed move as success after a fresh request",async()=>{
   const input={contacts:[{urid:"stable-id",email:"person@example.com",temperature:"Cold" as const}],change:"demote" as const};
   const first=await changeRelationshipLevels(input);const retry=await changeRelationshipLevels(input);

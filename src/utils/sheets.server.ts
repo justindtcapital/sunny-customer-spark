@@ -140,6 +140,7 @@ async function runSheetsRequest(url: string, init: RequestInit): Promise<Respons
     // Return that uncertainty to the operation journal instead of replaying it.
     const retryable = res.status === 429 || (isRead && res.status >= 500 && res.status < 600);
     if (!retryable || attempt >= maxRetries) return res;
+    await res.body?.cancel();
     const backoff = Math.min(capMs, 1_500 * 2 ** attempt) + Math.floor(Math.random() * 300);
     console.warn(
       `[sheets] ${res.status} from Sheets API — retrying in ${backoff}ms (attempt ${attempt + 1}/${maxRetries})`,

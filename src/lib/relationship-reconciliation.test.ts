@@ -23,7 +23,7 @@ describe("saved relationship reconciliation", () => {
   it("checks all 22 requested contacts, including 11 absent checkpoints", () => {
     const people=Array.from({length:22},(_,i)=>({...selected,urid:String(i)}));
     const network=people.slice(12).map(s=>({...source,urid:s.urid})).map(p=>ch.map(h=>p[h as keyof typeof p]));
-    const targets=people.slice(0,12).map(s=>{const p={...source,urid:s.urid};const t={urid:s.urid,...prospectProjection(p),"network profile":JSON.stringify(p)};return th.map(h=>t[h]);});
+    const targets=people.slice(0,12).map(s=>{const p={...source,urid:s.urid};const t:Record<string,string>={urid:s.urid,...prospectProjection(p),"network profile":JSON.stringify(p)};return th.map(h=>t[h]);});
     const outcomes=reconcileRelationships(people,[ch,...network],[th,...targets]);
     expect(outcomes).toHaveLength(22);expect(outcomes.filter(o=>o.status==="already_complete")).toHaveLength(12);expect(outcomes.filter(o=>o.retryable)).toHaveLength(10);
   });

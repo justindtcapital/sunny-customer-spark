@@ -75,7 +75,8 @@ export const runJournalOperation = createServerOnlyFn(async <T>(options: {
     throw new Error(`The operation was interrupted. Open Admin to review operation ${id}; do not repeat the whole batch.`);
   } finally {
     controller.abort();
-    setBulkExecution(null);
+    // Leave the aborted attempt attached to this request: late callbacks must not
+    // fall back to the ordinary-writer path after finalization or a timeout.
     if (release) {
       const { error } = await db.from("bulk_operation_locks").delete().eq("resource", "shared-bulk-writes").eq("operation_id", id);
       if(error) console.error("[bulk-journal] lock release requires reconciliation",id);

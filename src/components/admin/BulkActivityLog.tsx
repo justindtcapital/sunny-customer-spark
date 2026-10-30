@@ -12,6 +12,7 @@ import { RefreshCw, Wrench, Bug, ChevronDown, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth-context";
 import { teamMemberFor } from "@/lib/user-ownership";
+import { useRouter } from "@tanstack/react-router";
 
 export interface ActivityDraftContext { key: string; operationId?: string; page: string; evidence: string; title: string }
 export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraftContext, action: "troubleshoot" | "fix") => void }) {
@@ -26,6 +27,7 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
     finally {setInspecting(null);}
   }
   const { email }=useAuth();
+  const router=useRouter();
   const query=useQuery({ queryKey:["bulk-operations"],queryFn:()=>read(),refetchInterval:15000 });
   const [selected,setSelected]=useState<string|null>(null), [confirm,setConfirm]=useState<BulkOperation|null>(null),[busy,setBusy]=useState(false),[status,setStatus]=useState("all");
   const rows=(query.data || []).filter(o=>status==="all" || o.status===status);
@@ -35,7 +37,7 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
     setBusy(true);
     try { await retry({ data:{ id:confirm.id,confirmed:true } });toast.success("Retry finished; saved outcomes refreshed.");setConfirm(null); }
     catch(e) { toast.error(e instanceof Error ? e.message : "Retry unavailable."); }
-    finally { await qc.invalidateQueries({ queryKey:["bulk-operations"] });await qc.invalidateQueries({ queryKey:["network-pyramid"] });setBusy(false); }
+    finally { await qc.invalidateQueries({ queryKey:["bulk-operations"] });await qc.invalidateQueries({ queryKey:["network-pyramid"] });await router.invalidate();setBusy(false); }
   }
   return <section aria-label="Bulk operation activity" className="mb-5">
     <div className="flex flex-wrap items-center gap-2 py-3"><h3 className="mr-auto text-sm font-semibold">Bulk operations</h3>

@@ -2,6 +2,7 @@ import { describe,it,expect } from "vitest";
 import { activityEvidence, operationStatus, outcomeTotals,snapshotEqual } from "./bulk-operation";
 import { emailIdentities,peopleCandidates,suppliedFieldsMatch } from "./import-dedupe";
 describe("bulk outcomes and duplicate prevention",()=>{
+ it("treats safely paused work as pending, not failed or succeeded",()=>expect(operationStatus([{key:"a",label:"A",status:"pending",reason:"not started"}])).toBe("pending"));
  it("reports changed, already-moved and blocked contacts separately",()=>{
   const outcomes=[{key:"a",label:"A",status:"changed" as const,reason:"saved"},{key:"b",label:"B",status:"already_complete" as const,reason:"already moved"},{key:"c",label:"C",status:"blocked" as const,reason:"missing ID"}];
   expect(outcomeTotals(outcomes)).toEqual({updated:1,moved:0,alreadyComplete:1,duplicates:0,skipped:1});expect(operationStatus(outcomes)).toBe("partial");
