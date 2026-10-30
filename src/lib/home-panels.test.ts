@@ -17,3 +17,15 @@ describe("home panels", () => {
     expect(addedWithin([{ dateAdded: "2026-10-01" }, { dateAdded: "2026-09-30" }, { dateAdded: "" }], "2026-10-30")).toBe(1);
   });
 });
+
+import { dueInRange, eventsInRange } from "./home-panels";
+describe("home panel day selection", () => {
+  it("lists actions due on the selected days only", () => {
+    const rows = [{ id: "a", due: "2026-11-03" }, { id: "b", due: "2026-11-01" }, { id: "c", due: "2026-11-08" }];
+    expect(dueInRange(rows, "2026-11-01", "2026-11-07").map((r) => r.id)).toEqual(["b", "a"]);
+  });
+  it("includes multi-day events that overlap the selected days", () => {
+    const ev = [{ start: "2026-10-28", end: "2026-11-02" }, { start: "2026-11-10", end: "2026-11-10" }, { start: "2026-11-05", end: "", dtcStatus: "Declined" }];
+    expect(eventsInRange(ev, "2026-11-01", "2026-11-07").map((e) => e.start)).toEqual(["2026-10-28"]);
+  });
+});
