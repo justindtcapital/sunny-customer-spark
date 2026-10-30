@@ -3,6 +3,7 @@
 // move to History. Granola is pulled only when "Import from Granola" is clicked.
 
 import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { ConnectGranolaButton } from "./ConnectGranolaButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
@@ -20,6 +21,7 @@ import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import {
   fetchNotesInboxFn,
+  fetchReviewCompaniesFn,
   reopenNoteFn,
   reviewNoteFn,
   searchPeopleFn,
@@ -34,6 +36,7 @@ import { CORE_TEAM, teamMemberFor, teamProfile } from "@/lib/user-ownership";
 import { coreAssignee, normalizeAssignedStep } from "@/lib/team-next-steps";
 import { usePartners } from "@/lib/use-partners";
 import { detectPartners } from "@/lib/partners";
+import { meetingTitleDefaults, reviewCompanyName, reviewCompanyOptions } from "@/lib/review-tagging";
 
 function Tick({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -63,6 +66,9 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
   const [trackFilter, setTrackFilter] = useState("all");
   const [q, setQ] = useState("");
   const { email } = useAuth();
+  const fetchCompanies = useServerFn(fetchReviewCompaniesFn);
+  const companyQuery = useQuery({ queryKey: ["review-company-names"], queryFn: () => fetchCompanies(), staleTime: 60_000 });
+  const canonicalCompanies = companyQuery.data || [];
   const [items, setItems] = useState<NoteInboxItem[]>([]);
   const [granolaConnected, setGranolaConnected] = useState(false);
   const importMyGranola = useServerFn(syncGranolaFn);
@@ -220,6 +226,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {companyQuery.isError && <p className="text-xs text-destructive">The complete PortCo list could not be loaded. <Button size="sm" variant="link" onClick={() => void companyQuery.refetch()}>Retry</Button></p>}
         {isActivity && (
           <div className="flex flex-wrap items-center gap-2">
             <Select value={trackFilter} onValueChange={setTrackFilter}>
@@ -271,7 +278,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
               </div>
               <div className="max-h-[75vh] overflow-y-auto rounded-md border border-border lg:sticky lg:top-4">
                 {sel && (
-                  <NoteRow kind={kind} key={sel.recordId} item={sel} open onToggle={() => {}} reviewer={email || ""}
+                  <NoteRow kind={kind} canonicalCompanies={canonicalCompanies} key={sel.recordId} item={sel} open onToggle={() => {}} reviewer={email || ""}
                     onActionNow={onActionNow} onDone={async () => { setOpenId(null); await load(); }} />
                 )}
               </div>
@@ -282,6 +289,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
           {shown.map((i) => (
             <NoteRow
               kind={kind}
+              canonicalCompanies={canonicalCompanies}
               key={i.recordId}
               item={i}
               open={openId === i.recordId}
@@ -309,28 +317,27 @@ export function detectPortcos(text: string, names: string[]): string[] {
   });
 }
 
-function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: {
+function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, canonicalCompanies }: {
+  canonicalCompanies: string[];
   kind: "notes" | "activity"; item: NoteInboxItem; open: boolean; onToggle: () => void; reviewer: string; onDone: () => Promise<void>;
   onActionNow?: (item: NoteInboxItem) => void;
 }) {
   const { workstreams } = useWorkstreams();
   const portcos = useMemo(() => {
-    const set = new Set(workstreams.map((w) => w.company).filter(Boolean));
-    for (const c of (item.portco || "").split(/\s*[,;]\s*/)) if (c) set.add(c);
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [workstreams, item.portco]);
+    return reviewCompanyOptions(canonicalCompanies, [...workstreams.map((w) => w.company), ...(item.portco || "").split(/\s*[,;]\s*/)]);
+  }, [canonicalCompanies, workstreams, item.portco]);
   // PortCos named in the subject or summary are pre-selected alongside the matched one.
   const detected = useMemo(() => detectPortcos(`${item.title} ${item.summary}`, portcos), [item.title, item.summary, portcos]);
   const [selected, setSelected] = useState<string[]>(() =>
     [...new Set([...(item.portco ? item.portco.split(/\s*[,;]\s*/) : []), ...detectPortcos(`${item.title} ${item.summary}`, [])].filter(Boolean))]);
   const [touched, setTouched] = useState(false);
-  const chosen = touched ? selected : [...new Set([...selected, ...detected])];
+  const chosen = [...new Set((touched ? selected : [...selected, ...detected]).map((c) => reviewCompanyName(c, canonicalCompanies)))];
   const portco = chosen.join(", ");
   const primary = chosen[0] || "";
   const companyWs = useMemo(() => {
     const set = new Set(chosen.map((c) => c.toLowerCase()));
-    return workstreams.filter((w) => set.has(w.company.toLowerCase()) && !isWorkstreamCompleted(w));
-  }, [workstreams, chosen.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+    return workstreams.filter((w) => set.has(reviewCompanyName(w.company, canonicalCompanies).toLowerCase()) && !isWorkstreamCompleted(w));
+  }, [workstreams, canonicalCompanies, chosen.join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
   const sugg = item.link && item.link.status !== "ignored" ? item.link : null;
   const suggestedGid = sugg?.workstreamGid && workstreams.some((w) => w.gid === sugg.workstreamGid) ? sugg.workstreamGid : "";
   const [wsChoice, setWsChoice] = useState<string>(suggestedGid || (sugg && !sugg.workstreamGid ? "__suggested_new" : ""));
@@ -371,8 +378,9 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   const [track, setTrack] = useState(item.track || "BD");
   const isNews = isActivity && track === "News";
   const isNetwork = track === "Network" || item.track === "Network";
-  const [folder, setFolder] = useState<"portco" | "operations" | "network" | "investor">(isNetwork ? "network" : "portco");
-  const [investor, setInvestor] = useState("");
+  const titleDefaults = meetingTitleDefaults(item.title);
+  const [folder, setFolder] = useState<"portco" | "operations" | "network" | "investor">(titleDefaults.folder === "investor" ? "investor" : isNetwork ? "network" : titleDefaults.folder);
+  const [investor, setInvestor] = useState(titleDefaults.investor);
   const [invQ, setInvQ] = useState("");
   const [invResults, setInvResults] = useState<PersonMatch[]>([]);
   useEffect(() => {
@@ -384,6 +392,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
   }, [invQ]);
   const [pq, setPq] = useState("");
   const [results, setResults] = useState<PersonMatch[]>([]);
+  const [companySearch, setCompanySearch] = useState("");
   useEffect(() => {
     const q = pq.trim();
     if (q.length < 2) { setResults([]); return; }
@@ -604,8 +613,9 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-64 p-1" align="start">
+                      <Input aria-label="Search PortCos" className="mb-1 h-8 text-xs" placeholder="Search PortCos" value={companySearch} onChange={(e) => setCompanySearch(e.target.value)} />
                       <div className="max-h-72 overflow-y-auto">
-                        {portcos.map((c) => {
+                        {portcos.filter((c) => c.toLowerCase().includes(companySearch.trim().toLowerCase())).map((c) => {
                           const on = chosen.includes(c);
                           return (
                             <button key={c} type="button" className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted"
@@ -624,8 +634,8 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow }: 
                   {!isNews && <Select value={wsChoice} onValueChange={setWsChoice} disabled={!primary}>
                     <SelectTrigger className="h-8 w-80 text-xs"><SelectValue placeholder={primary ? "Pick workstream" : "Pick a PortCo first"} /></SelectTrigger>
                     <SelectContent>
-                      {suggestedGid && (
-                        <SelectItem value={suggestedGid}>★ Suggested · {sugg!.workstreamName}</SelectItem>
+                      {suggestedGid && sugg && (
+                        <SelectItem value={suggestedGid}>★ Suggested · {sugg.workstreamName}</SelectItem>
                       )}
                       {sugg && !sugg.workstreamGid && (
                         <SelectItem value="__suggested_new">★ Suggested (new) · {sugg.workstreamName}</SelectItem>

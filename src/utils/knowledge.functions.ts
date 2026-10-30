@@ -109,6 +109,13 @@ export const fetchNotesInboxFn = createServerFn({ method: "POST" })
     return { granolaConnected: isGranolaConfigured(), items: await listNotesInbox(!!data.history, data.owner, data.kind || "notes") };
   });
 
+/** Full canonical portfolio vocabulary, including potential companies without workstreams. */
+export const fetchReviewCompaniesFn = createServerFn({ method: "GET" }).middleware([requireTeamAuth])
+  .handler(async () => {
+    const { buildPortfolioCompanies } = await import("./sheets.server");
+    return (await buildPortfolioCompanies()).map((company) => company.name).filter(Boolean);
+  });
+
 export const uploadNoteFn = createServerFn({ method: "POST" })
   .inputValidator((input: { name: string; text: string; base64: string; mimeType: string; importedBy?: string }) => {
     if (!input.name || input.base64.length > 8_000_000) throw new Error("File missing or too large");
