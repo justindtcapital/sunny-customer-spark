@@ -10,8 +10,8 @@ const WorkspaceContext = createContext<{
   setFolders: (ids: string[]) => void;
 } | null>(null);
 
-export function VicWorkspaceProvider({ children }: { children: ReactNode }) {
-  const [skillId, setSkillId] = useState<VicSkillId>();
+export function VicWorkspaceProvider({ children, initialSkill }: { children: ReactNode; initialSkill?: VicSkillId }) {
+  const [skillId, setSkillId] = useState<VicSkillId | undefined>(initialSkill);
   const [folders, setFolders] = useState<string[]>([]);
   return <WorkspaceContext.Provider value={{ skillId, setSkillId, folders, setFolders }}>{children}</WorkspaceContext.Provider>;
 }

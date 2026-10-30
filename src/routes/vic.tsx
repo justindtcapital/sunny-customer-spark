@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { createVicThread } from "@/lib/vic-client";
 import { VicMark } from "@/components/vic/VicMark";
+import { getVicSkill, type VicSkillId } from "@/lib/vic-skills";
 import { VicWorkspaceControls, VicWorkspaceProvider } from "@/components/vic/VicWorkspaceControls";
 
 export const Route = createFileRoute("/vic")({
+  validateSearch: (s: Record<string, unknown>): { skill?: VicSkillId } => ({ skill: getVicSkill(s.skill)?.id }),
   head: () => ({
     meta: [
       { title: "V.I.C. — Venture Pulse" },
@@ -25,6 +27,7 @@ export const Route = createFileRoute("/vic")({
 interface Thread { id: string; title: string; updated_at: string }
 
 function VicLayout() {
+  const { skill } = Route.useSearch();
   const [threads, setThreads] = useState<Thread[]>([]);
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
@@ -50,7 +53,7 @@ function VicLayout() {
   };
 
   return (
-    <VicWorkspaceProvider><div className="flex h-[calc(100vh-3rem)] min-h-0">
+    <VicWorkspaceProvider initialSkill={skill}><div className="flex h-[calc(100vh-3rem)] min-h-0">
       <aside className="w-60 shrink-0 border-r border-border flex flex-col">
         <div className="flex items-center gap-2 px-3 py-3 border-b border-border">
           <VicMark className="h-5 w-5 text-primary" />

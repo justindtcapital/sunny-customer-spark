@@ -102,3 +102,7 @@
 - [x] Phase 3: company TXT/Markdown/CSV upload into an editable overlap draft; verified draft-before-send and completed comparison without CRM writes
 - [ ] Phase 4: scheduled skills — daily digest, Monday actions, weekly report
 - [x] Link past PortCo event history to 2027 potential events (Event Planner → Link past history)
+
+## Homepage
+- [x] Fresh five-panel homepage; Ask/Tell, briefing and signal scan/reconcile jobs removed; Daily Briefing + Signals tabs backed up and deleted
+- [ ] Rebuild signals from scratch (PortCo signals panel, email digest archiving and intel still use old signal code)

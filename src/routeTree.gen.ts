@@ -26,8 +26,6 @@ import { Route as VicIndexRouteImport } from './routes/vic.index'
 import { Route as VicThreadIdRouteImport } from './routes/vic.$threadId'
 import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activity-sync'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
-import { Route as ApiCronScanSignalsRouteImport } from './routes/api/cron/scan-signals'
-import { Route as ApiCronSignalsReconcileRouteImport } from './routes/api/cron/signals-reconcile'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
 import { Route as ApiPublicCronKnowledgeHarvestRouteImport } from './routes/api/public/cron/knowledge-harvest'
 import { Route as ApiPublicGoogleMailboxCallbackRouteImport } from './routes/api/public/google-mailbox/callback'
@@ -117,16 +115,6 @@ const ApiCronIntelScanRoute = ApiCronIntelScanRouteImport.update({
   path: '/api/cron/intel-scan',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCronScanSignalsRoute = ApiCronScanSignalsRouteImport.update({
-  id: '/api/cron/scan-signals',
-  path: '/api/cron/scan-signals',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiCronSignalsReconcileRoute = ApiCronSignalsReconcileRouteImport.update({
-  id: '/api/cron/signals-reconcile',
-  path: '/api/cron/signals-reconcile',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   id: '/api/public/inngest',
   path: '/api/public/inngest',
@@ -163,8 +151,6 @@ export interface FileRoutesByFullPath {
   '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
-  '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
-  '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
   '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
@@ -186,8 +172,6 @@ export interface FileRoutesByTo {
   '/vic': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
-  '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
-  '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
   '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
@@ -211,8 +195,6 @@ export interface FileRoutesById {
   '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
-  '/api/cron/scan-signals': typeof ApiCronScanSignalsRoute
-  '/api/cron/signals-reconcile': typeof ApiCronSignalsReconcileRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
   '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
@@ -237,8 +219,6 @@ export interface FileRouteTypes {
     | '/vic/'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
-    | '/api/cron/scan-signals'
-    | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
     | '/api/public/google-mailbox/callback'
@@ -260,8 +240,6 @@ export interface FileRouteTypes {
     | '/vic'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
-    | '/api/cron/scan-signals'
-    | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
     | '/api/public/google-mailbox/callback'
@@ -284,8 +262,6 @@ export interface FileRouteTypes {
     | '/vic/'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
-    | '/api/cron/scan-signals'
-    | '/api/cron/signals-reconcile'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
     | '/api/public/google-mailbox/callback'
@@ -307,8 +283,6 @@ export interface RootRouteChildren {
   ApiVicRoute: typeof ApiVicRoute
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
-  ApiCronScanSignalsRoute: typeof ApiCronScanSignalsRoute
-  ApiCronSignalsReconcileRoute: typeof ApiCronSignalsReconcileRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
   ApiPublicCronKnowledgeHarvestRoute: typeof ApiPublicCronKnowledgeHarvestRoute
   ApiPublicGoogleMailboxCallbackRoute: typeof ApiPublicGoogleMailboxCallbackRoute
@@ -435,20 +409,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronIntelScanRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cron/scan-signals': {
-      id: '/api/cron/scan-signals'
-      path: '/api/cron/scan-signals'
-      fullPath: '/api/cron/scan-signals'
-      preLoaderRoute: typeof ApiCronScanSignalsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/cron/signals-reconcile': {
-      id: '/api/cron/signals-reconcile'
-      path: '/api/cron/signals-reconcile'
-      fullPath: '/api/cron/signals-reconcile'
-      preLoaderRoute: typeof ApiCronSignalsReconcileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/inngest': {
       id: '/api/public/inngest'
       path: '/api/public/inngest'
@@ -501,8 +461,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiVicRoute: ApiVicRoute,
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
-  ApiCronScanSignalsRoute: ApiCronScanSignalsRoute,
-  ApiCronSignalsReconcileRoute: ApiCronSignalsReconcileRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
   ApiPublicCronKnowledgeHarvestRoute: ApiPublicCronKnowledgeHarvestRoute,
   ApiPublicGoogleMailboxCallbackRoute: ApiPublicGoogleMailboxCallbackRoute,
