@@ -7,7 +7,7 @@
 // Granola" only after the saved record AND the Drive copy are re-read and found.
 
 import { getAccessToken, fetchSheetTab } from "./sheets.server";
-import { uploadDriveFile } from "./drive.server";
+import { findKbFileByAppProperty, uploadDriveFile } from "./drive.server";
 import {
   KNOWLEDGE_TABS,
   extractKnowledge,
@@ -149,6 +149,9 @@ async function copyNoteToDrive(n: GranolaNote, portco: string): Promise<{ id: st
   const driveId = process.env.GOOGLE_KB_DRIVE_ID;
   if (!driveId) return null;
   void portco; // filed to Meeting Notes/<PortCo> on review
+  // Reuse a copy from an earlier attempt wherever review filed it.
+  const prior = await findKbFileByAppProperty("granola", n.id.slice(0, 60), driveId);
+  if (prior) return { id: prior.id, url: prior.webViewLink };
   const coFolder = await findOrCreateFolder("Unfiled Documents", driveId, driveId);
   const date = n.created_at.slice(0, 10);
   const name = `${date} ${n.title || "Untitled meeting"} (Granola).md`.replace(/[\\/]/g, "-");
@@ -207,7 +210,8 @@ export async function harvestGranola(input: GranolaHarvestInput): Promise<Granol
     out.errors.push(`Granola: ${(e as Error).message}`);
     return out;
   }
-  const existing = new Set((await listKnowledgeRecords()).filter((r) => r.sourceType === "granola").map((r) => r.sourceId));
+  // Fresh read: another server instance may have saved the previous batch.
+  const existing = new Set((await listKnowledgeRecords(true)).filter((r) => r.sourceType === "granola").map((r) => r.sourceId));
   const now = new Date().toISOString();
   let processed = 0;
   let hitCap = false;

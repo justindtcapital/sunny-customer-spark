@@ -204,9 +204,21 @@ function rowsToSuggested(rows: string[][]): SuggestedContact[] {
 
 // ── Public readers ───────────────────────────────────────────
 
-export async function listKnowledgeRecords(): Promise<KnowledgeRecord[]> {
+/** First row wins per id: a repeated import must never render twice. */
+function firstById<T>(items: T[], id: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = id(item);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export async function listKnowledgeRecords(fresh = false): Promise<KnowledgeRecord[]> {
   await ensureTab(KNOWLEDGE_TABS.records, RECORD_HEADERS);
-  return rowsToRecords(await fetchSheetTab(KNOWLEDGE_TABS.records));
+  return firstById(rowsToRecords(await fetchSheetTab(KNOWLEDGE_TABS.records, fresh)), (r) => r.recordId);
 }
 
 export async function listHarvestedActivities(): Promise<HarvestedActivity[]> {
@@ -216,12 +228,12 @@ export async function listHarvestedActivities(): Promise<HarvestedActivity[]> {
 
 export async function listWorkstreamLinks(): Promise<WorkstreamLink[]> {
   await ensureTab(KNOWLEDGE_TABS.workstreamLinks, WORKSTREAM_LINK_HEADERS);
-  return rowsToLinks(await fetchSheetTab(KNOWLEDGE_TABS.workstreamLinks));
+  return firstById(rowsToLinks(await fetchSheetTab(KNOWLEDGE_TABS.workstreamLinks)), (l) => l.linkId);
 }
 
 export async function listSuggestedContacts(): Promise<SuggestedContact[]> {
   await ensureTab(KNOWLEDGE_TABS.suggestedContacts, SUGGESTED_CONTACT_HEADERS);
-  return rowsToSuggested(await fetchSheetTab(KNOWLEDGE_TABS.suggestedContacts));
+  return firstById(rowsToSuggested(await fetchSheetTab(KNOWLEDGE_TABS.suggestedContacts)), (c) => c.suggestionId);
 }
 
 // ── Writers ──────────────────────────────────────────────────
@@ -230,7 +242,7 @@ export async function saveKnowledgeRecords(records: KnowledgeRecord[]): Promise<
   if (records.length === 0) return;
   await ensureTab(KNOWLEDGE_TABS.records, RECORD_HEADERS);
   const { uniqueSourceRecords } = await import("@/lib/team-access");
-  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.records)).slice(1).map((row) => row[0]));
+  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.records, true)).slice(1).map((row) => row[0]));
   const pending = uniqueSourceRecords(records, existing);
   if (!pending.length) return;
   await appendSheetRows(
@@ -245,7 +257,7 @@ export async function saveKnowledgeRecords(records: KnowledgeRecord[]): Promise<
 export async function saveHarvestedActivities(acts: HarvestedActivity[]): Promise<void> {
   if (acts.length === 0) return;
   await ensureTab(KNOWLEDGE_TABS.activities, ACTIVITY_HEADERS);
-  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.activities)).slice(1).map((row) => row[0]));
+  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.activities, true)).slice(1).map((row) => row[0]));
   const pending = uniqueActivities(acts).filter((a) => !existing.has(a.activityId));
   if (!pending.length) return;
   await appendSheetRows(
@@ -260,9 +272,12 @@ export async function saveHarvestedActivities(acts: HarvestedActivity[]): Promis
 export async function saveWorkstreamLinks(links: WorkstreamLink[]): Promise<void> {
   if (links.length === 0) return;
   await ensureTab(KNOWLEDGE_TABS.workstreamLinks, WORKSTREAM_LINK_HEADERS);
+  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.workstreamLinks, true)).slice(1).map((row) => row[0]));
+  const pending = firstById(links, (l) => l.linkId).filter((l) => !existing.has(l.linkId));
+  if (!pending.length) return;
   await appendSheetRows(
     KNOWLEDGE_TABS.workstreamLinks,
-    links.map((l) => [
+    pending.map((l) => [
       l.linkId, l.recordId, l.portco, l.workstreamGid, l.workstreamName, l.confidence,
       l.status, l.createdAt, l.reviewedAt,
     ]),
@@ -272,9 +287,12 @@ export async function saveWorkstreamLinks(links: WorkstreamLink[]): Promise<void
 export async function saveSuggestedContacts(contacts: SuggestedContact[]): Promise<void> {
   if (contacts.length === 0) return;
   await ensureTab(KNOWLEDGE_TABS.suggestedContacts, SUGGESTED_CONTACT_HEADERS);
+  const existing = new Set((await fetchSheetTab(KNOWLEDGE_TABS.suggestedContacts, true)).slice(1).map((row) => row[0]));
+  const pending = firstById(contacts, (c) => c.suggestionId).filter((c) => !existing.has(c.suggestionId));
+  if (!pending.length) return;
   await appendSheetRows(
     KNOWLEDGE_TABS.suggestedContacts,
-    contacts.map((c) => [
+    pending.map((c) => [
       c.suggestionId, c.name, c.email, c.company, c.domain, c.portco, c.firstSeen,
       c.recordId, c.status, c.createdAt, c.reviewedAt,
     ]),
