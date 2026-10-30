@@ -55,17 +55,19 @@ function VicLayout() {
         <div className="flex items-center gap-2 px-3 py-3 border-b border-border">
           <VicMark className="h-5 w-5 text-primary" />
           <span className="font-semibold">V.I.C.</span>
-          <Button size="sm" variant="ghost" className="ml-auto h-7 px-2" onClick={() => void create()}><Plus className="h-3.5 w-3.5 mr-1" />New</Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
         <nav aria-label="V.I.C. chats" className="p-2 space-y-0.5">
-          <h2 className="px-2 py-2 text-xs font-semibold text-muted-foreground">Recent chats</h2>
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+            <h2 className="text-sm font-semibold">Recent chats</h2>
+            <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[11px]" onClick={() => void create()}><Plus className="size-3" />New chat</Button>
+          </div>
           {threads.map((t) => (
-            <div key={t.id} className={`group flex items-center rounded-md text-sm ${t.id === activeId ? "bg-muted font-medium" : "hover:bg-muted/60"}`}>
-              <Link to="/vic/$threadId" params={{ threadId: t.id }} className="flex-1 truncate px-2 py-1.5">{t.title}</Link>
-              <button type="button" aria-label="Delete chat" onClick={() => void remove(t.id)} className="px-2 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+            <div key={t.id} className={`group flex items-center rounded-sm text-[11px] leading-4 ${t.id === activeId ? "bg-muted font-medium" : "hover:bg-muted/60"}`}>
+              <Link to="/vic/$threadId" params={{ threadId: t.id }} title={t.title} className="min-w-0 flex-1 px-2 py-1"><span className="line-clamp-2 break-words">{t.title}</span></Link>
+              <Button type="button" variant="ghost" size="icon" aria-label="Delete chat" title="Delete chat" onClick={() => void remove(t.id)} className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-destructive">
+                <Trash2 className="size-3" />
+              </Button>
             </div>
           ))}
           {threads.length === 0 && <p className="px-2 py-1 text-xs text-muted-foreground">No chats yet.</p>}
