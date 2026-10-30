@@ -33,6 +33,8 @@ import { bulkLoadTechStack } from "@/utils/sumble.functions";
 import { RECORD_SOURCES, CONTACT_TYPES, type BulkEditField, type Temperature, type Contact } from "@/lib/types";
 import { useServerFn } from "@tanstack/react-start";
 import { bulkChangeRelationshipLevels } from "@/utils/relationship-levels.functions";
+import { retryBulkOperation } from "@/utils/bulk-operations.functions";
+import { autoResume, pendingCount } from "@/lib/auto-resume";
 import { nextRelationshipLevel, type RelationshipChange } from "@/lib/relationship-rating";
 import { OperationResults } from "@/components/admin/OperationResults";
 import type { BulkOutcome } from "@/lib/bulk-operation";
@@ -76,6 +78,8 @@ export function BulkEditBar() {
   const [techConfirmOpen, setTechConfirmOpen] = useState(false);
   const [changingLevel, setChangingLevel] = useState(false);
   const changeLevels = useServerFn(bulkChangeRelationshipLevels);
+  const resumeOp = useServerFn(retryBulkOperation);
+  const [progress, setProgress] = useState<string>("");
   const queryClient = useQueryClient();
   const [levelResults, setLevelResults] = useState<{ outcomes: BulkOutcome[]; operationId: string } | null>(null);
   const [request, setRequest] = useState<{ contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange; operationId: string } | null>(null);
@@ -97,10 +101,15 @@ export function BulkEditBar() {
     setRequest(payload);
     setChangingLevel(true);
     try {
-      const result = await changeLevels({ data: payload });
+      const first = await changeLevels({ data: payload });
+      const total = first.outcomes.length;
+      const show = (o: BulkOutcome[]) => { setLevelResults({ outcomes: o, operationId: first.operationId }); setProgress(`${total - pendingCount(o)} of ${total} processed…`); };
+      show(first.outcomes);
+      const done = await autoResume({ outcomes: first.outcomes, onProgress: show, step: () => resumeOp({ data: { id: first.operationId, confirmed: true } }) });
+      const result = { ...first, outcomes: done.outcomes, updated: done.outcomes.filter(o => o.status === "changed").length, moved: done.outcomes.filter(o => o.status === "moved").length, alreadyComplete: done.outcomes.filter(o => o.status === "already_complete" || o.status === "duplicate").length, skipped: done.outcomes.filter(o => !["changed","moved","already_complete","duplicate"].includes(o.status)).length };
       setLevelResults({ outcomes: result.outcomes, operationId: result.operationId });
       const message = `${result.updated} levels changed · ${result.moved} moved · ${result.alreadyComplete} already complete · ${result.skipped} unresolved`;
-      if(result.outcomes.some(o=>o.status==="pending")) toast.info("Progress saved. Open Admin and choose Resume to continue the remaining contacts.");
+      if(result.outcomes.some(o=>o.status==="pending")) toast.info("Some contacts stopped making progress. Progress is saved; open Admin and choose Resume to continue.");
       if (result.skipped) toast.warning(message); else toast.success(message);
       clearSelection();
       setLevelChange(null);
@@ -113,7 +122,7 @@ export function BulkEditBar() {
     } finally {
       try { await router.invalidate(); await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] }); }
       catch { toast.warning("Saved results are available in Admin; the list could not refresh. Refresh the page before another action."); }
-      setChangingLevel(false);
+      setChangingLevel(false); setProgress("");
     }
   };
 
@@ -419,6 +428,7 @@ export function BulkEditBar() {
           </Select>}
           <div className="space-y-2 text-sm">{Object.entries(levelPreview).map(([label, total]) => <div key={label} className="flex justify-between"><span>{label}</span><span className="font-semibold tabular-nums">{total}</span></div>)}</div>
           <AlertDialogFooter>
+            {progress && <span className="mr-auto self-center text-xs text-muted-foreground">{progress} continuing automatically</span>}
             <AlertDialogCancel disabled={changingLevel}>Cancel</AlertDialogCancel>
             <AlertDialogAction disabled={changingLevel || !count || count > 500} onClick={(event) => { event.preventDefault(); void applyLevelChange(); }}>
               {changingLevel && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Confirm {levelChange === "promote" ? "promotion" : "demotion"}
