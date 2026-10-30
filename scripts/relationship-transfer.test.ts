@@ -81,6 +81,18 @@ describe("replay and mixed batches",()=>{
   const r=await changeRelationshipLevels({contacts:[{urid:"stable-id",email:"person@example.com",temperature:"Cold"}],change:"demote"});
   expect(r.outcomes[0].status).toBe("uncertain");expect(store.tabs.Contacts.length).toBe(2);expect(store.tabs.Targets.length).toBe(2);
  });
+ it("finishes a half-moved contact without duplicating the Prospecting row",async()=>{
+  const source=store.tabs.Contacts[1];
+  const headers=store.tabs.Contacts[0];
+  const snapshot=JSON.stringify(Object.fromEntries(headers.map((h,i)=>[h,source[i]||""])));
+  store.tabs.Targets=[["URID","First Name","Last Name","Email","Role","Company","Stage","Prime","Phone","Sector","Network Profile"],
+    ["stable-id","Sample","Person","person@example.com","Director","Example Co","Prospecting","Falloon","12345","Technology",snapshot]];
+  const r=await changeRelationshipLevels({contacts:[{urid:"stable-id",email:"person@example.com",temperature:"Cold"}],change:"demote"});
+  expect(r.moved).toBe(1);
+  expect(store.tabs.Targets.filter(row=>row[0]==="stable-id")).toHaveLength(1);
+  expect(store.tabs.Contacts.some(row=>row[0]==="stable-id")).toBe(false);
+  expect(store.deleted).toEqual([2]);
+ });
  it("dedupes URID and email selectors resolving to the same contact",async()=>{
   store.tabs.Contacts[1][3]="Warm";
   const r=await changeRelationshipLevels({contacts:[{urid:"stable-id",email:"person@example.com",temperature:"Warm"},{email:"person@example.com",temperature:"Warm"}],change:"promote"});
