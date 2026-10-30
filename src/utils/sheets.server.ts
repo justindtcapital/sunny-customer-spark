@@ -3798,7 +3798,8 @@ export async function bulkDeleteContacts(emails: string[]): Promise<{ deleted: n
   const rowNumbers: number[] = [];
   for (let i = 1; i < rows.length; i++) {
     const e = (rows[i][emailIdx] || "").trim().toLowerCase();
-    if (e && wanted.has(e)) rowNumbers.push(i + 1);
+    // Prospecting-flagged rows share the tab; a Network delete never removes them.
+    if (e && wanted.has(e) && !isProspectStatus(rows[i][headers.indexOf("relationship status")] || "")) rowNumbers.push(i + 1);
   }
   const statusIdx = headers.indexOf("relationship status");
   const nameIdx = headers.indexOf("name");
