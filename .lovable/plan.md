@@ -15,6 +15,7 @@ Both requests concern the same workflow: identify the person → preserve the re
 - The October 29 changes added specific outcomes, duplicate safeguards, an operation journal and safety locks. Preserve them, but complete the missing reconciliation lifecycle.
 - The later missing-ID repair addressed a different confirmed failure. Preserve assigned IDs; review its read-time self-healing and concurrency rather than repeating a global ID backfill.
 - Current database evidence shows four later bulk operations rejected by the retained lock without starting writes. This connects today's symptoms to the interrupted job, but does not prove the cause of every historical failure.
+- The transfer test fixture currently omits the ID-fill helper called by production code. Repair that fixture before relying on previous passing-test claims.
 - The precise provider error or stalled step that interrupted the named operation is still unconfirmed. A volume/time-budget problem is a supported risk to investigate, not a claimed diagnosis.
 
 ### Shared execution and storage review before changing behavior
@@ -23,6 +24,7 @@ Both requests concern the same workflow: identify the person → preserve the re
 - Move repeated tab/column preparation outside the per-person loop; consolidate safe reads and writes. Do not reuse stale snapshots for deletion authorization or parallelize positional deletions.
 - Preserve Google Sheets as the contact store and Lovable Cloud as the operation journal. Review headers, profile projections, email aliases, URIDs and row positions for consistency across both tabs; no CRM migration or Google account/permission change is assumed necessary.
 - Check documented Google read/write quotas, actual direct-OAuth usage, request-local write spacing, competing invocations and retry waits. Respect provider retry guidance without replaying an append/delete whose outcome is unknown.
+  - The app uses direct Google OAuth for Sheets, not the Sheets connector gateway. Google's documented 60 reads and 60 writes per minute per user remain relevant; a separate gateway limit must not be presented as this app's limit. The current spacing is request-local, not a team-wide quota guarantee.
 - Make deadline handling stop further work, not just stop waiting: persist an attempt/phase identifier, check ownership before each new side effect, propagate cancellation, and retain uncertainty for any already-dispatched provider request. Abort alone is not proof that a write did not commit.
 - Use bounded, resumable work units with persisted progress, explicit pause/continue and one coordinated writer. Do not attempt an entire large batch inside one deadline or silently run work after the caller has timed out. A paused, safely completed chunk is different from an uncertain write.
 - Existing background-work code is for Signal Radar, not relationship changes. Verify its hosted readiness before considering reuse; no new scheduled sweeper, external job service or automatic bulk replay is included by default.
