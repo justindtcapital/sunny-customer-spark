@@ -10,6 +10,17 @@ export function VicSkillPicker({ value, onChange, onDraft, disabled, placement =
   const [open, setOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const selected = getVicSkill(value);
+  if (placement === "sidebar") return <section aria-label="Skills" className="space-y-2">
+    <h2 className="text-xs font-semibold text-muted-foreground">Skills</h2>
+    <div className="grid gap-1.5">
+      {VIC_SKILLS.map((skill, index) => {
+        const Icon = icons[index] || Blocks;
+        return <Button key={skill.id} type="button" variant={value === skill.id ? "secondary" : "outline"} disabled={disabled} aria-pressed={value === skill.id} onClick={() => onChange(value === skill.id ? undefined : skill.id)} className="h-auto min-h-10 w-full justify-start gap-2 whitespace-normal px-2.5 py-2 text-left text-xs">
+          <Icon className="shrink-0" /><span className="min-w-0 flex-1">{skill.name}</span>{value === skill.id && <Check className="h-3.5 w-3.5 shrink-0" />}
+        </Button>;
+      })}
+    </div>
+  </section>;
   return <div className={placement === "sidebar" ? "flex w-full min-w-0 items-center gap-1" : "flex min-w-0 flex-wrap items-center gap-1"}>
     {placement !== "upload" && <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild><Button type="button" variant={selected ? "secondary" : "ghost"} size="sm" disabled={disabled} className={placement === "sidebar" ? "h-auto min-h-10 flex-1 justify-start whitespace-normal text-left" : "h-8 gap-1.5 text-xs"}><Blocks /><span>{placement === "sidebar" ? <>Skills{selected && <span className="block text-[11px] font-normal text-muted-foreground">{selected.name}</span>}</> : selected?.name || "Skills"}</span></Button></PopoverTrigger>
