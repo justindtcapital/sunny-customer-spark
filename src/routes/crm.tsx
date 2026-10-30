@@ -624,6 +624,7 @@ function CrmPage() {
         <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded onExpandedChange={setPyramidOpen} />
       )}
       <ContactList
+        portcoVisibilityControl
         contacts={listContacts}
         filters={filters}
         focusEmail={focusEmail}

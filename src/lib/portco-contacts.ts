@@ -30,3 +30,8 @@ export function matchesTemperatureFilter(c: Pick<Contact, "temperature" | "portc
   if (!selected.length) return true;
   return c.portco ? selected.includes("PortCo") : selected.includes(c.temperature);
 }
+
+/** Visibility only: never changes classification or stored relationship ratings. */
+export function matchesPortCoVisibility(c: Pick<Contact, "portco">, showPortCo: boolean): boolean {
+  return showPortCo || !c.portco;
+}
