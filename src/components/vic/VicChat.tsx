@@ -9,11 +9,11 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, LogActionReview, RelationshipReview } from "./VicReviewCards";
-import { KbFolderPicker } from "./KbFolderPicker";
 import { useAuth } from "@/lib/auth-context";
 import { VicMark } from "./VicMark";
 import { VicSkillPicker } from "./VicSkillPicker";
-import { getVicSkill, type VicSkillId } from "@/lib/vic-skills";
+import { getVicSkill } from "@/lib/vic-skills";
+import { useVicWorkspace } from "./VicWorkspaceControls";
 import { Button } from "@/components/ui/button";
 
 const SUGGESTIONS = [
@@ -42,12 +42,11 @@ export function VicChat({ threadId, page }: { threadId: string; page?: string })
 
 function VicChatWindow({ threadId, initial, page }: { threadId: string; initial: UIMessage[]; page?: string }) {
   const [text, setText] = useState("");
-  const [skillId, setSkillId] = useState<VicSkillId | undefined>();
+  const { skillId, setSkillId, folders } = useVicWorkspace();
   const skillRef = useRef(skillId);
   skillRef.current = skillId;
   const { email } = useAuth();
   const me = email || "";
-  const [folders, setFolders] = useState<string[]>([]);
   const foldersRef = useRef(folders);
   foldersRef.current = folders;
   const transport = useMemo(
@@ -58,7 +57,7 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
     id: threadId,
     messages: initial,
     transport,
-    onError: (e) => toast.error(/402/.test(e.message) ? "AI credits are used up for this workspace." : /429/.test(e.message) ? "Vic is busy — try again in a moment." : e.message || "Vic hit an error."),
+    onError: (e) => toast.error(/402/.test(e.message) ? "AI credits are used up for this workspace." : /429/.test(e.message) ? "V.I.C. is busy — try again in a moment." : e.message || "V.I.C. hit an error."),
   });
   const busy = status === "submitted" || status === "streaming";
   const send = (t: string) => {
@@ -72,7 +71,7 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
       <Conversation className="flex-1 min-h-0">
         <ConversationContent>
           {messages.length === 0 && (
-            <ConversationEmptyState icon={<VicMark className="h-10 w-10" />} title="Ask Vic" description="Questions across Network, PortCos, Partners and Events — or ask Vic to do something. Changes always wait for your review.">
+            <ConversationEmptyState icon={<VicMark className="h-10 w-10" />} title="Ask V.I.C.">
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {SUGGESTIONS.map((s) => (
                   <Button key={s} type="button" variant="outline" size="sm" onClick={() => send(s)} className="h-auto whitespace-normal text-left">{s}</Button>
@@ -112,19 +111,18 @@ function VicChatWindow({ threadId, initial, page }: { threadId: string; initial:
               </MessageContent>
             </Message>
           ))}
-          {status === "submitted" && <div className="text-xs text-muted-foreground px-1">Vic is thinking…</div>}
+          {status === "submitted" && <div className="text-xs text-muted-foreground px-1">V.I.C. is thinking…</div>}
         </ConversationContent>
         <ConversationScrollButton />
       </Conversation>
       <div className="border-t border-border p-3">
         <PromptInput onSubmit={(msg) => send(msg.text || "")}>
           <PromptInputBody>
-            <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={getVicSkill(skillId)?.placeholder || "Ask Vic…"} />
+            <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={getVicSkill(skillId)?.placeholder || "Ask V.I.C.…"} />
           </PromptInputBody>
           <PromptInputFooter className="flex-wrap justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1">
-              <VicSkillPicker value={skillId} onChange={setSkillId} onDraft={setText} disabled={busy} />
-              <KbFolderPicker value={folders} onChange={setFolders} />
+              <VicSkillPicker value={skillId} onChange={setSkillId} onDraft={setText} disabled={busy} placement="upload" />
             </div>
             <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()} />
           </PromptInputFooter>

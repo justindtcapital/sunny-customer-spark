@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { createVicThread } from "@/lib/vic-client";
 import { VicChat } from "./VicChat";
 import { VicMark } from "./VicMark";
+import { VicWorkspaceControls, VicWorkspaceProvider } from "./VicWorkspaceControls";
 
 /** Floating Vic button on every page; opens the latest chat with the current page as context. */
 export function VicButton() {
@@ -32,14 +33,14 @@ export function VicButton() {
 
   return (
     <>
-      <Button onClick={() => void openPanel()} className="fixed bottom-5 right-5 z-40 h-11 rounded-full px-4 shadow-lg gap-2" aria-label="Open Vic">
-        <VicMark className="h-5 w-5" /> Vic
+      <Button onClick={() => void openPanel()} className="fixed bottom-5 right-5 z-40 h-11 rounded-full px-4 shadow-lg gap-2" aria-label="Open V.I.C.">
+        <VicMark className="h-5 w-5" /> V.I.C.
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent className="w-full sm:max-w-[520px] p-0 flex flex-col">
           <SheetHeader className="flex-row items-center gap-2 border-b border-border px-4 py-3 space-y-0">
             <VicMark className="h-5 w-5 text-primary" />
-            <SheetTitle className="text-base">Vic</SheetTitle>
+            <SheetTitle className="text-base">V.I.C.</SheetTitle>
             <div className="ml-auto mr-6 flex gap-1">
               <Button size="sm" variant="ghost" onClick={() => void fresh()}>New chat</Button>
               {threadId && (
@@ -49,9 +50,10 @@ export function VicButton() {
               )}
             </div>
           </SheetHeader>
-          <div className="flex-1 min-h-0">
-            {threadId ? <VicChat threadId={threadId} page={page} /> : <div className="p-6 text-sm text-muted-foreground">Starting…</div>}
-          </div>
+          <VicWorkspaceProvider><div className="flex flex-1 min-h-0">
+            <aside className="w-36 shrink-0 overflow-y-auto border-r border-border"><VicWorkspaceControls /></aside>
+            <div className="min-w-0 flex-1">{threadId ? <VicChat threadId={threadId} page={page} /> : <div className="p-6 text-sm text-muted-foreground">Starting…</div>}</div>
+          </div></VicWorkspaceProvider>
         </SheetContent>
       </Sheet>
     </>
