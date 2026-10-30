@@ -3710,6 +3710,7 @@ export async function bulkUpdateTargetFields(
 // deletions don't shift the indices of later ones. Best-effort: no-op if the tab's
 // sheetId can't be resolved. Invalidates the cache so the next read is fresh.
 export async function deleteSheetRows(tabName: string, rowNumbers: number[]): Promise<number> {
+  if (tabName === TAB_NAMES.contacts || tabName === TAB_NAMES.targets) await assertBulkWrite();
   const rows = [...new Set(rowNumbers)].filter((n) => n >= 2).sort((a, b) => b - a);
   if (rows.length === 0) return 0;
   const sheetId = await getSheetId(tabName);

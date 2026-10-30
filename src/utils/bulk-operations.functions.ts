@@ -34,7 +34,7 @@ export const retryBulkOperation = createServerFn({ method: "POST" }).middleware(
     const input = op.input as unknown as import("./relationship-levels.server").RelationshipInput;
     return runJournalOperation({ id: op.id, kind: op.kind, page: op.page, input, actor: context, run: async journal => {
       journal.step("revalidating original destinations");
-      const value = await changeRelationshipLevels(input, journal.prior, journal.checkpoint);
+      const value = await changeRelationshipLevels(input, journal.prior, journal.checkpoint,{maxItems:2,maxMs:25_000});
       return { value, outcomes: value.outcomes };
     } });
   });

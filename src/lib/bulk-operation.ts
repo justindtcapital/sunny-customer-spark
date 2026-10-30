@@ -1,4 +1,4 @@
-export type OutcomeStatus = "changed" | "moved" | "already_complete" | "duplicate" | "review" | "blocked" | "failed" | "uncertain";
+export type OutcomeStatus = "changed" | "moved" | "already_complete" | "duplicate" | "review" | "blocked" | "failed" | "uncertain" | "pending";
 export interface BulkOutcome {
   key: string;
   label: string;
@@ -26,6 +26,7 @@ export function outcomeTotals(outcomes: BulkOutcome[]) {
 }
 export function operationStatus(outcomes: BulkOutcome[]): string {
   if (outcomes.some(o => o.status === "uncertain")) return "uncertain";
+  if (outcomes.some(o => o.status === "pending")) return "pending";
   const incomplete = outcomes.some(o => !completeOutcome(o));
   return incomplete ? (outcomes.some(completeOutcome) ? "partial" : "failed") : "succeeded";
 }

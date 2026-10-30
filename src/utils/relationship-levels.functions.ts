@@ -16,7 +16,7 @@ export const bulkChangeRelationshipLevels = createServerFn({ method: "POST" })
     const input = { change: data.change, contacts: data.contacts.map(c => ({ ...c, destination: nextRelationshipLevel(c.temperature, data.change) })) };
     const result = await runJournalOperation({ id: data.operationId, kind: "relationship-change", page: "/crm", input, actor: context, run: async journal => {
       journal.step("checking identities and saving individual transitions");
-      const value = await changeRelationshipLevels(input, journal.prior, journal.checkpoint);
+      const value = await changeRelationshipLevels(input, journal.prior, journal.checkpoint,{maxItems:2,maxMs:25_000});
       return { value, outcomes: value.outcomes };
     } });
     return { ...result.value, operationId: result.operationId };

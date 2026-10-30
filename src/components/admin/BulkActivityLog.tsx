@@ -39,7 +39,7 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
   }
   return <section aria-label="Bulk operation activity" className="mb-5">
     <div className="flex flex-wrap items-center gap-2 py-3"><h3 className="mr-auto text-sm font-semibold">Bulk operations</h3>
-      <select aria-label="Operation status" className="rounded border bg-background p-1 text-xs" value={status} onChange={e=>setStatus(e.target.value)}>{["all","running","succeeded","partial","failed","uncertain"].map(s=><option key={s} value={s}>{s}</option>)}</select>
+      <select aria-label="Operation status" className="rounded border bg-background p-1 text-xs" value={status} onChange={e=>setStatus(e.target.value)}>{["all","running","pending","succeeded","partial","failed","uncertain"].map(s=><option key={s} value={s}>{s}</option>)}</select>
       <Button variant="outline" size="sm" onClick={()=>void query.refetch()}><RefreshCw className="size-3.5" />Refresh</Button>
     </div>
     {query.isPending && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
@@ -55,7 +55,7 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
         {open && <div className="px-3 pb-4"><div className="flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={()=>action(op,"troubleshoot")}><Wrench className="size-3.5" />Troubleshoot</Button>
           <Button size="sm" variant="outline" onClick={()=>action(op,"fix")}><Bug className="size-3.5" />Create fix request</Button>
-          <Button size="sm" variant="outline" disabled={!retryable} title={retryable ? "Retry only unfinished steps" : "No safely retryable items; review saved state or create a fix request."} onClick={()=>setConfirm(op)}><RefreshCw className="size-3.5" />Retry</Button>
+          <Button size="sm" variant="outline" disabled={!retryable} title={retryable ? "Retry only unfinished steps" : "No safely retryable items; review saved state or create a fix request."} onClick={()=>setConfirm(op)}><RefreshCw className="size-3.5" />{op.status==="pending" ? "Resume" : "Retry"}</Button>
           {op.kind==="relationship-change" && <Button size="sm" variant="outline" disabled={!!inspecting} onClick={()=>void inspectSaved(op.id)}>{inspecting===op.id ? <Loader2 className="size-3.5 animate-spin"/> : <RefreshCw className="size-3.5"/>}Inspect saved state</Button>}
         </div><OperationResults outcomes={op.outcomes} />
           {inspection?.id===op.id && <div className="mt-4 border-t pt-3"><h4 className="text-sm font-semibold">Saved-state inspection</h4><p className="mt-1 text-xs text-muted-foreground">All original items checked. Inspection does not move contacts, replay writes or release the safety lock.</p><OperationResults outcomes={inspection.outcomes}/></div>}

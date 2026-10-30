@@ -93,18 +93,20 @@ export function BulkEditBar() {
   }, {});
   const applyLevelChange = async () => {
     if (!levelChange || selectedContacts.length === 0 || selectedContacts.length > 500) return;
-    const payload = request || { contacts: selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change: levelChange, operationId: crypto.randomUUID() };
+    const payload = { contacts: selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change: levelChange, operationId: crypto.randomUUID() };
     setRequest(payload);
     setChangingLevel(true);
     try {
       const result = await changeLevels({ data: payload });
       setLevelResults({ outcomes: result.outcomes, operationId: result.operationId });
       const message = `${result.updated} levels changed · ${result.moved} moved · ${result.alreadyComplete} already complete · ${result.skipped} unresolved`;
+      if(result.outcomes.some(o=>o.status==="pending")) toast.info("Progress saved. Open Admin and choose Resume to continue the remaining contacts.");
       if (result.skipped) toast.warning(message); else toast.success(message);
       clearSelection();
       setLevelChange(null);
       setRequest(null);
     } catch (error) {
+      setRequest(null);
       toast.error(error instanceof Error ? error.message : "Couldn't change the selected contacts.");
       setLevelChange(null);
       clearSelection();
