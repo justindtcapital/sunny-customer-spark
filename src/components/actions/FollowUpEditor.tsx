@@ -14,19 +14,31 @@ import { useWorkstreams } from "@/lib/use-workstreams";
 import type { HomeReminder } from "@/lib/home-momentum";
 import { followUpValues } from "@/lib/follow-up-edit";
 import { editFollowUpFn } from "@/utils/follow-up-edit.functions";
-import { searchPeopleFn } from "@/utils/knowledge.functions";
+import { searchPeopleFn, fetchReviewCompaniesFn } from "@/utils/knowledge.functions";
+import { fetchPartnersFn } from "@/utils/partners.functions";
 
 export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; onClose: () => void }) {
   const [values, setValues] = useState(() => followUpValues(reminder));
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [companyError, setCompanyError] = useState(false);
   const [results, setResults] = useState<{ name: string; email: string; company: string; where: string }[]>([]);
   const save = useServerFn(editFollowUpFn);
   const search = useServerFn(searchPeopleFn);
+  const loadCompanies = useServerFn(fetchReviewCompaniesFn);
+  const loadPartners = useServerFn(fetchPartnersFn);
   const qc = useQueryClient();
   const { workstreams } = useWorkstreams();
   const ownerWorkstreams = workstreams.filter((w) => ownerMatches(w.owner, values.owner))
     .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name));
+  useEffect(() => {
+    let live = true;
+    void Promise.all([loadCompanies(), loadPartners()]).then(([portcos, partners]) => {
+      if (live) setCompanies([...new Set([...portcos, ...partners.map(p => p.name)])].sort((a, b) => a.localeCompare(b)));
+    }).catch(() => { if (live) setCompanyError(true); });
+    return () => { live = false; };
+  }, [loadCompanies, loadPartners]);
   useEffect(() => {
     let live = true;
     if (query.trim().length < 2) { setResults([]); return; }
@@ -50,7 +62,7 @@ export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; 
       <div className="min-w-0 space-y-1"><Label htmlFor="task-due">Due date</Label><Input id="task-due" type="date" value={values.due} onChange={(e) => setValues({ ...values, due: e.target.value })} /></div>
       <div className="min-w-0 space-y-1"><Label>Action owner</Label><Select value={teamMemberFor(values.owner)?.displayName || values.owner} onValueChange={(owner) => setValues({ ...values, owner })}><SelectTrigger aria-label="Action owner" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{ACTION_OWNERS.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent></Select></div>
     </div>
-    <div className="space-y-1"><Label htmlFor="task-company">PortCo / Partner / Company</Label><Input id="task-company" value={values.company} onChange={(e) => setValues({ ...values, company: e.target.value })} /></div>
+    <div className="space-y-1"><Label htmlFor="task-company">PortCo / Partner / Company</Label><Input id="task-company" role="combobox" aria-autocomplete="list" list="follow-up-companies" value={values.company} onChange={(e) => setValues({ ...values, company: e.target.value })} /><datalist id="follow-up-companies">{companies.map(name => <option key={name} value={name} />)}</datalist>{companyError && <p className="text-xs text-destructive">Company choices unavailable. You can still enter a company.</p>}</div>
     <div className="space-y-1"><Label>Part of workstream</Label>
       <Select value={values.workstreamGid || "none"} onValueChange={(v) => setValues({ ...values, workstreamGid: v === "none" ? "" : v })}>
         <SelectTrigger aria-label="Part of workstream" className="w-full"><SelectValue /></SelectTrigger>

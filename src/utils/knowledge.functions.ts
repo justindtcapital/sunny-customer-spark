@@ -113,7 +113,7 @@ export const fetchNotesInboxFn = createServerFn({ method: "POST" })
 export const fetchReviewCompaniesFn = createServerFn({ method: "GET" }).middleware([requireTeamAuth])
   .handler(async () => {
     const { buildPortfolioCompanies } = await import("./sheets.server");
-    return (await buildPortfolioCompanies()).map((company) => company.name).filter(Boolean);
+    return [...new Set((await buildPortfolioCompanies(true)).map((company) => company.name).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   });
 
 export const uploadNoteFn = createServerFn({ method: "POST" })

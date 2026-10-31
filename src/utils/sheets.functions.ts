@@ -120,6 +120,7 @@ export const fetchPortfolioCompanies = createServerFn({ method: "GET" }).handler
 
 // Add a portfolio company (new row in the "Portfolio Companies" tab).
 export const addPortfolioCompany = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
   .inputValidator(
     (data: {
       name: string;

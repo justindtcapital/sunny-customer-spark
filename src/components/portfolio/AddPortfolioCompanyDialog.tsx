@@ -132,7 +132,7 @@ export function AddPortfolioCompanyDialog({
     if (!name.trim() || clash) return;
     setBusy(true);
     try {
-      await addPortfolioCompany({
+      const saved = await addPortfolioCompany({
         data: {
           name: name.trim(),
           website: website.trim(),
@@ -173,6 +173,7 @@ export function AddPortfolioCompanyDialog({
       toast.success(
         `Added ${name.trim()} to the portfolio${chosen.length ? ` with ${added} of ${chosen.length} key people` : ""}.`,
       );
+      if (saved.syncError) toast.warning(saved.syncError, { duration: 12000 });
       await onAdded?.();
       reset();
       onOpenChange(false);

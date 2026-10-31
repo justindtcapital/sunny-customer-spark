@@ -3926,13 +3926,13 @@ export interface PortfolioCompanyInput {
 // Add a portfolio company as a new row in the Portfolio Companies tab. Stamps a
 // stable URID (so it can later be edited/deleted by key), and writes fields
 // header-aware so it works whatever column order the sheet actually uses.
-export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<{ urid: string }> {
+export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<{ urid: string; syncError?: string }> {
   const name = data.name.trim();
   if (!name) throw new Error("Company name is required");
 
   // Reject duplicates up front: same name, website domain or a verified alias.
   // Read failures stop the add rather than risk a second record.
-  const existing = await buildPortfolioCompanies();
+  const existing = await buildPortfolioCompanies(true);
   const nameKey = normalizePortcoName(name);
   const nameClash = existing.find((c) => nameKey && normalizePortcoName(c.name) === nameKey);
   const clash = nameClash
@@ -3978,7 +3978,8 @@ export async function addPortfolioCompany(data: PortfolioCompanyInput): Promise<
       headers.map((h) => valueByHeader[h] ?? ""),
     );
   }
-  return { urid };
+  const { mirrorPortco } = await import("./portco-list.server");
+  return { urid, ...await mirrorPortco({ ...data, urid }) };
 }
 
 // Overwrite sheet fields for an existing portfolio company (URID preferred, else
@@ -4001,7 +4002,7 @@ export async function updatePortfolioCompany(entry: {
   linkedinUrl?: string;
   /** Create the sheet row when no matching row is found (Asana-only portcos). */
   upsertNew?: boolean;
-}): Promise<{ updated: number; created?: boolean; urid?: string; rejectedDomains?: { domain: string; reason: string }[] }> {
+}): Promise<{ updated: number; created?: boolean; urid?: string; syncError?: string; rejectedDomains?: { domain: string; reason: string }[] }> {
   const wantUrid = (entry.urid || "").trim().toLowerCase();
   const wantName = (entry.matchName || entry.name || "").trim().toLowerCase();
   const newName = (entry.name || "").trim();
@@ -4028,8 +4029,8 @@ export async function updatePortfolioCompany(entry: {
   if (entry.dismissedDomains) await ensureColumn(TAB_NAMES.portfolio, "Dismissed Domains");
   if (entry.linkedinUrl !== undefined) await ensureColumn(TAB_NAMES.portfolio, "LinkedIn URL");
 
-  const rows = await fetchSheetTab(TAB_NAMES.portfolio);
-  if (rows.length < 2) return { updated: 0 };
+  const rows = await fetchSheetTab(TAB_NAMES.portfolio, true);
+  if (rows.length < 1) return { updated: 0 };
   const headers = rows[0].map((h) => h.trim().toLowerCase());
   const uridIdx = headers.indexOf("urid");
   const nameIdx = headers.indexOf("company name");
@@ -4063,6 +4064,8 @@ export async function updatePortfolioCompany(entry: {
       }
     }
   }
+  const duplicate = rows.find((r, i) => i > 0 && i + 1 !== rowNumber && normalizePortcoName(r[nameIdx] || "") === normalizePortcoName(newName));
+  if (duplicate) throw new Error(`${newName} already exists in the portfolio. Open that company instead.`);
   const valueByHeader: Record<string, string> = {
     "company name": newName,
     website: (entry.website || "").trim(),
@@ -4081,7 +4084,8 @@ export async function updatePortfolioCompany(entry: {
     const urid = crypto.randomUUID();
     const appendMap: Record<string, string> = { urid, ...valueByHeader };
     await appendSheetRow(TAB_NAMES.portfolio, headers.map((h) => appendMap[h] ?? ""));
-    return { updated: 1, created: true, urid, rejectedDomains };
+    const { mirrorPortco } = await import("./portco-list.server");
+    return { updated: 1, created: true, urid, rejectedDomains, ...await mirrorPortco({ ...entry, urid }) };
   }
 
   const updates: { range: string; value: string }[] = [];
@@ -4092,7 +4096,9 @@ export async function updatePortfolioCompany(entry: {
   }
   if (updates.length === 0) return { updated: 0 };
   await updateSheetCells(TAB_NAMES.portfolio, updates);
-  return { updated: 1, rejectedDomains };
+  const { mirrorPortco } = await import("./portco-list.server");
+  const urid = uridIdx >= 0 ? rows[rowNumber - 1][uridIdx] : entry.urid;
+  return { updated: 1, rejectedDomains, ...await mirrorPortco({ ...entry, urid }) };
 }
 
 // Hard-delete a portfolio company from the Portfolio Companies tab. Matched by
@@ -4406,8 +4412,8 @@ export async function fillBlankPortfolioFields(
   return written;
 }
 
-export async function buildPortfolioCompanies(): Promise<PortfolioCompany[]> {
-  const companyRows = await fetchSheetTab(TAB_NAMES.portfolio);
+export async function buildPortfolioCompanies(fresh = false): Promise<PortfolioCompany[]> {
+  const companyRows = await fetchSheetTab(TAB_NAMES.portfolio, fresh);
   const rawCompanies = mapRows<Record<string, string>>(companyRows, PORTFOLIO_COLS);
 
   // Skip blank/junk rows (no name and nothing else usable) so they don't
