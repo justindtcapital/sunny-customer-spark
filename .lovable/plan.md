@@ -48,3 +48,4 @@ Cancel        Send via Outlook & complete  |  Log & complete
 - PortCo detection matches request text against canonical PortCo options (shared review-tagging helpers, non-fuzzy).
 - Draft generation reuses `draftFollowUpFn` with the request as the nudge; log mode pre-fills title/notes.
 - `ActionComposer.tsx` restructured; button labels updated in `my-actions.tsx` and `NotesImports.tsx`; route description text updated.
+- Add `sourceKind: "contact" | "portco"` to the action context; `completeActionFn` skips marking a source item done for these and only records the email/activity. Buttons added in `ContactDetail.tsx` and the PortCo detail on `portfolio.tsx`, sharing one mounted `ActionComposer`.
