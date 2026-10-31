@@ -26,7 +26,8 @@ export function companyMatches(personCompany: string, company: string): boolean 
   if (!a || b.length < 2) return false;
   if (a === b) return true;
   const words = a.split(" ");
-  return b.length >= 3 && (words[0] === b || a.startsWith(`${b} `) || b.startsWith(`${a} `));
+  const ac = a.replace(/ /g, ""), bc = b.replace(/ /g, "");
+  return (bc.length >= 4 && ac.startsWith(bc)) || (b.length >= 3 && (words[0] === b || a.startsWith(`${b} `) || b.startsWith(`${a} `)));
 }
 
 const key = (p: DirectoryPerson) => p.email || p.name;
