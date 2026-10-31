@@ -32,6 +32,12 @@ Cancel        Send via Outlook & complete  |  Log & complete
 - Kept as-is: Regenerate + nudge (shorter, more formal…), Append PortCo list, set follow-up, Send via Outlook & complete, Log & complete.
 - Follow-up asks ("make it shorter") can also be typed in the V.I.C. box after a draft exists and will revise the draft.
 
+## Action with V.I.C. on contact and PortCo pages
+- Add an "Action with V.I.C." button to each individual contact's detail view (Network, Prospecting and Partners contacts) and each PortCo's detail view.
+- From a contact: the panel opens with that person already in "To" and their company/linked PortCos pre-tagged, so you can just say "send a catch-up email" or "log that we had coffee".
+- From a PortCo: the panel opens with that PortCo tagged and its known contacts offered as suggestions (e.g. "email their CEO" resolves within that company first).
+- Completing from these pages logs the email/activity against the contact or PortCo without needing an existing next step.
+
 ## Rules preserved
 - V.I.C. only drafts and proposes; sending/logging still happens only when you click the final button, through the existing completion and logging steps.
 - Ratings and contact records are never edited; "Add new contact" stays manual.
