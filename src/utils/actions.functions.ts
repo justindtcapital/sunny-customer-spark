@@ -158,7 +158,7 @@ export const interpretActionRequestFn = createServerFn({ method: "POST" }).middl
     const { callGeminiJSON } = await import("./gemini.server");
     const { peopleDirectory } = await import("./notes-inbox.server");
     const { resolvePersonQuery, portcosMentioned } = await import("@/lib/action-people");
-    const { actionStyle, canonicalActionNames } = await import("@/lib/action-drafting");
+    const { actionStyle, canonicalActionNames, stripActionPortcoBullets } = await import("@/lib/action-drafting");
     const dir = (await peopleDirectory()).map((p) => ({ name: p.name, email: p.email, company: p.company, title: p.title || "", where: p.where }));
     const confirmed = dir.filter((p) => data.people.includes(p.name) || data.people.includes(p.email));
     const canonicalNames = [...new Set([...data.portcos, ...confirmed.map((p) => p.company).filter(Boolean)])];
@@ -194,5 +194,5 @@ Interpret the user's request about an action. Output ONLY JSON:
       ...portcosMentioned(data.request, data.portcoOptions),
     ])];
     const names = [...canonicalNames, ...portcos];
-    return { ok: true as const, mode: r.data.mode === "log" ? "log" as const : "email" as const, people, portcos, subject: canonicalActionNames(String(r.data.subject || ""), names), body: canonicalActionNames(String(r.data.body || ""), names), reply: String(r.data.reply || "") };
+    return { ok: true as const, mode: r.data.mode === "log" ? "log" as const : "email" as const, people, portcos, subject: canonicalActionNames(String(r.data.subject || ""), names), body: stripActionPortcoBullets(canonicalActionNames(String(r.data.body || ""), names), data.portcoOptions), reply: String(r.data.reply || "") };
   });

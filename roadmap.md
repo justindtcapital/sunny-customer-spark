@@ -3,7 +3,7 @@
 ## Action with V.I.C. refinement
 - [x] Add session-only rolling conversation with visible replies, tags and clarification
 - [x] Use confirmed names and automatically append approved selected PortCo descriptions; absent approved descriptions are explicitly flagged, never invented
-- [x] Replace formatting nudge with tone/length choices; ten tests passed and real signed-in draft/refinement/close-reset verified without sending or logging. Akka has no approved description in the current PortCo List. Full lint remains blocked by existing repository-wide formatting errors; focused semantic lint has no errors.
+- [x] Replace formatting nudge with tone/length choices; eleven tests passed and real signed-in draft/refinement/close-reset verified without sending or logging. Akka has no approved description in the current PortCo List. Full lint remains blocked by existing repository-wide formatting errors; focused semantic lint has no errors.
 
 ## Meeting review automation
 - [x] Complete PortCo options and normalized workstream lookup in both review views
