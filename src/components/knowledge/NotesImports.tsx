@@ -497,7 +497,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
             </a>
           )}
         </div>
-        {onActionNow && <Button size="sm" variant="outline" className="ml-auto h-7" onClick={() => onActionNow(item)}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>}
+        {onActionNow && <Button size="sm" variant="outline" className="ml-auto h-7" onClick={() => onActionNow(item)}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>}
       </div>
 
       {open && (
