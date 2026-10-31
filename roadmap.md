@@ -1,5 +1,11 @@
 # Roadmap
 
+## PortCo dual-sheet synchronization
+- [x] Sync app company additions and edits to CRM and approved PortCo List by exact name/stable ID, with visible partial failure and safe retry
+- [x] Backed up both active tabs; consolidated Hyperbolic and Pecan (2 CRM duplicates, 1 approved-list duplicate); preserved both Pecan summaries and Hyperbolic HQ; no external URID references required changes
+- [x] Added 14 missing companies to approved list; active tabs now have 107 CRM companies / 112 approved entries, zero exact-name duplicates (approved-only companies retained)
+- [x] Complete dynamic follow-up company choices; 17 tests pass, signed-in Hyperbolic selection and unchanged company save/reload verified; approved description read back successfully. Both readers explicitly select active tabs, never backups.
+
 ## V.I.C. draft recovery and mobile Outlook
 - [x] Preserve unfinished conversations, drafts, tags, recipients and follow-up fields per account and action on this device
 - [x] Try Outlook app first on iPhone/iPad, retain draft during handoff and require confirmation before completion; web fallback is explicit because iOS cannot reliably detect installation

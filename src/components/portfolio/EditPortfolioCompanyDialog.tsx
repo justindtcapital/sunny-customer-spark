@@ -132,6 +132,7 @@ export function EditPortfolioCompanyDialog({
       toast.success(
         res.created ? `Added ${payload.name} to the portfolio sheet.` : `Updated ${payload.name}.`,
       );
+      if (res.syncError) toast.warning(res.syncError, { duration: 12000 });
       await onSaved?.(updated);
       onOpenChange(false);
     } catch (e) {
