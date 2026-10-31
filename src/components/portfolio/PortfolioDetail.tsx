@@ -83,6 +83,7 @@ import {
   type PortcoPersonCandidate,
 } from "@/utils/portco-people.functions";
 import { toast } from "sonner";
+import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 
 interface PortfolioDetailProps {
   company: PortfolioCompany | null;
@@ -422,6 +423,12 @@ export function PortfolioDetail({
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0 mr-6">
+<Button size="sm" className="h-7 text-xs" onClick={() => setVicCtx({
+                  sourceKind: "portco", sourceId: `portco:${company.name}`, title: company.name,
+                  text: [company.sector && `Sector: ${company.sector}`, company.website && `Website: ${company.website}`,
+                    crmContacts.length ? `Known people: ${crmContacts.slice(0, 40).map((c) => `${c.name}${c.title ? ` (${c.title})` : ""}`).join(", ")}` : ""].filter(Boolean).join("\n"),
+                  people: [], portcos: [company.name], focusCompany: company.name,
+                })}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>
                 <Badge variant="outline" className="text-xs">
                   {company.domain}
                 </Badge>
@@ -1220,6 +1227,7 @@ export function PortfolioDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <ActionComposer ctx={vicCtx} onClose={() => setVicCtx(null)} />
     </>
   );
 }
