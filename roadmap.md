@@ -1,5 +1,10 @@
 # Roadmap
 
+## PortCo dual-sheet synchronization
+- [ ] Sync app company additions and edits to CRM and approved PortCo List, with visible partial failure and safe retry
+- [ ] Back up and consolidate confirmed duplicates, preserve references, and reconcile approved descriptions
+- [ ] Complete dynamic follow-up company choices; test saves and verify signed-in selection
+
 ## V.I.C. draft recovery and mobile Outlook
 - [x] Preserve unfinished conversations, drafts, tags, recipients and follow-up fields per account and action on this device
 - [x] Try Outlook app first on iPhone/iPad, retain draft during handoff and require confirmation before completion; web fallback is explicit because iOS cannot reliably detect installation
