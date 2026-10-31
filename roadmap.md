@@ -1,5 +1,10 @@
 # Roadmap
 
+## Action with V.I.C. refinement
+- [ ] Add session-only rolling conversation with visible replies, tags and clarification
+- [ ] Use confirmed names and automatically append approved selected PortCo descriptions
+- [ ] Replace formatting nudge with tone/length choices; test and verify signed-in drafting
+
 ## Meeting review automation
 - [x] Complete PortCo options and normalized workstream lookup in both review views
 - [x] Add Investor/NWK title defaults and safe full-name contact matching from unified Contacts
