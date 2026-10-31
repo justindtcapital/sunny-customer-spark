@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Users, Wrench, Zap } from "lucide-react";
+import { Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Users, Sparkles, Wrench } from "lucide-react";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";

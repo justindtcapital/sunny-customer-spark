@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { ConnectGranolaButton } from "./ConnectGranolaButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
