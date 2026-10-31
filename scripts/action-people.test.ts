@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { portcosMentioned, resolvePersonQuery } from "./action-people";
+import { portcosMentioned, resolvePersonQuery } from "../src/lib/action-people";
 
 const dir = [
   { name: "Ann Lee", email: "ann@aka.ai", company: "Aka", title: "Chief Executive Officer", where: "Network" },
