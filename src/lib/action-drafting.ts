@@ -24,7 +24,7 @@ export function withActionPortcos(body: string, list: PortcoListEntry[], names: 
   const { text, missing } = formatPortcoList(list, names);
   const bullets = new Set(text.split("\n").filter(Boolean));
   const clean = stripActionPortcoBullets(body, names).split("\n").filter((line) => !bullets.has(line.trim())).join("\n").trimEnd();
-  return { body: text ? `${clean}\n\n${text}\n` : body, missing };
+  return { body: text ? `${clean}\n\n${text}\n` : clean, missing };
 }
 
 /** Generated portfolio bullets are untrusted, even when the model ignores instructions. */
