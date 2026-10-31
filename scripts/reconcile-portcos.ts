@@ -41,15 +41,18 @@ const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 // Capture any CRM references to removed company IDs and rewrite them in-place, backed up.
 const meta = await request(crm.id, "?fields=sheets.properties");
 const refs: { tab: any; before: string[][]; after: string[][] }[] = [];
-for (const s of meta.sheets) {
-  if (s.properties.sheetId === crm.tab.sheetId || /backup|archived|tokens|history/i.test(s.properties.title)) continue;
-  const sheet = await read(crm.id, s.properties.title);
-  const after = sheet.rows.map(row => row.map(value => {
+const referenceTabs = meta.sheets.filter((s: any) => s.properties.sheetId !== crm.tab.sheetId && !/backup|archived|tokens|history/i.test(s.properties.title));
+const ranges = referenceTabs.map((s: any) => `'${s.properties.title.replace(/'/g, "''")}'`);
+const query = new URLSearchParams(); for (const range of ranges) query.append("ranges", range);
+const snapshots = (await request(crm.id, `/values:batchGet?${query}`)).valueRanges;
+for (const [index, s] of referenceTabs.entries()) {
+  const before: string[][] = snapshots[index]?.values || [];
+  const after = before.map(row => row.map(value => {
     let result = value;
     for (const [oldId, newId] of Object.entries(cp.replacements)) result = result.replaceAll(oldId, newId);
     return result;
   }));
-  if (JSON.stringify(after) !== JSON.stringify(sheet.rows)) refs.push({ tab: s.properties, before: sheet.rows, after });
+  if (JSON.stringify(after) !== JSON.stringify(before)) refs.push({ tab: s.properties, before, after });
 }
 for (const ref of refs) {
   if (JSON.stringify((await read(crm.id, ref.tab.title)).rows) !== JSON.stringify(ref.before)) throw new Error("References changed during reconciliation; rerun");
