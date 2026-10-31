@@ -27,6 +27,7 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { VicMark } from "@/components/vic/VicMark";
 import { canonicalActionNames, withActionPortcos, type ActionTone, type ActionLength } from "@/lib/action-drafting";
+import { actionDraftKey, readActionDraft, writeActionDraft, outlookComposeLinks, isAppleMobile, type CachedActionDraft } from "@/lib/action-draft-cache";
 
 export interface ActionContext {
   sourceKind: "note" | "activity" | "workstream" | "followup" | "contact" | "portco";
@@ -89,6 +90,10 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
   const [recording, setRecording] = useState(false);
   const [fuDate, setFuDate] = useState("");
   const [fuNote, setFuNote] = useState("");
+  const [outlookOpened, setOutlookOpened] = useState(false);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [cacheFailed, setCacheFailed] = useState(false);
+  const draftKey = email && ctx ? actionDraftKey(email, ctx) : null;
   const rec = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const me = teamMemberFor(email);
@@ -97,15 +102,53 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
     session.current += 1;
     inFlight.current = false;
     setAsking(false); setBusy(""); setMessages([]);
-    if (!ctx) return;
+    setLoadedKey(null);
+    if (!ctx || !draftKey) return;
+    const saved = readActionDraft(localStorage, draftKey);
+    if (saved) {
+      setTo(saved.to); setPortcos(saved.portcos); setTracks(saved.tracks);
+      setSubject(saved.subject); setBody(saved.body); setLogNote(saved.logNote);
+      setTone(saved.tone); setLength(saved.length); setIncludePortcos(saved.includePortcos);
+      setMessages(saved.messages); setMode(saved.mode); setRequest(saved.request);
+      setFound(saved.found); setPicked(saved.picked); setAddr(saved.addr);
+      setFuDate(saved.fuDate); setFuNote(saved.fuNote); setOutlookOpened(saved.outlookOpened);
+    } else {
     setTo(ctx.people.filter((p) => p.email && !teamMemberFor(p.email)));
     setPortcos(ctx.portcos.filter(Boolean));
     setTracks(ctx.tracks || []);
     setSubject(""); setBody(""); setLogNote(""); setTone("informal"); setLength("short"); setIncludePortcos(true);
     setPersonQ(""); setPersonResults([]); setAddingNew(false); setFuDate(""); setFuNote("");
     setMode("email"); setRequest(""); setFound([]); setPicked({}); setPortcoQ(""); setAddingPortco(false);
+    setAddr(""); setOutlookOpened(false);
+    }
+    setPersonQ(""); setPersonResults([]); setAddingNew(false); setPortcoQ(""); setAddingPortco(false);
+    setCacheFailed(false); setLoadedKey(draftKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx]);
+  }, [ctx, draftKey]);
+
+  const cachedDraft = useMemo<CachedActionDraft>(() => ({
+    request, to, addr, portcos, tracks, subject, body,
+    messages: messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({
+      id: m.id, role: m.role === "user" ? "user" : "assistant",
+      parts: m.parts.flatMap((p) => p.type === "text" ? [{ type: "text" as const, text: p.text }] : []),
+    })),
+    tone, length, includePortcos, mode, logNote, fuDate, fuNote, found, picked, outlookOpened,
+  }), [request, to, addr, portcos, tracks, subject, body, messages, tone, length, includePortcos, mode, logNote, fuDate, fuNote, found, picked, outlookOpened]);
+
+  useEffect(() => {
+    if (!draftKey || loadedKey !== draftKey) return;
+    setCacheFailed(!writeActionDraft(localStorage, draftKey, cachedDraft));
+  }, [draftKey, loadedKey, cachedDraft]);
+
+  const forgetDraft = () => {
+    if (draftKey) { try { localStorage.removeItem(draftKey); } catch { /* storage unavailable */ } }
+    setLoadedKey(null);
+  };
+
+  const discardDraft = () => {
+    if (!window.confirm("Discard this draft and V.I.C. conversation?")) return;
+    forgetDraft(); onClose();
+  };
 
   useEffect(() => {
     if (ctx && !asking) requestRef.current?.focus();
@@ -172,18 +215,34 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
 
   const nextFollowUp = fuDate ? { date: fuDate, note: fuNote.trim() } : undefined;
 
-  const send = async () => {
+  const openOutlook = (webOnly = false) => {
+    if (!ctx || !to.length || !draftKey) return;
+    // Persist synchronously before leaving Safari or the standalone app.
+    if (!writeActionDraft(localStorage, draftKey, { ...cachedDraft, outlookOpened: true })) {
+      setCacheFailed(true);
+      toast.error("Couldn't save the draft on this device. Copy it before leaving.");
+      return;
+    }
+    setOutlookOpened(true);
+    const links = outlookComposeLinks(to.map((t) => t.email), subject, body);
+    if (!webOnly && isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) {
+      window.location.href = links.app;
+    } else {
+      window.open(links.web, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const finishEmail = async () => {
     if (!ctx || !to.length) { toast.error("Add at least one recipient."); return; }
-    const url = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(to.map((t) => t.email).join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(url, "_blank", "noopener,noreferrer");
     setBusy("send");
     try {
       await Promise.all(to.map((t) => recordEmailSent({ data: { contactEmail: t.email, contactName: t.name, subject, emailType: portcos.length ? "PortCo" : "General", linkedPortcos: portcos } }).catch((e) => console.error(e))));
       await complete({ data: { sourceKind: ctx.sourceKind, sourceId: ctx.sourceId, subject, recipients: to, portcos, tracks, actor: email || "", followUpActivityId: ctx.followUpActivityId, nextFollowUp } });
-      toast.success("Opened Outlook · logged and marked done");
+      forgetDraft();
+      toast.success("Email logged and marked done");
       onDone?.();
       onClose();
-    } catch (e) { console.error(e); toast.error("Opened Outlook, but logging failed."); }
+    } catch (e) { console.error(e); toast.error("Logging failed. Your draft is still saved."); }
     finally { setBusy(""); }
   };
 
@@ -193,6 +252,7 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
     try {
       await complete({ data: { sourceKind: ctx.sourceKind, sourceId: ctx.sourceId, subject: subject || logNote.trim().slice(0, 120), recipients: to, portcos, tracks, actor: email || "", followUpActivityId: ctx.followUpActivityId, mode: "log", note: logNote.trim(), nextFollowUp } });
       toast.success("Action logged and marked done");
+      forgetDraft();
       onDone?.(); onClose();
     } catch (e) { console.error(e); toast.error("Logging failed."); }
     finally { setBusy(""); }
@@ -274,6 +334,10 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2"><VicMark className="h-5 w-5 text-primary" />Action with V.I.C.</SheetTitle>
           <SheetDescription className="text-xs">Based on: {ctx?.title}</SheetDescription>
+          <div className="flex items-center justify-between gap-2">
+            <span role="status" className={`text-[11px] ${cacheFailed ? "text-destructive" : "text-muted-foreground"}`}>{cacheFailed ? "Draft couldn't be saved on this device" : loadedKey === draftKey && draftKey ? "Draft saved on this device" : ""}</span>
+            <Button size="sm" variant="ghost" disabled={!!busy || asking} onClick={discardDraft}>Discard draft</Button>
+          </div>
         </SheetHeader>
         <div className="mt-4 space-y-4">
           <section className="space-y-2" aria-label="Conversation with V.I.C.">
@@ -412,7 +476,7 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             {fuDate && <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><CalendarPlus className="h-3 w-3" />This completes the action and adds a follow-up to your Follow-ups tab for {fuDate}.</p>}
           </div>
           <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button variant="outline" onClick={onClose}>Close</Button>
             <Button disabled={!!busy || asking || found.length > 0 || !logNote.trim()} onClick={() => void logIt()}>{busy === "send" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}Log &amp; complete</Button>
           </div>
           </> : <>
@@ -441,9 +505,11 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             </div>
             {fuDate && <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><CalendarPlus className="h-3 w-3" />This completes the action and adds a follow-up to your Follow-ups tab for {fuDate}.</p>}
           </div>
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button disabled={!!busy || asking || found.length > 0 || !to.length || !body.trim()} onClick={() => void send()}>{busy === "send" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Mail className="h-4 w-4 mr-1" />}Send via Outlook &amp; complete</Button>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+            <Button variant="outline" onClick={onClose}>Close</Button>
+            <Button variant="outline" disabled={!!busy || asking || found.length > 0 || !to.length || !body.trim()} onClick={() => openOutlook(true)}>Outlook web</Button>
+            <Button disabled={!!busy || asking || found.length > 0 || !to.length || !body.trim()} onClick={() => openOutlook()}><Mail className="mr-1 h-4 w-4" />Open Outlook</Button>
+            {outlookOpened && <Button disabled={!!busy || asking || found.length > 0 || !to.length || !body.trim()} onClick={() => void finishEmail()}>{busy === "send" ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Check className="mr-1 h-4 w-4" />}I've sent it — complete</Button>}
           </div>
           </>}
           </>

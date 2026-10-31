@@ -1,5 +1,10 @@
 # Roadmap
 
+## V.I.C. draft recovery and mobile Outlook
+- [ ] Preserve unfinished conversations, drafts, tags, recipients and follow-up fields per account and action on this device
+- [ ] Try Outlook app first on iPhone/iPad, retain draft during handoff and require confirmation before completion
+- [ ] Test recovery and fallback behavior; real iOS Outlook launch requires an installed-device check
+
 ## Action with V.I.C. refinement
 - [x] Add session-only rolling conversation with visible replies, tags and clarification
 - [x] Use confirmed names and automatically append approved selected PortCo descriptions; absent approved descriptions are explicitly flagged, never invented
