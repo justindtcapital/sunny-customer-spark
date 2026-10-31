@@ -14,6 +14,9 @@ describe("Action with V.I.C. drafting", () => {
   it("does not invent descriptions for missing companies", () => {
     expect(withActionPortcos("Hello", [], ["Aka"])).toEqual({ body: "Hello", missing: ["Aka"] });
   });
+  it("removes model-authored portfolio bullets when no approved description exists", () => {
+    expect(withActionPortcos("Hello\n\n• Akka (https://made-up.example) – Invented description.", [], ["Akka"])).toEqual({ body: "Hello", missing: ["Akka"] });
+  });
   it("supports formal short form", () => {
     expect(actionStyle("formal", "short")).toBe("Professional, formal tone. Short form: concise, under 170 words.");
   });

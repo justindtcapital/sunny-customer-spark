@@ -23,6 +23,15 @@ export function canonicalActionNames(text: string, names: string[]): string {
 export function withActionPortcos(body: string, list: PortcoListEntry[], names: string[]): { body: string; missing: string[] } {
   const { text, missing } = formatPortcoList(list, names);
   const bullets = new Set(text.split("\n").filter(Boolean));
-  const clean = body.split("\n").filter((line) => !bullets.has(line.trim())).join("\n").trimEnd();
+  const clean = stripActionPortcoBullets(body, names).split("\n").filter((line) => !bullets.has(line.trim())).join("\n").trimEnd();
   return { body: text ? `${clean}\n\n${text}\n` : body, missing };
+}
+
+/** Generated portfolio bullets are untrusted, even when the model ignores instructions. */
+export function stripActionPortcoBullets(body: string, names: string[]): string {
+  return body.split("\n").filter((line) => {
+    if (!/^\s*[•*-]\s+/.test(line)) return true;
+    const text = line.replace(/^\s*[•*-]\s+/, "").toLowerCase();
+    return !names.some((name) => text === name.toLowerCase() || text.startsWith(`${name.toLowerCase()} `) || text.startsWith(`${name.toLowerCase()} (`));
+  }).join("\n").trimEnd();
 }
