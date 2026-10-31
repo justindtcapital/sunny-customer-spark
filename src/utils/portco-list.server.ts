@@ -31,9 +31,12 @@ export const loadPortcoList = createServerOnlyFn(async (): Promise<{ list: Portc
   const meta = await metaResponse.json() as { sheets?: { properties: { title: string; sheetId: number } }[] };
   const tab = meta.sheets?.find(s => /^portfolio companies$/i.test(s.properties.title)) || meta.sheets?.find(s => !/backup|archived/i.test(s.properties.title));
   if (!tab) throw new Error("PortCo List active tab missing");
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/csv&gid=${tab.properties.sheetId}&_=${Date.now()}`, { headers: h, cache: "no-store", signal: AbortSignal.timeout(15_000) });
+  const range = `'${tab.properties.title.replace(/'/g, "''")}'`;
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}`, { headers: h, cache: "no-store", signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`PortCo List export failed [${r.status}]: ${await r.text()}`);
-  cache = { at: Date.now(), list: parsePortcoList(await r.text()), file: file || id };
+  const values = await r.json() as { values?: string[][] };
+  const csv = (values.values || []).map(row => row.map(value => `"${value.replace(/"/g, '""')}"`).join(",")).join("\n");
+  cache = { at: Date.now(), list: parsePortcoList(csv), file: file || id };
   return cache;
 });
 
