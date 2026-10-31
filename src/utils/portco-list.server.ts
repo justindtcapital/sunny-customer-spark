@@ -13,7 +13,7 @@ export const resolvePortcoList = createServerOnlyFn(async () => {
   let file = "";
   if (!id) {
     const q = encodeURIComponent("name contains 'PortCo List' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
-    const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&corpora=allDrives&includeItemsFromAllDrives=true&supportsAllDrives=true&orderBy=modifiedTime desc&pageSize=10&fields=files(id,name)`, { headers: h });
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&corpora=allDrives&includeItemsFromAllDrives=true&supportsAllDrives=true&orderBy=modifiedTime desc&pageSize=10&fields=files(id,name,modifiedTime)&_=${Date.now()}`, { headers: h, cache: "no-store", signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error(`PortCo List lookup failed [${r.status}]: ${await r.text()}`);
     const files = ((await r.json()) as { files?: { id: string; name: string }[] }).files || [];
     const f = files.find((x) => /^portco list/i.test(x.name)) || files[0];
@@ -26,7 +26,7 @@ export const resolvePortcoList = createServerOnlyFn(async () => {
 export const loadPortcoList = createServerOnlyFn(async (): Promise<{ list: PortcoListEntry[]; file: string }> => {
   // A fresh read prevents other Worker instances serving old approved descriptions after a save.
   const { id, file, headers: h } = await resolvePortcoList();
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/csv`, { headers: h, signal: AbortSignal.timeout(15_000) });
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/csv&_=${Date.now()}`, { headers: h, cache: "no-store", signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`PortCo List export failed [${r.status}]: ${await r.text()}`);
   cache = { at: Date.now(), list: parsePortcoList(await r.text()), file: file || id };
   return cache;
