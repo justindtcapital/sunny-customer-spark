@@ -26,7 +26,12 @@ export const resolvePortcoList = createServerOnlyFn(async () => {
 export const loadPortcoList = createServerOnlyFn(async (): Promise<{ list: PortcoListEntry[]; file: string }> => {
   // A fresh read prevents other Worker instances serving old approved descriptions after a save.
   const { id, file, headers: h } = await resolvePortcoList();
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/csv&_=${Date.now()}`, { headers: h, cache: "no-store", signal: AbortSignal.timeout(15_000) });
+  const metaResponse = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=sheets.properties`, { headers: h, signal: AbortSignal.timeout(15000) });
+  if (!metaResponse.ok) throw new Error(`PortCo List metadata [${metaResponse.status}]: ${await metaResponse.text()}`);
+  const meta = await metaResponse.json() as { sheets?: { properties: { title: string; sheetId: number } }[] };
+  const tab = meta.sheets?.find(s => /^portfolio companies$/i.test(s.properties.title)) || meta.sheets?.find(s => !/backup|archived/i.test(s.properties.title));
+  if (!tab) throw new Error("PortCo List active tab missing");
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=text/csv&gid=${tab.properties.sheetId}&_=${Date.now()}`, { headers: h, cache: "no-store", signal: AbortSignal.timeout(15_000) });
   if (!r.ok) throw new Error(`PortCo List export failed [${r.status}]: ${await r.text()}`);
   cache = { at: Date.now(), list: parsePortcoList(await r.text()), file: file || id };
   return cache;
@@ -42,7 +47,7 @@ export const mirrorPortco = createServerOnlyFn(async (input: PortcoMirrorInput):
       return response.json();
     };
     const meta = await request("?fields=sheets.properties");
-    const title = meta.sheets?.[0]?.properties?.title as string | undefined;
+    const title = (meta.sheets?.find((s: { properties: { title: string } }) => /^portfolio companies$/i.test(s.properties.title)) || meta.sheets?.find((s: { properties: { title: string } }) => !/backup|archived/i.test(s.properties.title)))?.properties?.title as string | undefined;
     if (!title) throw new Error("PortCo List has no sheet");
     const range = `'${title.replace(/'/g, "''")}'`;
     const values = await request(`/values/${encodeURIComponent(range)}`);

@@ -11,7 +11,7 @@ async function request(id: string, path: string, body?: object) {
 }
 async function read(id: string, title?: string) {
   const meta = await request(id, "?fields=sheets.properties");
-  const tab = title ? meta.sheets.find((s: any) => s.properties.title === title) : meta.sheets[0];
+  const tab = title ? meta.sheets.find((s: any) => s.properties.title === title) : meta.sheets.find((s: any) => /^portfolio companies$/i.test(s.properties.title)) || meta.sheets.find((s: any) => !/backup|archived/i.test(s.properties.title));
   if (!tab) throw new Error("Company tab missing");
   const range = `'${tab.properties.title.replace(/'/g, "''")}'`;
   const rows: string[][] = (await request(id, `/values/${encodeURIComponent(range)}`)).values || [];
@@ -59,7 +59,7 @@ for (const ref of refs) {
 }
 function replaceRequests(tab: any, rows: string[][], oldLength: number) {
   const width = Math.max(...rows.map(r => r.length));
-  return [{ duplicateSheet: { sourceSheetId: tab.sheetId, newSheetName: `PortCo backup ${tab.sheetId} ${stamp}` } }, { updateCells: { range: { sheetId: tab.sheetId, startRowIndex: 0, endRowIndex: Math.max(rows.length, oldLength), startColumnIndex: 0, endColumnIndex: width }, rows: rows.map(row => ({ values: row.map(stringValue => ({ userEnteredValue: { stringValue } })) })), fields: "userEnteredValue" } }];
+  return [{ duplicateSheet: { sourceSheetId: tab.sheetId, insertSheetIndex: 999, newSheetName: `PortCo backup ${tab.sheetId} ${stamp}` } }, { updateCells: { range: { sheetId: tab.sheetId, startRowIndex: 0, endRowIndex: Math.max(rows.length, oldLength), startColumnIndex: 0, endColumnIndex: width }, rows: rows.map(row => ({ values: row.map(stringValue => ({ userEnteredValue: { stringValue } })) })), fields: "userEnteredValue" } }];
 }
 await request(crm.id, ":batchUpdate", { requests: [...replaceRequests(crm.tab, cp.rows, crm.rows.length), ...refs.flatMap(r => replaceRequests(r.tab, r.after, r.before.length))] });
 await request(approved.id, ":batchUpdate", { requests: replaceRequests(approved.tab, ap.rows, approved.rows.length) });
