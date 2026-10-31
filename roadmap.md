@@ -113,3 +113,4 @@
 - [ ] Rebuild signals from scratch (PortCo signals panel, email digest archiving and intel still use old signal code)
 
 - [x] Unified Contacts: Prospecting is a status flag; Targets archived; bulk moves are one write. Review 67 shared-email + 95 shifted-stage prospects in "Prospect Merge Review" tab.
+- [x] Action with V.I.C. panel (My Actions, contacts, PortCos)
