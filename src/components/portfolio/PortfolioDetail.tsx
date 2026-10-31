@@ -127,6 +127,7 @@ export function PortfolioDetail({
   onCompanyDeleted,
 }: PortfolioDetailProps) {
   const [syncing, setSyncing] = useState(false);
+  const [vicCtx, setVicCtx] = useState<ActionContext | null>(null);
   const [asanaSyncing, setAsanaSyncing] = useState(false);
   const [findPeopleOpen, setFindPeopleOpen] = useState(false);
   const [insight, setInsight] = useState<InsightNarrative | null>(null);
