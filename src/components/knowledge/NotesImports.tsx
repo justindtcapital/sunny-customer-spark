@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { ConnectGranolaButton } from "./ConnectGranolaButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, X, Zap } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -497,7 +497,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
             </a>
           )}
         </div>
-        {onActionNow && <Button size="sm" variant="outline" className="ml-auto h-7" onClick={() => onActionNow(item)}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>}
+        {onActionNow && <Button size="sm" variant="outline" className="ml-auto h-7" onClick={() => onActionNow(item)}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>}
       </div>
 
       {open && (

@@ -102,6 +102,7 @@ import { useAsanaActivities } from "@/lib/use-activities";
 import { matchActivitiesToContact } from "@/lib/activity-match";
 import { Sparkles, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PersonCampaigns } from "@/components/crm/PersonCampaigns";
+import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 
 interface ContactDetailProps {
   contact: Contact | null;
@@ -242,6 +243,7 @@ export function ContactDetail({
 }: ContactDetailProps) {
   const { options: filterOpts } = useFilterOptions();
   const portfolioCompanies = filterOpts.portfolioCompanies;
+  const [vicCtx, setVicCtx] = useState<ActionContext | null>(null);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<Contact>>({});
   const [addInteractionOpen, setAddInteractionOpen] = useState(false);
@@ -1048,6 +1050,21 @@ export function ContactDetail({
                       </>
                     ) : (
                       <>
+                        <Button
+                          size="sm"
+                          className={actionBtnClass}
+                          onClick={() => setVicCtx({
+                            sourceKind: "contact", sourceId: `contact:${contact.email || contact.name}`,
+                            title: `${contact.name}${contact.company ? ` · ${contact.company}` : ""}`,
+                            text: [contact.title && `Title: ${contact.title}`, contact.company && `Company: ${contact.company}`].filter(Boolean).join("\n"),
+                            people: [{ name: contact.name, email: contact.email }],
+                            portcos: (contact.portCoIntros || []).filter(Boolean),
+                            focusCompany: contact.company || undefined,
+                          })}
+                        >
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Action with V.I.C.
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -2222,6 +2239,7 @@ export function ContactDetail({
           });
         }}
       />
+      <ActionComposer ctx={vicCtx} onClose={() => setVicCtx(null)} />
     </>
   );
 }

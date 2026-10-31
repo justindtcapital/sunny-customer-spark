@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Users, Wrench, Zap } from "lucide-react";
+import { Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Users, Sparkles, Wrench } from "lucide-react";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
@@ -52,7 +52,7 @@ export const Route = createFileRoute("/my-actions")({
   head: () => ({
     meta: [
       { title: "My Actions — VenturePulse" },
-      { name: "description", content: "Your inbox of workstreams, notes, activity and follow-ups, with Action Now follow-up emails." },
+      { name: "description", content: "Your inbox of workstreams, notes, activity and follow-ups, with Action with V.I.C. emails and logs." },
       { property: "og:title", content: "My Actions — VenturePulse" },
       { property: "og:description", content: "Your inbox of workstreams, notes, activity and follow-ups." },
       { property: "og:type", content: "website" },
@@ -383,7 +383,7 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
           sourceKind: "followup", sourceId: x.activityId || x.id, title: x.summary || `Follow-up with ${x.person}`,
           text: x.details || x.originalNote || x.summary, people: x.people || [{ name: x.person, email: x.email || "" }],
           portcos: x.company ? x.company.split(/\s*,\s*/) : [], tracks: x.tracks, followUpActivityId: x.activityId,
-        })}><Zap className="mr-1 h-3.5 w-3.5" />Action Now</Button>
+        })}><Sparkles className="mr-1 h-3.5 w-3.5" />Action with V.I.C.</Button>
         <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => { setNoteFor(noteFor === x.id ? "" : x.id); setNoteText(""); }}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
         <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
         {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
@@ -543,7 +543,7 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
               text: [ws.notes, ws.traction, ws.dellStakeholders && `Dell stakeholders: ${ws.dellStakeholders}`, ws.lastActivity && `Last activity: ${ws.lastActivity}`].filter(Boolean).join("\n"),
               nextSteps: ws.nextSteps ? [ws.nextSteps] : [], people: [], portcos: [ws.company],
               tracks: ws.segment === "BD" || ws.segment === "GTM" ? [ws.segment] : [],
-            })}><Zap className="h-3.5 w-3.5 mr-1" />Action Now</Button>
+            })}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>
           </div>
           <WorkstreamDetail key={ws.gid} w={ws} onSaved={() => { void refresh(); void qc.invalidateQueries({ queryKey: ["my-actions", "done"] }); }} />
           {wsGroupFu.length > 0 && <div className="space-y-1 border-t border-border pt-3">
