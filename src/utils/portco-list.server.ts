@@ -46,9 +46,19 @@ export const mirrorPortco = createServerOnlyFn(async (input: PortcoMirrorInput):
     if (!title) throw new Error("PortCo List has no sheet");
     const range = `'${title.replace(/'/g, "''")}'`;
     const values = await request(`/values/${encodeURIComponent(range)}`);
-    const plan = planPortcoMirror(values.values || [], input);
+    const rows: string[][] = values.values || [];
+    if (!rows[0]?.some(h => /^urid$/i.test(h.trim()))) {
+      if (!rows[0]?.length) throw new Error("PortCo List headers missing");
+      rows[0].push("URID");
+      await request(`/values/${encodeURIComponent(range)}!A1?valueInputOption=RAW`, "PUT", { values: [rows[0]] });
+    }
+    const plan = planPortcoMirror(rows, input);
     if (plan.append) await request(`/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, "POST", { values: [plan.row] });
-    else await request(`/values/${encodeURIComponent(range)}!A${plan.rowIndex + 1}?valueInputOption=RAW`, "PUT", { values: [plan.row] });
+    else {
+      const letters = (index: number): string => { let result = ""; for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) result = String.fromCharCode(65 + (n - 1) % 26) + result; return result; };
+      const data = plan.row.flatMap((value, index) => value !== (rows[plan.rowIndex]?.[index] || "") ? [{ range: `${range}!${letters(index)}${plan.rowIndex + 1}`, values: [[value]] }] : []);
+      if (data.length) await request("/values:batchUpdate", "POST", { valueInputOption: "RAW", data });
+    }
     cache = null;
     return {};
   } catch (error) {
