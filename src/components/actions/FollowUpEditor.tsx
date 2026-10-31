@@ -35,7 +35,7 @@ export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; 
   useEffect(() => {
     let live = true;
     void Promise.all([loadCompanies(), loadPartners()]).then(([portcos, partners]) => {
-      if (live) setCompanies([...new Set([...portcos, ...partners.map(p => p.name)])].sort((a, b) => a.localeCompare(b)));
+      if (live) setCompanies([...new Set([...portcos, ...partners.partners.map(p => p.name)])].sort((a, b) => a.localeCompare(b)));
     }).catch(() => { if (live) setCompanyError(true); });
     return () => { live = false; };
   }, [loadCompanies, loadPartners]);
