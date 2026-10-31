@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireTeamAuth } from "./team-auth";
 
 export const fetchPortcoListFn = createServerFn({ method: "GET" }).handler(async () => {
   try {
@@ -33,7 +34,7 @@ export const draftFollowUpFn = createServerFn({ method: "POST" })
   });
 
 const completeInput = z.object({
-  sourceKind: z.enum(["note", "activity", "workstream", "followup"]),
+  sourceKind: z.enum(["note", "activity", "workstream", "followup", "contact", "portco"]),
   sourceId: z.string().min(1).max(200),
   subject: z.string().max(500),
   recipients: z.array(z.object({ name: z.string().max(200), email: z.string().max(200) })).max(30),
@@ -66,8 +67,8 @@ export const completeActionFn = createServerFn({ method: "POST" })
       recordId: data.sourceId, date: today, track, type: data.mode === "log" ? "logged-action" : "follow-up",
       title: data.subject || (data.mode === "log" ? "Logged action" : "Follow-up email"), portco: data.portcos.join(", "), person: people, owner,
       summary: data.mode === "log"
-        ? `Action Now (${data.sourceKind}): logged action${people ? ` with ${people}` : ""}${data.note ? ` — ${data.note}` : ""}`
-        : `Action Now (${data.sourceKind}): follow-up emailed to ${people || "contacts"}`,
+        ? `Action with V.I.C. (${data.sourceKind}): logged action${people ? ` with ${people}` : ""}${data.note ? ` — ${data.note}` : ""}`
+        : `Action with V.I.C. (${data.sourceKind}): follow-up emailed to ${people || "contacts"}`,
       sourceUrl: "", createdAt: now,
     })));
     if (data.followUpActivityId) await k.resolveHarvestedActivity(data.followUpActivityId, true);
@@ -76,11 +77,11 @@ export const completeActionFn = createServerFn({ method: "POST" })
         activityId: `followup:${base}`,
         recordId: data.sourceId, date: data.nextFollowUp.date, track: "Follow-up", type: "follow-up",
         title: data.nextFollowUp.note || `Follow up: ${data.subject}`, portco: data.portcos.join(", "), person: people, owner,
-        summary: `Follow-up set from Action Now (${data.sourceKind}): ${data.nextFollowUp.note || data.subject}`,
+        summary: `Follow-up set from Action with V.I.C. (${data.sourceKind}): ${data.nextFollowUp.note || data.subject}`,
         sourceUrl: "", createdAt: now,
       }]);
     }
-    await logOpsEvent({ action: "edit", source: "My Actions", status: "ok", summary: `Action Now: ${data.subject}`, records: data.recipients.length, details: { owner, source: data.sourceId }, items: data.recipients.map((r) => r.email) });
+    await logOpsEvent({ action: "edit", source: "My Actions", status: "ok", summary: `Action with V.I.C.: ${data.subject}`, records: data.recipients.length, details: { owner, source: data.sourceId }, items: data.recipients.map((r) => r.email) });
     return { ok: true, actionId: `action:${base}` };
   });
 
@@ -132,4 +133,54 @@ export const undoActionFn = createServerFn({ method: "POST" })
     await k.setHarvestState("action-undone", [...new Set([...cur, data.actionId])].join(","));
     if (data.followUpActivityId) await k.resolveHarvestedActivity(data.followUpActivityId, false);
     return { ok: true };
+  });
+
+const interpretInput = z.object({
+  request: z.string().min(1).max(4000),
+  sourceKind: z.string().max(40),
+  sourceTitle: z.string().max(500),
+  sourceText: z.string().max(12000),
+  people: z.array(z.string().max(200)).max(30),
+  portcos: z.array(z.string().max(200)).max(30),
+  portcoOptions: z.array(z.string().max(200)).max(400),
+  senderName: z.string().max(100).optional(),
+  currentDraft: z.string().max(8000).optional(),
+  focusCompany: z.string().max(200).optional(),
+});
+
+/** V.I.C. reads a typed/dictated request: picks email vs log, resolves people descriptions, detects PortCos, drafts. Proposes only. */
+export const interpretActionRequestFn = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .inputValidator((d: z.infer<typeof interpretInput>) => interpretInput.parse(d))
+  .handler(async ({ data }) => {
+    const { callGeminiJSON } = await import("./gemini.server");
+    const { peopleDirectory } = await import("./notes-inbox.server");
+    const { resolvePersonQuery, portcosMentioned } = await import("@/lib/action-people");
+    const system = `You are V.I.C., assistant to a venture investor at DT Capital (Dell Technologies Capital).
+Interpret the user's request about an action. Output ONLY JSON:
+{"mode":"email"|"log","people":[{"phrase":"exact words used","name":"full name if given","company":"company if given","role":"title like CEO if given","count":number if a count was given}],"portcos":["PortCo names mentioned"],"subject":"...","body":"email body or log notes"}
+- mode "log" when they describe something already done (called, met, introduced, logged); otherwise "email".
+- people: only people newly described in the request; omit the people already listed as current recipients unless re-described.${data.focusCompany ? ` "their"/"them" refers to ${data.focusCompany}.` : ""}
+- Email style: warm, specific, under 170 words, no placeholders, never invent facts; refer to unresolved people by role. Sign off with the sender's first name if given.
+- If a current draft is provided and the request is an edit (shorter, more formal...), revise that draft.`;
+    const user = [
+      `Request: ${data.request}`,
+      `Source (${data.sourceKind}): ${data.sourceTitle}`, data.sourceText.slice(0, 6000),
+      `Current recipients: ${data.people.join(", ") || "none"}`,
+      data.portcos.length ? `Tagged PortCos: ${data.portcos.join(", ")}` : "",
+      data.senderName ? `Sender: ${data.senderName}` : "",
+      data.currentDraft ? `Current draft:\n${data.currentDraft}` : "",
+    ].filter(Boolean).join("\n\n");
+    const r = await callGeminiJSON<{ mode?: string; people?: Array<{ phrase?: string; name?: string; company?: string; role?: string; count?: number }>; portcos?: string[]; subject?: string; body?: string }>(system, user, 2000);
+    if (!r.ok || !r.data) return { ok: false as const, error: r.error || "V.I.C. couldn't read that request." };
+    const dir = (await peopleDirectory()).map((p) => ({ name: p.name, email: p.email, company: p.company, title: p.title || "", where: p.where }));
+    const people = (r.data.people || []).slice(0, 10).map((q) => resolvePersonQuery({
+      phrase: String(q.phrase || ""), name: q.name || undefined, company: q.company || (q.name ? undefined : data.focusCompany), role: q.role || undefined,
+      count: typeof q.count === "number" && q.count > 0 ? Math.round(q.count) : undefined,
+    }, dir));
+    const lower = new Map(data.portcoOptions.map((o) => [o.toLowerCase(), o]));
+    const portcos = [...new Set([
+      ...(r.data.portcos || []).map((p) => lower.get(String(p).toLowerCase())).filter((p): p is string => !!p),
+      ...portcosMentioned(data.request, data.portcoOptions),
+    ])];
+    return { ok: true as const, mode: r.data.mode === "log" ? "log" as const : "email" as const, people, portcos, subject: String(r.data.subject || ""), body: String(r.data.body || "") };
   });
