@@ -1017,9 +1017,9 @@ function PortfolioPage() {
 
 function MiniStat({ n, label }: { n: number; label: string }) {
   return (
-    <span className="w-11">
+    <span className="w-9 sm:w-11">
       <span className={cn("block text-sm font-semibold leading-none", n === 0 && "text-muted-foreground")}>{n}</span>
-      <span className="block text-[9px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="block text-[8px] uppercase tracking-tight text-muted-foreground sm:text-[9px] sm:tracking-wide">{label}</span>
     </span>
   );
 }
