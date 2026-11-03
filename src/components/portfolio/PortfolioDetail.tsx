@@ -1,5 +1,5 @@
 import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PortfolioCompany, Contact, EmailActivityRecord } from "@/lib/types";
 import { formatEngagementSources } from "@/lib/engagement-source";
@@ -1908,7 +1908,7 @@ function noteSteps(json: string): Array<{ who: string; action: string; dueDate: 
   } catch { return []; }
 }
 
-function DetailShell({ inline, open, onOpenChange, children }: { inline: boolean; open: boolean; onOpenChange: (o: boolean) => void; children: React.ReactNode }) {
+function DetailShell({ inline, open, onOpenChange, children }: { inline: boolean; open: boolean; onOpenChange: (o: boolean) => void; children: ReactNode }) {
   if (inline) return <div className="flex flex-col p-4">{children}</div>;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
