@@ -898,7 +898,7 @@ function PortfolioPage() {
           </div>
           <div className="grid gap-4 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
             <div className="space-y-3 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">
-              {(chipDomain ? uniqueSorted(listed.map((c) => c.domain)) : [""]).map((d) => (
+              {(chipDomain !== "all" ? uniqueSorted(listed.map((c) => c.domain)) : [""]).map((d) => (
                 <section key={d || "all"} className="space-y-1">
                   {d && <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{d}</h2>}
                   {(d ? listed.filter((c) => c.domain === d) : listed).map((c) => {
