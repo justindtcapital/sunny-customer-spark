@@ -30,8 +30,15 @@ export function writeActionDraft(store: Store, key: string, draft: CachedActionD
 
 export function outlookComposeLinks(to: string[], subject: string, body: string) {
   const query = `to=${encodeURIComponent(to.join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  return { app: `ms-outlook://compose?${query}`, web: `https://outlook.office.com/mail/deeplink/compose?${query}` };
+  const desktopQuery = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.replace(/\r?\n/g, "\r\n"))}`;
+  return { app: `ms-outlook://compose?${query}`, desktop: `mailto:${to.map(encodeURIComponent).join(",")}?${desktopQuery}`, web: `https://outlook.office.com/mail/deeplink/compose?${query}` };
 }
 export function isAppleMobile(userAgent: string, platform: string, maxTouchPoints: number) {
   return /iPad|iPhone|iPod/.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
+}
+
+export function outlookHandoff(to: string[], subject: string, body: string, device: { userAgent: string; platform: string; maxTouchPoints: number }, webOnly = false) {
+  const links = outlookComposeLinks(to, subject, body);
+  if (webOnly) return { url: links.web, externalApp: false };
+  return { url: isAppleMobile(device.userAgent, device.platform, device.maxTouchPoints) ? links.app : links.desktop, externalApp: true };
 }

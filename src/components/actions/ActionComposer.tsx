@@ -27,7 +27,7 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { PromptInput, PromptInputTextarea, PromptInputFooter, PromptInputSubmit } from "@/components/ai-elements/prompt-input";
 import { VicMark } from "@/components/vic/VicMark";
 import { canonicalActionNames, withActionPortcos, type ActionTone, type ActionLength } from "@/lib/action-drafting";
-import { actionDraftKey, readActionDraft, writeActionDraft, outlookComposeLinks, isAppleMobile, type CachedActionDraft } from "@/lib/action-draft-cache";
+import { actionDraftKey, readActionDraft, writeActionDraft, outlookHandoff, type CachedActionDraft } from "@/lib/action-draft-cache";
 
 export interface ActionContext {
   sourceKind: "note" | "activity" | "workstream" | "followup" | "contact" | "portco";
@@ -217,18 +217,18 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
 
   const openOutlook = (webOnly = false) => {
     if (!ctx || !to.length || !draftKey) return;
-    // Persist synchronously before leaving Safari or the standalone app.
+    // Persist synchronously before handing off to an external email app.
     if (!writeActionDraft(localStorage, draftKey, { ...cachedDraft, outlookOpened: true })) {
       setCacheFailed(true);
       toast.error("Couldn't save the draft on this device. Copy it before leaving.");
       return;
     }
     setOutlookOpened(true);
-    const links = outlookComposeLinks(to.map((t) => t.email), subject, body);
-    if (!webOnly && isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)) {
-      window.location.href = links.app;
+    const handoff = outlookHandoff(to.map((t) => t.email), subject, body, navigator, webOnly);
+    if (handoff.externalApp) {
+      window.location.href = handoff.url;
     } else {
-      window.open(links.web, "_blank", "noopener,noreferrer");
+      window.open(handoff.url, "_blank", "noopener,noreferrer");
     }
   };
 
