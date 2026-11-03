@@ -12,6 +12,14 @@ import type { PortfolioCompany, Contact, PortfolioDomain, EmailActivityRecord } 
 import { matchSheetToAsanaKeys } from "@/lib/portco-names";
 import { dedupePortfolioCompanies } from "@/lib/portco-dedupe";
 import { PortfolioCard } from "@/components/portfolio/PortfolioCard";
+import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
+import { useWorkstreams } from "@/lib/use-workstreams";
+import { isWorkstreamCompleted } from "@/lib/workstream-parse";
+import { cleanPriority } from "@/lib/portco-matrix";
+import { matchesListFilter, priorityAbbrev } from "@/lib/portco-list-view";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { useRef } from "react";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { compareCompanyNames } from "@/lib/portco-fields";
 import { AddPortfolioCompanyDialog } from "@/components/portfolio/AddPortfolioCompanyDialog";
@@ -29,7 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building2, Users, Plus, Trash2, RefreshCw, Globe, Loader2, X } from "lucide-react";
+import { Building2, Users, Plus, Trash2, RefreshCw, Globe, Loader2, X, Search } from "lucide-react";
 import { usePortfolioFilters } from "@/lib/portfolio-filter-context";
 import { useFilterOptions } from "@/lib/filter-options-context";
 import { companyDomainMap, isSharedEmailDomain, normalizeDomain, suggestDomainMatches } from "@/lib/company-domains";
@@ -279,6 +287,11 @@ function PortfolioPage() {
   const [asanaSyncing, setAsanaSyncing] = useState(false);
   const [webSyncing, setWebSyncing] = useState(false);
   const { filters } = usePortfolioFilters();
+  const [chipDomain, setChipDomain] = useState<string>("all");
+  const [chipPriority, setChipPriority] = useState<string>("all");
+  const [listSearch, setListSearch] = useState("");
+  const paneRef = useRef<HTMLDivElement>(null);
+  const { workstreams } = useWorkstreams();
   const { updateOptions } = useFilterOptions();
 
   useEffect(() => {
@@ -616,7 +629,42 @@ function PortfolioPage() {
   const handleCardClick = (company: PortfolioCompany) => {
     setSelectedCompany(company);
     setDetailOpen(true);
+    // Stacked (narrow) layout: the detail sits below the list, so bring it into view.
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      requestAnimationFrame(() => paneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    }
   };
+
+  const wsStats = useMemo(() => {
+    const out: Record<string, { streams: number; actions: number }> = {};
+    for (const w of workstreams) {
+      if (isWorkstreamCompleted(w)) continue;
+      const k = (w.companyKey || w.company || "").toLowerCase().trim();
+      const cur = (out[k] ||= { streams: 0, actions: 0 });
+      cur.streams += 1;
+      if ((w.nextSteps || "").trim()) cur.actions += 1;
+    }
+    return out;
+  }, [workstreams]);
+
+  const priorityOptions = useMemo(
+    () => uniqueSorted(filtered.map((c) => cleanPriority(dtcPriorityOf(c)))),
+    [filtered],
+  );
+  const domainOptions = useMemo(() => uniqueSorted(filtered.map((c) => c.domain)), [filtered]);
+  const listed = useMemo(() => {
+    const q = listSearch.trim().toLowerCase();
+    return filtered
+      .filter((c) => matchesListFilter({ domain: c.domain, priority: dtcPriorityOf(c) }, { domain: chipDomain, priority: chipPriority }))
+      .filter((c) => !q || c.name.toLowerCase().includes(q))
+      .sort((a, b) => compareCompanyNames(a, b));
+  }, [filtered, chipDomain, chipPriority, listSearch]);
+
+  // Wide screens: show the first company so the detail pane is never empty.
+  useEffect(() => {
+    if (selectedCompany || !listed.length) return;
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) setSelectedCompany(listed[0]);
+  }, [listed, selectedCompany]);
 
   const handleCompanyUpdate = (updated: PortfolioCompany) => {
     setSelectedCompany(updated);
@@ -805,21 +853,76 @@ function PortfolioPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((company) => (
-            <PortfolioCard
-              key={company.id}
-              company={company}
-              counts={computeCounts(
-                matchedFor(company),
-                findCrmIntros(contacts, company.name),
-                company,
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {["all", ...domainOptions].map((d) => (
+              <Button key={d} size="sm" className="h-7 text-xs" variant={chipDomain === d ? "default" : "outline"} onClick={() => setChipDomain(d)}>
+                {d === "all" ? "All" : d}
+                <span className="ml-1.5 opacity-70">{d === "all" ? filtered.length : filtered.filter((c) => c.domain === d).length}</span>
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Priority</span>
+            {["all", ...priorityOptions].map((p) => (
+              <button key={p} type="button" title={p === "all" ? "All priorities" : p} onClick={() => setChipPriority(p)}
+                className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors", chipPriority === p ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50")}>
+                {p === "all" ? "All" : priorityAbbrev(p)}
+              </button>
+            ))}
+            <div className="relative ml-auto w-full sm:w-56">
+              <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input className="h-8 pl-7 text-sm" placeholder="Search PortCos" value={listSearch} onChange={(e) => setListSearch(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
+            <div className="space-y-3 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">
+              {uniqueSorted(listed.map((c) => c.domain)).map((d) => (
+                <section key={d} className="space-y-1">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{d}</h2>
+                  {listed.filter((c) => c.domain === d).map((c) => {
+                    const st = wsStats[c.name.toLowerCase().trim()] || { streams: 0, actions: 0 };
+                    const pr = dtcPriorityOf(c);
+                    return (
+                      <div key={c.id} className={cn("flex items-center gap-2 rounded-md border bg-card px-2 py-1.5", selectedCompany?.id === c.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/50")}>
+                        <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleId(c.id)} aria-label={`Select ${c.name}`} />
+                        <button type="button" onClick={() => handleCardClick(c)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                          <PortcoLogo name={c.name} website={c.website} size="sm" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
+                          {pr && <span title={cleanPriority(pr)} className="shrink-0 rounded bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground">{priorityAbbrev(pr)}</span>}
+                          <span className="flex shrink-0 gap-2 text-right">
+                            <MiniStat n={st.streams} label="Streams" />
+                            <MiniStat n={st.actions} label="Actions" />
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </section>
+              ))}
+            </div>
+            <div ref={paneRef} className="scroll-mt-4 rounded-lg border border-border bg-card lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto">
+              {selectedCompany ? (
+                <PortfolioDetail
+                  inline
+                  company={selectedCompany}
+                  open
+                  onOpenChange={() => {}}
+                  crmContacts={selectedCompanyContacts}
+                  crmContactVia={selectedCompanyVia}
+                  domainSuggestions={selectedCompanySuggestions}
+                  crmIntros={selectedCompanyCrmIntros}
+                  emails={selectedCompanyEmails}
+                  onPersonClick={handlePersonClick}
+                  onPersonAdded={refreshContacts}
+                  onCompanyUpdate={handleCompanyUpdate}
+                  onCompanyDeleted={handleCompanyDeleted}
+                />
+              ) : (
+                <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">Select a PortCo to see its details.</div>
               )}
-              onClick={() => handleCardClick(company)}
-              selected={selectedIds.has(company.id)}
-              onToggleSelect={toggleId}
-            />
-          ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -865,7 +968,7 @@ function PortfolioPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <PortfolioDetail
+      {showContactsBySector && <PortfolioDetail
         company={selectedCompany}
         open={detailOpen}
         onOpenChange={setDetailOpen}
@@ -878,7 +981,7 @@ function PortfolioPage() {
         onPersonAdded={refreshContacts}
         onCompanyUpdate={handleCompanyUpdate}
         onCompanyDeleted={handleCompanyDeleted}
-      />
+      />}
 
       <AddPortfolioCompanyDialog
         open={addOpen}
@@ -898,5 +1001,14 @@ function PortfolioPage() {
         onContactUpdate={handleContactUpdate}
       />
     </div>
+  );
+}
+
+function MiniStat({ n, label }: { n: number; label: string }) {
+  return (
+    <span className="w-11">
+      <span className={cn("block text-sm font-semibold leading-none", n === 0 && "text-muted-foreground")}>{n}</span>
+      <span className="block text-[9px] uppercase tracking-wide text-muted-foreground">{label}</span>
+    </span>
   );
 }

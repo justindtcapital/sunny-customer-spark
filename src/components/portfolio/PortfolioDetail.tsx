@@ -1,5 +1,5 @@
 import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PortfolioCompany, Contact, EmailActivityRecord } from "@/lib/types";
 import { formatEngagementSources } from "@/lib/engagement-source";
@@ -104,6 +104,8 @@ interface PortfolioDetailProps {
   onCompanyUpdate?: (updated: PortfolioCompany) => void;
   /** Called after the company is deleted so the parent can drop it + refresh. */
   onCompanyDeleted?: (deleted: PortfolioCompany) => void | Promise<void>;
+  /** Render in the page (list + detail layout) instead of a slide-out. */
+  inline?: boolean;
 }
 
 // Approx row height (py-1.5 + 7 avatar + multi-line label) ≈ 56px. Cap visible at 4 rows ≈ 240px.
@@ -125,6 +127,7 @@ export function PortfolioDetail({
   onPersonAdded,
   onCompanyUpdate,
   onCompanyDeleted,
+  inline = false,
 }: PortfolioDetailProps) {
   const [syncing, setSyncing] = useState(false);
   const [vicCtx, setVicCtx] = useState<ActionContext | null>(null);
@@ -407,23 +410,26 @@ export function PortfolioDetail({
   })();
 
 
+  const HeaderEl = inline ? "div" : SheetHeader;
+  const TitleEl = inline ? "h2" : SheetTitle;
+  const DescEl = inline ? "p" : SheetDescription;
+  const BodyEl = inline ? "div" : ScrollArea;
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-hidden flex flex-col">
-          <SheetHeader className="pb-4 border-b border-border shrink-0">
+      <DetailShell inline={inline} open={open} onOpenChange={onOpenChange}>
+          <HeaderEl className="pb-4 border-b border-border shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <PortcoLogo name={company.name} website={company.website} size="lg" />
                 <div>
-                  <SheetTitle className="text-base">{company.name}</SheetTitle>
-                  <SheetDescription className="flex items-center gap-1">
+                  <TitleEl className="text-base font-semibold">{company.name}</TitleEl>
+                  <DescEl className="flex items-center gap-1 text-sm text-muted-foreground">
                     <Building2 className="h-3 w-3" />
                     {company.sector} · {company.location}
-                  </SheetDescription>
+                  </DescEl>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0 mr-6">
+              <div className={`flex flex-wrap items-center justify-end gap-2 shrink-0 ${inline ? "" : "mr-6"}`}>
 <Button size="sm" className="h-7 text-xs" onClick={() => setVicCtx({
                   sourceKind: "portco", sourceId: `portco:${company.name}`, title: company.name,
                   text: [company.sector && `Sector: ${company.sector}`, company.website && `Website: ${company.website}`,
@@ -446,9 +452,9 @@ export function PortfolioDetail({
                 )}
               </div>
             </div>
-          </SheetHeader>
+          </HeaderEl>
 
-          <ScrollArea className="flex-1 -mx-6 px-6">
+          <BodyEl className={inline ? "" : "flex-1 -mx-6 px-6"}>
             <div className="py-5 space-y-6">
               {!isSheetBacked && (
                 <section className="rounded-md border border-dashed border-border bg-muted/40 p-3 text-xs flex items-center justify-between gap-3">
@@ -1168,9 +1174,8 @@ export function PortfolioDetail({
                 )}
               </section>
             </div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
+          </BodyEl>
+      </DetailShell>
 
       <AddPersonDialog
         open={addPersonOpen}
@@ -1901,4 +1906,13 @@ function noteSteps(json: string): Array<{ who: string; action: string; dueDate: 
     const ex = JSON.parse(json || "{}") as { nextSteps?: Array<{ who?: string; action?: string; dueDate?: string }> };
     return (ex.nextSteps || []).filter((n) => n.action).map((n) => ({ who: n.who || "", action: n.action || "", dueDate: n.dueDate || "" }));
   } catch { return []; }
+}
+
+function DetailShell({ inline, open, onOpenChange, children }: { inline: boolean; open: boolean; onOpenChange: (o: boolean) => void; children: ReactNode }) {
+  if (inline) return <div className="flex flex-col p-4">{children}</div>;
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-hidden flex flex-col">{children}</SheetContent>
+    </Sheet>
+  );
 }
