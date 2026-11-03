@@ -1,8 +1,8 @@
 # Roadmap
 
 ## Desktop Outlook handoff
-- [ ] Make Open Outlook attempt the installed desktop email app while preserving iPhone/iPad behavior and explicit web fallback
-- [ ] Test launch URLs, draft preservation and signed-in button flow without sending or logging
+- [x] Make Open Outlook attempt the installed desktop email app through mailto (Outlook must be the default), preserving iPhone/iPad behavior and explicit web fallback
+- [x] Eleven tests passed; signed-in contact button requested mailto, explicit web fallback worked, and draft survived closing; test draft discarded without sending or logging. Build OK.
 - [ ] Verify launch in installed desktop Outlook; blocked by no installed Outlook app in the sandbox
 
 ## PortCo dual-sheet synchronization
