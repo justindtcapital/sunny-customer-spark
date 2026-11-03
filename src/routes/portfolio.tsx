@@ -657,7 +657,7 @@ function PortfolioPage() {
     return filtered
       .filter((c) => matchesListFilter({ domain: c.domain, priority: dtcPriorityOf(c) }, { domain: chipDomain, priority: chipPriority }))
       .filter((c) => !q || c.name.toLowerCase().includes(q))
-      .sort((a, b) => compareCompanyNames(a.name, b.name));
+      .sort((a, b) => compareCompanyNames(a, b));
   }, [filtered, chipDomain, chipPriority, listSearch]);
 
   // Wide screens: show the first company so the detail pane is never empty.
