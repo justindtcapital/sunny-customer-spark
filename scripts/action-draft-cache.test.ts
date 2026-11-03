@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { actionDraftKey, readActionDraft, writeActionDraft, outlookComposeLinks, isAppleMobile, type CachedActionDraft } from "../src/lib/action-draft-cache";
+import { actionDraftKey, readActionDraft, writeActionDraft, outlookComposeLinks, isAppleMobile, outlookHandoff, type CachedActionDraft } from "../src/lib/action-draft-cache";
 
 const draft: CachedActionDraft = {
   request: "Refine this", to: [{ name: "CEO", email: "ceo@example.com" }], addr: "", portcos: ["Akka"], tracks: ["BD"],
@@ -34,7 +34,7 @@ describe("unfinished action drafts", () => {
   });
 });
 describe("Outlook handoff", () => {
-  it("tries Outlook for iPhone, iPad and desktop-mode iPad only", () => {
+  it("identifies iPhone, iPad and desktop-mode iPad for the mobile protocol", () => {
     expect(isAppleMobile("iPhone", "iPhone", 5)).toBe(true);
     expect(isAppleMobile("iPad", "iPad", 5)).toBe(true);
     expect(isAppleMobile("Macintosh", "MacIntel", 5)).toBe(true);
@@ -46,5 +46,24 @@ describe("Outlook handoff", () => {
     expect(new URL(links.web).searchParams.get("to")).toBe("a+b@example.com,c@example.com");
     expect(new URL(links.app).searchParams.get("body")).toBe("Hello\nRésumé?");
     expect(new URL(links.app).searchParams.get("subject")).toBe("A & B");
+  });
+  it.each(["Win32", "MacIntel"])("opens the desktop mail handler on %s instead of Outlook web", (platform) => {
+    const handoff = outlookHandoff(["a+b@example.com", "c@example.com"], "A & B", "Hello\nRésumé?", { userAgent: "Desktop", platform, maxTouchPoints: 0 });
+    expect(handoff.externalApp).toBe(true);
+    const url = new URL(handoff.url);
+    expect(url.protocol).toBe("mailto:");
+    expect(decodeURIComponent(url.pathname)).toBe("a+b@example.com,c@example.com");
+    expect(url.searchParams.get("subject")).toBe("A & B");
+    expect(url.searchParams.get("body")).toBe("Hello\r\nRésumé?");
+  });
+  it.each([
+    { userAgent: "iPhone", platform: "iPhone", maxTouchPoints: 5 },
+    { userAgent: "Macintosh", platform: "MacIntel", maxTouchPoints: 5 },
+  ])("keeps mobile Outlook app handoff on $platform", (device) => {
+    expect(outlookHandoff(["a@example.com"], "Subject", "Body", device)).toEqual({ url: "ms-outlook://compose?to=a%40example.com&subject=Subject&body=Body", externalApp: true });
+  });
+  it("opens Outlook web only when explicitly requested", () => {
+    const handoff = outlookHandoff(["a@example.com"], "Subject", "Body", { userAgent: "Desktop", platform: "Win32", maxTouchPoints: 0 }, true);
+    expect(handoff).toEqual({ url: "https://outlook.office.com/mail/deeplink/compose?to=a%40example.com&subject=Subject&body=Body", externalApp: false });
   });
 });
