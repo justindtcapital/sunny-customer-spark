@@ -1,5 +1,10 @@
 # Roadmap
 
+## Desktop Outlook handoff
+- [ ] Make Open Outlook attempt the installed desktop email app while preserving iPhone/iPad behavior and explicit web fallback
+- [ ] Test launch URLs, draft preservation and signed-in button flow without sending or logging
+- [ ] Verify launch in installed desktop Outlook; blocked by no installed Outlook app in the sandbox
+
 ## PortCo dual-sheet synchronization
 - [x] Sync app company additions and edits to CRM and approved PortCo List by exact name/stable ID, with visible partial failure and safe retry
 - [x] Backed up both active tabs; consolidated Hyperbolic and Pecan (2 CRM duplicates, 1 approved-list duplicate); preserved both Pecan summaries and Hyperbolic HQ; no external URID references required changes
