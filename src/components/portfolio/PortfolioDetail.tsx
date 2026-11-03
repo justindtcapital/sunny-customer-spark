@@ -85,6 +85,8 @@ import {
 import { toast } from "sonner";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 
+type DetailView = "contacts" | "workstreams" | "notes" | "activity" | "campaigns" | "events" | "intel";
+
 interface PortfolioDetailProps {
   company: PortfolioCompany | null;
   open: boolean;
@@ -130,6 +132,7 @@ export function PortfolioDetail({
   inline = false,
 }: PortfolioDetailProps) {
   const [syncing, setSyncing] = useState(false);
+  const [view, setView] = useState<DetailView>("contacts");
   const [vicCtx, setVicCtx] = useState<ActionContext | null>(null);
   const [asanaSyncing, setAsanaSyncing] = useState(false);
   const [findPeopleOpen, setFindPeopleOpen] = useState(false);
@@ -410,6 +413,7 @@ export function PortfolioDetail({
   })();
 
 
+  const show = (k: DetailView) => !inline || view === k;
   const HeaderEl = inline ? "div" : SheetHeader;
   const TitleEl = inline ? "h2" : SheetTitle;
   const DescEl = inline ? "p" : SheetDescription;
@@ -605,6 +609,26 @@ export function PortfolioDetail({
               </section>
 
 
+              {inline && (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {([
+                    ["contacts", "Contacts", crmContacts.length],
+                    ["workstreams", "Active workstreams", companyWorkstreams.filter((w) => !isWorkstreamCompleted(w)).length],
+                    ["notes", "Notes", companyNotes.length],
+                    ["activity", "Activity", companyActivities.length + harvestedActs.length + emails.length],
+                    ["campaigns", "Campaigns", null],
+                    ["events", "Events", plannedEvents.length + completedEvents.length],
+                    ["intel", "Signals & intel", null],
+                  ] as const).map(([k, label, n]) => (
+                    <button key={k} type="button" onClick={() => setView(k)}
+                      className={`rounded-md border px-3 py-2 text-left transition-colors hover:border-primary/60 ${view === k ? "border-primary bg-primary/5" : "border-border"}`}>
+                      <div className="text-xl font-bold leading-none">{n ?? "•"}</div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">{label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {show("contacts") && (<>
               {/* Key People — pulled from CRM contacts whose email domain matches the company website */}
               <section className="border-b border-border pb-6">
                 <div className="flex items-center justify-between mb-3">
@@ -767,9 +791,11 @@ export function PortfolioDetail({
                   </div>
                 )}
               </section>
+              </>)}
 
               <div className="space-y-3 border-b border-border pb-6">
-              <StatSection
+              {show("activity") && (<>
+              <StatSection defaultOpen={inline}
                 title="BD / GTM Activity"
                 stats={[
                   { label: "Total", value: activitiesLoading || knowledge.loading ? "…" : companyActivities.length + harvestedActs.length },
@@ -813,8 +839,10 @@ export function PortfolioDetail({
                   ) : null}
                 </div>
               </StatSection>
+              </>)}
 
-              <StatSection
+              {show("notes") && (<>
+              <StatSection defaultOpen={inline}
                 title="Notes"
                 stats={[
                   { label: "Notes", value: knowledge.loading ? "…" : companyNotes.length },
@@ -854,8 +882,10 @@ export function PortfolioDetail({
                   </div>
                 )}
               </StatSection>
+              </>)}
 
-              <StatSection
+              {show("workstreams") && (<>
+              <StatSection defaultOpen={inline}
                 title="Workstreams"
                 stats={[
                   { label: "Streams", value: workstreamsLoading ? "…" : companyWorkstreams.length },
@@ -870,10 +900,14 @@ export function PortfolioDetail({
                   onRefresh={refreshWorkstreams}
                 />
               </StatSection>
+              </>)}
+              {show("campaigns") && (<>
               {/* Events Timeline */}
               <PortcoCampaigns company={company.name} />
+              </>)}
 
-              <StatSection
+              {show("events") && (<>
+              <StatSection defaultOpen={inline}
                 title="Events"
                 stats={[
                   { label: "Events", value: plannedEvents.length + completedEvents.length },
@@ -997,7 +1031,9 @@ export function PortfolioDetail({
                   </div>
                 )}
               </StatSection>
-              <StatSection
+              </>)}
+              {show("contacts") && (<>
+              <StatSection defaultOpen={inline}
                 title="Introductions"
                 stats={[
                   { label: "Intros", value: sortedIntros.length },
@@ -1129,8 +1165,10 @@ export function PortfolioDetail({
                   <p className="text-xs text-muted-foreground">No introductions logged yet</p>
                 )}
               </StatSection>
+              </>)}
               </div>
 
+              {show("intel") && (<>
               {/* Signals — recent news/activity for this PortCo (scoped scan) */}
               <section className="border-b border-border pb-6">
                 <PortcoSignalsPanel company={company} />
@@ -1145,7 +1183,9 @@ export function PortfolioDetail({
               <section className="border-b border-border pb-6">
                 <CustomerDiscoveryPanel company={company} />
               </section>
+              </>)}
 
+              {show("activity") && (<>
               <section>
                 <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-3">
                   Outreach ({emails.length})
@@ -1173,6 +1213,7 @@ export function PortfolioDetail({
                   </p>
                 )}
               </section>
+              </>)}
             </div>
           </BodyEl>
       </DetailShell>

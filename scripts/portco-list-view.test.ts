@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesListFilter, priorityAbbrev } from "../src/lib/portco-list-view";
+import { matchesListFilter, priorityAbbrev, priorityChip } from "../src/lib/portco-list-view";
 
 describe("priorityAbbrev", () => {
   it("abbreviates numbered priorities", () => {
@@ -14,8 +14,17 @@ describe("matchesListFilter", () => {
   const c = { domain: "AI", priority: "1 - Needle Mover" };
   it("filters by domain and cleaned priority", () => {
     expect(matchesListFilter(c, { domain: "all", priority: "all" })).toBe(true);
-    expect(matchesListFilter(c, { domain: "AI", priority: "Needle Mover" })).toBe(true);
+    expect(matchesListFilter(c, { domain: "AI", priority: "NM" })).toBe(true);
     expect(matchesListFilter(c, { domain: "Data", priority: "all" })).toBe(false);
-    expect(matchesListFilter(c, { domain: "all", priority: "Back Burner" })).toBe(false);
+    expect(matchesListFilter(c, { domain: "all", priority: "BB" })).toBe(false);
+  });
+});
+
+describe("priorityChip", () => {
+  it("only maps the three known levels", () => {
+    expect(priorityChip("1 - Needle Mover")).toBe("NM");
+    expect(priorityChip("2 - Nurture")).toBe("NU");
+    expect(priorityChip("3 - Back-Burner")).toBe("BB");
+    expect(priorityChip("Exited")).toBeNull();
   });
 });

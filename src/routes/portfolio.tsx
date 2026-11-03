@@ -16,7 +16,7 @@ import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { cleanPriority } from "@/lib/portco-matrix";
-import { matchesListFilter, priorityAbbrev } from "@/lib/portco-list-view";
+import { matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
@@ -291,6 +291,7 @@ function PortfolioPage() {
   const [chipPriority, setChipPriority] = useState<string>("all");
   const [listSearch, setListSearch] = useState("");
   const paneRef = useRef<HTMLDivElement>(null);
+  const autoPicked = useRef(false);
   const { workstreams } = useWorkstreams();
   const { updateOptions } = useFilterOptions();
 
@@ -627,12 +628,10 @@ function PortfolioPage() {
   }, [filtered, contactsByDomain]);
 
   const handleCardClick = (company: PortfolioCompany) => {
-    setSelectedCompany(company);
+    if (selectedCompany?.id !== company.id) setSelectedCompany(company);
     setDetailOpen(true);
-    // Stacked (narrow) layout: the detail sits below the list, so bring it into view.
-    if (typeof window !== "undefined" && window.innerWidth < 1024) {
-      requestAnimationFrame(() => paneRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-    }
+    // Clicking the open company again collapses its details.
+    if (selectedCompany?.id === company.id) setSelectedCompany(null);
   };
 
   const wsStats = useMemo(() => {
@@ -647,10 +646,14 @@ function PortfolioPage() {
     return out;
   }, [workstreams]);
 
-  const priorityOptions = useMemo(
-    () => uniqueSorted(filtered.map((c) => cleanPriority(dtcPriorityOf(c)))),
-    [filtered],
-  );
+  const [isWide, setIsWide] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = () => setIsWide(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
   const domainOptions = useMemo(() => uniqueSorted(filtered.map((c) => c.domain)), [filtered]);
   const listed = useMemo(() => {
     const q = listSearch.trim().toLowerCase();
@@ -660,11 +663,29 @@ function PortfolioPage() {
       .sort((a, b) => compareCompanyNames(a, b));
   }, [filtered, chipDomain, chipPriority, listSearch]);
 
+  const renderDetail = () => selectedCompany && (
+    <PortfolioDetail
+      inline
+      company={selectedCompany}
+      open
+      onOpenChange={() => {}}
+      crmContacts={selectedCompanyContacts}
+      crmContactVia={selectedCompanyVia}
+      domainSuggestions={selectedCompanySuggestions}
+      crmIntros={selectedCompanyCrmIntros}
+      emails={selectedCompanyEmails}
+      onPersonClick={handlePersonClick}
+      onPersonAdded={refreshContacts}
+      onCompanyUpdate={handleCompanyUpdate}
+      onCompanyDeleted={handleCompanyDeleted}
+    />
+  );
+
   // Wide screens: show the first company so the detail pane is never empty.
   useEffect(() => {
     if (selectedCompany || !listed.length) return;
-    if (typeof window !== "undefined" && window.innerWidth >= 1024) setSelectedCompany(listed[0]);
-  }, [listed, selectedCompany]);
+    if (isWide && !autoPicked.current) { autoPicked.current = true; setSelectedCompany(listed[0]); }
+  }, [listed, selectedCompany, isWide]);
 
   const handleCompanyUpdate = (updated: PortfolioCompany) => {
     setSelectedCompany(updated);
@@ -864,10 +885,10 @@ function PortfolioPage() {
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Priority</span>
-            {["all", ...priorityOptions].map((p) => (
-              <button key={p} type="button" title={p === "all" ? "All priorities" : p} onClick={() => setChipPriority(p)}
-                className={cn("rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors", chipPriority === p ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50")}>
-                {p === "all" ? "All" : priorityAbbrev(p)}
+            {(["all", ...PRIORITY_CHIPS] as const).map((p) => (
+              <button key={p} type="button" title={p === "all" ? "All priorities" : PRIORITY_LABELS[p]} onClick={() => setChipPriority(p)}
+                className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors", p !== "all" && PRIORITY_TONE[p], chipPriority === p ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : p === "all" && "border-border text-muted-foreground")}>
+                {p === "all" ? "All" : p}
               </button>
             ))}
             <div className="relative ml-auto w-full sm:w-56">
@@ -883,45 +904,35 @@ function PortfolioPage() {
                   {listed.filter((c) => c.domain === d).map((c) => {
                     const st = wsStats[c.name.toLowerCase().trim()] || { streams: 0, actions: 0 };
                     const pr = dtcPriorityOf(c);
+                    const chip = priorityChip(pr);
+                    const isOpen = selectedCompany?.id === c.id;
                     return (
-                      <div key={c.id} className={cn("flex items-center gap-2 rounded-md border bg-card px-2 py-1.5", selectedCompany?.id === c.id ? "border-primary bg-primary/5" : "border-border hover:border-primary/50")}>
+                      <div key={c.id}>
+                      <div aria-expanded={isOpen} className={cn("flex items-center gap-2 rounded-md border bg-card px-2 py-1.5", isOpen ? "border-primary bg-primary/5" : "border-border hover:border-primary/50")}>
                         <Checkbox checked={selectedIds.has(c.id)} onCheckedChange={() => toggleId(c.id)} aria-label={`Select ${c.name}`} />
                         <button type="button" onClick={() => handleCardClick(c)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
                           <PortcoLogo name={c.name} website={c.website} size="sm" />
                           <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
-                          {pr && <span title={cleanPriority(pr)} className="shrink-0 rounded bg-muted px-1.5 py-px text-[10px] font-semibold text-muted-foreground">{priorityAbbrev(pr)}</span>}
+                          {chip && <span title={cleanPriority(pr)} className={cn("shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold", PRIORITY_TONE[chip])}>{chip}</span>}
                           <span className="flex shrink-0 gap-2 text-right">
                             <MiniStat n={st.streams} label="Streams" />
                             <MiniStat n={st.actions} label="Actions" />
                           </span>
                         </button>
                       </div>
+                      {!isWide && isOpen && <div className="mt-1 rounded-lg border border-border bg-card">{renderDetail()}</div>}
+                      </div>
                     );
                   })}
                 </section>
               ))}
             </div>
-            <div ref={paneRef} className="scroll-mt-4 rounded-lg border border-border bg-card lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto">
-              {selectedCompany ? (
-                <PortfolioDetail
-                  inline
-                  company={selectedCompany}
-                  open
-                  onOpenChange={() => {}}
-                  crmContacts={selectedCompanyContacts}
-                  crmContactVia={selectedCompanyVia}
-                  domainSuggestions={selectedCompanySuggestions}
-                  crmIntros={selectedCompanyCrmIntros}
-                  emails={selectedCompanyEmails}
-                  onPersonClick={handlePersonClick}
-                  onPersonAdded={refreshContacts}
-                  onCompanyUpdate={handleCompanyUpdate}
-                  onCompanyDeleted={handleCompanyDeleted}
-                />
+            {isWide && <div ref={paneRef} className="scroll-mt-4 rounded-lg border border-border bg-card lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto">
+              {selectedCompany ? renderDetail(
               ) : (
                 <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">Select a PortCo to see its details.</div>
               )}
-            </div>
+            </div>}
           </div>
         </div>
       )}
@@ -1006,9 +1017,15 @@ function PortfolioPage() {
 
 function MiniStat({ n, label }: { n: number; label: string }) {
   return (
-    <span className="w-11">
+    <span className="w-9 sm:w-11">
       <span className={cn("block text-sm font-semibold leading-none", n === 0 && "text-muted-foreground")}>{n}</span>
-      <span className="block text-[9px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="block text-[8px] uppercase tracking-tight text-muted-foreground sm:text-[9px] sm:tracking-wide">{label}</span>
     </span>
   );
 }
+
+const PRIORITY_TONE: Record<PriorityChip, string> = {
+  NM: "border-success/40 bg-success/15 text-success",
+  NU: "border-warning/40 bg-warning/15 text-warning",
+  BB: "border-destructive/40 bg-destructive/15 text-destructive",
+};
