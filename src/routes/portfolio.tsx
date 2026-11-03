@@ -898,10 +898,10 @@ function PortfolioPage() {
           </div>
           <div className="grid gap-4 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
             <div className="space-y-3 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">
-              {uniqueSorted(listed.map((c) => c.domain)).map((d) => (
-                <section key={d} className="space-y-1">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{d}</h2>
-                  {listed.filter((c) => c.domain === d).map((c) => {
+              {(chipDomain ? uniqueSorted(listed.map((c) => c.domain)) : [""]).map((d) => (
+                <section key={d || "all"} className="space-y-1">
+                  {d && <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{d}</h2>}
+                  {(d ? listed.filter((c) => c.domain === d) : listed).map((c) => {
                     const st = wsStats[c.name.toLowerCase().trim()] || { streams: 0, actions: 0 };
                     const pr = dtcPriorityOf(c);
                     const chip = priorityChip(pr);
