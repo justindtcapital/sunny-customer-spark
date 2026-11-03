@@ -101,7 +101,7 @@ export const Route = createFileRoute("/portfolio")({
         [];
       return {
         ...c,
-        asanaFields: asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined,
+        asanaFields: applyProfileOverrides(asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined, c.profileOverrides),
         events: [...c.events, ...asanaEvents],
       };
     });

@@ -441,6 +441,8 @@ export interface PortfolioCompany {
   domainAliases?: string[];
   /** Suggested domains a teammate dismissed (sheet "Dismissed Domains"). */
   dismissedDomains?: string[];
+  /** Team-edited investment profile values that override Asana fields. */
+  profileOverrides?: Record<string, string>;
 }
 
 export interface PortfolioFilters {
