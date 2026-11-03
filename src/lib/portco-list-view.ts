@@ -35,3 +35,32 @@ export function priorityChip(raw: string): PriorityChip | null {
   const a = priorityAbbrev(raw);
   return (PRIORITY_CHIPS as readonly string[]).includes(a) ? (a as PriorityChip) : null;
 }
+
+/** Editable DTC investment profile fields; keys match the Asana field names. */
+export const PROFILE_FIELDS = [
+  { key: "DTC Priority", label: "DTC Priority" },
+  { key: "Company Stage", label: "Company Stage" },
+  { key: "Lead Investor", label: "Lead Investor" },
+  { key: "GTM Marketing/PMF", label: "Product/Market Fit" },
+  { key: "DTC Investment ($M)", label: "DTC Investment ($M)" },
+  { key: "DTC Ownership", label: "DTC Ownership" },
+] as const;
+
+/** Team-edited profile values win over Asana values (case-insensitive key match). */
+export function applyProfileOverrides(
+  asana: Record<string, string> | undefined,
+  overrides: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!overrides || !Object.keys(overrides).length) return asana;
+  const out: Record<string, string> = { ...(asana || {}) };
+  for (const [k, v] of Object.entries(overrides)) {
+    for (const ok of Object.keys(out)) if (ok.toLowerCase().trim() === k.toLowerCase().trim()) delete out[ok];
+    if (v.trim()) out[k] = v.trim();
+  }
+  return out;
+}
+
+/** True when a company stage means the company has exited. */
+export function isExitedStage(stage: string): boolean {
+  return /\bexit/i.test(stage || "");
+}

@@ -21,6 +21,13 @@ import { lookupCompanyFn } from "@/utils/portco-lookup.functions";
 import { parseDomainList } from "@/lib/company-domains";
 import { isLinkedInCompanyUrl } from "@/lib/portco-fields";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
+import { PROFILE_FIELDS } from "@/lib/portco-list-view";
+
+function fieldValue(fields: Record<string, string> | undefined, key: string): string {
+  if (!fields) return "";
+  const hit = Object.keys(fields).find((k) => k.toLowerCase().trim() === key.toLowerCase());
+  return hit ? fields[hit] : "";
+}
 
 const labelClass =
   "text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block";
@@ -50,6 +57,7 @@ export function EditPortfolioCompanyDialog({
   const [description, setDescription] = useState("");
   const [aliases, setAliases] = useState("");
   const [linkedin, setLinkedin] = useState("");
+  const [profile, setProfile] = useState<Record<string, string>>({});
   const linkedinInvalid = !isLinkedInCompanyUrl(linkedin);
   const [busy, setBusy] = useState(false);
   const [finding, setFinding] = useState(false);
@@ -88,6 +96,7 @@ export function EditPortfolioCompanyDialog({
     setDescription(company.description || "");
     setAliases((company.domainAliases || []).join(", "));
     setLinkedin(company.linkedinUrl || "");
+    setProfile(Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, fieldValue(company.asanaFields, f.key)])));
     setBusy(false);
     setFindNote("");
   }, [open, company]);
@@ -106,6 +115,10 @@ export function EditPortfolioCompanyDialog({
         description: description.trim(),
         domainAliases: parseDomainList(aliases),
         linkedinUrl: normalizeLinkedinUrl(linkedin),
+        profileOverrides: Object.fromEntries(
+          PROFILE_FIELDS.map((f) => [f.key, (profile[f.key] || "").trim()])
+            .filter(([k, v]) => v !== fieldValue(company.asanaFields, k as string).trim() || (company.profileOverrides && k in company.profileOverrides)),
+        ) as Record<string, string>,
         // Companies that live only in Asana (no sheet row yet) get one created
         // on save so they become editable like every other portfolio company.
         upsertNew: company.id.startsWith("asana-pc-"),
@@ -128,6 +141,15 @@ export function EditPortfolioCompanyDialog({
         location: payload.location,
         description: payload.description,
         linkedinUrl: payload.linkedinUrl,
+        profileOverrides: { ...(company.profileOverrides || {}), ...payload.profileOverrides },
+        asanaFields: (() => {
+          const out: Record<string, string> = { ...(company.asanaFields || {}) };
+          for (const [k, v] of Object.entries(payload.profileOverrides)) {
+            for (const ok of Object.keys(out)) if (ok.toLowerCase() === k.toLowerCase()) delete out[ok];
+            if (v) out[k] = v;
+          }
+          return out;
+        })(),
       };
       toast.success(
         res.created ? `Added ${payload.name} to the portfolio sheet.` : `Updated ${payload.name}.`,
@@ -145,7 +167,7 @@ export function EditPortfolioCompanyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit portfolio company</DialogTitle>
           <DialogDescription className="text-xs">
@@ -235,6 +257,24 @@ export function EditPortfolioCompanyDialog({
               placeholder="What the company does…"
             />
           </div>
+          <div className="col-span-2 pt-1 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">DTC investment profile</div>
+          {PROFILE_FIELDS.map((f) => (
+            <div key={f.key}>
+              <Label className={labelClass}>{f.label}</Label>
+              <Input
+                className="h-8 text-sm"
+                list={`portco-profile-${f.key === "DTC Priority" ? "priority" : f.key === "Company Stage" ? "stage" : "none"}`}
+                value={profile[f.key] || ""}
+                onChange={(e) => setProfile((p) => ({ ...p, [f.key]: e.target.value }))}
+              />
+            </div>
+          ))}
+          <datalist id="portco-profile-priority">
+            <option value="1 - Needle Mover" /><option value="2 - Nurture" /><option value="3 - Back Burner" />
+          </datalist>
+          <datalist id="portco-profile-stage">
+            {["Seed", "Series A", "Series B", "Series C", "Series D", "Growth", "Exited"].map((v) => <option key={v} value={v} />)}
+          </datalist>
         </div>
 
         <DialogFooter>

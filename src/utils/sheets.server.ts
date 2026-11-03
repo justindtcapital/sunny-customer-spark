@@ -2422,6 +2422,7 @@ const PORTFOLIO_COLS: Record<string, string> = {
   summary: "description",
   "domain aliases": "domainAliases",
   "dismissed domains": "dismissedDomains",
+  "profile overrides": "profileOverrides",
 };
 
 // Canonical header row used when the Portfolio Companies tab is created from
@@ -4000,6 +4001,8 @@ export async function updatePortfolioCompany(entry: {
   dismissedDomains?: string[];
   /** Company LinkedIn page; undefined leaves the cell untouched, "" clears it. */
   linkedinUrl?: string;
+  /** Team-edited investment profile values (JSON cell); undefined leaves it untouched. */
+  profileOverrides?: Record<string, string>;
   /** Create the sheet row when no matching row is found (Asana-only portcos). */
   upsertNew?: boolean;
 }): Promise<{ updated: number; created?: boolean; urid?: string; syncError?: string; rejectedDomains?: { domain: string; reason: string }[] }> {
@@ -4028,6 +4031,7 @@ export async function updatePortfolioCompany(entry: {
   }
   if (entry.dismissedDomains) await ensureColumn(TAB_NAMES.portfolio, "Dismissed Domains");
   if (entry.linkedinUrl !== undefined) await ensureColumn(TAB_NAMES.portfolio, "LinkedIn URL");
+  if (entry.profileOverrides) await ensureColumn(TAB_NAMES.portfolio, "Profile Overrides");
 
   const rows = await fetchSheetTab(TAB_NAMES.portfolio, true);
   if (rows.length < 1) return { updated: 0 };
@@ -4075,6 +4079,7 @@ export async function updatePortfolioCompany(entry: {
   };
   if (aliasCell !== undefined) valueByHeader["domain aliases"] = aliasCell;
   if (entry.linkedinUrl !== undefined) valueByHeader["linkedin url"] = normalizeLinkedinUrl(entry.linkedinUrl);
+  if (entry.profileOverrides) valueByHeader["profile overrides"] = JSON.stringify(entry.profileOverrides);
   if (entry.dismissedDomains) valueByHeader["dismissed domains"] = parseDomainList(entry.dismissedDomains).join(", ");
 
   if (rowNumber === -1) {
@@ -4412,6 +4417,17 @@ export async function fillBlankPortfolioFields(
   return written;
 }
 
+function parseProfileOverrides(cell: string | undefined): Record<string, string> | undefined {
+  if (!cell?.trim()) return undefined;
+  try {
+    const v = JSON.parse(cell);
+    if (!v || typeof v !== "object") return undefined;
+    return Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === "string")) as Record<string, string>;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function buildPortfolioCompanies(fresh = false): Promise<PortfolioCompany[]> {
   const companyRows = await fetchSheetTab(TAB_NAMES.portfolio, fresh);
   const rawCompanies = mapRows<Record<string, string>>(companyRows, PORTFOLIO_COLS);
@@ -4459,6 +4475,7 @@ export async function buildPortfolioCompanies(fresh = false): Promise<PortfolioC
       website: c.website || "",
       domainAliases: parseDomainList(c.domainAliases),
       dismissedDomains: parseDomainList(c.dismissedDomains),
+      profileOverrides: parseProfileOverrides(c.profileOverrides),
       linkedinUrl: "",
       location: c.location || "",
       description: c.description || "",

@@ -16,7 +16,7 @@ import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { cleanPriority } from "@/lib/portco-matrix";
-import { matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
+import { applyProfileOverrides, isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
@@ -101,7 +101,7 @@ export const Route = createFileRoute("/portfolio")({
         [];
       return {
         ...c,
-        asanaFields: asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined,
+        asanaFields: applyProfileOverrides(asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined, c.profileOverrides),
         events: [...c.events, ...asanaEvents],
       };
     });
@@ -290,6 +290,7 @@ function PortfolioPage() {
   const [chipDomain, setChipDomain] = useState<string>("all");
   const [chipPriority, setChipPriority] = useState<string>("all");
   const [listSearch, setListSearch] = useState("");
+  const [showExits, setShowExits] = useState(false);
   const paneRef = useRef<HTMLDivElement>(null);
   const autoPicked = useRef(false);
   const { workstreams } = useWorkstreams();
@@ -660,8 +661,9 @@ function PortfolioPage() {
     return filtered
       .filter((c) => matchesListFilter({ domain: c.domain, priority: dtcPriorityOf(c) }, { domain: chipDomain, priority: chipPriority }))
       .filter((c) => !q || c.name.toLowerCase().includes(q))
+      .filter((c) => showExits || !isExitedStage(companyStageOf(c)))
       .sort((a, b) => compareCompanyNames(a, b));
-  }, [filtered, chipDomain, chipPriority, listSearch]);
+  }, [filtered, chipDomain, chipPriority, listSearch, showExits]);
 
   const renderDetail = () => selectedCompany && (
     <PortfolioDetail
@@ -732,15 +734,6 @@ function PortfolioPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant={showContactsBySector ? "default" : "outline"}
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => setShowContactsBySector((v) => !v)}
-          >
-            <Users className="h-3.5 w-3.5 mr-1.5" />
-            {showContactsBySector ? "Hide PortCo contacts" : "Show PortCo contacts"}
-          </Button>
           <Button size="sm" className="h-8 text-xs" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add company
@@ -891,7 +884,11 @@ function PortfolioPage() {
                 {p === "all" ? "All" : p}
               </button>
             ))}
-            <div className="relative ml-auto w-full sm:w-56">
+            <label className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Checkbox checked={showExits} onCheckedChange={(v) => setShowExits(v === true)} aria-label="Show exits" />
+              Show exits
+            </label>
+            <div className="relative w-full sm:w-56">
               <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
               <Input className="h-8 pl-7 text-sm" placeholder="Search PortCos" value={listSearch} onChange={(e) => setListSearch(e.target.value)} />
             </div>

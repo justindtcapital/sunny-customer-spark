@@ -159,10 +159,13 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
       /** Dismissed domain suggestions. */
       dismissedDomains?: string[];
       linkedinUrl?: string;
+      profileOverrides?: Record<string, string>;
       /** Create the sheet row when no matching row is found (Asana-only portcos). */
       upsertNew?: boolean;
     }) => {
       if (!data.name?.trim()) throw new Error("Company name is required");
+      if (data.profileOverrides && (typeof data.profileOverrides !== "object" || Object.keys(data.profileOverrides).length > 20 || Object.values(data.profileOverrides).some((v) => typeof v !== "string" || v.length > 200)))
+        throw new Error("Invalid profile fields");
       if (data.linkedinUrl !== undefined && !isLinkedInCompanyUrl(data.linkedinUrl))
         throw new Error("LinkedIn URL must be a linkedin.com/company/… page");
       if (data.domainAliases && (!Array.isArray(data.domainAliases) || data.domainAliases.length > 30))
