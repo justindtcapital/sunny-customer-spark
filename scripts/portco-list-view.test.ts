@@ -28,3 +28,12 @@ describe("priorityChip", () => {
     expect(priorityChip("Exited")).toBeNull();
   });
 });
+
+import { applyProfileOverrides, isExitedStage } from "../src/lib/portco-list-view";
+test("exited stage is hidden by default", () => {
+  expect(isExitedStage("Exited")).toBe(true);
+  expect(isExitedStage("Series B")).toBe(false);
+});
+test("team profile edits override Asana values", () => {
+  expect(applyProfileOverrides({ "company stage": "Series B" }, { "Company Stage": "Exited" })).toEqual({ "Company Stage": "Exited" });
+});
