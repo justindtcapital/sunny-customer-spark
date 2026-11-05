@@ -7,3 +7,4 @@
 - New KB files land in Drive 'Unfiled Documents' and move to Meeting Notes/<PortCo>, PortCo Operations or Network Updates only on review — Drive mirrors reviewed state.
 - Personal Granola keys are encrypted in Cloud, keyed by verified auth UUID; connection/import operations require a confirmed roster email — typed names cannot select another person's credentials. CRM data stays in Sheets.
 - Google Groups rewrite From to the alias; parseMessage unwraps the real sender from X-Original-Sender/Reply-To so per-owner inboxes attribute correctly. Gmail harvest cursors overlap 2 days because existing threads are skipped.
+- Contact imports read unified Contacts once for identity checks and append literal cells before exact read-back verification; duplicate view matches and Sheets coercion must not strand successful imports.
