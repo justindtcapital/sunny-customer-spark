@@ -2,8 +2,10 @@
 
 ## Network contact-list bulk failures — November 5 request
 - [x] Inspect Network bulk controls, selection paths and available logs; prepare approval plan without changing code or contacts
-- [ ] Recover Shane's interrupted 67-contact import after saved-state inspection; fix the confirmed shared blockage (approved November 5)
-- [ ] Verify Network bulk changes and deletion with isolated contacts, preserve unresolved import rows, and prevent repeat interruptions
+- [x] Reconciled Shane's 67-contact import: 65 saved contacts and two existing prospects verified by fresh unique email/URID matches; revoked uncertain attempt and released its lock without replaying writes
+- [x] Fixed literal import persistence (+phones previously coerced) and duplicate Contacts/Targets-view identity checks; actionable bulk errors and refreshes added; 16 regression tests passed and build OK
+- [x] Signed-in Network flow verified with two isolated contacts: import, Cold-to-Warm promotion, Warm-to-Cold demotion, location edit/read-back, deletion/read-back; test contacts removed and no shared lock remains
+- [ ] Review Jide/Ukiwe incoming fields against their preserved Prospecting profiles; waits on human identity/field review (original request retained in Admin)
 
 ## Desktop Outlook handoff
 - [x] Make Open Outlook attempt the installed desktop email app through mailto (Outlook must be the default), preserving iPhone/iPad behavior and explicit web fallback
