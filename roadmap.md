@@ -1,5 +1,10 @@
 # Roadmap
 
+## Network contact-list bulk failures — November 5 request
+- [x] Inspect Network bulk controls, selection paths and available logs; prepare approval plan without changing code or contacts
+- [ ] Reproduce and fix confirmed Network bulk failures; blocked pending plan approval
+- [ ] Verify every available action, partial outcomes, safe retries and saved-list refresh using isolated test contacts; blocked pending plan approval
+
 ## Desktop Outlook handoff
 - [x] Make Open Outlook attempt the installed desktop email app through mailto (Outlook must be the default), preserving iPhone/iPad behavior and explicit web fallback
 - [x] Eleven tests passed; signed-in contact button requested mailto, explicit web fallback worked, and draft survived closing; test draft discarded without sending or logging. Build OK.
