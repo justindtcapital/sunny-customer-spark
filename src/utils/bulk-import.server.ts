@@ -18,15 +18,21 @@ const norm = (s: string) => s.trim().toLowerCase();
 async function savedPeople(): Promise<SavedPerson[]> {
   // Both reads are authoritative: no demo data, no empty fallback on failure.
   const contacts = await fetchSheetTab(TAB_NAMES.contacts, true);
-  await ensureTab(TAB_NAMES.targets, TARGET_HEADERS);
-  const targets = await fetchSheetTab(TAB_NAMES.targets, true);
-  return [contacts, targets].flatMap((rows, index) => {
+  const unified = (contacts[0] || []).some(h => norm(h) === "prospecting stage");
+  // Targets is a view over Contacts after migration, not another people store.
+  // Reading both counts every prospect twice and invents ambiguous identities.
+  const lists = [contacts];
+  if (!unified) {
+    await ensureTab(TAB_NAMES.targets, TARGET_HEADERS);
+    lists.push(await fetchSheetTab(TAB_NAMES.targets, true));
+  }
+  return lists.flatMap((rows, index) => {
     const h = (rows[0] || []).map(norm);
     return rows.slice(1).map(r => {
       const get = (...keys: string[]) => keys.map(k => r[h.indexOf(k)] || "").find(Boolean) || "";
       const name = get("name") || `${get("first name")} ${get("last name")}`.trim();
       const p = { urid: get("urid"), name, email: get("email"), company: get("company"), linkedin: get("linkedin") };
-      return { ...p, where: index === 0 ? "Network" : "Prospecting", fields: { name, email: p.email, company: p.company, linkedin: p.linkedin, role: get("role","title"), phone: get("phone number","phone"), location: get("location"), prime: get("relationship prime","prime"), sector: get("industry category","sector"), headline: get("headline"), employmentHistory: get("employment history"), source: get("source"), followUp: get("follow up flag") === "TRUE", campaign: get("campaign"), event: get("event"), portcoTags: get("portco tags").split(/[,;]/).map(s => s.trim()).filter(Boolean), stage: get("stage"), researchPurpose: get("research purpose"), reasonSurfaced: get("reason surfaced") } };
+      return { ...p, where: index === 1 || /^prospect/i.test(get("relationship status")) ? "Prospecting" : "Network", fields: { name, email: p.email, company: p.company, linkedin: p.linkedin, role: get("role","title"), phone: get("phone number","phone"), location: get("location"), prime: get("relationship prime","prime"), sector: get("industry category","sector"), headline: get("headline"), employmentHistory: get("employment history"), source: get("source"), followUp: get("follow up flag") === "TRUE", campaign: get("campaign"), event: get("event"), portcoTags: get("portco tags").split(/[,;]/).map(s => s.trim()).filter(Boolean), stage: get("stage"), researchPurpose: get("research purpose"), reasonSurfaced: get("reason surfaced") } };
     });
   });
 }
@@ -74,7 +80,9 @@ export async function importContactRows(input: ContactImportInput, journal: Jour
     const f: Record<string,string> = { urid, name:r.name, "full name":r.name, email:r.email, role:r.role, title:r.role, company:r.company, organization:r.company, "phone number":r.phone, phone:r.phone, location:r.location, "relationship prime":r.prime, prime:r.prime, "industry category":r.sector, sector:r.sector, "relationship status":"Cold", "date added":new Date().toISOString().slice(0,10), source:r.source || "CSV Import", linkedin:r.linkedin || "", headline:r.headline || "", "employment history":r.employmentHistory || "", "follow up flag":r.followUp || input.event ? "TRUE" : "FALSE" };
     return h.map(k => f[k] || "");
   });
-  await appendSheetRows(TAB_NAMES.contacts,sourceRows);
+  // Literal input preserves +phones, dates, booleans and formula-like text.
+  // USER_ENTERED coerces these values, making a successful append fail verification.
+  await appendSheetRows(TAB_NAMES.contacts,sourceRows,true);
   const verify = await fetchSheetTab(TAB_NAMES.contacts,true), vh = (verify[0] || []).map(norm);
   if (accepted.some((a,index) => {
     const matches=verify.slice(1).filter(r=>r[vh.indexOf("urid")]===a.urid);

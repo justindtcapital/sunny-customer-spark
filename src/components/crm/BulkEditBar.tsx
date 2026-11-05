@@ -147,7 +147,7 @@ export function BulkEditBar() {
       clearSelection();
     } catch (e) {
       console.error("BulkEditBar: bulkEnrichContacts failed", e);
-      toast.error("Mass enrich failed — see console.");
+      toast.error(e instanceof Error ? e.message : "Apollo enrichment failed. Review Admin before retrying.");
     } finally {
       setAction("");
     }
@@ -173,7 +173,7 @@ export function BulkEditBar() {
       clearSelection();
     } catch (e) {
       console.error("BulkEditBar: bulkLoadInterests failed", e);
-      toast.error("Loading interest areas failed — see console.");
+      toast.error(e instanceof Error ? e.message : "Interest areas could not be saved. Review Admin before retrying.");
     } finally {
       setAction("");
     }
@@ -204,7 +204,7 @@ export function BulkEditBar() {
       clearSelection();
     } catch (e) {
       console.error("BulkEditBar: bulkLoadTechStack failed", e);
-      toast.error("Loading tech stack failed — see console.");
+      toast.error(e instanceof Error ? e.message : "Tech stack could not be saved. Review Admin before retrying.");
     } finally {
       setAction("");
     }
@@ -249,9 +249,11 @@ export function BulkEditBar() {
       toast.success(`Updated ${res.updated} contact${res.updated !== 1 ? "s" : ""} · ${label} → ${v}`);
       setValue("");
       clearSelection();
+      await router.invalidate();
+      await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] });
     } catch (e) {
       console.error("BulkEditBar: bulkUpdateContacts failed", e);
-      toast.error("Bulk update failed — see console.");
+      toast.error(e instanceof Error ? e.message : "Bulk update failed. Review Admin before retrying.");
     } finally {
       setBusy(false);
     }
@@ -266,9 +268,11 @@ export function BulkEditBar() {
       toast.success(`Deleted ${res.deleted} contact${res.deleted !== 1 ? "s" : ""}.`);
       onBulkDelete?.(selectedContacts.map((c) => c.id));
       clearSelection();
+      await router.invalidate();
+      await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] });
     } catch (e) {
       console.error("BulkEditBar: bulkDeleteContacts failed", e);
-      toast.error("Delete failed — see console.");
+      toast.error(e instanceof Error ? e.message : "Delete failed. Review Admin before retrying.");
     } finally {
       setDeleting(false);
       setConfirmOpen(false);
