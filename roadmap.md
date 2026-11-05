@@ -2,8 +2,8 @@
 
 ## Network contact-list bulk failures — November 5 request
 - [x] Inspect Network bulk controls, selection paths and available logs; prepare approval plan without changing code or contacts
-- [ ] Reproduce and fix confirmed Network bulk failures; blocked pending plan approval
-- [ ] Verify every available action, partial outcomes, safe retries and saved-list refresh using isolated test contacts; blocked pending plan approval
+- [ ] Recover Shane's interrupted 67-contact import after saved-state inspection; fix the confirmed shared blockage (approved November 5)
+- [ ] Verify Network bulk changes and deletion with isolated contacts, preserve unresolved import rows, and prevent repeat interruptions
 
 ## Desktop Outlook handoff
 - [x] Make Open Outlook attempt the installed desktop email app through mailto (Outlook must be the default), preserving iPhone/iPad behavior and explicit web fallback
