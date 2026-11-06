@@ -47,6 +47,14 @@ Think of it as three layers per meeting, merged in this order:
 - Each meeting ends with 2–4 prep points written by V.I.C. using only the facts above (no invented facts), each linking to its source record.
 - A "Today at a glance" top section: number of meetings, PortCos involved, overdue actions touching today's attendees.
 
+## Standing sections after the meetings (from Venture Pulse only)
+- **Due this week** — your open My Actions items due today through Sunday, overdue first, each with person/company and a link.
+- **Anticipated follow-ups** — things that have gone quiet: active workstreams with no update in 21+ days, Warm/Hot contacts or PortCo contacts with no touch in 45+ days, and confirmed note next steps with no matching completed action after 14 days. Capped at the top 8 by importance (NM PortCos and Hot contacts first). V.I.C. suggests a one-line next step for each; nothing is created automatically.
+- **Active campaigns** — each active campaign with member count, how many contacted vs not yet, and any members in today's meetings.
+- **Next DTC events** — the next 5 Events DB events (next 30 days) with date, location, PortCos tagged, and any of today's attendees on the list.
+
+The quiet-period thresholds (21 / 45 / 14 days) are starting values you can change later.
+
 ## Things to confirm while building
 - **Sending email:** confirmed — the Workspace mailbox connection gets reconnected with "send" permission (one-time Google prompt on My Actions where the mailbox is connected), and the brief is sent from it to your dell.com address.
 - **Corporate filtering risk:** Dell mail filters may quarantine an external auto-email; the homepage copy is always there as backup.
