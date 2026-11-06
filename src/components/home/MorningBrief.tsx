@@ -2,13 +2,13 @@ import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, Mail, Megaphone, RefreshCw, Sun, UserPlus } from "lucide-react";
+import { AlertTriangle, ArrowRight, Building2, CalendarDays, Mail, Megaphone, RefreshCw, Sun, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SmartPasteDialog } from "@/components/crm/SmartPasteDialog";
 import { emailMorningBrief, fetchMorningBriefs, rebuildMorningBrief, type BriefRow } from "@/utils/morning-brief.functions";
-import type { BriefMeeting, BriefPortco, MorningBrief } from "@/utils/morning-brief.server";
+import type { BriefCompany, BriefMeeting, BriefPortco, MorningBrief } from "@/utils/morning-brief.server";
 
 export const briefQueryKey = (limit: number) => ["morning-briefs", limit] as const;
 
@@ -61,6 +61,18 @@ function PortcoStrip({ p }: { p: BriefPortco }) {
   </div>;
 }
 
+function CompanyStrip({ c }: { c: BriefCompany }) {
+  return <div className="rounded-md border border-border bg-muted/40 p-2 text-xs">
+    <div className="flex flex-wrap items-center gap-2">
+      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+      <span className="font-semibold text-foreground">{c.name}</span>
+      {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">{c.domain}</a>}
+    </div>
+    {c.about && <p className="mt-1 text-foreground">{c.about}{c.aboutSource === "web" && c.sources.length ? <span className="text-muted-foreground"> · via {c.sources.join(", ")}</span> : c.aboutSource === "general" ? <span className="text-muted-foreground"> · general knowledge, not web-checked</span> : null}</p>}
+    <div className="mt-1 text-muted-foreground">{c.totalContacts ? <>In Venture Pulse: {c.totalContacts} contact{c.totalContacts === 1 ? "" : "s"} — {c.contacts.map((p, i) => <span key={p.name}>{i ? ", " : ""}{p.contactId ? <Link to="/crm" search={{ contact: p.contactId }} className="text-foreground hover:text-primary">{p.name}</Link> : p.name}</span>)}</> : `No contacts at ${c.name} in Venture Pulse yet.`}</div>
+  </div>;
+}
+
 function List({ title, items, tone }: { title: string; items: string[]; tone?: "warn" }) {
   if (!items.length) return null;
   return <div className={tone === "warn" ? "text-warning-foreground" : ""}>
@@ -75,7 +87,9 @@ function MeetingCard({ m }: { m: BriefMeeting }) {
       <div className="font-display text-sm font-semibold text-foreground">{m.time} · {m.title}</div>
       <div className="text-[11px] text-muted-foreground">{[...m.tags, m.platform, m.duration].filter(Boolean).join(" · ")}</div>
     </header>
+    {m.company && <CompanyStrip c={m.company} />}
     {m.portcos.map((p) => <PortcoStrip key={p.name} p={p} />)}
+    {!!m.mentionedPortcos?.length && <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">PortCos mentioned:{m.mentionedPortcos.map((p) => <Link key={p.name} to="/portfolio" className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-foreground hover:text-primary">{p.name}{p.badge && <span className={`rounded px-1 text-[9px] font-bold ${BADGE[p.badge]}`}>{p.badge}</span>}</Link>)}</div>}
     {m.summary && <p className="text-sm text-foreground">{m.summary}</p>}
     <div className="grid gap-3 md:grid-cols-2">
       <div className="text-xs"><div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">From your Outlook</div><p className="mt-0.5 text-muted-foreground">{m.cowork}</p></div>
