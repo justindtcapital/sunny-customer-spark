@@ -43,7 +43,7 @@ export interface BriefMeeting {
 export interface MorningBrief {
   date: string; subject: string; builtAt: string; glance: string; priorities: string[];
   meetings: BriefMeeting[];
-  dueThisWeek: { summary: string; person: string; company: string; due: string; overdue: boolean }[];
+  dueThisWeek: { id?: string; summary: string; person: string; company: string; due: string; overdue: boolean }[];
   quiet: { label: string; detail: string; nextStep: string; link?: string }[];
   campaigns: { id: string; name: string; members: number; contacted: number; inToday: string[] }[];
   events: { urid: string; name: string; start: string; location: string; portcos: string[]; todaysPeople: string[] }[];
