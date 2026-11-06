@@ -103,3 +103,14 @@ export const createActivityFixRequest = createServerFn({ method: "POST" }).middl
     if (error) throw new Error("Could not save the linked fix request.");
     return { id: saved?.id || "", existing: false };
   });
+/** Read-only: who holds the shared write slot, so the progress window can offer unlock/retry in place. */
+export const fetchBulkLockStatus = createServerFn({ method: "GET" }).middleware([requireTeamAuth]).handler(async () => {
+  const { journalClient } = await import("./bulk-journal.server");
+  const db = await journalClient();
+  const { data:lock } = await db.from("bulk_operation_locks").select("operation_id,acquired_at").eq("resource","shared-bulk-writes").maybeSingle();
+  if (!lock) return { locked:false as const };
+  const { data:op } = await db.from("bulk_operations").select("id,kind,status,summary,actor,updated_at").eq("id",lock.operation_id).maybeSingle();
+  const quietMs = op ? Date.now() - new Date(op.updated_at).getTime() : 0;
+  return { locked:true as const, operationId:lock.operation_id, kind:op?.kind || "unknown", status:op?.status || "unknown", summary:op?.summary || "", actor:op?.actor || "", since:op?.updated_at || lock.acquired_at,
+    canReconcile: !!op && op.status === "uncertain" && ["target-import","contact-import"].includes(op.kind), waitMs: Math.max(0, 120_000 - quietMs) };
+});

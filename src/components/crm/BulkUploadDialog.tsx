@@ -448,14 +448,14 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
 
   return (
     <>
-    <BulkRunDialog state={run} onClose={() => setRun(null)} />
+    <BulkRunDialog state={run} onClose={() => setRun(null)} onRetry={() => { setRun(null); void submit(); }} />
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] grid-rows-[auto_1fr_auto]">
         <DialogHeader>
           <DialogTitle>{prospecting ? "Import to Prospecting" : "Import to Network"}</DialogTitle>
           <DialogDescription className="text-xs">
             Upload a CSV. Columns are auto-matched by header — adjust the mapping below if anything is off.
-            {prospecting ? "Name plus an email or LinkedIn URL is required. New people enter as Prospecting." : "Name and email are required."} Optionally tag everyone by event, portfolio company, and/or source.
+            {prospecting ? "Name plus an email, LinkedIn URL or company is required. New people enter as Prospecting." : "Name plus an email or company is required — enrichment can fill in the rest."} Optionally tag everyone by event, portfolio company, and/or source.
           </DialogDescription>
         </DialogHeader>
 

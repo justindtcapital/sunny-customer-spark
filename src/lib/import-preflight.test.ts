@@ -32,8 +32,23 @@ describe("import pre-flight", () => {
     const [item] = classifyImportRows([{ name: "A", email: "", phone: "", linkedin: "https://linkedin.com/in/a" }], [], {}, { emailOptional: true });
     expect(item.status).toBe("ready");
   });
-  it("network imports still require an email", () => {
+  it("network imports accept LinkedIn without an email", () => {
     const [item] = classifyImportRows([{ name: "A", email: "", phone: "", linkedin: "https://linkedin.com/in/a" }], []);
+    expect(item.status).toBe("ready");
+  });
+});
+
+import { suppliedFieldsMatch } from "./import-dedupe";
+describe("name + company identity", () => {
+  it("accepts first/last name and company without email or LinkedIn", () => {
+    const [item] = classifyImportRows([{ name: "Ada Lovelace", email: "", phone: "", company: "Acme" }], []);
+    expect(item.status).toBe("ready");
+  });
+  it("still flags a row with only a name", () => {
+    const [item] = classifyImportRows([{ name: "Ada", email: "", phone: "" }], []);
     expect(item.status).toBe("attention");
+  });
+  it("treats +44 phones as matching after Sheets strips the plus", () => {
+    expect(suppliedFieldsMatch({ phone: "+44 20 7946 0000" }, { phone: "442079460000" })).toBe(true);
   });
 });

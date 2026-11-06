@@ -48,7 +48,7 @@ export async function findSavedPersonByEmail(email?: string): Promise<{ name: st
 function classify(input: Record<string, unknown> & PersonIdentity, saved: SavedPerson[], where: string, hasAssociations: boolean): { status: "new" | "duplicate" | "review"; reason: string } {
   const candidates = peopleCandidates(input, saved);
   if (!candidates.length) {
-    if (!emailIdentities(input.email).length && !input.linkedin) return { status: "review", reason: "Missing reliable identity; review before creating a person." };
+    if (!emailIdentities(input.email).length && !input.linkedin && !(String(input.name||"").trim() && String(input.company||"").trim())) return { status: "review", reason: "Missing reliable identity; review before creating a person." };
     return { status: "new", reason: "New person" };
   }
   const candidate = candidates[0];

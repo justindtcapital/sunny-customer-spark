@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { fetchBulkLockStatus, reconcileImportOperation } from "@/utils/bulk-operations.functions";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertTriangle, CheckCircle2, Circle, Loader2, MinusCircle, XCircle } from "lucide-react";
+import { AlertTriangle, RotateCcw, Unlock, CheckCircle2, Circle, Loader2, MinusCircle, XCircle } from "lucide-react";
 import type { BulkOutcome } from "@/lib/bulk-operation";
 
 export type RunStep = "validate" | "apply" | "verify" | "done";
@@ -49,7 +50,53 @@ function Group({ icon, title, items, tone }: { icon: React.ReactNode; title: str
 
 // Stage 2 (live progress) and Stage 3 (receipt) for every bulk action.
 // Can't be dismissed while running so nobody double-clicks or closes mid-save.
-export function BulkRunDialog({ state, onClose }: { state: BulkRunState | null; onClose: () => void }) {
+type LockInfo = Awaited<ReturnType<typeof fetchBulkLockStatus>>;
+export const isLockBlocked = (msg?: string) => !!msg && /another bulk operation|writes are paused/i.test(msg);
+
+/** Inline recovery when the shared write slot is busy: shows the holder, polls until free, offers safe unlock and retry. */
+function LockRecovery({ onRetry }: { onRetry?: () => void }) {
+  const [lock, setLock] = useState<LockInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const check = useCallback(async () => { try { setLock(await fetchBulkLockStatus()); } catch { /* keep last */ } }, []);
+  useEffect(() => { check(); const t = setInterval(check, 5000); return () => clearInterval(t); }, [check]);
+  const unlock = async () => {
+    if (!lock?.locked) return;
+    setBusy(true); setNote("");
+    try {
+      const r = await reconcileImportOperation({ data: { id: lock.operationId, apply: true } });
+      const saved = r.outcomes.filter(o => o.status === "changed").length;
+      setNote(`Earlier import checked: ${saved} saved once, ${r.outcomes.length - saved} not saved or held for review. Unlocked.`);
+      await check();
+    } catch (e) { setNote(e instanceof Error ? e.message : "Couldn't unlock yet."); }
+    finally { setBusy(false); }
+  };
+  const free = lock && !lock.locked;
+  const waitS = lock?.locked ? Math.ceil(lock.waitMs / 1000) : 0;
+  return (
+    <div className="mt-2 space-y-2 rounded-md border bg-muted/40 p-2 text-xs text-foreground">
+      {!lock ? <div className="text-muted-foreground">Checking what's holding things up…</div>
+        : free ? <div>The other job has finished — nothing was changed by this attempt, so it's safe to retry.</div>
+        : <div>
+            Waiting on {lock.actor ? `${lock.actor}'s ` : "another "}{lock.kind.replace(/-/g, " ")} ({lock.status === "uncertain" ? "stopped mid-save, needs a check" : "still running"}).
+            {lock.summary && <div className="text-muted-foreground">{lock.summary}</div>}
+            {lock.status !== "uncertain" && <div className="text-muted-foreground">This page checks again every few seconds; Retry turns on when it's free.</div>}
+          </div>}
+      {note && <div className="text-muted-foreground">{note}</div>}
+      <div className="flex flex-wrap gap-2">
+        {lock?.locked && lock.canReconcile && (
+          <Button size="sm" variant="outline" onClick={unlock} disabled={busy || waitS > 0}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Unlock className="size-3.5" />}
+            {waitS > 0 ? `Check what was saved & unlock (in ${waitS}s)` : "Check what was saved & unlock"}
+          </Button>
+        )}
+        {onRetry && <Button size="sm" onClick={onRetry} disabled={!free}><RotateCcw className="size-3.5" />Retry</Button>}
+      </div>
+    </div>
+  );
+}
+
+export function BulkRunDialog({ state, onClose, onRetry }: { state: BulkRunState | null; onClose: () => void; onRetry?: () => void }) {
   const running = !!state && state.step !== "done";
   useEffect(() => {
     if (!running) return;
@@ -87,7 +134,7 @@ export function BulkRunDialog({ state, onClose }: { state: BulkRunState | null; 
         </div>
         <ScrollArea className="min-h-0 max-h-[45vh]">
           <div className="space-y-3 pr-3">
-            {state.error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">{state.error}<div className="mt-1 text-muted-foreground">Progress is recorded in Admin → Bulk activity. If it says “uncertain”, use “Check what was saved & unlock” there before trying again.</div></div>}
+            {state.error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">{state.error}{isLockBlocked(state.error) ? <LockRecovery onRetry={onRetry} /> : <div className="mt-1 text-muted-foreground">Progress is recorded in Admin → Bulk activity. If it says “uncertain”, use “Check what was saved & unlock” there before trying again.</div>}</div>}
             {r && <>
               <Group icon={<CheckCircle2 className="size-3.5" />} title={r.doneLabel} items={r.done} tone="text-primary" />
               <Group icon={<MinusCircle className="size-3.5" />} title="Skipped / no change needed" items={r.skipped} tone="text-muted-foreground" />

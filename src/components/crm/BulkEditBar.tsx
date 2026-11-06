@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -86,8 +86,9 @@ export function BulkEditBar() {
   const [request, setRequest] = useState<{ contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange; operationId: string } | null>(null);
 
   const [run, setRun] = useState<BulkRunState | null>(null);
+  const retryRef = useRef<(() => void) | null>(null);
   if (selectedIds.size === 0 && !levelResults && !run) return null;
-  if (selectedIds.size === 0 && run) return <BulkRunDialog state={run} onClose={() => setRun(null)} />;
+  if (selectedIds.size === 0 && run) return <BulkRunDialog state={run} onClose={() => setRun(null)} onRetry={() => retryRef.current?.()} />;
 
   const count = selectedIds.size;
   const anyBusy = busy || deleting || changingLevel || action !== "";
@@ -98,12 +99,15 @@ export function BulkEditBar() {
     summary[label] = (summary[label] || 0) + 1;
     return summary;
   }, {});
-  const applyLevelChange = async () => {
-    if (!levelChange || selectedContacts.length === 0 || selectedContacts.length > 500) return;
-    const payload = { contacts: selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change: levelChange, operationId: crypto.randomUUID() };
+  const applyLevelChange = async (again?: { contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange }) => {
+    const change = again?.change ?? levelChange;
+    if (!change || (!again && (selectedContacts.length === 0 || selectedContacts.length > 500))) return;
+    const payload = { contacts: again?.contacts ?? selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change, operationId: crypto.randomUUID() };
+    // Blocked attempts write nothing, so retry replays the same selection under a fresh operation id.
+    retryRef.current = () => { setRun(null); void applyLevelChange({ contacts: payload.contacts, change: payload.change }); };
     setRequest(payload);
     setChangingLevel(true);
-    const title = `${levelChange === "promote" ? "Promoting" : "Demoting"} ${payload.contacts.length} contact${payload.contacts.length === 1 ? "" : "s"}`;
+    const title = `${change === "promote" ? "Promoting" : "Demoting"} ${payload.contacts.length} contact${payload.contacts.length === 1 ? "" : "s"}`;
     setLevelChange(null);
     setRun({ title, step: "validate", total: payload.contacts.length, processed: 0 });
     try {
@@ -224,6 +228,7 @@ export function BulkEditBar() {
       toast.error("Choose a value to apply.");
       return;
     }
+    retryRef.current = () => { setRun(null); void apply(); };
     setBusy(true);
     const label = FIELDS.find((f) => f.key === field)?.label ?? field;
     const targets = selectedContacts.filter((c) => c.email);
@@ -274,6 +279,7 @@ export function BulkEditBar() {
 
   // Hard-delete the selected contacts from the Contacts sheet. Confirmed first.
   const doDelete = async () => {
+    retryRef.current = () => { setRun(null); void doDelete(); };
     setDeleting(true);
     setConfirmOpen(false);
     const targets = selectedContacts.filter((c) => c.email);
@@ -463,7 +469,7 @@ export function BulkEditBar() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <BulkRunDialog state={run} onClose={() => setRun(null)} />
+      <BulkRunDialog state={run} onClose={() => setRun(null)} onRetry={() => retryRef.current?.()} />
       {levelResults && <OperationResults {...levelResults} onClose={() => setLevelResults(null)} />}
       <AlertDialog open={techConfirmOpen} onOpenChange={setTechConfirmOpen}>
         <AlertDialogContent>
