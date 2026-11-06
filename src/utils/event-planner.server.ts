@@ -544,3 +544,54 @@ export async function removeHistoryLink(targetUrid: string, kind: string, source
   for (const l of hit) await writeRange(HISTORY_TAB, l.row, 10, [[new Date().toISOString()]]);
   return hit.length > 0;
 }
+
+// ── One-time PortCo name cleanup (backed up; rewrites only the PortCos cells that change) ──
+export async function cleanupEventPortcoNames(apply: boolean): Promise<{
+  changed: { urid: string; name: string; start: string; before: string[]; after: string[] }[];
+  unresolved: { name: string; events: number }[];
+  backupTab: string;
+}> {
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const col = idx["PortCos"];
+  if (col === undefined) throw new Error("Events DB has no PortCos column.");
+  const official = await officialPortcoNames(true);
+  if (!official.length) throw new Error("Could not read the Portfolio Companies list.");
+  const changed: { urid: string; name: string; start: string; before: string[]; after: string[]; row: number }[] = [];
+  const unresolved = new Map<string, number>();
+  rows.forEach((r, n) => {
+    if (n === 0 || !(r[idx["URID"]] || "").trim()) return;
+    const before = splitList(r[col] || "");
+    const { portcos, unresolved: miss } = canonicalEventPortcos(before, official);
+    miss.forEach((m) => unresolved.set(m, (unresolved.get(m) || 0) + 1));
+    if (portcos.join("; ") !== before.join("; ")) {
+      changed.push({ urid: r[idx["URID"]].trim(), name: r[idx["Name"]] || "", start: r[idx["Start"]] || "", before, after: portcos, row: n + 1 });
+    }
+  });
+  let backupTab = "";
+  if (apply && changed.length) {
+    backupTab = `Events DB Backup ${new Date().toISOString().slice(0, 16).replace("T", " ")} PortCo names`;
+    await ensureTab(backupTab, rows[0] || EVENT_HEADERS);
+    await writeRange(backupTab, 1, 0, rows.map((r) => (rows[0] || []).map((_, c) => r[c] ?? "")));
+    // Re-check each row right before writing so a concurrent edit is never overwritten.
+    const fresh = await readTab(EVENTS_TAB, true);
+    const token = await getAccessToken();
+    const data = changed
+      .filter((c) => (fresh[c.row - 1]?.[idx["URID"]] || "").trim() === c.urid && splitList(fresh[c.row - 1]?.[col] || "").join("; ") === c.before.join("; "))
+      .map((c) => ({ range: `${EVENTS_TAB}!${colLetters(col)}${c.row}`, values: [[c.after.join("; ")]] }));
+    if (data.length) {
+      const res = await sheetsFetch(`${base()}/values:batchUpdate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ valueInputOption: "RAW", data }),
+      });
+      if (!res.ok) throw new Error(`PortCo name cleanup failed [${res.status}]: ${await res.text()}`);
+    }
+    cache.delete(EVENTS_TAB);
+  }
+  return {
+    changed: changed.map(({ row: _row, ...c }) => c),
+    unresolved: [...unresolved].map(([name, events]) => ({ name, events })).sort((a, b) => b.events - a.events),
+    backupTab,
+  };
+}
