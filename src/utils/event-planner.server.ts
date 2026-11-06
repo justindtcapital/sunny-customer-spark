@@ -1,7 +1,8 @@
 // Event Planner storage — the shared "Event Tracker" spreadsheet is the event
 // database. VP-managed rows live in the "Events DB" tab (seeded once from the
 // FY tabs, which stay untouched); attendance lives in "Event Attendees".
-import { getAccessToken, sheetsFetch, colLetters } from "./sheets.server";
+import { getAccessToken, sheetsFetch, colLetters, buildPortfolioCompanies } from "./sheets.server";
+import { canonicalEventPortcos } from "@/lib/event-portcos";
 import {
   asanaSubcategory,
   mapTrackerCategory,
@@ -109,10 +110,15 @@ async function appendRows(tab: string, rows: string[][]): Promise<void> {
 }
 
 // ── Row <-> object ───────────────────────────────────────────────
-function toRow(e: PlannerEvent, created: string): string[] {
+/** Official Portfolio Companies names — every saved event PortCo tag uses one of these spellings. */
+export async function officialPortcoNames(fresh = false): Promise<string[]> {
+  return [...new Set((await buildPortfolioCompanies(fresh)).map((c) => c.name.trim()).filter(Boolean))];
+}
+
+function toRow(e: PlannerEvent, created: string, official: string[]): string[] {
   return [
     e.urid, e.name, e.start, e.end, e.location, e.category, e.subcategory, e.status,
-    e.sectors.join("; "), e.portcos.join("; "), e.partners.join("; "), e.owner, e.format,
+    e.sectors.join("; "), canonicalEventPortcos(e.portcos, official).portcos.join("; "), e.partners.join("; "), e.owner, e.format,
     e.website, e.lumaUrl, e.source, e.sourceRef, e.asanaGid, String(e.networkCount || ""),
     e.notes, e.actionsNeeded, e.eventContact, e.createdBy, created, e.updated, e.dtcStatus || "",
   ];
@@ -180,6 +186,7 @@ export async function addPlannerEvents(
 ): Promise<{ added: number; skipped: string[]; review: string[]; rejected: { name: string; reason: string }[]; outcomes: BulkOutcome[] }> {
   await ensureTab(EVENTS_TAB, EVENT_HEADERS);
   const existing = await readPlannerEvents(true);
+  const official = await officialPortcoNames();
   const now = new Date().toISOString();
   const rows: string[][] = [];
   const skipped: string[] = [];
@@ -205,7 +212,7 @@ export async function addPlannerEvents(
     }
     existing.push(e);
     outcomes.push({ key:String(index),label:e.name,status:"changed",reason:"Unique event saved." });
-    rows.push(toRow(e, now));
+    rows.push(toRow(e, now, official));
   }
   if (rows.length) await appendRows(EVENTS_TAB, rows);
   return { added: rows.length, skipped, review, rejected, outcomes };
@@ -228,7 +235,8 @@ export async function updatePlannerEvent(
     patch = { ...patch, dtcStatus: patch.status === "Declined" ? "Declined" : patch.status === "Potential" ? "Considering" : "Accepted" };
   const next = clean({ ...current, ...patch, urid }, current.createdBy);
   const created = rows[i][idx["Created"]] || "";
-  const newRow = toRow(next, created);
+  const newRow = toRow(next, created, await officialPortcoNames());
+  next.portcos = splitList(newRow[idx["PortCos"]] ?? newRow[9]);
   const old = rows[i];
   // Write a contiguous span covering changed columns only.
   const changed = newRow.map((v, c) => (v !== (old[c] ?? "") ? c : -1)).filter((c) => c >= 0);
@@ -279,6 +287,7 @@ export async function repairPlannerEvents(): Promise<{ changed: number }> {
       fy.set(`${tab}!${n + 1}`, { status: (r[n][si] || "").trim(), start: d.start, end: d.end });
     }
   }
+  const official = await officialPortcoNames();
   let changed = 0;
   const out = rows.slice(1).map((r) => {
     if (!(r[idx["URID"]] || "").trim()) return r.map((v) => v ?? "");
@@ -294,8 +303,8 @@ export async function repairPlannerEvents(): Promise<{ changed: number }> {
       next.category = categoryOfSubcategory(next.subcategory);
     }
     const created = r[idx["Created"]] || "";
-    const before = toRow(e, created);
-    const after = toRow(next, created);
+    const before = toRow(e, created, official);
+    const after = toRow(next, created, official);
     if (after.join("\u0001") !== before.join("\u0001")) changed++;
     return after;
   });
@@ -393,7 +402,8 @@ export async function enrichFromAsana(
   // rows are cleared rather than left as stale duplicates.
   const blanks = dataRows.filter((r) => !(r[idx["URID"]] || "").trim()).map((r) => r.map((v) => v ?? ""));
   const createdBy = new Map(events.map((e, i) => [e.urid, dataRows.filter((r) => (r[idx["URID"]] || "").trim())[i]?.[idx["Created"]] || ""]));
-  const out = finalEvents.map((e) => toRow(e, createdBy.get(e.urid) || now));
+  const official = await officialPortcoNames();
+  const out = finalEvents.map((e) => toRow(e, createdBy.get(e.urid) || now, official));
   const width = EVENT_HEADERS.length;
   const empty = () => Array.from({ length: width }, () => "");
   while (out.length + blanks.length < dataRows.length) out.push(empty());
@@ -461,7 +471,7 @@ export async function mergeEventsManually(keeper: PlannerEvent, loserUrids: stri
   const losers = loserUrids.map(find);
   if (losers.some((i) => i < 1)) throw new Error("One of the events was already removed. Reload and try again.");
   const next = { ...keeper, updated: new Date().toISOString() };
-  await writeRange(EVENTS_TAB, ki + 1, 0, [toRow(next, rows[ki][idx["Created"]] || "")]);
+  await writeRange(EVENTS_TAB, ki + 1, 0, [toRow(next, rows[ki][idx["Created"]] || "", await officialPortcoNames())]);
   const blank = EVENT_HEADERS.map(() => "");
   for (const i of losers) await writeRange(EVENTS_TAB, i + 1, 0, [blank]);
   const att = await readTab(ATTENDEES_TAB, true).catch(() => [] as string[][]);
