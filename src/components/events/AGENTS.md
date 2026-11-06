@@ -1,1 +1,2 @@
+- Event PortCo tags are stored and shown only as official Portfolio Companies names (src/lib/event-portcos.ts; approved aliases live there); every Events DB write canonicalizes and company Events tabs read the Events DB first, with Asana filling gaps — Asana spellings otherwise duplicate companies per event.
 - Contact event tags join event attendee lists only via the pure attendance-reconcile planner (approved appends) or the import picker writing by planner URID — prevents name drift.

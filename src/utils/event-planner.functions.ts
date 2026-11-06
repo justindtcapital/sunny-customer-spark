@@ -4,15 +4,32 @@ import type { HistoryLink } from "@/lib/event-history";
 import { requireTeamAuth } from "./team-auth";
 
 export const fetchPlannerFn = createServerFn({ method: "GET" }).handler(async () => {
-  const { readPlannerEvents, readAttendees, activeHistoryLinks } = await import("./event-planner.server");
+  const { readPlannerEvents, readAttendees, activeHistoryLinks, officialPortcoNames } = await import("./event-planner.server");
+  const { canonicalEventPortcos } = await import("@/lib/event-portcos");
   try {
-    const [events, attendees, historyLinks] = await Promise.all([
+    const [raw, attendees, historyLinks, officialPortcos] = await Promise.all([
       readPlannerEvents(), readAttendees(), activeHistoryLinks().catch(() => [] as HistoryLink[]),
+      officialPortcoNames().catch(() => [] as string[]),
     ]);
-    return { events, attendees, historyLinks, error: "" };
+    // Show official PortCo spellings even for rows edited directly in the spreadsheet.
+    const events = raw.map((e) => ({ ...e, portcos: canonicalEventPortcos(e.portcos, officialPortcos).portcos }));
+    return { events, attendees, historyLinks, officialPortcos: [...officialPortcos].sort((x, y) => x.localeCompare(y)), error: "" };
   } catch (e) {
     console.error("[event-planner] read failed", e);
-    return { events: [] as PlannerEvent[], attendees: [] as PlannerAttendee[], historyLinks: [] as HistoryLink[], error: (e as Error).message };
+    return { events: [] as PlannerEvent[], attendees: [] as PlannerAttendee[], historyLinks: [] as HistoryLink[], officialPortcos: [] as string[], error: (e as Error).message };
+  }
+});
+
+/** Official company name (lowercase) → its events from the event list, for each company's Events tab. */
+export const fetchPortcoEventIndexFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { readPlannerEvents, officialPortcoNames } = await import("./event-planner.server");
+  const { trackerEventsByPortco } = await import("@/lib/event-portcos");
+  try {
+    const [events, official] = await Promise.all([readPlannerEvents(), officialPortcoNames()]);
+    return trackerEventsByPortco(events, official, new Date().toISOString().slice(0, 10));
+  } catch (e) {
+    console.error("[event-planner] PortCo event index failed", e);
+    return {} as Record<string, import("@/lib/types").PortfolioEvent[]>;
   }
 });
 
@@ -65,8 +82,11 @@ export const syncAsanaPlannerFn = createServerFn({ method: "POST" })
 /** Live Asana events for the "Show Asana data" overlay toggle (read-only). */
 export const fetchAsanaOverlayFn = createServerFn({ method: "GET" }).handler(async () => {
   const { fetchAllAsanaEvents } = await import("./asana.server");
+  const { officialPortcoNames } = await import("./event-planner.server");
+  const { canonicalEventPortcos } = await import("@/lib/event-portcos");
   try {
-    return { events: await fetchAllAsanaEvents(), error: "" };
+    const [events, official] = await Promise.all([fetchAllAsanaEvents(), officialPortcoNames().catch(() => [] as string[])]);
+    return { events: events.map((a) => ({ ...a, portcos: canonicalEventPortcos(a.portcos || [], official).portcos })), error: "" };
   } catch (e) {
     console.error("[event-planner] Asana overlay failed", e);
     return { events: [], error: (e as Error).message };

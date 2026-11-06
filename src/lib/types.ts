@@ -387,6 +387,8 @@ export interface PortfolioEvent {
   type: "conference" | "dinner" | "webinar" | "meeting";
   status?: "completed" | "planned";
   eventRole?: "hosted" | "sponsored";
+  /** Asana task IDs this event-list entry already represents. */
+  sourceGids?: string[];
 }
 
 export interface PortfolioIntro {
