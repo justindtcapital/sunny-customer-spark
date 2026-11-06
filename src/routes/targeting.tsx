@@ -124,7 +124,7 @@ import { NetworkFinderDialog } from "@/components/crm/NetworkFinderDialog";
 import { TargetAccountsDialog } from "@/components/crm/TargetAccountsDialog";
 import { FindCompaniesDialog } from "@/components/crm/FindCompaniesDialog";
 import { TargetPasteDialog } from "@/components/crm/TargetPasteDialog";
-import { TargetUploadDialog } from "@/components/crm/TargetUploadDialog";
+import { BulkUploadDialog } from "@/components/crm/BulkUploadDialog";
 import {
   AddToCampaignDialog,
   type AddToCampaignResult,
@@ -2635,11 +2635,12 @@ function TargetingPage() {
         existingKeys={targets.map((t) => targetKeyOf(t))}
         onImported={refreshTargets}
       />
-      <TargetUploadDialog
+      <BulkUploadDialog
+        destination="prospecting"
         open={uploadOpen}
         onOpenChange={setUploadOpen}
-        existingKeys={targets.map((t) => targetKeyOf(t))}
-        portcoNames={companies.map((c) => c.name).filter(Boolean)}
+        existingEmails={targets.map((t) => t.email).filter(Boolean)}
+        portcoOptions={companies.map((c) => c.name).filter(Boolean)}
         onImported={refreshTargets}
       />
 

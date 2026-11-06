@@ -21,9 +21,8 @@ import {
 } from "@/components/ui/select";
 import { EventPicker } from "@/components/events/EventPicker";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { addContact, addEvent as addEventToSheet, addPortcoIntro, addNote, fetchContactEmails, logImportResult, fetchImportHistory, storeApolloRaw } from "@/utils/sheets.functions";
+import { importTargets, addContact, addEvent as addEventToSheet, addPortcoIntro, addNote, fetchContactEmails, logImportResult, fetchImportHistory, storeApolloRaw } from "@/utils/sheets.functions";
 import { importContactsBatch } from "@/utils/bulk-import.functions";
-import { importTargets } from "@/utils/sheets.functions";
 import { CampaignCombobox, invalidateCampaignCache } from "@/components/crm/CampaignCombobox";
 import { enrichContact } from "@/utils/apollo.functions";
 import { toast } from "sonner";
@@ -506,7 +505,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                 </div>
                 {missingRequired && (
                   <p className="text-[11px] text-destructive mt-1.5">
-                    Map both Name and Email to enable import.
+                    {prospecting ? "Map a Name (or First/Last name) column to enable import." : "Map both Name and Email to enable import."}
                   </p>
                 )}
               </div>
@@ -649,7 +648,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
               ) : (
                 <p className="text-[11px] text-muted-foreground">
                   {missingRequired
-                    ? "Map Name and Email above to continue."
+                    ? (prospecting ? "Map a Name column above to continue." : "Map Name and Email above to continue.")
                     : skipped > 0
                       ? `All ${skipped} row${skipped !== 1 ? "s" : ""} are already in your contacts.`
                       : "No importable rows — check your column mapping."}
