@@ -8,7 +8,7 @@ import {
   BRIEF_SUBJECT, anticipatedFollowUps, candidateNames, dueThisWeek, investmentStrip, matchPeople,
   mentionedCompanies, nextEvents, parseCoworkBrief, personHints, priorityBadge, daysBetween,
   companyKey, firstSentences, isInternalOrg, splitPortcos, stripScheduling, titleCompany,
-  emailsInText, sameNickname, sameMeetingTime,
+  emailsInText, sameNickname, sameMeetingTime, relatedWorkstreams,
 } from "@/lib/morning-brief";
 import { isSharedEmailDomain, normalizeDomain } from "@/lib/company-domains";
 import { teamMemberFor } from "@/lib/user-ownership";
@@ -20,7 +20,8 @@ export const BRIEF_OWNER = "chris.falloon@dell.com";
 export const BRIEF_RECIPIENT = "chris.falloon@dell.com";
 
 export interface BriefPerson { name: string; email?: string; contactId?: string; company: string; title: string; temperature?: string; lastContact?: string; campaigns: string[]; events: string[]; status: "matched" | "possible" | "new" | "teammate" }
-export interface BriefPortco { name: string; badge: string; priority: string; stage: string; ownership: string; investment: string; round: string; investors: string; workstreams: { name: string; status: string; priority: string; lastActivity: string; update: string; url?: string }[] }
+export interface BriefPortco { name: string; website?: string; badge: string; priority: string; stage: string; ownership: string; investment: string; round: string; investors: string; workstreams: BriefWorkstream[] }
+export interface BriefWorkstream { gid?: string; company?: string; name: string; status: string; priority: string; lastActivity: string; update: string; url?: string }
 /** Outside (non-PortCo, non-Dell) company the meeting is with. */
 export interface BriefCompany {
   name: string; domain: string; about: string; aboutSource: "web" | "general" | ""; sources: string[];
@@ -32,7 +33,9 @@ export interface BriefMeeting {
   /** PortCos only mentioned in passing — names and badges, no details. Absent on older briefs. */
   mentionedPortcos?: { name: string; badge: string }[];
   company?: BriefCompany | null;
-  actions: { summary: string; due: string; person: string; overdue: boolean }[];
+  actions: { id?: string; summary: string; due: string; person: string; company?: string; source?: string; overdue: boolean }[];
+  /** Workstreams on any PortCo that mention this meeting's company or people. Absent on older briefs. */
+  related?: BriefWorkstream[];
   notes: { title: string; date: string; summary: string; url: string }[];
   events: { name: string; start: string }[];
   worthChecking: string[]; prep: string[];
@@ -146,25 +149,34 @@ function assemble(text: string, today: string, f: Facts) {
     const portcos: BriefPortco[] = split.primary.map((name) => {
       const inv = invFor(name);
       const ws = f.workstreams.filter((w) => norm(w.company) === norm(name) && !w.completed && activeWorkstream(w));
-      return { name, badge: priorityBadge(inv.priority), priority: inv.priority, stage: inv.stage, ownership: inv.ownership, investment: inv.investment, round: inv.round, investors: inv.investors,
-        workstreams: ws.map((w) => ({ name: w.name, status: workstreamBarStatus(w), priority: w.workstreamPriority, lastActivity: (w.lastActivity || "").slice(0, 10), update: (w.nextSteps || w.notes || "").slice(0, 220), url: w.url })) };
+      return { name, website: f.companies.find((c) => c.name === name)?.website || "", badge: priorityBadge(inv.priority), priority: inv.priority, stage: inv.stage, ownership: inv.ownership, investment: inv.investment, round: inv.round, investors: inv.investors,
+        workstreams: ws.map((w) => ({ gid: w.gid, company: w.company, name: w.name, status: workstreamBarStatus(w), priority: w.workstreamPriority, lastActivity: (w.lastActivity || "").slice(0, 10), update: (w.nextSteps || w.notes || "").slice(0, 220), url: w.url })) };
     });
     const mentionedPortcos = split.mentioned.map((name) => ({ name, badge: priorityBadge(invFor(name).priority) }));
     let company: BriefCompany | null = null;
     if (extName) {
       const k = companyKey(extName);
-      const domain = people.filter((p) => companyKey(p.company) === k).map((p) => normalizeDomain(p.email)).find((d): d is string => !!d && !isSharedEmailDomain(d)) || "";
+      // Work domain: CRM people at the company, then today's attendees there, then the one outside domain in the room.
+      const workDomain = (d: string | null | undefined): d is string => !!d && !isSharedEmailDomain(d) && !isInternalOrg(d.split(".")[0]) && !/dt-capital|dell|emc/i.test(d);
+      const roomDomains = [...new Set(ppl.map((p) => normalizeDomain(p.email)).filter(workDomain))];
+      const domain = people.filter((p) => companyKey(p.company) === k).map((p) => normalizeDomain(p.email)).find(workDomain)
+        || ppl.filter((p) => companyKey(p.company) === k).map((p) => normalizeDomain(p.email)).find(workDomain)
+        || (roomDomains.length === 1 ? roomDomains[0] : "");
       const at = people.filter((p) => companyKey(p.company) === k || (!!domain && normalizeDomain(p.email) === domain));
       company = { name: extName, domain, about: "", aboutSource: "", sources: [], totalContacts: at.length,
         contacts: at.slice(0, 6).map((p) => ({ name: p.name, title: p.title || "", temperature: p.temperature, contactId: p.urid || p.id })) };
     }
     const keys = new Set([...ppl.map((p) => norm(p.name)), ...portcos.map((p) => norm(p.name)), ...(company ? [norm(company.name)] : [])]);
     const touches = (person: string, company: string) => keys.has(norm(person)) || keys.has(norm(company));
-    const actions = f.reminders.filter((r) => touches(r.person, r.company)).slice(0, 6).map((r) => ({ summary: r.summary, due: (r.due || "").slice(0, 10), person: r.person, overdue: !!r.due && r.due.slice(0, 10) < today }));
+    const actions = f.reminders.filter((r) => touches(r.person, r.company)).slice(0, 6).map((r) => ({ id: r.id, summary: r.summary, due: (r.due || "").slice(0, 10), person: r.person, company: r.company, source: r.source, overdue: !!r.due && r.due.slice(0, 10) < today }));
+    const related = relatedWorkstreams(f.workstreams.filter((w) => !w.completed && activeWorkstream(w)), {
+      companies: [...portcos.map((p) => p.name), ...(company ? [company.name] : [])],
+      people: ppl.map((p) => p.name), excludeCompanies: portcos.map((p) => p.name),
+    }).map((w) => ({ gid: w.gid, company: w.company, name: w.name, status: workstreamBarStatus(w), priority: w.workstreamPriority, lastActivity: (w.lastActivity || "").slice(0, 10), update: (w.nextSteps || w.notes || "").slice(0, 220), url: w.url }));
     const notes = f.records.filter((r) => (keys.has(norm(r.portco)) || [...keys].some((k) => k.includes(" ") && norm(r.participants).includes(k))) && daysBetween(r.date || r.createdAt, today) <= 60)
       .sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 3).map((r) => ({ title: r.title, date: (r.date || "").slice(0, 10), summary: r.summary.slice(0, 400), url: r.sourceUrl }));
     const events = upcoming.filter((e) => e.portcos.some((p) => keys.has(norm(p))) || f.attendees.some((a) => a.eventUrid === e.urid && keys.has(norm(a.name)))).map((e) => ({ name: e.name, start: e.start }));
-    return { time: m.time, title: m.title, tags: m.tags, platform: m.platform, duration: m.duration, cowork: stripScheduling(m.text), summary: "", portcos, mentionedPortcos, company, people: ppl, actions, notes, events, worthChecking: [], prep: [] };
+    return { time: m.time, title: m.title, tags: m.tags, platform: m.platform, duration: m.duration, cowork: stripScheduling(m.text), summary: "", portcos, mentionedPortcos, company, people: ppl, actions, related, notes, events, worthChecking: [], prep: [] };
   });
   const todayNames = new Set(meetings.flatMap((m) => m.people.map((p) => norm(p.name))));
   const nm = new Set(f.companies.filter((c) => priorityBadge(investmentStrip(f.portcoFields.get(c.name.trim().toLowerCase())?.fields || c.asanaFields, c.profileOverrides).priority) === "NM").map((c) => norm(c.name)));
@@ -277,7 +289,7 @@ export async function buildMorningBrief(opts: { force?: boolean; sendEmail?: boo
     await addCompanyProfiles(a.meetings);
     const ai = await synthesize({
       today, coworkIntro: a.cowork.intro, coworkPriorities: a.cowork.priorities, gaps: a.cowork.gaps,
-      meetings: a.meetings.map((m, i) => ({ index: i, time: m.time, title: m.title, tags: m.tags, cowork: m.cowork, company: m.company, portcos: m.portcos, mentionedPortcos: (m.mentionedPortcos || []).map((p) => p.name), people: m.people, openActions: m.actions, recentNotes: m.notes, upcomingEvents: m.events })),
+      meetings: a.meetings.map((m, i) => ({ index: i, time: m.time, title: m.title, tags: m.tags, cowork: m.cowork, company: m.company, portcos: m.portcos, mentionedPortcos: (m.mentionedPortcos || []).map((p) => p.name), people: m.people, openActions: m.actions, relatedWorkstreams: m.related, recentNotes: m.notes, upcomingEvents: m.events })),
       dueThisWeek: a.due.slice(0, 15), quiet: a.quiet.map((q, i) => ({ index: i, ...q })),
     });
     const brief: MorningBrief = {
@@ -322,6 +334,7 @@ ${m.summary ? `<p style="margin:6px 0">${esc(m.summary)}</p>` : ""}
 <div style="font-size:12px;color:#445"><b>From your Outlook:</b> ${esc(m.cowork)}</div>
 ${ppl.length ? `<div style="font-size:12px;margin-top:6px"><b>From Venture Pulse — people</b>${list(ppl)}</div>` : ""}
 ${m.actions.length ? `<div style="font-size:12px"><b>Open actions</b>${list(m.actions.map((a) => `${esc(a.summary)}${a.due ? ` (due ${esc(a.due)}${a.overdue ? ", overdue" : ""})` : ""}`))}</div>` : ""}
+${m.related?.length ? `<div style="font-size:12px"><b>Related workstreams</b>${list(m.related.map((w) => `${esc(w.company || "")} — ${esc(w.name)} (${esc(w.status)})`))}</div>` : ""}
 ${m.notes.length ? `<div style="font-size:12px"><b>Recent notes</b>${list(m.notes.map((n) => `${esc(n.date)} ${esc(n.title)}`))}</div>` : ""}
 ${m.worthChecking.length ? `<div style="font-size:12px;color:#8a4b00"><b>Worth checking</b>${list(m.worthChecking.map(esc))}</div>` : ""}
 ${m.prep.length ? `<div style="font-size:12px"><b>Prep</b>${list(m.prep.map(esc))}</div>` : ""}</div>`;
