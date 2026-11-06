@@ -19,5 +19,5 @@ export function peopleCandidates<T extends PersonIdentity>(p: PersonIdentity, ro
 /** Match proof covers every supplied business field; missing/differing associations require review. */
 export function suppliedFieldsMatch(input: Record<string, unknown>, saved: Record<string, unknown>, ignore: string[] = []): boolean {
   return Object.entries(input).filter(([k,v]) => !ignore.includes(k) && v !== undefined && v !== "" && v !== null && !(Array.isArray(v) && v.length === 0))
-    .every(([k,v]) => k === "email" ? canonicalValue(emailIdentities(String(v))) === canonicalValue(emailIdentities(String(saved[k] || ""))) : canonicalValue(v) === canonicalValue(saved[k]));
+    .every(([k,v]) => /phone|mobile/i.test(k) ? String(v).replace(/\D/g,"") === String(saved[k] ?? "").replace(/\D/g,"") : k === "email" ? canonicalValue(emailIdentities(String(v))) === canonicalValue(emailIdentities(String(saved[k] || ""))) : canonicalValue(v) === canonicalValue(saved[k]));
 }
