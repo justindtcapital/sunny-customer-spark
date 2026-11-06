@@ -23,6 +23,8 @@ import { EventPicker } from "@/components/events/EventPicker";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { addContact, addEvent as addEventToSheet, addPortcoIntro, addNote, fetchContactEmails, logImportResult, fetchImportHistory, storeApolloRaw } from "@/utils/sheets.functions";
 import { importContactsBatch } from "@/utils/bulk-import.functions";
+import { importTargets } from "@/utils/sheets.functions";
+import { CampaignCombobox, invalidateCampaignCache } from "@/components/crm/CampaignCombobox";
 import { enrichContact } from "@/utils/apollo.functions";
 import { toast } from "sonner";
 import { contactImportRejectReason } from "@/lib/contact-noise";
@@ -43,6 +45,8 @@ interface BulkUploadDialogProps {
   existingEmails?: string[];
   /** Called after a successful import so the caller can refresh its data. */
   onImported?: () => void | Promise<void>;
+  /** Same review flow for both lists; only the saved Relationship Status differs. */
+  destination?: "network" | "prospecting";
 }
 
 interface ParsedRow {
@@ -76,11 +80,14 @@ interface ImportHistoryRow {
 // headline/employmentHistory are Apollo-only — never CSV columns, so they're
 // excluded from the column-mapping keys.
 type FieldKey = keyof Omit<ParsedRow, "headline" | "employmentHistory">;
-type Mapping = Record<FieldKey, number>;
+type MapKey = FieldKey | "firstName" | "lastName";
+type Mapping = Record<MapKey, number>;
 
 // The importable fields, in display order. Name + email are required.
-const FIELDS: { key: FieldKey; label: string; required?: boolean }[] = [
+const FIELDS: { key: MapKey; label: string; required?: boolean }[] = [
   { key: "name", label: "Name", required: true },
+  { key: "firstName", label: "First name" },
+  { key: "lastName", label: "Last name" },
   { key: "email", label: "Email", required: true },
   { key: "title", label: "Title" },
   { key: "company", label: "Company" },
@@ -104,7 +111,7 @@ function firstEmail(cell: string): string {
 }
 
 function emptyMapping(): Mapping {
-  return { name: NO_COLUMN, title: NO_COLUMN, company: NO_COLUMN, email: NO_COLUMN, phone: NO_COLUMN, location: NO_COLUMN, prime: NO_COLUMN, sector: NO_COLUMN, linkedin: NO_COLUMN };
+  return { name: NO_COLUMN, firstName: NO_COLUMN, lastName: NO_COLUMN, title: NO_COLUMN, company: NO_COLUMN, email: NO_COLUMN, phone: NO_COLUMN, location: NO_COLUMN, prime: NO_COLUMN, sector: NO_COLUMN, linkedin: NO_COLUMN };
 }
 
 // Sniff the delimiter from the first non-empty line by counting candidates
@@ -155,7 +162,21 @@ function parseCsv(text: string, delim = ","): string[][] {
 }
 
 // Header alias -> field. Used to pre-fill the mapping on upload.
-const HEADER_MAP: Record<string, FieldKey> = {
+const HEADER_MAP: Record<string, MapKey> = {
+  "first name": "firstName",
+  firstname: "firstName",
+  "last name": "lastName",
+  lastname: "lastName",
+  surname: "lastName",
+  "company name": "company",
+  org: "company",
+  "work email": "email",
+  "e-mail": "email",
+  "e-mail address": "email",
+  mobile: "phone",
+  cell: "phone",
+  region: "location",
+  "job title": "title",
   name: "name",
   "full name": "name",
   title: "title",
@@ -261,7 +282,9 @@ async function enrichRow(r: ParsedRow): Promise<{ row: ParsedRow; enriched: bool
   }
 }
 
-export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], existingEmails = [], onImported }: BulkUploadDialogProps) {
+export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], existingEmails = [], onImported, destination = "network" }: BulkUploadDialogProps) {
+  const prospecting = destination === "prospecting";
+  const [campaign, setCampaign] = useState("");
   const [grid, setGrid] = useState<string[][] | null>(null);
   const [fileName, setFileName] = useState("");
   const [mapping, setMapping] = useState<Mapping>(emptyMapping());
@@ -294,7 +317,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   }, [open]);
 
   const headers = grid?.[0] ?? [];
-  const missingRequired = mapping.name === NO_COLUMN || mapping.email === NO_COLUMN;
+  const missingRequired = (mapping.name === NO_COLUMN && mapping.firstName === NO_COLUMN) || (!prospecting && mapping.email === NO_COLUMN);
 
   const handleFile = async (file: File) => {
     setFileName(file.name);
@@ -322,7 +345,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     }
     const cell = (r: string[], idx: number) => (idx >= 0 && idx < r.length ? (r[idx] || "").trim() : "");
     const all: ParsedRow[] = grid.slice(1).map((r) => ({
-      name: cell(r, mapping.name),
+      name: cell(r, mapping.name) || [cell(r, mapping.firstName), cell(r, mapping.lastName)].filter(Boolean).join(" "),
       title: cell(r, mapping.title),
       company: cell(r, mapping.company),
       email: normalizeEmails(cell(r, mapping.email)),
@@ -335,11 +358,11 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       employmentHistory: "",
     }));
 
-    const items = classifyImportRows(all, existingEmails, fixes);
+    const items = classifyImportRows(all, existingEmails, fixes, { emailOptional: prospecting });
     // Existing people are still sent: the server tags them (event/PortCo) without creating a copy.
     const unique = items.filter(i => i.status === "ready" || i.status === "existing").map(i => i.row);
     return { rows: unique, items, skipped: items.filter(i => i.status === "existing" || i.status === "skipped").length, invalid: 0, missingRequired: 0, dataRows: all.length };
-  }, [grid, mapping, existingEmails, fixes]);
+  }, [grid, mapping, existingEmails, fixes, prospecting]);
 
   const { rows, skipped } = report;
   const items = report.items ?? [];
@@ -368,6 +391,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setEnrichOnImport(true);
     setFollowUpEmails(new Set());
     setFixes({});
+    setCampaign("");
     setBusy(false);
   };
 
@@ -395,7 +419,13 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
         prepared.push({ name:r.name,email:r.email,role:r.title,company:r.company,phone:r.phone,location:r.location,prime:r.prime,sector:r.sector,linkedin:r.linkedin,headline:r.headline,employmentHistory:r.employmentHistory,source:"CSV Import",followUp:Boolean(eventName.trim()) || isFlaggedForFollowUp(r.email) });
       }
       setRun(r => r && { ...r, step: "apply", total: 0 });
-      const result = await importContactsBatch({ data: { contacts:prepared,event:eventName.trim(),portcos:portcoNames,portcoSources:portcoSources,sourceNote:source.trim() } });
+      const result = prospecting
+        ? await importTargets({ data: {
+            targets: prepared.map(p => { const [firstName, ...rest] = p.name.trim().split(/\s+/); return { firstName: firstName || p.email, lastName: rest.join(" "), company: p.company, role: p.role, linkedin: p.linkedin, email: p.email, phone: p.phone, location: p.location, sector: p.sector, stage: "Prospecting", source: source.trim() || "CSV Import", researchPurpose: "", reasonSurfaced: "" }; }),
+            campaign: campaign.trim(), event: eventName.trim(), portcoTags: portcoNames, followUp: Boolean(eventName.trim()) || followUpEmails.size > 0,
+          } })
+        : await importContactsBatch({ data: { contacts:prepared,event:eventName.trim(),portcos:portcoNames,portcoSources:portcoSources,sourceNote:source.trim() } });
+      if (prospecting && campaign.trim()) invalidateCampaignCache();
       setRun(r => r && { ...r, step: "verify" });
       const outcomes = ((result as { outcomes?: BulkOutcome[] }).outcomes) || [];
       const receipt = outcomes.length ? receiptFromOutcomes(outcomes, "Imported")
@@ -415,10 +445,10 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] grid-rows-[auto_1fr_auto]">
         <DialogHeader>
-          <DialogTitle>Bulk import contacts</DialogTitle>
+          <DialogTitle>{prospecting ? "Import to Prospecting" : "Import to Network"}</DialogTitle>
           <DialogDescription className="text-xs">
             Upload a CSV. Columns are auto-matched by header — adjust the mapping below if anything is off.
-            Name and email are required. Optionally tag everyone by event, portfolio company, and/or source.
+            {prospecting ? "Name plus an email or LinkedIn URL is required. New people enter as Prospecting." : "Name and email are required."} Optionally tag everyone by event, portfolio company, and/or source.
           </DialogDescription>
         </DialogHeader>
 
@@ -517,6 +547,12 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                         />
                       )}
                     </div>
+                    {prospecting && <div>
+                      <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                        Campaign
+                      </Label>
+                      <CampaignCombobox value={campaign} onChange={setCampaign} />
+                    </div>}
                     <div>
                       <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
                         Tag with source

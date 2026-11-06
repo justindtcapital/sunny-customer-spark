@@ -28,4 +28,12 @@ describe("import pre-flight", () => {
     const [item] = classifyImportRows([r("A", "a@x.com")], [], { 0: { skip: true } });
     expect(item.status).toBe("skipped");
   });
+  it("prospect imports accept a LinkedIn-only row", () => {
+    const [item] = classifyImportRows([{ name: "A", email: "", phone: "", linkedin: "https://linkedin.com/in/a" }], [], {}, { emailOptional: true });
+    expect(item.status).toBe("ready");
+  });
+  it("network imports still require an email", () => {
+    const [item] = classifyImportRows([{ name: "A", email: "", phone: "", linkedin: "https://linkedin.com/in/a" }], []);
+    expect(item.status).toBe("attention");
+  });
 });
