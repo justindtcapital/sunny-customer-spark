@@ -2157,7 +2157,9 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
     return headers.map((h) => valueByHeader[h] ?? "");
   });
 
-  await appendSheetRows(TAB_NAMES.targets, built);
+  // Literal cells: USER_ENTERED strips "+" from phones, so a successful save
+  // failed read-back verification and stranded the shared bulk lock.
+  await appendSheetRows(TAB_NAMES.targets, built, true);
 }
 
 // Repair the Targets tab's stable-key column: create URID if the tab predates it,
