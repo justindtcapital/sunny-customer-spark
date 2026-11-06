@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth-context";
 import { teamProfile } from "@/lib/user-ownership";
 import { reportingDay } from "@/lib/home-momentum";
 import { ActionsPanel, CampaignsPanel, EventsPanel, NetworkPanel, PanelSkeleton, VicPanel } from "@/components/home/HomePanels";
+import { MorningBriefPanel } from "@/components/home/MorningBrief";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -29,6 +30,7 @@ function HomePage() {
       <h1 className="font-display text-2xl font-semibold text-foreground">Hello, {profile?.firstName || "there"}</h1>
       {today && <p className="text-sm text-muted-foreground">{new Date(`${today}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>}
     </header>
+    {loaded && <MorningBriefPanel />}
     {loaded ? <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       <Slot><ActionsPanel email={email!} today={today} /></Slot>
       <Slot><EventsPanel today={today} /></Slot>
