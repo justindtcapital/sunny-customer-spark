@@ -332,7 +332,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setMapping(autoMap(g[0]));
   };
 
-  const setFieldColumn = (field: FieldKey, idx: number) =>
+  const setFieldColumn = (field: MapKey, idx: number) =>
     setMapping((m) => ({ ...m, [field]: idx }));
 
   // Build importable rows from the current column mapping, then run the pre-flight
