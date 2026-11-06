@@ -1,66 +1,34 @@
-# Investigate and fix Network contact bulk actions
+# Morning Brief: Claude Cowork email → enriched V.I.C. brief
 
-## Scope
-Address Shane's high-priority November 5 report on **Network → contact list** (`/crm`), not Activity Review. Fix confirmed failures only; preserve unrelated contact data and existing relationship rules.
+## What you'll get
+Every morning shortly after Claude Cowork's 5:00 AM email lands in the Workspace inbox, Venture Pulse will:
+1. Find the email with subject **"Daily meeting brief – PortCo & Critical"** (today's date, newest one wins).
+2. Read each meeting Cowork listed (title, time, attendees, likely topic, things to consider).
+3. Match attendees and companies to Venture Pulse records and add, per meeting:
+   - **PortCo context** — status (NM/NU/BB), open workstreams and their latest updates, recent notes, upcoming events.
+   - **People context** — relationship level, last touches from interaction trail, open follow-ups you owe them, campaigns they're in.
+   - **Event context** — if the meeting relates to an Events DB event, attendees and prior-year history.
+4. Have AI write a single combined brief: short "Today at a glance", then one section per meeting with Cowork's points plus the Venture Pulse additions, and a closing "Also on your radar" (overdue actions, today's events).
+5. Save it and show it in a new **Morning Brief** panel on the homepage (just for you), with a link to open the full brief and past days.
+6. Email the enriched brief to your dell.com address.
 
-## What is known
-- Network exposes bulk field edits, promotion/demotion, direct moves to Prospecting, Apollo enrichment, interest loading, tech-stack loading and deletion. Selected-contact export is also available.
-- Field edits and deletion currently identify contacts by email; other actions also carry contact IDs. Missing or shared emails require investigation.
-- Several failures currently display “see console” rather than a useful explanation. Refresh and result handling differ between actions.
-- Relationship operations have saved progress and controlled retries; other actions follow different execution paths. A shared write lock can reject writes.
-- A signed-in, read-only Network check succeeded. Available recent logs contain no matching bulk error. **The reported failure has not yet been reproduced; no root cause is confirmed.** No contacts have been changed.
+Nothing is written to contacts, PortCos or actions — the brief is read-only. Suggested follow-ups appear as links to My Actions / V.I.C., never auto-created.
 
-## Approach
+## Things to confirm while building
+- **Sending email:** today the app only *reads* the Workspace inbox. Two options to send the brief to dell.com:
+  - (a) Reconnect the Workspace mailbox with "send" permission and send from it (simplest; looks like it's from you), or
+  - (b) Set up app emails on a dt-capital.net sending subdomain.
+  I'll default to (a) and you'll see a one-time reconnect prompt.
+- **Corporate filtering risk:** Dell mail filters may quarantine an external auto-email; the homepage copy is always there as backup.
+- **Timing:** runs at 5:30 AM Pacific, with retries at 6:00 and 6:30 if Cowork's email hasn't arrived. A "Rebuild brief" button on the panel lets you run it on demand.
+- **Format from Cowork:** works best if Cowork keeps a consistent per-meeting structure (I'll suggest a short template you can paste into your Cowork instructions). Free-form text still works; AI extracts it.
 
-### 1. Reproduce and trace each action
-Use multiple isolated test contacts in the actual Network list. Capture the selected IDs, submitted values, authorization checks, validation, server response and resulting saved state. Check list/sidebar entry points, filtered selections and select-all behavior.
-
-| Action | Checks |
-| --- | --- |
-| Set Status, Sector, Contact Prime, Title, Company, Location, Contact Type, Area of Interest, Primary Area of Interest or Source | Valid field/value, exact selected targets, changed fields only, accurate saved count |
-| Promote, demote, move directly to Prospecting | Mixed starting levels, unchanged cases, preserved identity/history, progress and retry |
-| Apollo enrichment | Missing emails, no matches, provider failures, fill-only preservation |
-| Load interests | Missing input, existing interests preserved, partial results |
-| Load tech stack | Shared-company lookup deduplication, credit confirmation, provider errors, saved results |
-| Delete | Explicit confirmation, exact selected targets, no unrelated or Prospecting-row deletion |
-| Export selected / Clear selection | Export includes only the selection; clear never writes data |
-
-Test small and larger selections, stale records, missing/shared emails, repeated submission, permission denial, busy locks, provider limits and interrupted requests. Inspect existing operation records read-only where useful; do not replay Shane's jobs automatically.
-
-### 2. Fix evidence-backed causes
-- If identity targeting is implicated, resolve by stable contact ID first; use email fallback only when uniquely safe. Explain missing or ambiguous targets instead of updating multiple people silently.
-- Repair confirmed selection, payload, runtime validation or authorization issues without weakening team access checks.
-- Keep relationship moves as in-place flags in unified Contacts—no copy/delete migration or new contacts store.
-- Bound slow work and address confirmed lock/deadline failures through the existing journal and reconciliation safeguards. Never force-unlock uncertain operations or replay completed steps.
-- Preserve manual ratings and enrichment's fill-only behavior. Write only the requested fields.
-
-### 3. Make outcomes and refresh trustworthy
-- Show succeeded, unchanged, skipped, failed and still-pending counts, with contact-specific explanations where available.
-- Keep unresolved contacts available for correction; do not present an entire selection as saved or remove it locally after only partial success.
-- Separate save failures from refresh failures. Re-read the saved list and refresh affected Network totals after changes; accurately reflect contacts that move out of the current filter.
-- Offer safe retries only where completion can be reconciled. Explain the next step for expired sign-in, invalid values, provider limits or a blocked operation without exposing internal errors.
-
-## Affected areas — technical details
-- `src/components/crm/BulkEditBar.tsx`: action submission, confirmations, progress and errors.
-- `src/components/crm/ContactList.tsx`, `ContactTable.tsx`, `src/lib/selection-context.tsx`, `src/routes/crm.tsx`: selected records, sidebar entry points and saved-list refresh.
-- `src/utils/sheets.functions.ts`, `sheets.server.ts`, `sumble.functions.ts`: bulk validation, row targeting, writes and provider outcomes.
-- `src/utils/relationship-levels.functions.ts`, `bulk-operations.functions.ts`, `bulk-journal.server.ts`, `bulk-execution.server.ts`: only if tracing confirms execution, locking or retry faults.
-- Focused tests beside the existing bulk-operation, resume and relationship tests. No unrelated page redesign or data migration.
-
-## Risks and safeguards
-- **Production contact changes:** reproduce writes with clearly identified, isolated test contacts; snapshot their original values and restore edited fixtures. Never test deletion on existing contacts. Use mocks for destructive and provider-failure cases before controlled verification.
-- **Shane-specific permissions:** the available preview session is Chris's, not Shane's. Check authorization without impersonation; if account-specific reproduction is needed, request approved access through the managed sign-in flow.
-- **Shared emails and stale selections:** resolve fresh records and report ambiguity; compare untouched fields and identities before/after.
-- **Limits, costs and interruptions:** Apollo/Sumble verification may consume credits. Respect confirmations, use minimal live lookups and mock rate-limit/time-out scenarios. Preserve journal evidence before any recovery.
-- **Partial persistence:** reconcile what actually saved before retrying; retries must not repeat a promotion/demotion or duplicate history.
-
-## Acceptance checks
-1. Every listed write action is tested with multiple selected contacts; each field-edit option is covered.
-2. Successful changes survive reload, target exactly the intended records and leave unrelated fields, IDs and history unchanged.
-3. Partial or failed batches show accurate counts, useful reasons and a safe next step—not false success.
-4. Mixed-level relationship changes and approved retries preserve the existing transition rules and do not apply a step twice.
-5. Selection, filtered-list membership and affected Network totals reflect persisted outcomes.
-6. Focused automated tests pass and signed-in Network flows are checked end-to-end. Any action lacking a live verification is explicitly reported with its blocker.
-
-## Approval boundary
-This is investigation and implementation planning only. **Wait for approval before changing application code, running bulk writes, recovering jobs or altering contacts.**
+## Technical details
+- New scheduled route `/api/public/cron/morning-brief` (managed HTTP schedule, auth via existing cron auth helper), single-flight lock + "already built today" check so reruns never duplicate briefs or emails.
+- Inbox search via existing `searchGmailRaw` with `subject:"Daily meeting brief – PortCo & Critical" newer_than:1d`, constrained to Cowork's sender address.
+- Enrichment reuses existing read functions (contacts by email via teamMemberFor/unified Contacts, PortCo canonical names, workstreams, follow-ups, Events DB, interaction trail) in a pure `src/lib/morning-brief.ts` assembler with tests.
+- AI: Lovable AI Gateway, default chat model on Responses API, streamed server-side, structured output (sections/meetings). Errors 402/403/429 pause and show on the panel.
+- Storage: new Lovable Cloud table `morning_briefs` (owner, date, source message id unique, cowork text, enriched JSON/markdown, email status) with RLS owner-only.
+- Homepage: new panel in `HomePanels.tsx` + `/brief` route for full view and history.
+- Email: Gmail `messages/send` from the connected Workspace mailbox (needs `gmail.send` scope added to mailbox OAuth), HTML rendered from the same brief; idempotent by brief id.
+- AGENTS.md rule: briefs are read-only syntheses keyed by source email id; one per day per owner.
