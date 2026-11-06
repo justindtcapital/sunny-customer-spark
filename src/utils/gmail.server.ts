@@ -243,7 +243,7 @@ function toLabel(ms: number): string {
   return msToIsoDay(ms);
 }
 
-async function getMessage(token: string, id: string, mailbox?: string): Promise<GmailMessage | null> {
+async function getMessage(token: string, id: string, mailbox?: string, maxBody = 3000): Promise<GmailMessage | null> {
   let res: Response;
   try {
     res = await fetch(`${gmailApiFor(mailbox)}/messages/${id}?format=full`, {
@@ -293,7 +293,7 @@ async function getMessage(token: string, id: string, mailbox?: string): Promise<
     date,
     dateLabel: toLabel(date),
     snippet: String(m.snippet || ""),
-    body: parts.text.slice(0, 3000),
+    body: parts.text.slice(0, maxBody),
     links: extractArticleLinks(parts),
     attachments,
     permalink: `https://mail.google.com/mail/u/0/#all/${m.id}`,
@@ -330,7 +330,8 @@ export async function downloadGmailAttachment(
 // Low-level search — needs a valid Google token with gmail.readonly, not Signals.
 // Pages through Gmail's list endpoint (100/page) until `max` ids are collected, so
 // callers can request far more than one page worth of history.
-export async function searchGmailRaw(query: string, max = 25, mailbox?: string): Promise<GmailResult> {
+/** `maxBody` caps each message's text (default 3,000 chars); the Morning Brief needs Cowork's whole email. */
+export async function searchGmailRaw(query: string, max = 25, mailbox?: string, maxBody = 3000): Promise<GmailResult> {
   let token: string;
   try {
     // Prefer the mailbox owner's own connected token (read as users/me);
@@ -408,7 +409,7 @@ export async function searchGmailRaw(query: string, max = 25, mailbox?: string):
   // Hydrate in small batches so large windows don't serialize hundreds of round-trips.
   const BATCH = 10;
   for (let i = 0; i < ids.length; i += BATCH) {
-    const batch = await Promise.all(ids.slice(i, i + BATCH).map((id) => getMessage(token, id, mailbox)));
+    const batch = await Promise.all(ids.slice(i, i + BATCH).map((id) => getMessage(token, id, mailbox, maxBody)));
     for (const m of batch) if (m) messages.push(m);
   }
   messages.sort((a, b) => b.date - a.date);
