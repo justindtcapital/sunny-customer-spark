@@ -27,6 +27,28 @@ const full = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const yearOf = (s: string) => s.match(/\b(20\d{2})\b/)?.[1] || (s.match(/'(\d{2})\b/) ? `20${s.match(/'(\d{2})\b/)![1]}` : "");
 const days = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000;
 
+const MEETING = /(<>|\bsync\b|\bmeeting\b|\bcall\b|checkpoint|\bdemo\b|coffee|catch ?up|\breview\b|handover|\b1:1\b|board meeting|\bconnect\b| \/ )/i;
+/** Calendar meetings/1:1s that were logged as "events" — never attendance. */
+export function isMeetingTag(name: string): boolean { return MEETING.test(name); }
+
+const NOISE = new Set(["events", "event", "dinner", "dinners", "happy", "hour", "virtual", "reception", "party", "the", "conference", "summit", "usa", "impact", "and"]);
+const ALIAS: Record<string, string> = { dtw: "dell technologies world", rsa: "rsa conference", blackhat: "black hat", "dell tech world": "dell technologies world" };
+const core = (s: string) => {
+  let f = full(s).replace(/\b20\d{2}\b/g, " ");
+  for (const [a, b] of Object.entries(ALIAS)) f = f.replace(new RegExp(`\\b${a}\\b`, "g"), b);
+  return f.split(" ").filter((w) => w && !NOISE.has(w)).join(" ");
+};
+
+/** Loose match for informal names ("RSA Events", "Ai4 Dinner") — always review. */
+function looseCandidates(tagName: string, events: PlannerEvent[]): PlannerEvent[] {
+  const c = core(tagName);
+  if (c.length < 2) return [];
+  return events.filter((e) => eventReferenceNames(e).some((n) => {
+    const en = core(n);
+    return !!en && (en === c || en.startsWith(c + " ") || c.startsWith(en + " ") || full(n).replace(/\s/g, "") === full(tagName).replace(/\s/g, ""));
+  }));
+}
+
 export function matchEventName(tagName: string, tagDates: string[], events: PlannerEvent[]): TagGroup["candidates"] {
   const f = full(tagName);
   if (!f) return [];
@@ -43,6 +65,15 @@ export function matchEventName(tagName: string, tagDates: string[], events: Plan
   if (pool.length > 1 && dated.length) {
     const near = pool.filter((e) => e.start && dated.some((d) => days(d, e.start) <= 10));
     if (near.length) pool = near;
+  }
+  if (!pool.length) {
+    pool = looseCandidates(tagName, events);
+    if (pool.length > 1 && dated.length) {
+      const near = pool.filter((e) => e.start && dated.some((d) => days(d, e.start) <= 10));
+      if (near.length) pool = near;
+    }
+    // Informal names never auto-link: pad to force review even with one candidate.
+    return pool.slice(0, 12).map((e) => ({ urid: e.urid, name: e.name, start: e.start, reason: "Similar name — confirm" }));
   }
   const reason = exact.length ? "Same name" : "Same event series";
   return pool.map((e) => ({ urid: e.urid, name: e.name, start: e.start, reason: pool.length === 1 && reason === "Same event series" ? (yr || dated.length ? "Same series and year/date" : "Same event series") : reason }));
@@ -63,7 +94,9 @@ export function planAttendanceReconcile(tags: AttendanceTag[], events: PlannerEv
   const out: TagGroup[] = [];
   for (const [tagName, people] of byTag) {
     const candidates = matchEventName(tagName, people.map((p) => p.date), events);
-    const status = candidates.length === 1 ? "clear" : candidates.length > 1 ? "review" : "unmatched";
+    if (isMeetingTag(tagName) || !candidates.length) continue; // Events DB only
+    const loose = candidates.every((c) => c.reason === "Similar name — confirm");
+    const status: TagGroup["status"] = candidates.length === 1 && !loose ? "clear" : "review";
     const alreadyLinked = status === "clear" ? people.filter((p) => have.has(personKey(candidates[0].urid, p))).length : 0;
     out.push({ tagName, status, candidates, people, alreadyLinked });
   }

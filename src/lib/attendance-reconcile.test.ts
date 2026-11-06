@@ -25,12 +25,27 @@ describe("attendance reconciliation", () => {
     const [g] = planAttendanceReconcile([tag("RSAC", "a@x.com")], events, []);
     expect(g.status).toBe("review");
   });
-  it("leaves unknown names unmatched", () => {
-    expect(planAttendanceReconcile([tag("Mystery Dinner", "a@x.com")], events, [])[0].status).toBe("unmatched");
+  it("drops names with no Events DB match", () => {
+    expect(planAttendanceReconcile([tag("Mystery Dinner", "a@x.com")], events, [])).toHaveLength(0);
   });
   it("never adds a person already on the event", () => {
     const groups = planAttendanceReconcile([tag("Vation Summit", "a@x.com"), tag("Vation Summit", "b@x.com")], events, []);
     const rows = attendeeRowsFor(groups, { "Vation Summit": "V" }, [{ eventUrid: "V", name: "", email: "A@x.com", kind: "", status: "", date: "" }]);
     expect(rows.map((r) => r.email)).toEqual(["b@x.com"]);
+  });
+});
+
+import { isMeetingTag as _m, planAttendanceReconcile as _p } from "./attendance-reconcile";
+describe("events-DB-only matching", () => {
+  it("drops calendar meetings and unmatched names", () => {
+    expect(_m("Julia & Taylor Events Sync")).toBe(true);
+    expect(_m("Coffee - catch up: Bimal G / Chris F")).toBe(true);
+    const g = _p([{ email: "a@x.com", name: "A", eventName: "Coffee Meeting", date: "", kind: "" }, { email: "b@x.com", name: "B", eventName: "Random Thing", date: "", kind: "" }], [ev({ urid: "1", name: "RSA Conference", start: "2026-04-27" })], []);
+    expect(g).toHaveLength(0);
+  });
+  it("sends informal names to review", () => {
+    const g = _p([{ email: "a@x.com", name: "A", eventName: "RSA Events", date: "", kind: "" }], [ev({ urid: "1", name: "RSA Conference", start: "2026-04-27" })], []);
+    expect(g[0].status).toBe("review");
+    expect(g[0].candidates[0].urid).toBe("1");
   });
 });
