@@ -410,6 +410,8 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
 
 
   return (
+    <>
+    <BulkRunDialog state={run} onClose={() => setRun(null)} />
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] grid-rows-[auto_1fr_auto]">
         <DialogHeader>
@@ -479,7 +481,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                 )}
               </div>
 
-              {rows.length > 0 ? (
+              {items.length > 0 ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
@@ -667,5 +669,59 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
+  );
+}
+
+const TONE: Record<string, string> = { ready: "text-primary", existing: "text-muted-foreground", skipped: "text-muted-foreground", attention: "text-destructive" };
+
+// Stage 1: everything that won't import cleanly is listed by name with the
+// reason, and can be fixed or skipped here before anything is saved.
+function PreflightReview({ items, tab, setTab, setFix, dataRows }: {
+  items: PreflightItem<ParsedRow>[]; tab: "attention" | "existing" | "skipped";
+  setTab: (t: "attention" | "existing" | "skipped") => void; setFix: (i: number, f: PreflightFix) => void; dataRows: number;
+}) {
+  const count = (s: string) => items.filter(i => i.status === s).length;
+  const shown = items.filter(i => i.status === tab);
+  const tabs: { key: "attention" | "existing" | "skipped"; label: string }[] = [
+    { key: "attention", label: "Needs attention" }, { key: "existing", label: "Already in contacts" }, { key: "skipped", label: "Skipped" },
+  ];
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="font-semibold text-foreground">Pre-flight check · {dataRows} rows</span>
+        <span className={TONE.ready + " font-medium"}>{count("ready")} new, ready</span>
+        <span className={TONE.existing}>{count("existing")} already in contacts</span>
+        <span className={TONE.attention}>{count("attention")} need attention</span>
+        <span className={TONE.skipped}>{count("skipped")} skipped</span>
+      </div>
+      <div className="flex gap-1">
+        {tabs.map(t => (
+          <Button key={t.key} type="button" size="sm" variant={tab === t.key ? "default" : "outline"} className="h-6 px-2 text-[11px]" onClick={() => setTab(t.key)}>
+            {t.label} ({count(t.key)})
+          </Button>
+        ))}
+      </div>
+      <div className="max-h-40 overflow-y-auto space-y-1">
+        {shown.length === 0 && <p className="text-muted-foreground">Nothing here.</p>}
+        {shown.map(i => (
+          <div key={i.index} className="flex flex-wrap items-center gap-2 border-t border-border pt-1">
+            <span className="w-8 text-muted-foreground tabular-nums">#{i.index + 2}</span>
+            {i.status === "attention" ? <>
+              <Input className="h-7 w-32 text-[11px]" defaultValue={i.row.name} placeholder="Name" aria-label="Name" onBlur={e => setFix(i.index, { name: e.target.value })} />
+              <Input className="h-7 w-48 text-[11px]" defaultValue={i.row.email} placeholder="Email" aria-label="Email" onBlur={e => setFix(i.index, { email: e.target.value })} />
+              <span className={TONE.attention}>{i.reason}</span>
+              <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px] ml-auto" onClick={() => setFix(i.index, { skip: true })}>Skip</Button>
+            </> : <>
+              <span className="font-medium text-foreground">{i.row.name || "(no name)"}</span>
+              <span className="text-muted-foreground">{i.row.email}</span>
+              <span className="text-muted-foreground">— {i.reason}</span>
+              {i.reason === "Skipped by you" && <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px] ml-auto" onClick={() => setFix(i.index, { skip: false })}>Undo</Button>}
+            </>}
+          </div>
+        ))}
+      </div>
+      {count("attention") > 0 && <p className="text-muted-foreground">Fix a field and click away to re-check it, or Skip. Rows still needing attention won't be imported.</p>}
+    </div>
   );
 }
