@@ -50,6 +50,8 @@ export function parseCoworkBrief(raw: string): CoworkBrief {
 const STOP = new Set(["Teams", "Zoom", "Google Meet", "Critical", "PortCo", "Review", "Before", "There", "This", "The", "On", "In", "He", "She", "They", "Confirm", "Check", "Find", "Decide", "Prep", "Industry Icons", "Santa Clara", "Tech Week", "Regional Manager", "Services Sales", "Strategic Alliances", "Global Head"]);
 const MONTHS = /^(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/;
 
+const ORG_WORD = /^(Labs?|Group|Capital|Partners|Ventures|Systems|Technologies|Networks|Realty|Compute|Security|Software|Solutions|Holdings|Inc|Corp|Company|Bank|Fund|University)$/;
+
 /** Capitalized 2–3 word sequences that look like person names. */
 export function candidateNames(text: string): string[] {
   const out = new Set<string>();
@@ -57,7 +59,7 @@ export function candidateNames(text: string): string[] {
   for (const m of text.matchAll(re)) {
     const name = m[1];
     const words = name.split(/\s+/);
-    if (STOP.has(name) || words.some((w) => MONTHS.test(w) || STOP.has(w))) continue;
+    if (STOP.has(name) || words.some((w) => MONTHS.test(w) || STOP.has(w) || ORG_WORD.test(w))) continue;
     out.add(name);
   }
   return [...out];
@@ -69,6 +71,47 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 export function mentionedCompanies(text: string, names: string[]): string[] {
   const hay = ` ${norm(text)} `;
   return names.filter((n) => { const k = norm(n); return k.length >= 3 && hay.includes(` ${k} `); });
+}
+
+/** Company comparison key: ignores a leading "The" and legal suffixes ("The Redesign Group" = "Redesign Group Inc"). */
+export const companyKey = (s: string) => norm(s).replace(/^the /, "").replace(/ (inc|llc|ltd|corp|corporation|co|plc|gmbh)$/, "");
+
+/** First `max` sentences of a profile, never cut mid-sentence. */
+export function firstSentences(text: string, max = 2): string {
+  return text.split(/(?<=[.!?])\s+(?=[A-Z])/).slice(0, max).join(" ").trim();
+}
+
+const INTERNAL_ORGS = new Set(["dell", "dell technologies", "dell technologies capital", "dt capital", "dtc", "dts"]);
+export const isInternalOrg = (name: string) => INTERNAL_ORGS.has(norm(name)) || /^dell\b/.test(norm(name));
+
+/** PortCos the meeting is about (named in the title) vs. ones only mentioned in Cowork's notes. */
+export function splitPortcos(title: string, text: string, names: string[], opts: { portcoTag: boolean; hasExternal: boolean }): { primary: string[]; mentioned: string[] } {
+  const inTitle = mentionedCompanies(title, names);
+  const inText = mentionedCompanies(text, names).filter((n) => !inTitle.includes(n));
+  if (inTitle.length || opts.hasExternal || !opts.portcoTag) return { primary: inTitle, mentioned: inText };
+  return { primary: inText.slice(0, 1), mentioned: inText.slice(1) };
+}
+
+/** Company named after the last comma of a meeting title ("Matt Darcy, Digital Realty"). */
+export function titleCompany(title: string): string {
+  const i = title.lastIndexOf(",");
+  if (i < 0) return "";
+  const c = title.slice(i + 1).trim();
+  return c.length >= 2 && c.length <= 60 && !/\d{1,2}:\d{2}/.test(c) ? c : "";
+}
+
+const SCHEDULING = [
+  /\b(invite|invitation|placeholder|reschedul\w*|slot)\b/i,
+  /\b(offer(?:ed|s)?|propos(?:ed|es)|suggest(?:ed|s)?)\b[^.]*\b(move|times?|next week|\d{1,2}(:\d{2})?)\b/i,
+  /\bmove (it|the (call|meeting))\b/i,
+  /\b\d{1,2}(:\d{2})?\s*(ET|PT|CT|MT|EST|PST|EDT|PDT)\b/,
+  /\bflight\b/i,
+  /\b(confirm(?:ed)?|accepted)\b[^.]*\b(time|Monday|Tuesday|Wednesday|Thursday|Friday)\b/i,
+  /\byou accepted\b/i,
+];
+/** Drop calendar back-and-forth (offered times, moves, invites) from Cowork's prose; keeps discussion and history. */
+export function stripScheduling(text: string): string {
+  return text.split(/(?<=[.!?])\s+(?=[A-Z(])/).filter((s) => !SCHEDULING.some((re) => re.test(s))).join(" ").trim();
 }
 
 export interface PersonRecord { id: string; name: string; company: string; email: string; title?: string; temperature?: string; lastContact?: string; urid?: string }

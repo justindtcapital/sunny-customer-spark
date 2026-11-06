@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anticipatedFollowUps, candidateNames, dueThisWeek, investmentStrip, matchPeople, parseCoworkBrief, priorityBadge, weekEnd } from "./morning-brief";
+import { anticipatedFollowUps, candidateNames, companyKey, firstSentences, dueThisWeek, investmentStrip, isInternalOrg, matchPeople, parseCoworkBrief, priorityBadge, splitPortcos, stripScheduling, titleCompany, weekEnd } from "./morning-brief";
 
 const SAMPLE = `Test run of the daily brief.
 
@@ -27,6 +27,7 @@ describe("morning brief", () => {
   });
   it("finds names and only links unique full-name matches", () => {
     expect(candidateNames("Sam Nagar leads, with Michael Mazza on Teams in November")).toEqual(["Sam Nagar", "Michael Mazza"]);
+    expect(candidateNames("Redesign Group Vince was introduced to Misa Labs by Vince Ippolito")).toEqual(["Vince Ippolito"]);
     const m = matchPeople(["Sam Nagar", "Jo Lee", "Julia Beech"], [
       { id: "1", name: "Sam Nagar", company: "Terragrit", email: "" },
       { id: "2", name: "Jo Lee", company: "A", email: "" }, { id: "3", name: "Jo Lee", company: "B", email: "" },
@@ -48,6 +49,23 @@ describe("morning brief", () => {
       noteSteps: [], nmCompanies: new Set(["terragrit"]),
     });
     expect(items.map((i) => i.kind)).toEqual(["workstream", "contact"]);
+  });
+  it("only the PortCo named in the title gets full details; others are just mentioned", () => {
+    const names = ["Terragrit", "MavenAGI", "SuperAnnotate"];
+    expect(splitPortcos("Terragrit connect", "Julia framed Terragrit and MavenAGI as two teams to compare.", names, { portcoTag: true, hasExternal: false })).toEqual({ primary: ["Terragrit"], mentioned: ["MavenAGI"] });
+    expect(splitPortcos("Vince Ippolito, Redesign Group", "A services GTM partnership around MavenAGI.", names, { portcoTag: false, hasExternal: true })).toEqual({ primary: [], mentioned: ["MavenAGI"] });
+  });
+  it("reads the outside company from the meeting title, never Dell", () => {
+    expect(titleCompany("Matt Darcy, Digital Realty")).toBe("Digital Realty");
+    expect(titleCompany("Industry Icons 2027 sponsorship")).toBe("");
+    expect(isInternalOrg("Dell Technologies")).toBe(true);
+    expect(isInternalOrg("Redesign Group")).toBe(false);
+    expect(companyKey("The Redesign Group")).toBe(companyKey("Redesign Group Inc"));
+    expect(firstSentences("Acme makes widgets. It is based in Austin. It raised $5M.")).toBe("Acme makes widgets. It is based in Austin.");
+  });
+  it("drops scheduling back-and-forth but keeps discussion history", () => {
+    const t = stripScheduling("He followed up Oct 28 after you met in Santa Clara. He wants to discuss ISV partnerships. On Nov 5 he offered 1:00 to 1:45 ET, after 3:30 ET, or next week because he had a 2 ET flight. The invite is on the 10:00 PT slot, so confirm he accepted that time. Jill offered to move it to next week. Confirm whether to keep it or move it. Vahan is traveling and confirmed Friday.");
+    expect(t).toBe("He followed up Oct 28 after you met in Santa Clara. He wants to discuss ISV partnerships.");
   });
   it("investment strip formats ownership and marks blanks", () => {
     expect(investmentStrip({ "DTC Ownership": "0.125", "DTC Investment ($M)": "3" })).toMatchObject({ ownership: "12.5%", investment: "$3M", round: "Not recorded" });
