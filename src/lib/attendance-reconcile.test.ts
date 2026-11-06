@@ -25,8 +25,8 @@ describe("attendance reconciliation", () => {
     const [g] = planAttendanceReconcile([tag("RSAC", "a@x.com")], events, []);
     expect(g.status).toBe("review");
   });
-  it("leaves unknown names unmatched", () => {
-    expect(planAttendanceReconcile([tag("Mystery Dinner", "a@x.com")], events, [])[0].status).toBe("unmatched");
+  it("drops names with no Events DB match", () => {
+    expect(planAttendanceReconcile([tag("Mystery Dinner", "a@x.com")], events, [])).toHaveLength(0);
   });
   it("never adds a person already on the event", () => {
     const groups = planAttendanceReconcile([tag("Vation Summit", "a@x.com"), tag("Vation Summit", "b@x.com")], events, []);
