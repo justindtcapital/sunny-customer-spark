@@ -4869,7 +4869,7 @@ export async function buildPortcoExposures(): Promise<Map<string, PortCoExposure
 }
 
 /** Raw contact event tags ("Events" tab) joined to contact names, for attendee reconciliation. */
-export async function readContactEventTags(): Promise<Array<{ email: string; name: string; eventName: string; date: string; kind: string }>> {
+export async function readContactEventTags(): Promise<Array<{ email: string; name: string; eventName: string; date: string; kind: string; added: string }>> {
   const contacts = await buildContacts();
   const byUrid = new Map(contacts.filter((c) => c.urid).map((c) => [String(c.urid).toLowerCase(), c]));
   const byEmail = new Map<string, Contact>();
@@ -4880,7 +4880,7 @@ export async function readContactEventTags(): Promise<Array<{ email: string; nam
     .map((r) => {
       const c = byUrid.get((r.curid || "").toLowerCase()) || byEmail.get((r.email || "").toLowerCase());
       const email = (c?.email || r.email || "").split(/[;,]/)[0].trim();
-      return { email, name: c?.name || email, eventName: r.eventName.trim(), date: r.date || "", kind: "Network" };
+      return { email, name: c?.name || email, eventName: r.eventName.trim(), date: r.date || "", kind: "Network", added: String((c as { dateAdded?: string } | undefined)?.dateAdded || "") };
     })
     .filter((t) => t.email || t.name);
 }

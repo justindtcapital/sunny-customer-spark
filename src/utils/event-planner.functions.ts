@@ -241,7 +241,7 @@ export const previewAttendanceReconcileFn = createServerFn({ method: "POST" })
       step("reading events, attendees and people's event tags");
       const [events, attendees, tags] = await Promise.all([readPlannerEvents(true), readAttendees(), readContactEventTags()]);
       step("matching");
-      return { groups: planAttendanceReconcile(tags, events, attendees), tagCount: tags.length };
+      return { groups: planAttendanceReconcile(tags, events, attendees), tagCount: tags.length, events: events.map((e) => ({ urid: e.urid, name: e.name, start: e.start, city: (e as { city?: string }).city || "" })).sort((a, b) => a.name.localeCompare(b.name)) };
     });
   });
 
@@ -260,7 +260,7 @@ export const applyAttendanceReconcileFn = createServerFn({ method: "POST" })
       const { planAttendanceReconcile, attendeeRowsFor } = await import("@/lib/attendance-reconcile");
       step("re-reading fresh data");
       const [events, attendees, tags] = await Promise.all([readPlannerEvents(true), readAttendees(), readContactEventTags()]);
-      const rows = attendeeRowsFor(planAttendanceReconcile(tags, events, attendees), data.choices, attendees);
+      const rows = attendeeRowsFor(planAttendanceReconcile(tags, events, attendees), data.choices, attendees, events);
       step("saving attendees");
       return { added: rows.length ? await addAttendees(rows) : 0 };
     });
