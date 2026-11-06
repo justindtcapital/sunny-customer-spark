@@ -2,21 +2,25 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { MorningBrief } from "./morning-brief.server";
+import { teamMemberFor } from "@/lib/user-ownership";
 
 const OWNER = "chris.falloon@dell.com";
 function isOwner(claims: unknown) {
   const email = String((claims as { email?: string })?.email || "").toLowerCase();
-  return email === OWNER;
+  // Any of the owner's roster addresses (e.g. the dt-capital.net sign-in) counts.
+  return !!email && teamMemberFor(email)?.email.toLowerCase() === OWNER;
 }
 
 export interface BriefRow { id: string; date: string; status: string; error: string; emailStatus: string; emailError: string; brief: MorningBrief | null; updatedAt: string }
 
-/** The signed-in owner's briefs (RLS limits rows to their own email). */
+/** The signed-in owner's briefs; other teammates get none. */
 export const fetchMorningBriefs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { limit?: number }) => z.object({ limit: z.number().int().min(1).max(30).optional() }).parse(d || {}))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase.from("morning_briefs").select("id, brief_date, status, error, email_status, email_error, brief, updated_at").order("brief_date", { ascending: false }).limit(data.limit || 1);
+    if (!isOwner(context.claims)) return { owner: false, briefs: [] as BriefRow[] };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows, error } = await supabaseAdmin.from("morning_briefs").select("id, brief_date, status, error, email_status, email_error, brief, updated_at").eq("owner_email", OWNER).order("brief_date", { ascending: false }).limit(data.limit || 1);
     if (error) throw new Error(error.message);
     return { owner: isOwner(context.claims), briefs: (rows || []).map((r): BriefRow => ({ id: r.id, date: r.brief_date, status: r.status, error: r.error, emailStatus: r.email_status, emailError: r.email_error, brief: r.status === "ready" ? (r.brief as unknown as MorningBrief) : null, updatedAt: r.updated_at })) };
   });
