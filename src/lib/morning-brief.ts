@@ -54,7 +54,9 @@ export function parseContactRows(lines: string[]): CoworkContact[] {
     use.forEach((k, i) => { if (k && cells[i]) row[k] = cells[i]; });
     const email = (row.email?.match(EMAIL_ONE)?.[0] || "").toLowerCase();
     const name = (row.name || [row.first, row.last].filter(Boolean).join(" ")).trim() || (email ? nameFromEmail(email) : "");
-    if (name) out.push({ name, email, company: row.company || "", title: row.title || "", meeting: row.meeting || "" });
+    // Prose notes after the table ("Matt Darcy is already in your Outlook contacts, so…") aren't rows.
+    const rowLike = !!email || (cells.length >= 3 && name.split(/\s+/).length <= 4 && name.length <= 60);
+    if (name && rowLike) out.push({ name, email, company: row.company || "", title: row.title || "", meeting: row.meeting || "" });
   }
   return out;
 }
