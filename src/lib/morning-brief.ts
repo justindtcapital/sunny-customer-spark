@@ -340,6 +340,24 @@ export function investmentStrip(fields: Record<string, string> = {}, overrides: 
   };
 }
 
+export interface WorkstreamText { gid: string; company: string; name: string; nextSteps?: string; notes?: string; dellStakeholders?: string; dellTargets?: string; targets?: string; traction?: string }
+/**
+ * Workstreams (any PortCo) whose name, next steps, notes or targets mention the meeting's
+ * company or one of its people by full name. `excludeCompanies` drops the PortCos whose own
+ * workstreams are already on the card. Whole-word matches only; 4+ letter company keys.
+ */
+export function relatedWorkstreams<T extends WorkstreamText>(rows: T[], opts: { companies: string[]; people: string[]; excludeCompanies?: string[] }, limit = 6): T[] {
+  const keys = [...new Set(opts.companies.map(companyKey).filter((k) => k.length >= 4 && !isInternalOrg(k)))];
+  const names = [...new Set(opts.people.map(norm).filter((n) => n.split(" ").length >= 2))];
+  if (!keys.length && !names.length) return [];
+  const skip = new Set((opts.excludeCompanies || []).map(companyKey));
+  return rows.filter((w) => {
+    if (skip.has(companyKey(w.company))) return false;
+    const hay = ` ${norm([w.name, w.nextSteps, w.notes, w.dellStakeholders, w.dellTargets, w.targets, w.traction].filter(Boolean).join(" "))} `;
+    return keys.some((k) => hay.includes(` ${k} `)) || names.some((n) => hay.includes(` ${n} `));
+  }).slice(0, limit);
+}
+
 /** NM / NU / BB badge from a DTC priority value. */
 export function priorityBadge(priority: string): "NM" | "NU" | "BB" | "" {
   if (/needle/i.test(priority)) return "NM";

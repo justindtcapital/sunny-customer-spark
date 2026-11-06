@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anticipatedFollowUps, candidateNames, emailsInText, parseAttendees, sameMeetingTime, sameNickname, companyKey, firstSentences, dueThisWeek, investmentStrip, isInternalOrg, matchPeople, parseCoworkBrief, priorityBadge, splitPortcos, stripScheduling, titleCompany, weekEnd } from "./morning-brief";
+import { anticipatedFollowUps, candidateNames, emailsInText, parseAttendees, sameMeetingTime, sameNickname, companyKey, firstSentences, dueThisWeek, investmentStrip, isInternalOrg, matchPeople, parseCoworkBrief, priorityBadge, splitPortcos, stripScheduling, titleCompany, weekEnd, relatedWorkstreams } from "./morning-brief";
 
 const SAMPLE = `Test run of the daily brief.
 
@@ -102,5 +102,17 @@ describe("morning brief", () => {
     expect(investmentStrip({ "DTC Ownership": "0.125", "DTC Investment ($M)": "3" })).toMatchObject({ ownership: "12.5%", investment: "$3M", round: "Not recorded" });
     expect(priorityBadge("Needle Mover")).toBe("NM");
     expect(priorityBadge("Back Burner")).toBe("BB");
+  });
+  it("finds workstreams that touch the meeting's company or people", () => {
+    const ws = [
+      { gid: "1", company: "MavenAGI", name: "Redesign Group channel pilot" },
+      { gid: "2", company: "MavenAGI", name: "Dell CX rollout", nextSteps: "Intro to Vince Ippolito next week" },
+      { gid: "3", company: "Terragrit", name: "Redesign Group partnership" },
+      { gid: "4", company: "Pecan", name: "Redesigned onboarding" },
+      { gid: "5", company: "Pecan", name: "Dell field enablement" },
+    ];
+    const hits = relatedWorkstreams(ws, { companies: ["The Redesign Group"], people: ["Vince Ippolito"], excludeCompanies: ["Terragrit"] });
+    expect(hits.map((w) => w.gid)).toEqual(["1", "2"]);
+    expect(relatedWorkstreams(ws, { companies: ["Dell"], people: ["Vince"] })).toEqual([]);
   });
 });

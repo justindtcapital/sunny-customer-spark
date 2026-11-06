@@ -44,8 +44,9 @@ const normalizeTab = (t: unknown): Tab | undefined => {
 };
 
 export const Route = createFileRoute("/my-actions")({
-  validateSearch: (s: Record<string, unknown>): { tab?: Tab; owner?: string; ws?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { tab?: Tab; owner?: string; ws?: string; fu?: string } => ({
     ws: typeof s.ws === "string" ? s.ws : undefined,
+    fu: typeof s.fu === "string" ? s.fu : undefined,
     tab: normalizeTab(s.tab),
     owner: typeof s.owner === "string" ? s.owner : undefined,
   }),
@@ -112,7 +113,7 @@ function MyActionsPage() {
       </div>
 
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
-        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} dateRange={dateRange} />}
+        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} />}
         {tab === "notes" && <NotesTab owner={owner} onAction={setCtx} onCounts={setCounts} />}
         {tab === "done" && <DoneTab owner={owner} />}
       </div>}
@@ -201,7 +202,7 @@ function Bullet({ kind, company, website }: { kind: "ws" | "fu"; company: string
 }
 
 /** Merged My Actions feed: workstreams and follow-ups grouped by PortCo / company. */
-function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; dateRange: ActionDateRange }) {
+function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange }) {
   const { workstreams, loading: wsLoading, refresh } = useWorkstreams();
   const qc = useQueryClient();
   const ownerEmail = teamMemberFor(owner)?.email || "";
@@ -214,7 +215,7 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
   const [priority, setPriority] = useState("");
   const [creating, setCreating] = useState(false);
   const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>({ portcos: true, network: true, ops: true, workstreams: true, followups: true });
-  const [sel, setSel] = useState<Sel | null>(focusGid ? { kind: "ws", id: focusGid } : null);
+  const [sel, setSel] = useState<Sel | null>(focusGid ? { kind: "ws", id: focusGid } : focusFu ? { kind: "fu", id: focusFu } : null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
@@ -248,6 +249,8 @@ function ActionsTab({ owner, onAction, focusGid, dateRange }: { owner: string; o
     const w = workstreams.find((x) => x.gid === focusGid);
     if (w && isWorkstreamCompleted(w)) setShowDone(true);
   }, [focusGid, workstreams]);
+  // Deep link (?fu=id) from the Morning Brief: select that follow-up.
+  useEffect(() => { if (focusFu && !focusGid) setSel({ kind: "fu", id: focusFu }); }, [focusFu, focusGid]);
 
   // Groups keyed by company: workstreams first, then follow-ups. A follow-up linked
   // to a workstream (via the editor or Action Now) nests under that workstream even
