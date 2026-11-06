@@ -7,7 +7,7 @@ import { z } from "zod";
 import {
   BRIEF_SUBJECT, anticipatedFollowUps, candidateNames, dueThisWeek, investmentStrip, matchPeople,
   mentionedCompanies, nextEvents, parseCoworkBrief, personHints, priorityBadge, daysBetween,
-  isInternalOrg, splitPortcos, stripScheduling, titleCompany,
+  companyKey, firstSentences, isInternalOrg, splitPortcos, stripScheduling, titleCompany,
 } from "@/lib/morning-brief";
 import { isSharedEmailDomain, normalizeDomain } from "@/lib/company-domains";
 import { teamMemberFor } from "@/lib/user-ownership";
@@ -123,9 +123,9 @@ function assemble(text: string, today: string, f: Facts) {
     const mentionedPortcos = split.mentioned.map((name) => ({ name, badge: priorityBadge(invFor(name).priority) }));
     let company: BriefCompany | null = null;
     if (extName) {
-      const k = norm(extName);
-      const domain = people.filter((p) => norm(p.company) === k).map((p) => normalizeDomain(p.email)).find((d): d is string => !!d && !isSharedEmailDomain(d)) || "";
-      const at = people.filter((p) => norm(p.company) === k || (!!domain && normalizeDomain(p.email) === domain));
+      const k = companyKey(extName);
+      const domain = people.filter((p) => companyKey(p.company) === k).map((p) => normalizeDomain(p.email)).find((d): d is string => !!d && !isSharedEmailDomain(d)) || "";
+      const at = people.filter((p) => companyKey(p.company) === k || (!!domain && normalizeDomain(p.email) === domain));
       company = { name: extName, domain, about: "", aboutSource: "", sources: [], totalContacts: at.length,
         contacts: at.slice(0, 6).map((p) => ({ name: p.name, title: p.title || "", temperature: p.temperature, contactId: p.urid || p.id })) };
     }
@@ -191,7 +191,7 @@ Ignore scheduling logistics entirely — offered times, moving or confirming the
 async function companyProfile(name: string, domain: string): Promise<{ about: string; sources: string[] } | null> {
   const { isGeminiConfigured, geminiGenerate } = await import("./gemini.server");
   if (!isGeminiConfigured()) return null;
-  const prompt = `In 2-3 factual sentences for a venture investor, describe the company "${name}"${domain ? ` (website ${domain})` : ""}: what it does, who it serves, size, ownership or HQ, and any notable news from the last six months. Plain text only, no preamble, no markdown. If you cannot identify this exact company, reply only: UNKNOWN`;
+  const prompt = `In exactly 2 short factual sentences (under 60 words total) for a venture investor, describe the company "${name}"${domain ? ` (website ${domain})` : ""}: first what it does and for whom, with HQ and rough size; then its single most notable development of the last six months. Plain text only, no preamble, no markdown. If you cannot identify this exact company, reply only: UNKNOWN`;
   try {
     const resp = await Promise.race([
       geminiGenerate({ contents: [{ role: "user", parts: [{ text: prompt }] }], tools: [{ googleSearch: {} }], generationConfig: { maxOutputTokens: 600 + 1024, thinkingConfig: { thinkingBudget: 1024 } } }),
@@ -202,7 +202,7 @@ async function companyProfile(name: string, domain: string): Promise<{ about: st
     if (!about || /^UNKNOWN\b/i.test(about)) return null;
     const gm = cand?.groundingMetadata as { groundingChunks?: Array<{ web?: { title?: string } }> } | undefined;
     const sources = [...new Set((gm?.groundingChunks || []).map((c) => (c.web?.title || "").trim()).filter(Boolean))].slice(0, 3);
-    return { about: about.slice(0, 700), sources };
+    return { about: firstSentences(about, 2).slice(0, 500), sources };
   } catch (e) { console.error(`[brief] company profile ${name}`, e); return null; }
 }
 

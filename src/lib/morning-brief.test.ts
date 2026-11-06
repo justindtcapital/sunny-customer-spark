@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anticipatedFollowUps, candidateNames, dueThisWeek, investmentStrip, isInternalOrg, matchPeople, parseCoworkBrief, priorityBadge, splitPortcos, stripScheduling, titleCompany, weekEnd } from "./morning-brief";
+import { anticipatedFollowUps, candidateNames, companyKey, firstSentences, dueThisWeek, investmentStrip, isInternalOrg, matchPeople, parseCoworkBrief, priorityBadge, splitPortcos, stripScheduling, titleCompany, weekEnd } from "./morning-brief";
 
 const SAMPLE = `Test run of the daily brief.
 
@@ -59,6 +59,8 @@ describe("morning brief", () => {
     expect(titleCompany("Industry Icons 2027 sponsorship")).toBe("");
     expect(isInternalOrg("Dell Technologies")).toBe(true);
     expect(isInternalOrg("Redesign Group")).toBe(false);
+    expect(companyKey("The Redesign Group")).toBe(companyKey("Redesign Group Inc"));
+    expect(firstSentences("Acme makes widgets. It is based in Austin. It raised $5M.")).toBe("Acme makes widgets. It is based in Austin.");
   });
   it("drops scheduling back-and-forth but keeps discussion history", () => {
     const t = stripScheduling("He followed up Oct 28 after you met in Santa Clara. He wants to discuss ISV partnerships. On Nov 5 he offered 1:00 to 1:45 ET, after 3:30 ET, or next week because he had a 2 ET flight. The invite is on the 10:00 PT slot, so confirm he accepted that time. Jill offered to move it to next week. Confirm whether to keep it or move it. Vahan is traveling and confirmed Friday.");

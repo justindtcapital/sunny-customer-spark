@@ -71,6 +71,14 @@ export function mentionedCompanies(text: string, names: string[]): string[] {
   return names.filter((n) => { const k = norm(n); return k.length >= 3 && hay.includes(` ${k} `); });
 }
 
+/** Company comparison key: ignores a leading "The" and legal suffixes ("The Redesign Group" = "Redesign Group Inc"). */
+export const companyKey = (s: string) => norm(s).replace(/^the /, "").replace(/ (inc|llc|ltd|corp|corporation|co|plc|gmbh)$/, "");
+
+/** First `max` sentences of a profile, never cut mid-sentence. */
+export function firstSentences(text: string, max = 2): string {
+  return text.split(/(?<=[.!?])\s+(?=[A-Z])/).slice(0, max).join(" ").trim();
+}
+
 const INTERNAL_ORGS = new Set(["dell", "dell technologies", "dell technologies capital", "dt capital", "dtc", "dts"]);
 export const isInternalOrg = (name: string) => INTERNAL_ORGS.has(norm(name)) || /^dell\b/.test(norm(name));
 
