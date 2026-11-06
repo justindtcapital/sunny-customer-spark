@@ -96,7 +96,7 @@ export function planAttendanceReconcile(tags: AttendanceTag[], events: PlannerEv
     const candidates = matchEventName(tagName, people.map((p) => p.date), events);
     if (isMeetingTag(tagName) || !candidates.length) continue; // Events DB only
     const loose = candidates.every((c) => c.reason === "Similar name — confirm");
-    const status = candidates.length === 1 && !loose ? "clear" : candidates.length > 1 ? "review" : "unmatched";
+    const status: TagGroup["status"] = candidates.length === 1 && !loose ? "clear" : "review";
     const alreadyLinked = status === "clear" ? people.filter((p) => have.has(personKey(candidates[0].urid, p))).length : 0;
     out.push({ tagName, status, candidates, people, alreadyLinked });
   }
