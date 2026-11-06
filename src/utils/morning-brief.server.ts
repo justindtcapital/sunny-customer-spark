@@ -243,20 +243,21 @@ export async function sendBriefEmail(id: string, force = false) {
   const { data: row } = await db.from("morning_briefs").select("*").eq("id", id).maybeSingle();
   if (!row || row.status !== "ready") return { ok: false, error: "Brief not ready" };
   if (row.email_status === "sent" && !force) return { ok: true, skipped: "already sent" };
-  const { kbMailbox, getMailboxAccessToken } = await import("./mailbox-oauth.server");
-  const from = kbMailbox();
-  const token = await getMailboxAccessToken(from);
   const fail = async (msg: string) => { await db.from("morning_briefs").update({ email_status: "failed", email_error: msg.slice(0, 500), updated_at: new Date().toISOString() }).eq("id", id); return { ok: false, error: msg }; };
-  if (!token) return fail("The Workspace mailbox isn't connected.");
+  // Sends through the linked Workspace Gmail connection (has gmail.send).
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const gmailKey = process.env["GOOGLE_MAIL_API_KEY"];
+  if (!lovableKey || !gmailKey) return fail("The Workspace Gmail connection isn't linked to Venture Pulse.");
   const brief = row.brief as unknown as MorningBrief;
   const html = renderBriefHtml(brief, process.env["APP_URL"] || "https://crm.dt-capital.net");
   const subject = `Morning Brief — ${brief.date} (Venture Pulse)`;
-  const mime = [`From: ${from}`, `To: ${BRIEF_RECIPIENT}`, `Subject: =?UTF-8?B?${b64(subject)}?=`, "MIME-Version: 1.0", 'Content-Type: text/html; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", b64(html)].join("\r\n");
+  const mime = [`To: ${BRIEF_RECIPIENT}`, `Subject: =?UTF-8?B?${b64(subject)}?=`, "MIME-Version: 1.0", 'Content-Type: text/html; charset="UTF-8"', "Content-Transfer-Encoding: base64", "", b64(html)].join("\r\n");
   const raw = Buffer.from(mime, "utf8").toString("base64url");
-  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ raw }) });
+  const res = await fetch("https://connector-gateway.lovable.dev/google_mail/gmail/v1/users/me/messages/send", { method: "POST", headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": gmailKey, "Content-Type": "application/json" }, body: JSON.stringify({ raw }) });
   if (!res.ok) {
     const body = await res.text();
-    return fail(res.status === 403 ? "The Workspace mailbox needs send permission — reconnect it on the Dashboard." : `Gmail send failed [${res.status}]: ${body.slice(0, 200)}`);
+    console.error(`[brief] Gmail send failed [${res.status}]: ${body}`);
+    return fail(`Gmail send failed [${res.status}]: ${body.slice(0, 200)}`);
   }
   await db.from("morning_briefs").update({ email_status: "sent", email_error: "", updated_at: new Date().toISOString() }).eq("id", id);
   return { ok: true };
