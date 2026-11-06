@@ -3,6 +3,7 @@ import type { Contact, ContactFilters as Filters } from "@/lib/types";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { locationMatches } from "@/lib/location-utils";
 import { matchesTemperatureFilter, matchesPortCoVisibility } from "@/lib/portco-contacts";
+import { matchesDellVisibility } from "@/lib/dell-contacts";
 import { isMyContact, type TeamProfile } from "@/lib/user-ownership";
 import { ContactCard } from "./ContactCard";
 import { ContactTable } from "./ContactTable";
@@ -39,6 +40,7 @@ export function ContactList({
 }: ContactListProps) {
   const [view, setView] = useState<"cards" | "table">("cards");
   const [showPortCo, setShowPortCo] = useState(true);
+  const [showDell, setShowDell] = useState(true);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [localContacts, setLocalContacts] = useState(contacts);
@@ -48,6 +50,7 @@ export function ContactList({
     const owned = ownedGids || new Set<string>();
     const result = localContacts.filter((c) => {
       if (portcoVisibilityControl && !matchesPortCoVisibility(c, showPortCo)) return false;
+      if (portcoVisibilityControl && !matchesDellVisibility(c, showDell)) return false;
       if (filters.ownershipScope === "mine") {
         if (!profile) return false;
         if (!isMyContact(c, owned, profile)) return false;
@@ -118,7 +121,7 @@ export function ContactList({
       if (bt !== at) return bt - at;
       return (sheetOrder.get(b.id) ?? 0) - (sheetOrder.get(a.id) ?? 0);
     });
-  }, [localContacts, filters, profile, ownedGids, portcoVisibilityControl, showPortCo]);
+  }, [localContacts, filters, profile, ownedGids, portcoVisibilityControl, showPortCo, showDell]);
 
   useEffect(() => {
     setFilteredContacts(filtered);
@@ -200,6 +203,10 @@ export function ContactList({
           {portcoVisibilityControl && <label className="mr-3 flex cursor-pointer items-center gap-2 text-xs">
             <Checkbox checked={showPortCo} onCheckedChange={(checked) => { setShowPortCo(checked === true); clearSelection(); }} />
             PortCo
+          </label>}
+          {portcoVisibilityControl && <label className="mr-3 flex cursor-pointer items-center gap-2 text-xs">
+            <Checkbox checked={showDell} onCheckedChange={(checked) => { setShowDell(checked === true); clearSelection(); }} />
+            Dell
           </label>}
           <Button
             variant={view === "cards" ? "default" : "ghost"}
