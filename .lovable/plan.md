@@ -14,6 +14,15 @@ Every morning shortly after Claude Cowork's 5:00 AM email lands in the Workspace
 
 Nothing is written to contacts, PortCos or actions — the brief is read-only. Suggested follow-ups appear as links to My Actions / V.I.C., never auto-created.
 
+## Reading Claude's email (based on your sample)
+Claude's format is already consistent, so V.I.C. splits it into:
+- **Meetings** — each block starting "8:30 AM PT: Title (Tag, Platform, Length)" becomes one meeting with time, title, tag (PortCo / Critical), platform, duration, and the narrative paragraph (people, roles, email timeline, suggested prep).
+- **Gaps** — kept as a note at the end.
+- **Top priorities** — kept, then re-ranked with Venture Pulse facts (e.g. an overdue follow-up to Matt Darcy moves up).
+People and companies are pulled from the paragraph text (e.g. "Sam Nagar", "Terragrit", "MavenAGI", "Boomi"), since the sample lists names rather than emails. Names only match a Contacts record when unique; otherwise listed as "Check: possible match".
+
+Example of what gets added for the Terragrit meeting: Terragrit's NM/NU/BB status and open workstreams, Julia's Terragrit vs MavenAGI notes, MavenAGI's current workstream status, any open actions with Sam Nagar, and Mubina Dunn's DTC Tech Week attendance from the Events DB.
+
 ## How Claude's brief and Venture Pulse context combine
 Think of it as three layers per meeting, merged in this order:
 
