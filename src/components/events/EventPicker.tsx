@@ -77,7 +77,7 @@ export async function loadEvents(): Promise<AsanaEvent[]> {
     .then(([asana, app, planner]) => {
       // Event Planner names are canonical: they win so tags match attendee lists.
       const plannerAsEvents: AsanaEvent[] = planner.filter((e) => e.name).map((e) => ({
-        gid: `planner:${e.urid}`, name: e.name, date: e.start, portcos: e.portcos,
+        gid: `planner:${e.urid}`, name: e.name, date: e.start, portcos: e.portcos, sectors: e.sectors,
         status: e.start && e.start < new Date().toISOString().slice(0, 10) ? "completed" : "planned", type: "conference",
       }));
       cachedEvents = mergeEventCatalogs(asana, [...app, ...plannerAsEvents]);

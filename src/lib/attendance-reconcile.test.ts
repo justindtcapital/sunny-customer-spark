@@ -3,7 +3,7 @@ import { attendeeRowsFor, planAttendanceReconcile, type AttendanceTag } from "./
 import type { PlannerEvent } from "./event-planner";
 
 const ev = (p: Partial<PlannerEvent>): PlannerEvent => ({
-  urid: "", name: "", start: "", end: "", location: "", category: "Conferences", subcategory: "", status: "Attended",
+  urid: "", name: "", start: "", end: "", location: "", category: "Conferences", subcategory: "", status: "Potential",
   sectors: [], portcos: [], partners: [], owner: "", format: "", website: "", lumaUrl: "", source: "", sourceRef: "",
   asanaGid: "", networkCount: 0, notes: "", actionsNeeded: "", eventContact: "", createdBy: "", updated: "", dtcStatus: "", ...p,
 });
