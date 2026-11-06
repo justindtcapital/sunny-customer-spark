@@ -99,7 +99,7 @@ export function BulkEditBar() {
     summary[label] = (summary[label] || 0) + 1;
     return summary;
   }, {});
-  const applyLevelChange = async (again?: { contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: "promote" | "demote" }) => {
+  const applyLevelChange = async (again?: { contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange }) => {
     const change = again?.change ?? levelChange;
     if (!change || (!again && (selectedContacts.length === 0 || selectedContacts.length > 500))) return;
     const payload = { contacts: again?.contacts ?? selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change, operationId: crypto.randomUUID() };
@@ -228,6 +228,7 @@ export function BulkEditBar() {
       toast.error("Choose a value to apply.");
       return;
     }
+    retryRef.current = () => { setRun(null); void apply(); };
     setBusy(true);
     const label = FIELDS.find((f) => f.key === field)?.label ?? field;
     const targets = selectedContacts.filter((c) => c.email);
@@ -278,6 +279,7 @@ export function BulkEditBar() {
 
   // Hard-delete the selected contacts from the Contacts sheet. Confirmed first.
   const doDelete = async () => {
+    retryRef.current = () => { setRun(null); void doDelete(); };
     setDeleting(true);
     setConfirmOpen(false);
     const targets = selectedContacts.filter((c) => c.email);
