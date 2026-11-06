@@ -36,6 +36,13 @@
       "when": 1793376491478,
       "tag": "0004_bulk_execution_fencing",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793997896422,
+      "tag": "0005_create_morning_briefs",
+      "breakpoints": true
     }
   ]
 }
