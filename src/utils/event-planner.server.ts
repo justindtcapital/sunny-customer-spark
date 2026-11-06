@@ -236,7 +236,7 @@ export async function updatePlannerEvent(
   const next = clean({ ...current, ...patch, urid }, current.createdBy);
   const created = rows[i][idx["Created"]] || "";
   const newRow = toRow(next, created, await officialPortcoNames());
-  next.portcos = splitList(newRow[idx["PortCos"]] ?? newRow[9]);
+  next.portcos = splitList(newRow[EVENT_HEADERS.indexOf("PortCos")]);
   const old = rows[i];
   // Write a contiguous span covering changed columns only.
   const changed = newRow.map((v, c) => (v !== (old[c] ?? "") ? c : -1)).filter((c) => c >= 0);
