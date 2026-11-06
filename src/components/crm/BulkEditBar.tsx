@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -86,6 +86,7 @@ export function BulkEditBar() {
   const [request, setRequest] = useState<{ contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange; operationId: string } | null>(null);
 
   const [run, setRun] = useState<BulkRunState | null>(null);
+  const retryRef = useRef<(() => void) | null>(null);
   if (selectedIds.size === 0 && !levelResults && !run) return null;
   if (selectedIds.size === 0 && run) return <BulkRunDialog state={run} onClose={() => setRun(null)} onRetry={() => retryRef.current?.()} />;
 
