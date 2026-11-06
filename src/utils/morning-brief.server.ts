@@ -8,7 +8,7 @@ import {
   BRIEF_SUBJECT, anticipatedFollowUps, candidateNames, dueThisWeek, investmentStrip, matchPeople,
   mentionedCompanies, nextEvents, parseCoworkBrief, personHints, priorityBadge, daysBetween,
   companyKey, firstSentences, isInternalOrg, splitPortcos, stripScheduling, titleCompany,
-  emailsInText, sameNickname,
+  emailsInText, sameNickname, sameMeetingTime,
 } from "@/lib/morning-brief";
 import { isSharedEmailDomain, normalizeDomain } from "@/lib/company-domains";
 import { teamMemberFor } from "@/lib/user-ownership";
@@ -96,16 +96,20 @@ function assemble(text: string, today: string, f: Facts) {
   // Employer by work-email domain, so a new person's company can come from their address.
   const companyByDomain = new Map<string, string>();
   for (const p of people) { const d = normalizeDomain(p.email); if (d && p.company && !isSharedEmailDomain(d) && !companyByDomain.has(d)) companyByDomain.set(d, p.company); }
+  const csvCompany = new Map(cowork.contacts.filter((c) => c.company).map((c) => [norm(c.name), c.company]));
   const invFor = (name: string) => { const co = f.companies.find((c) => c.name === name)!; return investmentStrip({ ...(f.portcoFields.get(name.trim().toLowerCase())?.fields || {}), ...(co.asanaFields || {}) }, co.profileOverrides); };
   const meetings: BriefMeeting[] = cowork.meetings.map((m) => {
     const blob = `${m.title} ${m.text}`;
     const orgs = [...knownOrgs].filter((o) => o.length >= 4);
     const isOrg = (n: string) => { const k = norm(n); return knownOrgs.has(k) || orgs.some((o) => k.startsWith(`${o} `) || k.endsWith(` ${o}`)); };
     // Cowork's Attendees line (and any "Name <email>" in prose) first, then names found in the prose.
-    const listed = [...m.attendees, ...emailsInText(m.text)];
+    // Cowork's "New contacts to add" rows join the meeting whose time they name.
+    const csvHere = cowork.contacts.filter((c) => sameMeetingTime(m.time, c.meeting)).map((c) => ({ name: c.name, role: c.title, email: c.email }));
+    const listed = [...m.attendees, ...emailsInText(m.text), ...csvHere];
     const emails: Record<string, string> = {};
     const roles: Record<string, string> = {};
     for (const a of listed) { const k = norm(a.name); if (a.email && !emails[k]) emails[k] = a.email; if (a.role && !roles[k]) roles[k] = a.role; }
+    for (const c of cowork.contacts) { const k = norm(c.name); if (c.email && !emails[k]) emails[k] = c.email; if (c.title && !roles[k]) roles[k] = c.title; }
     const found = candidateNames(blob).filter((n) => !isOrg(n) || people.some((p) => norm(p.name) === norm(n)));
     const names = [...new Map([...listed.map((a) => a.name), ...found].map((n) => [norm(n), n])).values()];
     const matches = matchPeople(names, people, (n) => !!teamMemberFor(n) || (!!emails[norm(n)] && !!teamMemberFor(emails[norm(n)])), emails);
@@ -118,7 +122,8 @@ function assemble(text: string, today: string, f: Facts) {
       if (c) return { name: c.name, email: c.email || email, contactId: c.urid || c.id, company: c.company, title: c.title || "", temperature: c.temperature, lastContact: c.lastContact, campaigns: inCampaigns, events: [...new Set(evs)], status: "matched" as const };
       const hint = personHints(x.name, m.text, m.title);
       const domain = normalizeDomain(email);
-      const company = x.possible?.[0]?.company || hint.company || (domain ? companyByDomain.get(domain) || "" : "");
+      const fromCsv = csvCompany.get(norm(x.name)) || "";
+      const company = x.possible?.[0]?.company || fromCsv || hint.company || (domain ? companyByDomain.get(domain) || "" : "");
       return { name: x.name, email, company, title: roles[norm(x.name)] || hint.title, campaigns: inCampaigns, events: [], status: x.possible ? "possible" as const : "new" as const };
     });
     // One row per person: same record twice, or "Matthew Darcy" next to a matched "Matt Darcy".
@@ -175,6 +180,11 @@ function assemble(text: string, today: string, f: Facts) {
   });
   const events = upcoming.slice(0, 5).map((e) => ({ urid: e.urid, name: e.name, start: e.start, location: e.location, portcos: e.portcos, todaysPeople: f.attendees.filter((a) => a.eventUrid === e.urid && todayNames.has(norm(a.name))).map((a) => a.name) }));
   const newPeople = meetings.flatMap((m) => m.people.filter((p) => p.status === "new").map((p) => ({ name: p.name, title: p.title, company: p.company, email: p.email || "" })));
+  // Cowork rows that didn't land on any meeting card still get checked against Venture Pulse.
+  const onCards = meetings.flatMap((m) => m.people);
+  const loose = cowork.contacts.filter((c) => !onCards.some((p) => norm(p.name) === norm(c.name) || (!!c.email && p.email?.toLowerCase() === c.email)));
+  const looseMatches = matchPeople(loose.map((c) => c.name), people, (n) => !!teamMemberFor(n), Object.fromEntries(loose.filter((c) => c.email).map((c) => [norm(c.name), c.email])));
+  loose.forEach((c, i) => { const x = looseMatches[i]; if (!x.teammate && !x.contact && !x.possible && !(c.email && teamMemberFor(c.email))) newPeople.push({ name: c.name, title: c.title, company: c.company, email: c.email }); });
   const uniqueNew = [...new Map(newPeople.map((p) => [p.email || norm(p.name), p])).values()];
   return { cowork, meetings, quiet, campaigns, events, newPeople: uniqueNew, due: dueThisWeek(f.reminders, today) };
 }
