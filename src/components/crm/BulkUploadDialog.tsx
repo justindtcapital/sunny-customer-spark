@@ -548,16 +548,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                   </label>
 
                   {/* Pre-flight validation report */}
-                  <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px]">
-                    <div className="font-semibold text-foreground mb-1">Validation report</div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-muted-foreground">
-                      <span>Data rows in file</span><span className="text-right tabular-nums">{report.dataRows}</span>
-                      <span className="text-emerald-600 font-medium">Ready to import</span><span className="text-right tabular-nums text-emerald-600 font-medium">{rows.length}</span>
-                      {skipped > 0 && (<><span>Duplicates skipped</span><span className="text-right tabular-nums">{skipped}</span></>)}
-                      {report.invalid > 0 && (<><span className="text-amber-600">Invalid emails skipped</span><span className="text-right tabular-nums text-amber-600">{report.invalid}</span></>)}
-                      {report.missingRequired > 0 && (<><span className="text-amber-600">Missing name/email</span><span className="text-right tabular-nums text-amber-600">{report.missingRequired}</span></>)}
-                    </div>
-                  </div>
+                  <PreflightReview items={items} tab={reviewTab} setTab={setReviewTab} setFix={setFix} dataRows={report.dataRows} />
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
