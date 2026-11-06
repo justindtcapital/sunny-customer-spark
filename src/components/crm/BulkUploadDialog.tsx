@@ -421,7 +421,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       const result = prospecting
         ? await importTargets({ data: {
             targets: prepared.map(p => { const [firstName, ...rest] = p.name.trim().split(/\s+/); return { firstName: firstName || p.email, lastName: rest.join(" "), company: p.company, role: p.role, linkedin: p.linkedin, email: p.email, phone: p.phone, location: p.location, sector: p.sector, stage: "Prospecting", source: source.trim() || "CSV Import", researchPurpose: "", reasonSurfaced: "" }; }),
-            campaign: campaign.trim(), event: eventName.trim(), portcoTags: portcoNames, followUp: Boolean(eventName.trim()) || followUpEmails.size > 0,
+            campaign: campaign.trim(), event: eventName.trim(), portcoTags: portcoNames, followUp: Boolean(eventName.trim()) || (rows.length > 0 && followUpEmails.size === rows.length),
           } })
         : await importContactsBatch({ data: { contacts:prepared,event:eventName.trim(),portcos:portcoNames,portcoSources:portcoSources,sourceNote:source.trim() } });
       if (prospecting && campaign.trim()) invalidateCampaignCache();
