@@ -53,7 +53,7 @@ async function admin() { return (await import("@/integrations/supabase/client.se
 async function findCoworkEmail(today: string) {
   const { searchGmailRaw } = await import("./gmail.server");
   const { kbMailbox } = await import("./mailbox-oauth.server");
-  const res = await searchGmailRaw(`subject:"Daily meeting brief" newer_than:2d`, 5, kbMailbox());
+  const res = await searchGmailRaw(`subject:"Daily meeting brief" newer_than:2d`, 5, kbMailbox(), 50_000);
   if (!res.ok) throw new Error(res.error || "Could not read the Workspace inbox.");
   const hits = res.messages
     .filter((m) => m.subject.toLowerCase().includes("daily meeting brief") && reportingDay(new Date(m.date)) === today)
