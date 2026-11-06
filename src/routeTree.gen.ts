@@ -28,6 +28,7 @@ import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activ
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
 import { Route as ApiPublicCronKnowledgeHarvestRouteImport } from './routes/api/public/cron/knowledge-harvest'
+import { Route as ApiPublicCronMorningBriefRouteImport } from './routes/api/public/cron/morning-brief'
 import { Route as ApiPublicGoogleMailboxCallbackRouteImport } from './routes/api/public/google-mailbox/callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -126,6 +127,12 @@ const ApiPublicCronKnowledgeHarvestRoute =
     path: '/api/public/cron/knowledge-harvest',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicCronMorningBriefRoute =
+  ApiPublicCronMorningBriefRouteImport.update({
+    id: '/api/public/cron/morning-brief',
+    path: '/api/public/cron/morning-brief',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicGoogleMailboxCallbackRoute =
   ApiPublicGoogleMailboxCallbackRouteImport.update({
     id: '/api/public/google-mailbox/callback',
@@ -153,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
+  '/api/public/cron/morning-brief': typeof ApiPublicCronMorningBriefRoute
   '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -174,6 +182,7 @@ export interface FileRoutesByTo {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
+  '/api/public/cron/morning-brief': typeof ApiPublicCronMorningBriefRoute
   '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
 }
 export interface FileRoutesById {
@@ -197,6 +206,7 @@ export interface FileRoutesById {
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
+  '/api/public/cron/morning-brief': typeof ApiPublicCronMorningBriefRoute
   '/api/public/google-mailbox/callback': typeof ApiPublicGoogleMailboxCallbackRoute
 }
 export interface FileRouteTypes {
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
+    | '/api/public/cron/morning-brief'
     | '/api/public/google-mailbox/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -242,6 +253,7 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
+    | '/api/public/cron/morning-brief'
     | '/api/public/google-mailbox/callback'
   id:
     | '__root__'
@@ -264,6 +276,7 @@ export interface FileRouteTypes {
     | '/api/cron/intel-scan'
     | '/api/public/inngest'
     | '/api/public/cron/knowledge-harvest'
+    | '/api/public/cron/morning-brief'
     | '/api/public/google-mailbox/callback'
   fileRoutesById: FileRoutesById
 }
@@ -285,6 +298,7 @@ export interface RootRouteChildren {
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
   ApiPublicCronKnowledgeHarvestRoute: typeof ApiPublicCronKnowledgeHarvestRoute
+  ApiPublicCronMorningBriefRoute: typeof ApiPublicCronMorningBriefRoute
   ApiPublicGoogleMailboxCallbackRoute: typeof ApiPublicGoogleMailboxCallbackRoute
 }
 
@@ -423,6 +437,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicCronKnowledgeHarvestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/cron/morning-brief': {
+      id: '/api/public/cron/morning-brief'
+      path: '/api/public/cron/morning-brief'
+      fullPath: '/api/public/cron/morning-brief'
+      preLoaderRoute: typeof ApiPublicCronMorningBriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/google-mailbox/callback': {
       id: '/api/public/google-mailbox/callback'
       path: '/api/public/google-mailbox/callback'
@@ -463,6 +484,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
   ApiPublicCronKnowledgeHarvestRoute: ApiPublicCronKnowledgeHarvestRoute,
+  ApiPublicCronMorningBriefRoute: ApiPublicCronMorningBriefRoute,
   ApiPublicGoogleMailboxCallbackRoute: ApiPublicGoogleMailboxCallbackRoute,
 }
 export const routeTree = rootRouteImport
