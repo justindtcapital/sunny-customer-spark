@@ -5,7 +5,10 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
 async function runInBackground(task: Promise<unknown>): Promise<boolean> {
   try {
-    const mod = (await import(/* @vite-ignore */ "cloudflare:workers" as string)) as { waitUntil?: (p: Promise<unknown>) => void };
+    // Built at runtime so the bundler never tries to resolve the Worker-only
+    // module (a literal specifier fails non-Worker builds); falls back below.
+    const specifier = ["cloudflare", "workers"].join(":");
+    const mod = (await import(/* @vite-ignore */ specifier)) as { waitUntil?: (p: Promise<unknown>) => void };
     if (mod.waitUntil) { mod.waitUntil(task); return true; }
   } catch { /* not running on workerd (dev) */ }
   return false;
