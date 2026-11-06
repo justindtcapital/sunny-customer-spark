@@ -5,9 +5,51 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import type { TagGroup } from "@/lib/attendance-reconcile";
+import type { DateCount, TagGroup } from "@/lib/attendance-reconcile";
+
+type Ev = { urid: string; name: string; start: string; city: string };
+const fmt = (d: string) => { const t = Date.parse(d + "T12:00:00"); return isNaN(t) ? d : new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); };
+const list = (xs: DateCount[]) => xs.map((x) => `${fmt(x.date)} (${x.count})`).join(" · ");
+function batchLine(g: TagGroup) {
+  const parts: string[] = [];
+  if (g.batches.length) parts.push(`${g.batches.length === 1 ? "Uploaded" : `${g.batches.length} batches`}: ${list(g.batches)}`);
+  else parts.push("Upload date unknown");
+  if (g.tagDates.length) parts.push(`Tag date${g.tagDates.length > 1 ? "s" : ""}: ${list(g.tagDates)}`);
+  return parts.join(" — ");
+}
+
+function EventCombo({ g, events, value, onChange }: { g: TagGroup; events: Ev[]; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const predicted = new Set(g.candidates.map((c) => c.urid));
+  const sel = g.candidates.find((c) => c.urid === value) || events.find((e) => e.urid === value);
+  const pick = (v: string) => { onChange(v); setOpen(false); };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 w-full justify-start text-xs font-normal truncate">
+          {sel ? `${sel.name} · ${sel.start}` : <span className="text-muted-foreground">Pick an event ({g.candidates.length} predicted)</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[420px] p-0" align="start">
+        <Command filter={(v, search) => (v.toLowerCase().includes(search.toLowerCase()) ? 1 : 0)}>
+          <CommandInput placeholder="Search events by name, city or date…" className="text-xs" />
+          <CommandList className="max-h-72">
+            <CommandEmpty>No event found.</CommandEmpty>
+            <CommandGroup heading="Predicted">
+              {g.candidates.map((c) => <CommandItem key={c.urid} value={`p ${c.name} ${c.start} ${c.urid}`} onSelect={() => pick(c.urid)} className="text-xs">{c.name} · {c.start}</CommandItem>)}
+            </CommandGroup>
+            <CommandGroup heading="All Events DB">
+              {events.filter((e) => !predicted.has(e.urid)).map((e) => <CommandItem key={e.urid} value={`${e.name} ${e.city} ${e.start} ${e.urid}`} onSelect={() => pick(e.urid)} className="text-xs">{e.name}{e.city ? ` · ${e.city}` : ""} · {e.start}</CommandItem>)}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 import { applyAttendanceReconcileFn, previewAttendanceReconcileFn } from "@/utils/event-planner.functions";
 
 type Tab = TagGroup["status"];
@@ -17,6 +59,7 @@ export function AttendanceReconcileDialog({ open, onClose, onSaved }: { open: bo
   const preview = useServerFn(previewAttendanceReconcileFn);
   const apply = useServerFn(applyAttendanceReconcileFn);
   const [groups, setGroups] = useState<TagGroup[] | null>(null);
+  const [events, setEvents] = useState<Ev[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -29,7 +72,7 @@ export function AttendanceReconcileDialog({ open, onClose, onSaved }: { open: bo
     setGroups(null); setError(""); setChoice({}); setTab("clear"); setBusy(true);
     preview()
       .then((r) => {
-        setGroups(r.groups);
+        setGroups(r.groups); setEvents(r.events);
         const c: Record<string, string> = {};
         for (const g of r.groups) if (g.status === "clear" && g.people.length > g.alreadyLinked) c[g.tagName] = g.candidates[0].urid;
         setChoice(c);
@@ -92,14 +135,16 @@ export function AttendanceReconcileDialog({ open, onClose, onSaved }: { open: bo
                       {g.status === "clear" ? (
                         <span className={cn("truncate text-xs", done && "text-muted-foreground")}>{g.candidates[0].name} · {g.candidates[0].start} {done && "— all linked"}</span>
                       ) : g.status === "review" ? (
-                        <Select value={choice[g.tagName] || ""} onValueChange={(v) => setChoice((c) => ({ ...c, [g.tagName]: v }))}>
-                          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={`Pick one of ${g.candidates.length}`} /></SelectTrigger>
-                          <SelectContent>{g.candidates.map((c) => <SelectItem key={c.urid} value={c.urid} className="text-xs">{c.name} · {c.start}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <EventCombo g={g} events={events} value={choice[g.tagName] || ""} onChange={(v) => setChoice((c) => ({ ...c, [g.tagName]: v }))} />
                       ) : <span className="text-xs text-muted-foreground">No planner event with this name</span>}
                     </div>
+                    <p className="mt-0.5 ml-8 text-[11px] text-muted-foreground">{batchLine(g)}</p>
                     {expanded === g.tagName && (
-                      <p className="mt-1 ml-8 text-xs text-muted-foreground">{g.people.map((p) => p.name || p.email).join(", ")}</p>
+                      <div className="mt-1 ml-8 space-y-0.5 text-xs text-muted-foreground">
+                        {(g.batches.length ? g.batches : [{ date: "", count: g.people.length }]).map((b) => (
+                          <p key={b.date || "none"}><span className="font-medium text-foreground">{b.date ? fmt(b.date) : "Unknown date"}:</span> {g.people.filter((p) => (b.date ? (p.added || "").slice(0, 10) === b.date || (!/^\d{4}-/.test(p.added || "") && new Date(Date.parse(p.added || "")).toISOString?.().slice(0, 10) === b.date) : true)).map((p) => p.name || p.email).join(", ")}</p>
+                        ))}
+                      </div>
                     )}
                   </div>
                 );
