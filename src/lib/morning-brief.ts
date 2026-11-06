@@ -127,7 +127,8 @@ export function parseCoworkBrief(raw: string): CoworkBrief {
   const priorities: string[] = [];
   const gaps: string[] = [];
   const intro: string[] = [];
-  let section: "intro" | "meeting" | "gaps" | "priorities" = "intro";
+  const contactLines: string[] = [];
+  let section: "intro" | "meeting" | "gaps" | "priorities" | "contacts" = "intro";
   for (const line of lines) {
     if (!line) continue;
     const h = HEADER.exec(line);
@@ -142,13 +143,15 @@ export function parseCoworkBrief(raw: string): CoworkBrief {
     }
     if (/^gaps:?$/i.test(line)) { section = "gaps"; continue; }
     if (/^top priorities:?$/i.test(line)) { section = "priorities"; continue; }
+    if (/^(new )?contacts?( to add)?:?$/i.test(line) || /^new contacts\b.*:?$/i.test(line)) { section = "contacts"; continue; }
+    if (section === "contacts") { contactLines.push(line); continue; }
     if (section === "meeting" && /^attendees?\s*:/i.test(line)) { const m = meetings[meetings.length - 1]; m.attendees.push(...parseAttendees(line)); continue; }
     if (section === "meeting") { const m = meetings[meetings.length - 1]; m.text = m.text ? `${m.text} ${line}` : line; }
     else if (section === "gaps") gaps.push(line);
     else if (section === "priorities") priorities.push(line.replace(/^\d+[.)]\s*/, ""));
     else intro.push(line);
   }
-  return { meetings, gaps: gaps.join(" "), priorities, intro: intro.join(" ") };
+  return { meetings, gaps: gaps.join(" "), priorities, intro: intro.join(" "), contacts: parseContactRows(contactLines) };
 }
 
 const STOP = new Set(["Teams", "Zoom", "Google Meet", "Critical", "PortCo", "Review", "Before", "There", "This", "The", "On", "In", "He", "She", "They", "Confirm", "Check", "Find", "Decide", "Prep", "Industry Icons", "Santa Clara", "Tech Week", "Regional Manager", "Services Sales", "Strategic Alliances", "Global Head"]);
