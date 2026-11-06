@@ -16,7 +16,54 @@ export interface CoworkMeeting {
   attendees: CoworkAttendee[];
 }
 export interface CoworkAttendee { name: string; role: string; email: string }
-export interface CoworkBrief { meetings: CoworkMeeting[]; gaps: string; priorities: string[]; intro: string }
+/** One row of Cowork's "New contacts to add" CSV block at the bottom of the email. */
+export interface CoworkContact { name: string; email: string; company: string; title: string; meeting: string }
+export interface CoworkBrief { meetings: CoworkMeeting[]; gaps: string; priorities: string[]; intro: string; contacts: CoworkContact[] }
+
+/** Split one CSV line, honouring double quotes. */
+function csvCells(line: string): string[] {
+  const out: string[] = [];
+  let cur = "", q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; continue; }
+    if (ch === "," && !q) { out.push(cur.trim()); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+const CONTACT_COLS: Record<string, keyof CoworkContact | "first" | "last"> = {
+  "first name": "first", first: "first", "last name": "last", last: "last", name: "name", "full name": "name",
+  email: "email", "email address": "email", company: "company", organization: "company",
+  "job title": "title", title: "title", role: "title", meeting: "meeting",
+};
+
+/** Parse the CSV rows under "New contacts to add" (header row decides the columns). */
+export function parseContactRows(lines: string[]): CoworkContact[] {
+  let cols: (keyof CoworkContact | "first" | "last" | undefined)[] | null = null;
+  const out: CoworkContact[] = [];
+  for (const line of lines) {
+    if (!line.includes(",")) continue;
+    const cells = csvCells(line);
+    const mapped = cells.map((c) => CONTACT_COLS[c.toLowerCase()]);
+    if (!cols && mapped.filter(Boolean).length >= 2 && !EMAIL_ONE.test(line)) { cols = mapped; continue; }
+    const use = cols || ["first", "last", "email", "company", "title", "meeting"];
+    const row: Record<string, string> = {};
+    use.forEach((k, i) => { if (k && cells[i]) row[k] = cells[i]; });
+    const email = (row.email?.match(EMAIL_ONE)?.[0] || "").toLowerCase();
+    const name = (row.name || [row.first, row.last].filter(Boolean).join(" ")).trim() || (email ? nameFromEmail(email) : "");
+    if (name) out.push({ name, email, company: row.company || "", title: row.title || "", meeting: row.meeting || "" });
+  }
+  return out;
+}
+
+/** "12:00 PT Terragrit connect" belongs to the "12:00 PM PT" meeting. */
+export const sameMeetingTime = (meetingTime: string, label: string) => {
+  const a = /(\d{1,2}):(\d{2})/.exec(meetingTime), b = /(\d{1,2}):(\d{2})/.exec(label);
+  return !!a && !!b && Number(a[1]) === Number(b[1]) && a[2] === b[2];
+};
 
 const HEADER = /^(\d{1,2}:\d{2}\s*[AP]M(?:\s*[A-Z]{1,4})?)\s*[:–-]\s*(.+?)\s*(?:\(([^)]*)\))?\s*$/i;
 const EMAIL_SRC = "[a-z0-9._%+'-]+@[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.[a-z]{2,}";
