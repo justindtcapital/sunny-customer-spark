@@ -6,8 +6,10 @@ import { Output, streamText } from "ai";
 import { z } from "zod";
 import {
   BRIEF_SUBJECT, anticipatedFollowUps, candidateNames, dueThisWeek, investmentStrip, matchPeople,
-  mentionedCompanies, nextEvents, parseCoworkBrief, personHints, priorityBadge, daysBetween,
+  nextEvents, parseCoworkBrief, personHints, priorityBadge, daysBetween,
+  isInternalOrg, splitPortcos, stripScheduling, titleCompany,
 } from "@/lib/morning-brief";
+import { isSharedEmailDomain, normalizeDomain } from "@/lib/company-domains";
 import { teamMemberFor } from "@/lib/user-ownership";
 import { reportingDay, activeWorkstream } from "@/lib/home-momentum";
 import { workstreamBarStatus } from "@/lib/workstream-parse";
@@ -18,9 +20,17 @@ export const BRIEF_RECIPIENT = "chris.falloon@dell.com";
 
 export interface BriefPerson { name: string; contactId?: string; company: string; title: string; temperature?: string; lastContact?: string; campaigns: string[]; events: string[]; status: "matched" | "possible" | "new" | "teammate" }
 export interface BriefPortco { name: string; badge: string; priority: string; stage: string; ownership: string; investment: string; round: string; investors: string; workstreams: { name: string; status: string; priority: string; lastActivity: string; update: string; url?: string }[] }
+/** Outside (non-PortCo, non-Dell) company the meeting is with. */
+export interface BriefCompany {
+  name: string; domain: string; about: string; aboutSource: "web" | "general" | ""; sources: string[];
+  contacts: { name: string; title: string; temperature?: string; contactId?: string }[]; totalContacts: number;
+}
 export interface BriefMeeting {
   time: string; title: string; tags: string[]; platform: string; duration: string; cowork: string;
   summary: string; portcos: BriefPortco[]; people: BriefPerson[];
+  /** PortCos only mentioned in passing — names and badges, no details. Absent on older briefs. */
+  mentionedPortcos?: { name: string; badge: string }[];
+  company?: BriefCompany | null;
   actions: { summary: string; due: string; person: string; overdue: boolean }[];
   notes: { title: string; date: string; summary: string; url: string }[];
   events: { name: string; start: string }[];
