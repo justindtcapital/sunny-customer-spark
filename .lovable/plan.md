@@ -27,6 +27,16 @@ Next DTC events
 Gaps (Claude's + unmatched people)
 ```
 
+## PortCo meeting header
+For meetings tagged PortCo (or where a PortCo is matched), the card opens with a status strip *before* the meeting summary:
+- NM / NU / BB badge and stage (Active / Exited)
+- Investment: ownership %, equity stake / amount invested, latest funding round, lead/co-investors (from the PortCo profile; blank fields say "Not recorded")
+- Open workstreams count with each one's status and priority
+Then the meeting summary, workstream updates and prep points follow.
+
+## Add new people in one click
+Each meeting lists people Venture Pulse couldn't find (name, role, company and email when Claude includes them). An **"Add all to Contacts"** button on the brief opens the existing paste-review table with those rows already filled in: you see the duplicate check and the single-name warning, can untick anyone, and then save. Nothing is added without that review. Once saved, they link up in the next brief.
+
 ## Reading Claude's email (based on your sample)
 Claude's format is already consistent, so V.I.C. splits it into:
 - **Meetings** — each block starting "8:30 AM PT: Title (Tag, Platform, Length)" becomes one meeting with time, title, tag (PortCo / Critical), platform, duration, and the narrative paragraph (people, roles, email timeline, suggested prep).
