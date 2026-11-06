@@ -39,6 +39,7 @@ import { nextRelationshipLevel, type RelationshipChange } from "@/lib/relationsh
 import { OperationResults } from "@/components/admin/OperationResults";
 import type { BulkOutcome } from "@/lib/bulk-operation";
 import { useQueryClient } from "@tanstack/react-query";
+import { BulkRunDialog, receiptFromOutcomes, type BulkRunState } from "@/components/crm/BulkRunDialog";
 
 // Fields the bulk-edit bar can set, in display order. Mirrors the BulkEditField
 // union; each maps to a Contacts-sheet column via bulkUpdateContacts.
@@ -84,7 +85,8 @@ export function BulkEditBar() {
   const [levelResults, setLevelResults] = useState<{ outcomes: BulkOutcome[]; operationId: string } | null>(null);
   const [request, setRequest] = useState<{ contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange; operationId: string } | null>(null);
 
-  if (selectedIds.size === 0 && !levelResults) return null;
+  const [run, setRun] = useState<BulkRunState | null>(null);
+  if (selectedIds.size === 0 && !levelResults && !run) return null;
 
   const count = selectedIds.size;
   const anyBusy = busy || deleting || changingLevel || action !== "";
@@ -100,24 +102,24 @@ export function BulkEditBar() {
     const payload = { contacts: selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change: levelChange, operationId: crypto.randomUUID() };
     setRequest(payload);
     setChangingLevel(true);
+    const title = `${levelChange === "promote" ? "Promoting" : "Demoting"} ${payload.contacts.length} contact${payload.contacts.length === 1 ? "" : "s"}`;
+    setLevelChange(null);
+    setRun({ title, step: "validate", total: payload.contacts.length, processed: 0 });
     try {
+      setRun(r => r && { ...r, step: "apply" });
       const first = await changeLevels({ data: payload });
       const total = first.outcomes.length;
-      const show = (o: BulkOutcome[]) => { setLevelResults({ outcomes: o, operationId: first.operationId }); setProgress(`${total - pendingCount(o)} of ${total} processed…`); };
+      const show = (o: BulkOutcome[]) => { setProgress(`${total - pendingCount(o)} of ${total} processed…`); setRun(r => r && { ...r, processed: total - pendingCount(o) }); };
       show(first.outcomes);
       const done = await autoResume({ outcomes: first.outcomes, onProgress: show, step: () => resumeOp({ data: { id: first.operationId, confirmed: true } }) });
-      const result = { ...first, outcomes: done.outcomes, updated: done.outcomes.filter(o => o.status === "changed").length, moved: done.outcomes.filter(o => o.status === "moved").length, alreadyComplete: done.outcomes.filter(o => o.status === "already_complete" || o.status === "duplicate").length, skipped: done.outcomes.filter(o => !["changed","moved","already_complete","duplicate"].includes(o.status)).length };
-      setLevelResults({ outcomes: result.outcomes, operationId: result.operationId });
-      const message = `${result.updated} levels changed · ${result.moved} moved · ${result.alreadyComplete} already complete · ${result.skipped} unresolved`;
-      if(result.outcomes.some(o=>o.status==="pending")) toast.info("Some contacts stopped making progress. Progress is saved; open Admin and choose Resume to continue.");
-      if (result.skipped) toast.warning(message); else toast.success(message);
+      setRun(r => r && { ...r, step: "verify" });
+      const receipt = receiptFromOutcomes(done.outcomes, "Level changed");
+      setRun(r => r && { ...r, step: "done", processed: total, receipt });
       clearSelection();
-      setLevelChange(null);
       setRequest(null);
     } catch (error) {
       setRequest(null);
-      toast.error(error instanceof Error ? error.message : "Couldn't change the selected contacts.");
-      setLevelChange(null);
+      setRun(r => r && { ...r, error: error instanceof Error ? error.message : "Couldn't change the selected contacts." });
       clearSelection();
     } finally {
       try { await router.invalidate(); await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] }); }
@@ -222,9 +224,13 @@ export function BulkEditBar() {
       return;
     }
     setBusy(true);
+    const label = FIELDS.find((f) => f.key === field)?.label ?? field;
+    const targets = selectedContacts.filter((c) => c.email);
+    setRun({ title: `Setting ${label} → ${v} on ${targets.length} contact${targets.length === 1 ? "" : "s"}`, step: "apply", total: 0, processed: 0 });
     try {
-      const emails = selectedContacts.map((c) => c.email).filter(Boolean);
+      const emails = targets.map((c) => c.email);
       const res = await bulkUpdateContacts({ data: { emails, field, value: v } });
+      setRun(r => r && { ...r, step: "verify" });
       if (onBulkUpdate) {
         const updated = selectedContacts.map((c) => {
           const u = { ...c };
@@ -245,15 +251,21 @@ export function BulkEditBar() {
         });
         onBulkUpdate(updated);
       }
-      const label = FIELDS.find((f) => f.key === field)?.label ?? field;
-      toast.success(`Updated ${res.updated} contact${res.updated !== 1 ? "s" : ""} · ${label} → ${v}`);
+      const noEmail = selectedContacts.filter((c) => !c.email).map((c) => ({ label: c.name, reason: "No email to match on" }));
+      const shortfall = targets.length - res.updated;
+      setRun(r => r && { ...r, step: "done", receipt: {
+        doneLabel: `${label} set to ${v}`,
+        done: shortfall > 0 ? [] : targets.map((c) => ({ label: c.name })),
+        skipped: noEmail,
+        problems: shortfall > 0 ? [{ label: `${res.updated} of ${targets.length} confirmed`, reason: "Some rows weren't found in Contacts — refresh and check those people" }] : [],
+      } });
       setValue("");
       clearSelection();
       await router.invalidate();
       await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] });
     } catch (e) {
       console.error("BulkEditBar: bulkUpdateContacts failed", e);
-      toast.error(e instanceof Error ? e.message : "Bulk update failed. Review Admin before retrying.");
+      setRun(r => r && { ...r, error: e instanceof Error ? e.message : "Bulk update failed. Review Admin before retrying." });
     } finally {
       setBusy(false);
     }
@@ -262,17 +274,26 @@ export function BulkEditBar() {
   // Hard-delete the selected contacts from the Contacts sheet. Confirmed first.
   const doDelete = async () => {
     setDeleting(true);
+    setConfirmOpen(false);
+    const targets = selectedContacts.filter((c) => c.email);
+    setRun({ title: `Deleting ${targets.length} contact${targets.length === 1 ? "" : "s"}`, step: "apply", total: 0, processed: 0 });
     try {
-      const emails = selectedContacts.map((c) => c.email).filter(Boolean);
+      const emails = targets.map((c) => c.email);
       const res = await bulkDeleteContacts({ data: { emails } });
-      toast.success(`Deleted ${res.deleted} contact${res.deleted !== 1 ? "s" : ""}.`);
+      const shortfall = targets.length - res.deleted;
+      setRun(r => r && { ...r, step: "done", receipt: {
+        doneLabel: "Deleted",
+        done: shortfall > 0 ? [] : targets.map((c) => ({ label: c.name })),
+        skipped: selectedContacts.filter((c) => !c.email).map((c) => ({ label: c.name, reason: "No email to match on — not deleted" })),
+        problems: shortfall > 0 ? [{ label: `${res.deleted} of ${targets.length} deleted`, reason: "Some rows weren't found — refresh and check those people" }] : [],
+      } });
       onBulkDelete?.(selectedContacts.map((c) => c.id));
       clearSelection();
       await router.invalidate();
       await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] });
     } catch (e) {
       console.error("BulkEditBar: bulkDeleteContacts failed", e);
-      toast.error(e instanceof Error ? e.message : "Delete failed. Review Admin before retrying.");
+      setRun(r => r && { ...r, error: e instanceof Error ? e.message : "Delete failed. Review Admin before retrying." });
     } finally {
       setDeleting(false);
       setConfirmOpen(false);
@@ -441,6 +462,7 @@ export function BulkEditBar() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <BulkRunDialog state={run} onClose={() => setRun(null)} />
       {levelResults && <OperationResults {...levelResults} onClose={() => setLevelResults(null)} />}
       <AlertDialog open={techConfirmOpen} onOpenChange={setTechConfirmOpen}>
         <AlertDialogContent>
