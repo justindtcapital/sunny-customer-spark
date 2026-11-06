@@ -228,3 +228,40 @@ export const unlinkEventHistoryFn = createServerFn({ method: "POST" })
     const { removeHistoryLink } = await import("./event-planner.server");
     return { removed: await removeHistoryLink(data.targetUrid, data.kind, data.sourceId) };
   });
+
+/** Read-only: match people's free-text event tags to planner events. */
+export const previewAttendanceReconcileFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .handler(async () => {
+    const { withDeadline } = await import("./request-deadline.server");
+    return withDeadline("previewAttendanceReconcile", 55_000, async (step) => {
+      const { readPlannerEvents, readAttendees } = await import("./event-planner.server");
+      const { readContactEventTags } = await import("./sheets.server");
+      const { planAttendanceReconcile } = await import("@/lib/attendance-reconcile");
+      step("reading events, attendees and people's event tags");
+      const [events, attendees, tags] = await Promise.all([readPlannerEvents(true), readAttendees(), readContactEventTags()]);
+      step("matching");
+      return { groups: planAttendanceReconcile(tags, events, attendees), tagCount: tags.length };
+    });
+  });
+
+/** Append attendee rows for the tag→event pairs the user approved. Never edits people or events. */
+export const applyAttendanceReconcileFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .inputValidator((d: { choices: Record<string, string> }) => {
+    if (!d?.choices || typeof d.choices !== "object" || !Object.keys(d.choices).length) throw new Error("Pick at least one match");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const { withDeadline } = await import("./request-deadline.server");
+    return withDeadline("applyAttendanceReconcile", 55_000, async (step) => {
+      const { readPlannerEvents, readAttendees, addAttendees } = await import("./event-planner.server");
+      const { readContactEventTags } = await import("./sheets.server");
+      const { planAttendanceReconcile, attendeeRowsFor } = await import("@/lib/attendance-reconcile");
+      step("re-reading fresh data");
+      const [events, attendees, tags] = await Promise.all([readPlannerEvents(true), readAttendees(), readContactEventTags()]);
+      const rows = attendeeRowsFor(planAttendanceReconcile(tags, events, attendees), data.choices, attendees);
+      step("saving attendees");
+      return { added: rows.length ? await addAttendees(rows) : 0 };
+    });
+  });
