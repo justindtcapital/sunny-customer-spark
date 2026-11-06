@@ -91,15 +91,10 @@ function assemble(text: string, today: string, f: Facts) {
   const activeCampaigns = f.campaigns.filter((c) => c.status === "saved" || c.status === "actioning");
   const upcoming = nextEvents(f.events, today, 30, 30);
   const knownOrgs = new Set([...companyNames, ...people.map((p) => p.company), "dt capital", "dtc", "dell technologies capital", "columbia capital"].map(norm).filter(Boolean));
+  const portcoKeys = new Set(companyNames.map(norm));
+  const invFor = (name: string) => { const co = f.companies.find((c) => c.name === name)!; return investmentStrip({ ...(f.portcoFields.get(name.trim().toLowerCase())?.fields || {}), ...(co.asanaFields || {}) }, co.profileOverrides); };
   const meetings: BriefMeeting[] = cowork.meetings.map((m) => {
     const blob = `${m.title} ${m.text}`;
-    const portcos: BriefPortco[] = mentionedCompanies(blob, companyNames).map((name) => {
-      const co = f.companies.find((c) => c.name === name)!;
-      const inv = investmentStrip({ ...(f.portcoFields.get(name.trim().toLowerCase())?.fields || {}), ...(co.asanaFields || {}) }, co.profileOverrides);
-      const ws = f.workstreams.filter((w) => norm(w.company) === norm(name) && !w.completed && activeWorkstream(w));
-      return { name, badge: priorityBadge(inv.priority), priority: inv.priority, stage: inv.stage, ownership: inv.ownership, investment: inv.investment, round: inv.round, investors: inv.investors,
-        workstreams: ws.map((w) => ({ name: w.name, status: workstreamBarStatus(w), priority: w.workstreamPriority, lastActivity: (w.lastActivity || "").slice(0, 10), update: (w.nextSteps || w.notes || "").slice(0, 220), url: w.url })) };
-    });
     const orgs = [...knownOrgs].filter((o) => o.length >= 4);
     const isOrg = (n: string) => { const k = norm(n); return knownOrgs.has(k) || orgs.some((o) => k.startsWith(`${o} `) || k.endsWith(` ${o}`)); };
     const matches = matchPeople(candidateNames(blob).filter((n) => !isOrg(n) || people.some((p) => norm(p.name) === norm(n))), people, (n) => !!teamMemberFor(n));
