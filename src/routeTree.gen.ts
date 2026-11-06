@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BriefRouteImport } from './routes/brief'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CrmRouteImport } from './routes/crm'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -44,6 +45,11 @@ const ActivityRoute = ActivityRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BriefRoute = BriefRouteImport.update({
+  id: '/brief',
+  path: '/brief',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CampaignsRoute = CampaignsRouteImport.update({
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/auth': typeof AuthRoute
+  '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/auth': typeof AuthRoute
+  '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
@@ -190,6 +198,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/auth': typeof AuthRoute
+  '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
   '/dashboard': typeof DashboardRoute
@@ -215,6 +224,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/auth'
+    | '/brief'
     | '/campaigns'
     | '/crm'
     | '/dashboard'
@@ -238,6 +248,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/auth'
+    | '/brief'
     | '/campaigns'
     | '/crm'
     | '/dashboard'
@@ -260,6 +271,7 @@ export interface FileRouteTypes {
     | '/'
     | '/activity'
     | '/auth'
+    | '/brief'
     | '/campaigns'
     | '/crm'
     | '/dashboard'
@@ -284,6 +296,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ActivityRoute: typeof ActivityRoute
   AuthRoute: typeof AuthRoute
+  BriefRoute: typeof BriefRoute
   CampaignsRoute: typeof CampaignsRoute
   CrmRoute: typeof CrmRoute
   DashboardRoute: typeof DashboardRoute
@@ -323,6 +336,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/brief': {
+      id: '/brief'
+      path: '/brief'
+      fullPath: '/brief'
+      preLoaderRoute: typeof BriefRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/campaigns': {
@@ -470,6 +490,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
   AuthRoute: AuthRoute,
+  BriefRoute: BriefRoute,
   CampaignsRoute: CampaignsRoute,
   CrmRoute: CrmRoute,
   DashboardRoute: DashboardRoute,
