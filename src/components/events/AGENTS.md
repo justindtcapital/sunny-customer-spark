@@ -1,0 +1,1 @@
+- Contact event tags join event attendee lists only via the pure attendance-reconcile planner (approved appends) or the import picker writing by planner URID — prevents name drift.

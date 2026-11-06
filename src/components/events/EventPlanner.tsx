@@ -37,6 +37,7 @@ import {
   extractEventFromUrlFn, addPlannerAttendeesFn,
 } from "@/utils/event-planner.functions";
 import { EventHistoryDialog, EventHistorySection } from "./EventHistory";
+import { AttendanceReconcileDialog } from "./AttendanceReconcileDialog";
 import type { HistoryLink } from "@/lib/event-history";
 
 const SUBCATS = PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name));
@@ -116,6 +117,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [csvOpen, setCsvOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [attendOpen, setAttendOpen] = useState(false);
   const enrichFn = useServerFn(enrichFromAsanaFn);
   const [merging, setMerging] = useState(false);
 
@@ -248,6 +250,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setHistoryOpen(true)}>
               <History className="h-3.5 w-3.5 mr-1" /> Link past history
             </Button>
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAttendOpen(true)}>
+              Match tagged attendees
+            </Button>
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
               <Checkbox checked={showAsana} onCheckedChange={(v) => setShowAsana(!!v)} /> Show Asana data
             </label>
@@ -377,6 +382,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         onClose={() => setHistoryOpen(false)}
         onSaved={refresh}
       />
+      <AttendanceReconcileDialog open={attendOpen} onClose={() => setAttendOpen(false)} onSaved={refresh} />
       <LinkDialog open={linkOpen} onClose={() => setLinkOpen(false)} onExtracted={(e) => { setLinkOpen(false); setEditing(e); }} />
     </div>
   );

@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EventPicker } from "@/components/events/EventPicker";
+import { EventPicker, plannerUridFor } from "@/components/events/EventPicker";
+import { addPlannerAttendeesFn } from "@/utils/event-planner.functions";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { importTargets, addContact, addEvent as addEventToSheet, addPortcoIntro, addNote, fetchContactEmails, logImportResult, fetchImportHistory, storeApolloRaw } from "@/utils/sheets.functions";
 import { importContactsBatch } from "@/utils/bulk-import.functions";
@@ -429,6 +430,13 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       const outcomes = ((result as { outcomes?: BulkOutcome[] }).outcomes) || [];
       const receipt = outcomes.length ? receiptFromOutcomes(outcomes, "Imported")
         : { doneLabel: "Imported", done: [{ label: `${result.added} new contacts` }], skipped: [{ label: `${result.duplicates} already in contacts` }], problems: result.review ? [{ label: `${result.review} need review in Admin` }] : [] };
+      const eventUrid = eventName.trim() ? await plannerUridFor(eventName).catch(() => "") : "";
+      if (eventUrid) {
+        const n = await addPlannerAttendeesFn({ data: { attendees: prepared.map(p => ({ eventUrid, name: p.name, email: p.email, kind: prospecting ? "Prospect" : "Network", status: "Attended", date: "" })) } })
+          .then(r => r.added).catch(() => -1);
+        if (n >= 0) receipt.done.push({ label: `${n} added to ${eventName.trim()} attendees` });
+        else receipt.problems.push({ label: `Couldn't add people to ${eventName.trim()} attendees`, reason: "use Match tagged attendees on Events" });
+      }
       if (left) receipt.skipped.push({ label: `${left} row${left === 1 ? "" : "s"} left unfixed in the file`, reason: "not imported" });
       setRun(r => r && { ...r, step: "done", receipt });
       if (result.added) await onImported?.();

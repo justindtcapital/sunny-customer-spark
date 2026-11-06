@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import type { AsanaEvent } from "@/lib/types";
 import { fetchAsanaEvents } from "@/utils/asana.functions";
 import { fetchAppEvents } from "@/utils/sheets.functions";
+import { fetchPlannerFn } from "@/utils/event-planner.functions";
 
 interface EventPickerProps {
   value: string;
@@ -38,7 +39,9 @@ function mergeEventCatalogs(asana: AsanaEvent[], app: AsanaEvent[]): AsanaEvent[
   // App Events first so in-app catalog wins on name collisions, then fill from Asana.
   for (const e of app) {
     const key = e.name.trim().toLowerCase();
-    if (key) byName.set(key, e);
+    if (!key) continue;
+    const have = byName.get(key);
+    byName.set(key, have && !e.gid.startsWith("planner:") ? have : { ...have, ...e, portcos: [...new Set([...(have?.portcos || []), ...e.portcos])] });
   }
   for (const e of asana) {
     const key = e.name.trim().toLowerCase();
@@ -54,6 +57,13 @@ function mergeEventCatalogs(asana: AsanaEvent[], app: AsanaEvent[]): AsanaEvent[
   return [...byName.values()];
 }
 
+/** Planner event URID for a picked name, if it is an Event Planner event. */
+export async function plannerUridFor(name: string): Promise<string> {
+  const key = name.trim().toLowerCase();
+  const e = (await loadEvents()).find((x) => x.name.trim().toLowerCase() === key && x.gid.startsWith("planner:"));
+  return e ? e.gid.slice("planner:".length) : "";
+}
+
 /** Shared Asana + in-app event catalog (cached per session). */
 export async function loadEvents(): Promise<AsanaEvent[]> {
 
@@ -62,9 +72,15 @@ export async function loadEvents(): Promise<AsanaEvent[]> {
   inflight = Promise.all([
     fetchAsanaEvents().catch((): AsanaEvent[] => []),
     fetchAppEvents().catch((): AsanaEvent[] => []),
+    fetchPlannerFn().then((r) => r.events).catch(() => []),
   ])
-    .then(([asana, app]) => {
-      cachedEvents = mergeEventCatalogs(asana, app);
+    .then(([asana, app, planner]) => {
+      // Event Planner names are canonical: they win so tags match attendee lists.
+      const plannerAsEvents: AsanaEvent[] = planner.filter((e) => e.name).map((e) => ({
+        gid: `planner:${e.urid}`, name: e.name, date: e.start, portcos: e.portcos, sectors: e.sectors,
+        status: e.start && e.start < new Date().toISOString().slice(0, 10) ? "completed" : "planned", type: "conference",
+      }));
+      cachedEvents = mergeEventCatalogs(asana, [...app, ...plannerAsEvents]);
       return cachedEvents;
     })
     .finally(() => {
