@@ -50,6 +50,8 @@ export function parseCoworkBrief(raw: string): CoworkBrief {
 const STOP = new Set(["Teams", "Zoom", "Google Meet", "Critical", "PortCo", "Review", "Before", "There", "This", "The", "On", "In", "He", "She", "They", "Confirm", "Check", "Find", "Decide", "Prep", "Industry Icons", "Santa Clara", "Tech Week", "Regional Manager", "Services Sales", "Strategic Alliances", "Global Head"]);
 const MONTHS = /^(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/;
 
+const ORG_WORD = /^(Labs?|Group|Capital|Partners|Ventures|Systems|Technologies|Networks|Realty|Compute|Security|Software|Solutions|Holdings|Inc|Corp|Company|Bank|Fund|University)$/;
+
 /** Capitalized 2–3 word sequences that look like person names. */
 export function candidateNames(text: string): string[] {
   const out = new Set<string>();
@@ -57,7 +59,7 @@ export function candidateNames(text: string): string[] {
   for (const m of text.matchAll(re)) {
     const name = m[1];
     const words = name.split(/\s+/);
-    if (STOP.has(name) || words.some((w) => MONTHS.test(w) || STOP.has(w))) continue;
+    if (STOP.has(name) || words.some((w) => MONTHS.test(w) || STOP.has(w) || ORG_WORD.test(w))) continue;
     out.add(name);
   }
   return [...out];

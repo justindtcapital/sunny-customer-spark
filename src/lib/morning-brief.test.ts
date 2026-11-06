@@ -27,6 +27,7 @@ describe("morning brief", () => {
   });
   it("finds names and only links unique full-name matches", () => {
     expect(candidateNames("Sam Nagar leads, with Michael Mazza on Teams in November")).toEqual(["Sam Nagar", "Michael Mazza"]);
+    expect(candidateNames("Redesign Group Vince was introduced to Misa Labs by Vince Ippolito")).toEqual(["Vince Ippolito"]);
     const m = matchPeople(["Sam Nagar", "Jo Lee", "Julia Beech"], [
       { id: "1", name: "Sam Nagar", company: "Terragrit", email: "" },
       { id: "2", name: "Jo Lee", company: "A", email: "" }, { id: "3", name: "Jo Lee", company: "B", email: "" },
