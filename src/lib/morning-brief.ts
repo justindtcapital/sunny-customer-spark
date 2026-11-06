@@ -89,12 +89,13 @@ export function parseCoworkBrief(raw: string): CoworkBrief {
       const tags = parts.filter((p) => /^(portco|critical|network)$/i.test(p));
       const duration = parts.find((p) => /\b(min|hr|hour)/i.test(p)) || "";
       const platform = parts.find((p) => !tags.includes(p) && p !== duration) || "";
-      meetings.push({ time: h[1].toUpperCase().replace(/\s+/g, " "), title: h[2], tags, platform, duration, text: "" });
+      meetings.push({ time: h[1].toUpperCase().replace(/\s+/g, " "), title: h[2], tags, platform, duration, text: "", attendees: [] });
       section = "meeting";
       continue;
     }
     if (/^gaps:?$/i.test(line)) { section = "gaps"; continue; }
     if (/^top priorities:?$/i.test(line)) { section = "priorities"; continue; }
+    if (section === "meeting" && /^attendees?\s*:/i.test(line)) { const m = meetings[meetings.length - 1]; m.attendees.push(...parseAttendees(line)); continue; }
     if (section === "meeting") { const m = meetings[meetings.length - 1]; m.text = m.text ? `${m.text} ${line}` : line; }
     else if (section === "gaps") gaps.push(line);
     else if (section === "priorities") priorities.push(line.replace(/^\d+[.)]\s*/, ""));
@@ -173,15 +174,30 @@ export function stripScheduling(text: string): string {
 export interface PersonRecord { id: string; name: string; company: string; email: string; title?: string; temperature?: string; lastContact?: string; urid?: string }
 export interface PersonMatch { name: string; contact?: PersonRecord; possible?: PersonRecord[]; teammate?: boolean }
 
-/** Unique full-name match only; several same-name rows stay "possible". */
-export function matchPeople(names: string[], contacts: PersonRecord[], isTeammate: (name: string) => boolean): PersonMatch[] {
+/**
+ * Email first (Cowork's address for that person), then unique full-name match;
+ * several same-name rows, or one nickname-compatible row ("Matthew" ↔ "Matt"), stay "possible".
+ */
+export function matchPeople(names: string[], contacts: PersonRecord[], isTeammate: (name: string) => boolean, emails: Record<string, string> = {}): PersonMatch[] {
   const byName = new Map<string, PersonRecord[]>();
-  for (const c of contacts) { const k = norm(c.name); if (k) byName.set(k, [...(byName.get(k) || []), c]); }
+  const byEmail = new Map<string, PersonRecord[]>();
+  for (const c of contacts) {
+    const k = norm(c.name); if (k) byName.set(k, [...(byName.get(k) || []), c]);
+    const e = (c.email || "").trim().toLowerCase(); if (e) byEmail.set(e, [...(byEmail.get(e) || []), c]);
+  }
   return names.map((name) => {
     if (isTeammate(name)) return { name, teammate: true };
+    const email = emails[norm(name)];
+    if (email) {
+      const hits = byEmail.get(email) || [];
+      if (hits.length === 1) return { name, contact: hits[0] };
+      if (hits.length > 1) return { name, possible: hits };
+    }
     const hits = byName.get(norm(name)) || [];
     if (hits.length === 1) return { name, contact: hits[0] };
     if (hits.length > 1) return { name, possible: hits };
+    const nick = contacts.filter((c) => sameNickname(c.name, name));
+    if (nick.length) return { name, possible: nick };
     return { name };
   });
 }
