@@ -12,10 +12,66 @@ export interface CoworkMeeting {
   platform: string;
   duration: string;
   text: string;
+  /** People from Cowork's "Attendees:" line, with any email it supplied. */
+  attendees: CoworkAttendee[];
 }
+export interface CoworkAttendee { name: string; role: string; email: string }
 export interface CoworkBrief { meetings: CoworkMeeting[]; gaps: string; priorities: string[]; intro: string }
 
 const HEADER = /^(\d{1,2}:\d{2}\s*[AP]M(?:\s*[A-Z]{1,4})?)\s*[:–-]\s*(.+?)\s*(?:\(([^)]*)\))?\s*$/i;
+const EMAIL_SRC = "[a-z0-9._%+'-]+@[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.[a-z]{2,}";
+const EMAIL_ONE = new RegExp(EMAIL_SRC, "i");
+const EMAIL_ALL = new RegExp(EMAIL_SRC, "gi");
+
+/** Split on commas/semicolons that sit outside (), <> and []. */
+function splitTopLevel(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0, cur = "";
+  for (const ch of s) {
+    if ("(<[".includes(ch)) depth++;
+    else if (")>]".includes(ch)) depth = Math.max(0, depth - 1);
+    if (depth === 0 && (ch === "," || ch === ";")) { out.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map((p) => p.trim()).filter(Boolean);
+}
+
+const titleCase = (s: string) => s.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+/** "matt.darcy@x.com" → "Matt Darcy" when Cowork gives only an address. */
+export function nameFromEmail(email: string): string {
+  const local = email.split("@")[0].replace(/\d+/g, "");
+  const parts = local.split(/[._-]+/).filter((p) => p.length > 1);
+  return parts.length >= 2 ? titleCase(parts.join(" ").toLowerCase()) : "";
+}
+
+/** Parse "Attendees: Matthew Darcy (Director, Strategic Alliances) <matt@x.com>, Vahan Petrosyan (role unknown)". */
+export function parseAttendees(line: string): CoworkAttendee[] {
+  const body = line.replace(/^attendees?\s*:\s*/i, "");
+  return splitTopLevel(body).map((part) => {
+    const email = (part.match(EMAIL_ONE)?.[0] || "").toLowerCase().replace(/^mailto:/, "");
+    const rest = part.replace(/mailto:/gi, "").replace(EMAIL_ALL, " ").replace(/<\s*>|\[\s*\]/g, " ");
+    const roleRaw = (rest.match(/\(([^)]*)\)/)?.[1] || "").replace(/^[\s,;:–—-]+|[\s,;:–—-]+$/g, "").trim();
+    const role = /^(role )?unknown$|^n\/?a$/i.test(roleRaw) ? "" : roleRaw;
+    let name = rest.replace(/\([^)]*\)/g, " ").replace(/^\s*and\s+/i, "").replace(/[<>[\]"“”]/g, " ").replace(/[\s,;:–—-]+$/g, "").replace(/\s+/g, " ").trim();
+    if (!name && email) name = nameFromEmail(email);
+    return { name, role, email };
+  }).filter((a) => a.name.length >= 3 && /[A-Za-z]/.test(a.name));
+}
+
+/** "Name <email>" / "Name (email)" pairs written anywhere in Cowork's prose. */
+export function emailsInText(text: string): CoworkAttendee[] {
+  const re = new RegExp(`([A-Z][a-z'’-]+(?:\\s+[A-Z][a-z'’-]+){1,2})\\s*(?:\\(([^)@]{2,80})\\)\\s*)?[<(\\[]\\s*(?:mailto:)?(${EMAIL_SRC})\\s*[>)\\]]`, "g");
+  return [...text.matchAll(re)].map((m) => ({ name: m[1], role: (m[2] || "").trim(), email: m[3].toLowerCase() }));
+}
+
+/** "Matt Darcy" vs "Matthew Darcy": same surname and one first name is a 3+ letter prefix of the other. */
+export function sameNickname(a: string, b: string): boolean {
+  const pa = norm(a).split(" "), pb = norm(b).split(" ");
+  if (pa.length < 2 || pb.length < 2 || pa[pa.length - 1] !== pb[pb.length - 1]) return false;
+  const [x, y] = [pa[0], pb[0]].sort((p, q) => p.length - q.length);
+  return x.length >= 3 && y.startsWith(x);
+}
 
 /** Split Cowork's plain-text email into meetings, gaps and priorities. */
 export function parseCoworkBrief(raw: string): CoworkBrief {
