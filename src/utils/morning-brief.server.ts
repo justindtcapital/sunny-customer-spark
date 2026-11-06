@@ -276,10 +276,13 @@ export function renderBriefHtml(b: MorningBrief, appUrl: string): string {
   const meetings = b.meetings.map((m) => {
     const pc = m.portcos.map((p) => `<div style="background:#f3f6fa;border-radius:6px;padding:8px 10px;margin:6px 0;font-size:12px"><b>${esc(p.name)}</b> ${p.badge ? `[${p.badge}]` : ""} ${esc(p.stage)} · Ownership ${esc(p.ownership)} · Invested ${esc(p.investment)} · Round ${esc(p.round)} · Investors ${esc(p.investors)}${p.workstreams.length ? `<br/>Workstreams: ${p.workstreams.map((w) => `${esc(w.name)} (${esc(w.status)}${w.priority ? `, ${esc(w.priority)}` : ""})`).join("; ")}` : ""}</div>`).join("");
     const ppl = m.people.map((p) => `${esc(p.name)}${p.company ? `, ${esc(p.company)}` : ""}${p.status === "matched" ? ` — ${esc(p.temperature || "")}${p.lastContact ? `, last touch ${esc(p.lastContact.slice(0, 10))}` : ""}` : p.status === "possible" ? " — check: possible match" : " — not in Venture Pulse"}`);
+    const co = m.company;
+    const coHtml = co ? `<div style="background:#f3f6fa;border-radius:6px;padding:8px 10px;margin:6px 0;font-size:12px"><b>${esc(co.name)}</b>${co.domain ? ` · <a href="https://${esc(co.domain)}">${esc(co.domain)}</a>` : ""}${co.about ? `<br/>${esc(co.about)}` : ""}${co.totalContacts ? `<br/><span style="color:#667">In Venture Pulse: ${co.totalContacts} contact${co.totalContacts === 1 ? "" : "s"} — ${esc(co.contacts.map((c) => c.name).join(", "))}</span>` : `<br/><span style="color:#667">No contacts at ${esc(co.name)} in Venture Pulse yet.</span>`}</div>` : "";
+    const mentioned = m.mentionedPortcos?.length ? `<div style="font-size:11px;color:#667">PortCos mentioned: ${m.mentionedPortcos.map((p) => `${esc(p.name)}${p.badge ? ` [${p.badge}]` : ""}`).join(", ")}</div>` : "";
     return `<div style="border-top:1px solid #e3e8ef;padding-top:10px;margin-top:12px">
 <div style="font-size:14px;font-weight:bold">${esc(m.time)} · ${esc(m.title)}</div>
 <div style="font-size:11px;color:#667">${esc([...m.tags, m.platform, m.duration].filter(Boolean).join(" · "))}</div>
-${pc}
+${coHtml}${pc}${mentioned}
 ${m.summary ? `<p style="margin:6px 0">${esc(m.summary)}</p>` : ""}
 <div style="font-size:12px;color:#445"><b>From your Outlook:</b> ${esc(m.cowork)}</div>
 ${ppl.length ? `<div style="font-size:12px;margin-top:6px"><b>From Venture Pulse — people</b>${list(ppl)}</div>` : ""}
