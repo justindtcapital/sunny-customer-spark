@@ -1,7 +1,7 @@
 // Pure pre-flight checks for contact imports: classify each file row before any
 // write so people can fix or skip problems on screen, not mid-save.
 export type PreflightStatus = "ready" | "existing" | "attention" | "skipped";
-export interface PreflightFix { name?: string; email?: string; phone?: string; skip?: boolean }
+export interface PreflightFix { name?: string; email?: string; phone?: string; company?: string; skip?: boolean }
 export interface PreflightItem<T> { index: number; row: T; status: PreflightStatus; reason: string }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,7 +32,7 @@ export function classifyImportRows<T extends { name: string; email: string; phon
   const seen = new Set<string>();
   return rows.map((original, index) => {
     const fix = fixes[index] || {};
-    const row = { ...original, ...(fix.name !== undefined ? { name: fix.name.trim() } : {}), ...(fix.email !== undefined ? { email: fix.email.trim().toLowerCase() } : {}), ...(fix.phone !== undefined ? { phone: fix.phone } : {}) } as T;
+    const row = { ...original, ...(fix.name !== undefined ? { name: fix.name.trim() } : {}), ...(fix.email !== undefined ? { email: fix.email.trim().toLowerCase() } : {}), ...(fix.phone !== undefined ? { phone: fix.phone } : {}), ...(fix.company !== undefined ? { company: fix.company.trim() } : {}) } as T;
     row.phone = normalizePhone(row.phone);
     if (fix.skip) return { index, row, status: "skipped", reason: "Skipped by you" };
     if (!row.name.trim()) return { index, row, status: "attention", reason: "Missing name" };
