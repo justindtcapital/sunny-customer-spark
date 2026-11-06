@@ -143,3 +143,8 @@
 
 - [x] Unified Contacts: Prospecting is a status flag; Targets archived; bulk moves are one write. Review 67 shared-email + 95 shifted-stage prospects in "Prospect Merge Review" tab.
 - [x] Action with V.I.C. panel (My Actions, contacts, PortCos)
+
+## Single-name contact repair (Shane's Nov 5 paste)
+- [x] Backed up and repaired 65 contacts: full names restored, first/last split, real companies from Apollo (7 personal-email people left without a company); read-back verified
+- [x] Paste contacts/targets now show an editable review table with first/last name detection
+- [x] Single-name and surname-in-Company warning on paste and CSV uploads, with one-click fix
