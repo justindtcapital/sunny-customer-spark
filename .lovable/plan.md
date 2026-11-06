@@ -14,6 +14,19 @@ Every morning shortly after Claude Cowork's 5:00 AM email lands in the Workspace
 
 Nothing is written to contacts, PortCos or actions — the brief is read-only. Suggested follow-ups appear as links to My Actions / V.I.C., never auto-created.
 
+## Brief layout (homepage and email)
+```text
+Morning Brief — date
+Today at a glance
+Top priorities (Claude's list, re-ranked with Venture Pulse facts)
+Meetings — one card each: From your Outlook / From Venture Pulse / Worth checking / Prep
+Due this week
+Anticipated follow-ups
+Active campaigns
+Next DTC events
+Gaps (Claude's + unmatched people)
+```
+
 ## Reading Claude's email (based on your sample)
 Claude's format is already consistent, so V.I.C. splits it into:
 - **Meetings** — each block starting "8:30 AM PT: Title (Tag, Platform, Length)" becomes one meeting with time, title, tag (PortCo / Critical), platform, duration, and the narrative paragraph (people, roles, email timeline, suggested prep).
