@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anticipatedFollowUps, candidateNames, emailsInText, parseAttendees, sameNickname, companyKey, firstSentences, dueThisWeek, investmentStrip, isInternalOrg, matchPeople, parseCoworkBrief, priorityBadge, splitPortcos, stripScheduling, titleCompany, weekEnd } from "./morning-brief";
+import { anticipatedFollowUps, candidateNames, emailsInText, parseAttendees, sameMeetingTime, sameNickname, companyKey, firstSentences, dueThisWeek, investmentStrip, isInternalOrg, matchPeople, parseCoworkBrief, priorityBadge, splitPortcos, stripScheduling, titleCompany, weekEnd } from "./morning-brief";
 
 const SAMPLE = `Test run of the daily brief.
 
@@ -77,6 +77,16 @@ describe("morning brief", () => {
     expect(b.meetings[0].text).toBe("He wants to discuss ISV partnerships.");
     expect(parseAttendees("Attendees: <jane.doe@acme.com>")[0]).toEqual({ name: "Jane Doe", role: "", email: "jane.doe@acme.com" });
     expect(emailsInText("Looped in Arthur Li <arthur@x.io> today.")).toEqual([{ name: "Arthur Li", role: "", email: "arthur@x.io" }]);
+  });
+  it("reads the 'New contacts to add' table at the bottom of Cowork's email", () => {
+    const b = parseCoworkBrief("12:00 PM PT: Terragrit connect (PortCo, Teams, 1 hr)\nSam leads.\n\nTop priorities\n1. Prep Terragrit.\n\nNew contacts to add\n\nFirst Name,Last Name,Email,Company,Job Title,Meeting\nSam,Nagar,sam@terragrit.com,Terragrit,,12:00 PT Terragrit connect\nVince,Ippolito,vippolito@redesign-group.com,Redesign Group,Regional Manager Services Sales,1:00 PT Vince catch-up\n\nMatt Darcy is already in your Outlook contacts, so he is not listed.");
+    expect(b.priorities).toEqual(["Prep Terragrit."]);
+    expect(b.contacts).toEqual([
+      { name: "Sam Nagar", email: "sam@terragrit.com", company: "Terragrit", title: "", meeting: "12:00 PT Terragrit connect" },
+      { name: "Vince Ippolito", email: "vippolito@redesign-group.com", company: "Redesign Group", title: "Regional Manager Services Sales", meeting: "1:00 PT Vince catch-up" },
+    ]);
+    expect(sameMeetingTime("12:00 PM PT", "12:00 PT Terragrit connect")).toBe(true);
+    expect(sameMeetingTime("1:00 PM PT", "12:00 PT Terragrit connect")).toBe(false);
   });
   it("matches by email before name and holds nicknames as possible, never new", () => {
     const contacts = [{ id: "1", name: "Matt Darcy", company: "Digital Realty", email: "matt.darcy@digitalrealty.com" }, { id: "2", name: "Ann Lee", company: "A", email: "" }];
