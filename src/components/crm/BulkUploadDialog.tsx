@@ -30,6 +30,9 @@ import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { ENGAGEMENT_SOURCES, type EngagementSource } from "@/lib/types";
 import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagement-source";
+import { classifyImportRows, type PreflightFix, type PreflightItem } from "@/lib/import-preflight";
+import { BulkRunDialog, receiptFromOutcomes, type BulkRunState } from "@/components/crm/BulkRunDialog";
+import type { BulkOutcome } from "@/lib/bulk-operation";
 
 interface BulkUploadDialogProps {
   open: boolean;
@@ -276,6 +279,9 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   // "Follow Up Flag" for just the checked people).
   const [followUpEmails, setFollowUpEmails] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [fixes, setFixes] = useState<Record<number, PreflightFix>>({});
+  const [reviewTab, setReviewTab] = useState<"attention" | "existing" | "skipped">("attention");
+  const [run, setRun] = useState<BulkRunState | null>(null);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -311,7 +317,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   // (within-file + against existing contacts). Recomputes as you remap.
   const report = useMemo(() => {
     if (!grid || grid.length < 2) {
-      return { rows: [] as ParsedRow[], skipped: 0, invalid: 0, missingRequired: 0, dataRows: 0 };
+      return { rows: [] as ParsedRow[], items: [] as PreflightItem<ParsedRow>[], skipped: 0, invalid: 0, missingRequired: 0, dataRows: 0 };
     }
     const cell = (r: string[], idx: number) => (idx >= 0 && idx < r.length ? (r[idx] || "").trim() : "");
     const all: ParsedRow[] = grid.slice(1).map((r) => ({
@@ -328,22 +334,16 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       employmentHistory: "",
     }));
 
-    const existing = new Set(existingEmails.map((e) => e.trim().toLowerCase()).filter(Boolean));
-    const seen = new Set<string>();
-    const unique: ParsedRow[] = [];
-    let dupes = 0, invalid = 0, missingRequired = 0;
-    for (const r of all) {
-      if (!r.name || !r.email) { missingRequired++; continue; }
-      if (!EMAIL_RE.test(firstEmail(r.email))) { invalid++; continue; }
-      const key = r.email.toLowerCase();
-      if (existing.has(key) || seen.has(key)) { dupes++; }
-      seen.add(key);
-      unique.push(r);
-    }
-    return { rows: unique, skipped: dupes, invalid, missingRequired, dataRows: all.length };
-  }, [grid, mapping, existingEmails]);
+    const items = classifyImportRows(all, existingEmails, fixes);
+    // Existing people are still sent: the server tags them (event/PortCo) without creating a copy.
+    const unique = items.filter(i => i.status === "ready" || i.status === "existing").map(i => i.row);
+    return { rows: unique, items, skipped: items.filter(i => i.status === "existing" || i.status === "skipped").length, invalid: 0, missingRequired: 0, dataRows: all.length };
+  }, [grid, mapping, existingEmails, fixes]);
 
   const { rows, skipped } = report;
+  const items = report.items ?? [];
+  const attention = items.filter(i => i.status === "attention");
+  const setFix = (index: number, patch: PreflightFix) => setFixes(f => ({ ...f, [index]: { ...f[index], ...patch } }));
 
   // Follow-up flags are per person, keyed by the row's primary email.
   const followUpKey = (email: string) =>

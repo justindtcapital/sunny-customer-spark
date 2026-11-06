@@ -87,6 +87,7 @@ export function BulkEditBar() {
 
   const [run, setRun] = useState<BulkRunState | null>(null);
   if (selectedIds.size === 0 && !levelResults && !run) return null;
+  if (selectedIds.size === 0 && run) return <BulkRunDialog state={run} onClose={() => setRun(null)} />;
 
   const count = selectedIds.size;
   const anyBusy = busy || deleting || changingLevel || action !== "";
