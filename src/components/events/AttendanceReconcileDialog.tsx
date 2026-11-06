@@ -123,7 +123,7 @@ export function AttendanceReconcileDialog({ open, onClose, onSaved }: { open: bo
               {by[tab].map((g) => {
                 const done = g.status === "clear" && g.alreadyLinked >= g.people.length;
                 return (
-                  <div key={g.tagName} className="px-3 py-2 text-sm">
+                  <div key={g.tagName} className="px-3 py-1.5 text-xs">
                     <div className="grid grid-cols-[24px_1.2fr_60px_1.5fr] gap-2 items-center">
                       <Checkbox
                         disabled={!g.candidates.length || done}
@@ -138,9 +138,9 @@ export function AttendanceReconcileDialog({ open, onClose, onSaved }: { open: bo
                         <EventCombo g={g} events={events} value={choice[g.tagName] || ""} onChange={(v) => setChoice((c) => ({ ...c, [g.tagName]: v }))} />
                       ) : <span className="text-xs text-muted-foreground">No planner event with this name</span>}
                     </div>
-                    <p className="mt-0.5 ml-8 text-[11px] text-muted-foreground">{batchLine(g)}</p>
+                    <p className="mt-0.5 ml-8 text-[9px] leading-tight text-muted-foreground/70">{batchLine(g)}</p>
                     {expanded === g.tagName && (
-                      <div className="mt-1 ml-8 space-y-0.5 text-xs text-muted-foreground">
+                      <div className="mt-1 ml-8 space-y-0.5 text-[10px] text-muted-foreground">
                         {(g.batches.length ? g.batches : [{ date: "", count: g.people.length }]).map((b) => (
                           <p key={b.date || "none"}><span className="font-medium text-foreground">{b.date ? fmt(b.date) : "Unknown date"}:</span> {g.people.filter((p) => !b.date || dayOf(p.added) === b.date).map((p) => p.name || p.email).join(", ")}</p>
                         ))}
