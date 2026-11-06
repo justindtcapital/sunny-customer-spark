@@ -14,11 +14,32 @@ Every morning shortly after Claude Cowork's 5:00 AM email lands in the Workspace
 
 Nothing is written to contacts, PortCos or actions — the brief is read-only. Suggested follow-ups appear as links to My Actions / V.I.C., never auto-created.
 
+## How Claude's brief and Venture Pulse context combine
+Think of it as three layers per meeting, merged in this order:
+
+```text
+1. Claude Cowork (what's happening)   -> meeting, time, attendees, likely topic, Outlook email/meeting signals
+2. Venture Pulse facts (what we know) -> matched people, PortCos, workstreams, actions, notes, events
+3. V.I.C. synthesis (so what)         -> prep points, open loops, suggested asks
+```
+
+**Matching:** attendee emails/names from Claude are matched to Contacts (and teammates via the roster); company names are mapped to official PortCo/Partner names. Unmatched people are listed as "Not in Venture Pulse" — never guessed.
+
+**What gets pulled per meeting (fixed, short windows so the brief stays readable):**
+- **Actions:** your open follow-ups with these people/companies (overdue first, then due in 7 days), plus anything completed in the last 14 days.
+- **Workstreams:** each active workstream for the PortCo — status, priority, owner, last update date and a one-line latest update.
+- **Recent notes:** last 3 reviewed meeting notes / Granola notes for the company or people (last 60 days), each reduced to 1–2 sentences + any agreed next steps.
+- **Relationship history:** relationship level, last touch date and channel, campaigns they're in, events attended in the last 12 months.
+- **Upcoming:** Events DB events in the next 30 days involving the company or people.
+
+**Merge rules:**
+- Claude's points are kept and labelled "From your Outlook"; Venture Pulse additions are labelled "From Venture Pulse" so you always know the source.
+- Where both say the same thing, it's shown once. Where they disagree (e.g. Claude says "new deal discussion" but the workstream is Back Burner), V.I.C. flags it as "Worth checking".
+- Each meeting ends with 2–4 prep points written by V.I.C. using only the facts above (no invented facts), each linking to its source record.
+- A "Today at a glance" top section: number of meetings, PortCos involved, overdue actions touching today's attendees.
+
 ## Things to confirm while building
-- **Sending email:** today the app only *reads* the Workspace inbox. Two options to send the brief to dell.com:
-  - (a) Reconnect the Workspace mailbox with "send" permission and send from it (simplest; looks like it's from you), or
-  - (b) Set up app emails on a dt-capital.net sending subdomain.
-  I'll default to (a) and you'll see a one-time reconnect prompt.
+- **Sending email:** confirmed — the Workspace mailbox connection gets reconnected with "send" permission (one-time Google prompt on My Actions where the mailbox is connected), and the brief is sent from it to your dell.com address.
 - **Corporate filtering risk:** Dell mail filters may quarantine an external auto-email; the homepage copy is always there as backup.
 - **Timing:** runs at 5:30 AM Pacific, with retries at 6:00 and 6:30 if Cowork's email hasn't arrived. A "Rebuild brief" button on the panel lets you run it on demand.
 - **Format from Cowork:** works best if Cowork keeps a consistent per-meeting structure (I'll suggest a short template you can paste into your Cowork instructions). Free-form text still works; AI extracts it.
