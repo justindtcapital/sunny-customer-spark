@@ -30,6 +30,9 @@ import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { ENGAGEMENT_SOURCES, type EngagementSource } from "@/lib/types";
 import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagement-source";
+import { classifyImportRows, type PreflightFix, type PreflightItem } from "@/lib/import-preflight";
+import { BulkRunDialog, receiptFromOutcomes, type BulkRunState } from "@/components/crm/BulkRunDialog";
+import type { BulkOutcome } from "@/lib/bulk-operation";
 
 interface BulkUploadDialogProps {
   open: boolean;
@@ -276,6 +279,9 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   // "Follow Up Flag" for just the checked people).
   const [followUpEmails, setFollowUpEmails] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [fixes, setFixes] = useState<Record<number, PreflightFix>>({});
+  const [reviewTab, setReviewTab] = useState<"attention" | "existing" | "skipped">("attention");
+  const [run, setRun] = useState<BulkRunState | null>(null);
   const [history, setHistory] = useState<ImportHistoryRow[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -300,6 +306,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       return;
     }
     setGrid(g);
+    setFixes({});
     setMapping(autoMap(g[0]));
   };
 
@@ -311,7 +318,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   // (within-file + against existing contacts). Recomputes as you remap.
   const report = useMemo(() => {
     if (!grid || grid.length < 2) {
-      return { rows: [] as ParsedRow[], skipped: 0, invalid: 0, missingRequired: 0, dataRows: 0 };
+      return { rows: [] as ParsedRow[], items: [] as PreflightItem<ParsedRow>[], skipped: 0, invalid: 0, missingRequired: 0, dataRows: 0 };
     }
     const cell = (r: string[], idx: number) => (idx >= 0 && idx < r.length ? (r[idx] || "").trim() : "");
     const all: ParsedRow[] = grid.slice(1).map((r) => ({
@@ -328,22 +335,16 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       employmentHistory: "",
     }));
 
-    const existing = new Set(existingEmails.map((e) => e.trim().toLowerCase()).filter(Boolean));
-    const seen = new Set<string>();
-    const unique: ParsedRow[] = [];
-    let dupes = 0, invalid = 0, missingRequired = 0;
-    for (const r of all) {
-      if (!r.name || !r.email) { missingRequired++; continue; }
-      if (!EMAIL_RE.test(firstEmail(r.email))) { invalid++; continue; }
-      const key = r.email.toLowerCase();
-      if (existing.has(key) || seen.has(key)) { dupes++; }
-      seen.add(key);
-      unique.push(r);
-    }
-    return { rows: unique, skipped: dupes, invalid, missingRequired, dataRows: all.length };
-  }, [grid, mapping, existingEmails]);
+    const items = classifyImportRows(all, existingEmails, fixes);
+    // Existing people are still sent: the server tags them (event/PortCo) without creating a copy.
+    const unique = items.filter(i => i.status === "ready" || i.status === "existing").map(i => i.row);
+    return { rows: unique, items, skipped: items.filter(i => i.status === "existing" || i.status === "skipped").length, invalid: 0, missingRequired: 0, dataRows: all.length };
+  }, [grid, mapping, existingEmails, fixes]);
 
   const { rows, skipped } = report;
+  const items = report.items ?? [];
+  const attention = items.filter(i => i.status === "attention");
+  const setFix = (index: number, patch: PreflightFix) => setFixes(f => ({ ...f, [index]: { ...f[index], ...patch } }));
 
   // Follow-up flags are per person, keyed by the row's primary email.
   const followUpKey = (email: string) =>
@@ -366,6 +367,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setSource("");
     setEnrichOnImport(true);
     setFollowUpEmails(new Set());
+    setFixes({});
     setBusy(false);
   };
 
@@ -382,24 +384,34 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const submit = async () => {
     if (!rows.length) return;
     setBusy(true);
+    const left = attention.length;
+    setRun({ title: `Importing ${rows.length} contact${rows.length === 1 ? "" : "s"}`, step: "validate", total: enrichOnImport ? rows.length : 0, processed: 0 });
     try {
       const prepared = [];
       for (const original of rows) {
         const enriched = enrichOnImport ? await enrichRow(original) : { row: original };
+        setRun(r => r && { ...r, processed: prepared.length + 1 });
         const r = enriched.row;
         prepared.push({ name:r.name,email:r.email,role:r.title,company:r.company,phone:r.phone,location:r.location,prime:r.prime,sector:r.sector,linkedin:r.linkedin,headline:r.headline,employmentHistory:r.employmentHistory,source:"CSV Import",followUp:Boolean(eventName.trim()) || isFlaggedForFollowUp(r.email) });
       }
+      setRun(r => r && { ...r, step: "apply", total: 0 });
       const result = await importContactsBatch({ data: { contacts:prepared,event:eventName.trim(),portcos:portcoNames,portcoSources:portcoSources,sourceNote:source.trim() } });
-      const message = `${result.added} imported · ${result.duplicates} exact duplicates · ${result.review} need review in Admin`;
-      if (result.review) toast.warning(message); else toast.success(message);
+      setRun(r => r && { ...r, step: "verify" });
+      const outcomes = ((result as { outcomes?: BulkOutcome[] }).outcomes) || [];
+      const receipt = outcomes.length ? receiptFromOutcomes(outcomes, "Imported")
+        : { doneLabel: "Imported", done: [{ label: `${result.added} new contacts` }], skipped: [{ label: `${result.duplicates} already in contacts` }], problems: result.review ? [{ label: `${result.review} need review in Admin` }] : [] };
+      if (left) receipt.skipped.push({ label: `${left} row${left === 1 ? "" : "s"} left unfixed in the file`, reason: "not imported" });
+      setRun(r => r && { ...r, step: "done", receipt });
       if (result.added) await onImported?.();
       reset(); onOpenChange(false);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Import failed; review Admin before retrying."); }
+    } catch (e) { setRun(r => r && { ...r, error: e instanceof Error ? e.message : "Import failed; review Admin before retrying." }); }
     finally { setBusy(false); }
   };
 
 
   return (
+    <>
+    <BulkRunDialog state={run} onClose={() => setRun(null)} />
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] grid-rows-[auto_1fr_auto]">
         <DialogHeader>
@@ -469,7 +481,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                 )}
               </div>
 
-              {rows.length > 0 ? (
+              {items.length > 0 ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
@@ -538,16 +550,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                   </label>
 
                   {/* Pre-flight validation report */}
-                  <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px]">
-                    <div className="font-semibold text-foreground mb-1">Validation report</div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-muted-foreground">
-                      <span>Data rows in file</span><span className="text-right tabular-nums">{report.dataRows}</span>
-                      <span className="text-emerald-600 font-medium">Ready to import</span><span className="text-right tabular-nums text-emerald-600 font-medium">{rows.length}</span>
-                      {skipped > 0 && (<><span>Duplicates skipped</span><span className="text-right tabular-nums">{skipped}</span></>)}
-                      {report.invalid > 0 && (<><span className="text-amber-600">Invalid emails skipped</span><span className="text-right tabular-nums text-amber-600">{report.invalid}</span></>)}
-                      {report.missingRequired > 0 && (<><span className="text-amber-600">Missing name/email</span><span className="text-right tabular-nums text-amber-600">{report.missingRequired}</span></>)}
-                    </div>
-                  </div>
+                  <PreflightReview items={items} tab={reviewTab} setTab={setReviewTab} setFix={setFix} dataRows={report.dataRows} />
 
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -666,5 +669,59 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
+  );
+}
+
+const TONE: Record<string, string> = { ready: "text-primary", existing: "text-muted-foreground", skipped: "text-muted-foreground", attention: "text-destructive" };
+
+// Stage 1: everything that won't import cleanly is listed by name with the
+// reason, and can be fixed or skipped here before anything is saved.
+function PreflightReview({ items, tab, setTab, setFix, dataRows }: {
+  items: PreflightItem<ParsedRow>[]; tab: "attention" | "existing" | "skipped";
+  setTab: (t: "attention" | "existing" | "skipped") => void; setFix: (i: number, f: PreflightFix) => void; dataRows: number;
+}) {
+  const count = (s: string) => items.filter(i => i.status === s).length;
+  const shown = items.filter(i => i.status === tab);
+  const tabs: { key: "attention" | "existing" | "skipped"; label: string }[] = [
+    { key: "attention", label: "Needs attention" }, { key: "existing", label: "Already in contacts" }, { key: "skipped", label: "Skipped" },
+  ];
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <span className="font-semibold text-foreground">Pre-flight check · {dataRows} rows</span>
+        <span className={TONE.ready + " font-medium"}>{count("ready")} new, ready</span>
+        <span className={TONE.existing}>{count("existing")} already in contacts</span>
+        <span className={TONE.attention}>{count("attention")} need attention</span>
+        <span className={TONE.skipped}>{count("skipped")} skipped</span>
+      </div>
+      <div className="flex gap-1">
+        {tabs.map(t => (
+          <Button key={t.key} type="button" size="sm" variant={tab === t.key ? "default" : "outline"} className="h-6 px-2 text-[11px]" onClick={() => setTab(t.key)}>
+            {t.label} ({count(t.key)})
+          </Button>
+        ))}
+      </div>
+      <div className="max-h-40 overflow-y-auto space-y-1">
+        {shown.length === 0 && <p className="text-muted-foreground">Nothing here.</p>}
+        {shown.map(i => (
+          <div key={i.index} className="flex flex-wrap items-center gap-2 border-t border-border pt-1">
+            <span className="w-8 text-muted-foreground tabular-nums">#{i.index + 2}</span>
+            {i.status === "attention" ? <>
+              <Input className="h-7 w-32 text-[11px]" defaultValue={i.row.name} placeholder="Name" aria-label="Name" onBlur={e => setFix(i.index, { name: e.target.value })} />
+              <Input className="h-7 w-48 text-[11px]" defaultValue={i.row.email} placeholder="Email" aria-label="Email" onBlur={e => setFix(i.index, { email: e.target.value })} />
+              <span className={TONE.attention}>{i.reason}</span>
+              <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px] ml-auto" onClick={() => setFix(i.index, { skip: true })}>Skip</Button>
+            </> : <>
+              <span className="font-medium text-foreground">{i.row.name || "(no name)"}</span>
+              <span className="text-muted-foreground">{i.row.email}</span>
+              <span className="text-muted-foreground">— {i.reason}</span>
+              {i.reason === "Skipped by you" && <Button type="button" size="sm" variant="ghost" className="h-6 px-2 text-[11px] ml-auto" onClick={() => setFix(i.index, { skip: false })}>Undo</Button>}
+            </>}
+          </div>
+        ))}
+      </div>
+      {count("attention") > 0 && <p className="text-muted-foreground">Fix a field and click away to re-check it, or Skip. Rows still needing attention won't be imported.</p>}
+    </div>
   );
 }
