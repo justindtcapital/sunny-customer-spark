@@ -35,6 +35,8 @@ import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagemen
 import { classifyImportRows, type PreflightFix, type PreflightItem } from "@/lib/import-preflight";
 import { BulkRunDialog, receiptFromOutcomes, type BulkRunState } from "@/components/crm/BulkRunDialog";
 import type { BulkOutcome } from "@/lib/bulk-operation";
+import { singleNameReport } from "@/lib/paste-parse";
+import { AlertTriangle } from "lucide-react";
 
 interface BulkUploadDialogProps {
   open: boolean;
@@ -368,6 +370,15 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const items = report.items ?? [];
   const attention = items.filter(i => i.status === "attention");
   const setFix = (index: number, patch: PreflightFix) => setFixes(f => ({ ...f, [index]: { ...f[index], ...patch } }));
+  // Single-name warning: one-word names, and surnames that landed in Company.
+  const importable = items.filter(i => i.status === "ready" || i.status === "existing");
+  const nameReport = singleNameReport(importable.map(i => i.row));
+  const surnameItems = nameReport.surnameInCompany.map(k => importable[k]);
+  const moveSurnames = () => setFixes(f => {
+    const next = { ...f };
+    for (const i of surnameItems) next[i.index] = { ...next[i.index], name: `${i.row.name.trim()} ${i.row.company.trim()}`, company: "" };
+    return next;
+  });
 
   // Follow-up flags are per person, keyed by the row's primary email.
   const followUpKey = (email: string) =>
@@ -591,6 +602,25 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                       <span className="text-muted-foreground/70"> On by default — uncheck to skip for large/quota-sensitive imports.</span>
                     </span>
                   </label>
+
+                  {nameReport.singles.length > 0 && (
+                    <div role="alert" className="rounded border border-warning/40 bg-warning/10 px-2.5 py-2 text-[11px] text-foreground space-y-1.5">
+                      <div className="flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-warning" />
+                        <span>
+                          <span className="font-semibold">{nameReport.singles.length} of {importable.length} {nameReport.singles.length === 1 ? "people has" : "people have"} only one name.</span>
+                          {surnameItems.length > 0
+                            ? ` ${surnameItems.length} look like their last name was put in Company (e.g. ${surnameItems.slice(0, 3).map(i => `${i.row.name} / ${i.row.company}`).join(", ")}). Check the Last name and Company mapping above.`
+                            : mapping.lastName === NO_COLUMN && mapping.name === NO_COLUMN ? " Map a Last name column above if the file has one." : " Check the name mapping above if that's unexpected."}
+                        </span>
+                      </div>
+                      {surnameItems.length > 0 && (
+                        <Button type="button" size="sm" variant="outline" className="h-6 px-2 text-[11px]" onClick={moveSurnames}>
+                          Move Company into last name for {surnameItems.length}
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Pre-flight validation report */}
                   <PreflightReview items={items} tab={reviewTab} setTab={setReviewTab} setFix={setFix} dataRows={report.dataRows} />

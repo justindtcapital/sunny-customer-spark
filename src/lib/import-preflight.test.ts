@@ -52,3 +52,12 @@ describe("name + company identity", () => {
     expect(suppliedFieldsMatch({ phone: "+44 20 7946 0000" }, { phone: "442079460000" })).toBe(true);
   });
 });
+
+describe("company fix", () => {
+  it("moves a surname out of Company when the reviewer fixes it", async () => {
+    const { classifyImportRows } = await import("./import-preflight");
+    const [item] = classifyImportRows([{ name: "Anu", email: "anu@afterdata.ai", phone: "", company: "Oladele" }], [], { 0: { name: "Anu Oladele", company: "" } });
+    expect(item.row).toMatchObject({ name: "Anu Oladele", company: "" });
+    expect(item.status).toBe("ready");
+  });
+});
