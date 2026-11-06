@@ -32,9 +32,9 @@ describe("import pre-flight", () => {
     const [item] = classifyImportRows([{ name: "A", email: "", phone: "", linkedin: "https://linkedin.com/in/a" }], [], {}, { emailOptional: true });
     expect(item.status).toBe("ready");
   });
-  it("network imports still require an email", () => {
+  it("network imports accept LinkedIn without an email", () => {
     const [item] = classifyImportRows([{ name: "A", email: "", phone: "", linkedin: "https://linkedin.com/in/a" }], []);
-    expect(item.status).toBe("attention");
+    expect(item.status).toBe("ready");
   });
 });
 
