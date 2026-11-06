@@ -174,7 +174,7 @@ function MeetingCard({ m, added, onAdd, websites }: { m: BriefMeeting; added: Se
             <Label icon={ListChecks}>Open actions</Label>
             {m.actions.map((a, i) => <Item key={a.id || i} title={a.summary} meta={a.due ? <span className={`shrink-0 text-[10px] ${a.overdue ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{a.overdue ? "overdue " : "due "}{a.due}</span> : null}>
               <p>{[a.person, a.company, a.source].filter(Boolean).join(" · ") || "Follow-up"}</p>
-              <Link to="/my-actions" search={{ tab: "actions", fu: a.id }} className={openLink}>Open in My Actions<ArrowRight className="h-3 w-3" /></Link>
+              <Link to="/my-actions" search={a.id ? { tab: "actions", fu: a.id } : { tab: "actions" }} className={openLink}>Open in My Actions<ArrowRight className="h-3 w-3" /></Link>
             </Item>)}
           </div>}
           {related.length > 0 && <div>
