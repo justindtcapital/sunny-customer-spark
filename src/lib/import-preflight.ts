@@ -24,8 +24,9 @@ export function emailProblem(email: string): string {
   return "";
 }
 
-export function classifyImportRows<T extends { name: string; email: string; phone: string }>(
+export function classifyImportRows<T extends { name: string; email: string; phone: string; linkedin?: string }>(
   rows: T[], existingEmails: Iterable<string>, fixes: Record<number, PreflightFix> = {},
+  opts: { emailOptional?: boolean } = {},
 ): PreflightItem<T>[] {
   const existing = new Set([...existingEmails].map(e => e.trim().toLowerCase()).filter(Boolean));
   const seen = new Set<string>();
@@ -35,8 +36,11 @@ export function classifyImportRows<T extends { name: string; email: string; phon
     row.phone = normalizePhone(row.phone);
     if (fix.skip) return { index, row, status: "skipped", reason: "Skipped by you" };
     if (!row.name.trim()) return { index, row, status: "attention", reason: "Missing name" };
-    const problem = emailProblem(row.email);
-    if (problem) return { index, row, status: "attention", reason: problem };
+    // Prospects may be LinkedIn-only; a typed-but-broken email is still flagged.
+    const linkedinOnly = opts.emailOptional && !row.email.trim() && !!row.linkedin?.trim();
+    const problem = linkedinOnly ? "" : emailProblem(row.email);
+    if (problem) return { index, row, status: "attention", reason: opts.emailOptional && !row.email.trim() ? "Needs an email or LinkedIn URL" : problem };
+    if (linkedinOnly) return { index, row, status: "ready", reason: "" };
     const key = firstEmail(row.email).toLowerCase();
     if (seen.has(key)) return { index, row, status: "skipped", reason: "Same email appears earlier in this file" };
     seen.add(key);
