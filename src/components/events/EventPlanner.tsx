@@ -18,6 +18,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { eventReferenceNames } from "@/lib/event-cleanup";
@@ -366,7 +368,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
       />
       <EventForm
         initial={editing}
-        options={options}
+        options={{ ...options, officialPortcos: data?.officialPortcos ?? [] }}
         onClose={() => setEditing(null)}
         onSaved={(e) => { setEditing(null); if (e) setSelected(e); refresh(); }}
       />
@@ -706,12 +708,60 @@ function LinkOut({ href, label }: { href: string; label: string }) {
   );
 }
 
+/** PortCo tags come only from the official Portfolio list; legacy unmatched tags show flagged until removed. */
+function PortcoPicker({ value, official, onChange }: { value: string[]; official: string[]; onChange: (v: string[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const lower = new Set(official.map((o) => o.toLowerCase()));
+  const has = (n: string) => value.some((v) => v.toLowerCase() === n.toLowerCase());
+  const toggle = (n: string) => onChange(has(n) ? value.filter((v) => v.toLowerCase() !== n.toLowerCase()) : [...value, n]);
+  return (
+    <div className="space-y-1.5">
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {value.map((v) => {
+            const unofficial = official.length > 0 && !lower.has(v.toLowerCase());
+            return (
+              <Badge key={v} variant={unofficial ? "outline" : "secondary"} className={cn("gap-1 text-[11px]", unofficial && "border-destructive text-destructive")}
+                title={unofficial ? "Not in the Portfolio list — remove it or pick the official company" : undefined}>
+                {v}
+                <button type="button" aria-label={`Remove ${v}`} className="opacity-60 hover:opacity-100" onClick={() => toggle(v)}>×</button>
+              </Badge>
+            );
+          })}
+        </div>
+      )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="w-full justify-start text-xs font-normal text-muted-foreground">
+            {official.length ? "Add PortCo…" : "Portfolio list unavailable"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search PortCos…" className="text-xs" />
+            <CommandList>
+              <CommandEmpty>No PortCo with that name</CommandEmpty>
+              <CommandGroup>
+                {official.map((o) => (
+                  <CommandItem key={o} value={o} onSelect={() => toggle(o)} className="text-xs">
+                    <CheckCircle2 className={cn("h-3.5 w-3.5 mr-1.5", has(o) ? "opacity-100 text-primary" : "opacity-0")} />{o}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 // ── Add / edit form ────────────────────────────────────────────
 function EventForm({
   initial, options, onClose, onSaved,
 }: {
   initial: Partial<PlannerEvent> | null;
-  options: { portcos: string[]; partners: string[]; owners: string[] };
+  options: { portcos: string[]; partners: string[]; owners: string[]; officialPortcos: string[] };
   onClose: () => void;
   onSaved: (e: PlannerEvent | null) => void;
 }) {
@@ -814,7 +864,7 @@ function EventForm({
             <Input value={list("sectors")} onChange={(e) => set("sectors", splitList(e.target.value))} />
           </L>
           <L label="Owner / DTC coverage"><Input list="vp-owners" value={form.owner || ""} onChange={(e) => set("owner", e.target.value)} /></L>
-          <L label="PortCos (; separated)"><Input list="vp-portcos" value={list("portcos")} onChange={(e) => set("portcos", splitList(e.target.value))} /></L>
+          <L label="PortCos" hint="Pick from the official Portfolio list"><PortcoPicker value={form.portcos || []} official={options.officialPortcos} onChange={(v) => set("portcos", v)} /></L>
           <L label="Partners (; separated)"><Input list="vp-partners" value={list("partners")} onChange={(e) => set("partners", splitList(e.target.value))} /></L>
           <L label="Network attendees (count)"><Input type="number" value={form.networkCount || ""} onChange={(e) => set("networkCount", Number(e.target.value) || 0)} /></L>
           <L label="Event contact"><Input value={form.eventContact || ""} onChange={(e) => set("eventContact", e.target.value)} /></L>
@@ -823,7 +873,6 @@ function EventForm({
           <L label="Notes" full><Textarea rows={3} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} /></L>
         </div>
         <datalist id="vp-owners">{options.owners.map((o) => <option key={o} value={o} />)}</datalist>
-        <datalist id="vp-portcos">{options.portcos.map((o) => <option key={o} value={o} />)}</datalist>
         <datalist id="vp-partners">{options.partners.map((o) => <option key={o} value={o} />)}</datalist>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
