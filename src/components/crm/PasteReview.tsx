@@ -104,7 +104,7 @@ export function PasteReviewPanel({ review, noun = "contact" }: { review: PasteRe
                     value={r[k]}
                     disabled={skipped}
                     placeholder={placeholder}
-                    aria-label={`${placeholder} for row ${i + 1}`}
+                    aria-label={`${k === "linkedinUrl" ? "LinkedIn" : k[0].toUpperCase() + k.slice(1)} for row ${i + 1}`}
                     onChange={(e) => edit(i, { [k]: e.target.value })}
                     className={`h-7 text-[11px] px-1.5 ${warn ? "border-warning" : ""}`}
                   />
