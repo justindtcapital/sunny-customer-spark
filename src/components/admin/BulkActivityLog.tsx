@@ -2,13 +2,13 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { fetchBulkOperations, retryBulkOperation, inspectBulkOperation } from "@/utils/bulk-operations.functions";
+import { fetchBulkOperations, retryBulkOperation, inspectBulkOperation, reconcileImportOperation } from "@/utils/bulk-operations.functions";
 import type { BulkOutcome } from "@/lib/bulk-operation";
 import { activityEvidence, completeOutcome, type BulkOperation } from "@/lib/bulk-operation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { OperationResults } from "./OperationResults";
-import { RefreshCw, Wrench, Bug, ChevronDown, Loader2 } from "lucide-react";
+import { RefreshCw, Wrench, Bug, ChevronDown, Loader2, ShieldCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/lib/auth-context";
 import { teamMemberFor } from "@/lib/user-ownership";
@@ -26,6 +26,20 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
     try { const result=await inspect({data:{id}});setInspection({id,outcomes:result.outcomes}); }
     catch(e) { toast.error(e instanceof Error ? e.message : "Saved state could not be verified; no changes made."); }
     finally {setInspecting(null);}
+  }
+  const reconcile=useServerFn(reconcileImportOperation);
+  const [checking,setChecking]=useState<string|null>(null),[plan,setPlan]=useState<{id:string;outcomes:BulkOutcome[]}|null>(null),[applying,setApplying]=useState(false);
+  async function checkImport(id:string) {
+    setChecking(id);
+    try { const r=await reconcile({data:{id,apply:false}});setPlan({id,outcomes:r.outcomes}); }
+    catch(e) { toast.error(e instanceof Error ? e.message : "Saved state could not be checked; nothing changed."); }
+    finally { setChecking(null); }
+  }
+  async function applyPlan() {
+    if(!plan) return; setApplying(true);
+    try { await reconcile({data:{id:plan.id,apply:true}});toast.success("Results recorded and bulk actions unlocked. No contacts were changed.");setPlan(null); }
+    catch(e) { toast.error(e instanceof Error ? e.message : "Could not record results; the lock remains."); }
+    finally { setApplying(false);await qc.invalidateQueries({ queryKey:["bulk-operations"] });await router.invalidate(); }
   }
   const { email }=useAuth();
   const router=useRouter();
@@ -66,6 +80,7 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
           <Button size="sm" variant="outline" onClick={()=>action(op,"troubleshoot")}><Wrench className="size-3.5" />Troubleshoot</Button>
           <Button size="sm" variant="outline" onClick={()=>action(op,"fix")}><Bug className="size-3.5" />Create fix request</Button>
           <Button size="sm" variant="outline" disabled={!retryable} title={retryable ? "Retry only unfinished steps" : "No safely retryable items; review saved state or create a fix request."} onClick={()=>setConfirm(op)}><RefreshCw className="size-3.5" />{op.status==="pending" ? "Resume" : "Retry"}</Button>
+          {op.status==="uncertain" && ["target-import","contact-import"].includes(op.kind) && <Button size="sm" disabled={!!checking} onClick={()=>void checkImport(op.id)}>{checking===op.id ? <Loader2 className="size-3.5 animate-spin"/> : <ShieldCheck className="size-3.5"/>}Check what was saved & unlock</Button>}
           {op.kind==="relationship-change" && <Button size="sm" variant="outline" disabled={!!inspecting} onClick={()=>void inspectSaved(op.id)}>{inspecting===op.id ? <Loader2 className="size-3.5 animate-spin"/> : <RefreshCw className="size-3.5"/>}Inspect saved state</Button>}
         </div><OperationResults outcomes={op.outcomes} />
           {inspection?.id===op.id && <div className="mt-4 border-t pt-3"><h4 className="text-sm font-semibold">Saved-state inspection</h4><p className="mt-1 text-xs text-muted-foreground">All original items checked. Inspection does not move contacts, replay writes or release the safety lock.</p><OperationResults outcomes={inspection.outcomes}/></div>}
@@ -73,6 +88,13 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
         </div>}
       </div>;
     })}</div>
+    <Dialog open={!!plan} onOpenChange={open=>{if(!open&&!applying)setPlan(null);}}><DialogContent><DialogHeader><DialogTitle>What was saved</DialogTitle></DialogHeader>
+      {plan && (()=>{const c=(s:string)=>plan.outcomes.filter(o=>o.status===s).length;return <div className="space-y-2 text-sm">
+        <p>Checked every person in this import against the live contact list. <strong>{c("changed")}</strong> saved exactly once · <strong>{c("failed")}</strong> not saved · <strong>{c("review")+c("blocked")+c("duplicate")}</strong> need review or were skipped.</p>
+        <p className="text-xs text-muted-foreground">Confirming only records these results and unlocks bulk actions for the team. It does not add, change or delete any contact, and nothing is re-imported. People marked "not saved" can be imported again safely — existing people are always detected.</p>
+        <OperationResults outcomes={plan.outcomes}/></div>;})()}
+      <DialogFooter><Button variant="outline" disabled={applying} onClick={()=>setPlan(null)}>Cancel</Button><Button disabled={applying} onClick={()=>void applyPlan()}>{applying?<Loader2 className="size-4 animate-spin"/>:<ShieldCheck className="size-4"/>}Record results & unlock</Button></DialogFooter>
+    </DialogContent></Dialog>
     <Dialog open={!!confirm} onOpenChange={open=>{if(!open&&!busy)setConfirm(null);}}><DialogContent><DialogHeader><DialogTitle>Retry unfinished steps?</DialogTitle></DialogHeader>
       <ul className="max-h-64 overflow-auto text-sm">{confirm?.outcomes.filter(o=>!completeOutcome(o)).map((o,i)=><li key={i} className="border-b py-2">{o.label} {o.from&&`· ${o.from} → ${o.to}`}<p className="text-xs text-muted-foreground">{o.reason}</p></li>)}</ul>
       <DialogFooter><Button variant="outline" disabled={busy} onClick={()=>setConfirm(null)}>Cancel</Button><Button disabled={busy} onClick={()=>void runRetry()}>{busy?<Loader2 className="size-4 animate-spin"/>:<RefreshCw className="size-4"/>}Confirm retry</Button></DialogFooter>
