@@ -8,6 +8,8 @@ import {
 } from "@/utils/sheets.functions";
 import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functions";
 import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
+import { fetchPortcoEventIndexFn } from "@/utils/event-planner.functions";
+import { mergeCompanyEvents } from "@/lib/event-portcos";
 import type { PortfolioCompany, Contact, PortfolioDomain, EmailActivityRecord } from "@/lib/types";
 import { matchSheetToAsanaKeys } from "@/lib/portco-names";
 import { dedupePortfolioCompanies } from "@/lib/portco-dedupe";
@@ -61,7 +63,7 @@ export const Route = createFileRoute("/portfolio")({
     contacts: Contact[];
     emailActivity: EmailActivityRecord[];
   }> => {
-    const [companies, contacts, asana, emailActivity] = await Promise.all([
+    const [companies, contacts, asana, emailActivity, trackerEvents] = await Promise.all([
       fetchPortfolioCompanies(),
       fetchContacts(),
       fetchAsanaPortcoData().catch(
@@ -72,6 +74,7 @@ export const Route = createFileRoute("/portfolio")({
         }),
       ),
       fetchEmailActivity().catch((): EmailActivityRecord[] => []),
+      fetchPortcoEventIndexFn().catch(() => ({}) as Awaited<ReturnType<typeof fetchPortcoEventIndexFn>>),
     ]);
 
     const sheetCompanies = companies as PortfolioCompany[];
@@ -102,7 +105,8 @@ export const Route = createFileRoute("/portfolio")({
       return {
         ...c,
         asanaFields: applyProfileOverrides(asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined, c.profileOverrides),
-        events: [...c.events, ...asanaEvents],
+        // Event list entries (official names) first; Asana-only events fill gaps without repeats.
+        events: mergeCompanyEvents([...c.events, ...(trackerEvents[c.name.trim().replace(/\s+/g, " ").toLowerCase()] || [])], asanaEvents),
       };
     });
 

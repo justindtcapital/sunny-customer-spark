@@ -1,4 +1,5 @@
 import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
+import { mergeCompanyEvents } from "@/lib/event-portcos";
 import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { PortfolioCompany, Contact, EmailActivityRecord } from "@/lib/types";
@@ -306,7 +307,7 @@ export function PortfolioDetail({
         ...company,
         asanaFields:
           Object.keys(res.asanaFields).length > 0 ? res.asanaFields : company.asanaFields,
-        events: res.events,
+        events: mergeCompanyEvents(company.events.filter((e) => !e.id.startsWith("asana-")), res.events),
         website: company.website || profileWebsite || company.website,
         linkedinUrl: company.linkedinUrl || profileLinkedin || company.linkedinUrl,
         location: company.location || profileLocation || company.location,
