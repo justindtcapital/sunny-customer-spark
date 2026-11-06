@@ -6,7 +6,7 @@ import { Output, streamText } from "ai";
 import { z } from "zod";
 import {
   BRIEF_SUBJECT, anticipatedFollowUps, candidateNames, dueThisWeek, investmentStrip, matchPeople,
-  nextEvents, parseCoworkBrief, personHints, priorityBadge, daysBetween,
+  mentionedCompanies, nextEvents, parseCoworkBrief, personHints, priorityBadge, daysBetween,
   isInternalOrg, splitPortcos, stripScheduling, titleCompany,
 } from "@/lib/morning-brief";
 import { isSharedEmailDomain, normalizeDomain } from "@/lib/company-domains";
