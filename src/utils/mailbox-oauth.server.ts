@@ -18,6 +18,8 @@ export const MAILBOX_SCOPES = [
   "openid",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/gmail.readonly",
+  // Sends the Morning Brief from the Workspace mailbox to the owner's Dell address.
+  "https://www.googleapis.com/auth/gmail.send",
 ];
 export const CALLBACK_PATH = "/api/public/google-mailbox/callback";
 

@@ -137,6 +137,51 @@ export type Database = {
         }
         Relationships: []
       }
+      morning_briefs: {
+        Row: {
+          brief: Json
+          brief_date: string
+          cowork_text: string
+          created_at: string
+          email_error: string
+          email_status: string
+          error: string
+          id: string
+          owner_email: string
+          source_message_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          brief?: Json
+          brief_date: string
+          cowork_text?: string
+          created_at?: string
+          email_error?: string
+          email_status?: string
+          error?: string
+          id?: string
+          owner_email: string
+          source_message_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          brief?: Json
+          brief_date?: string
+          cowork_text?: string
+          created_at?: string
+          email_error?: string
+          email_status?: string
+          error?: string
+          id?: string
+          owner_email?: string
+          source_message_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       personal_granola_connections: {
         Row: {
           connected_at: string

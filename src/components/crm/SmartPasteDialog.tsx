@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,10 +23,13 @@ interface SmartPasteDialogProps {
   existingEmails?: string[];
   /** Called after a successful add so the caller can refresh its data. */
   onImported?: () => void | Promise<void>;
+  /** Pre-filled rows (e.g. people from the Morning Brief); still reviewed before saving. */
+  initialText?: string;
 }
 
-export function SmartPasteDialog({ open, onOpenChange, existingEmails = [], onImported }: SmartPasteDialogProps) {
+export function SmartPasteDialog({ open, onOpenChange, existingEmails = [], onImported, initialText }: SmartPasteDialogProps) {
   const [text, setText] = useState("");
+  useEffect(() => { if (open && initialText) setText(initialText); }, [open, initialText]);
   const [enrich, setEnrich] = useState(true);
   const [busy, setBusy] = useState(false);
   const existing = useMemo(() => new Set(existingEmails.map((e) => e.trim().toLowerCase()).filter(Boolean)), [existingEmails]);

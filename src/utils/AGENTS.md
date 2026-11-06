@@ -10,3 +10,4 @@
 - Contact imports read unified Contacts once for identity checks and append literal cells before exact read-back verification; duplicate view matches and Sheets coercion must not strand successful imports.
 - Interrupted imports get a self-service "Check what was saved & unlock" (import-reconciliation planner): it reads fresh Contacts, records per-person evidence and releases only that operation's lock, never writing people or replaying — users recover without risking duplicates.
 - Target/Prospecting appends write literal cells so read-back verification matches.
+- Morning Brief: read-only enrichment of Claude Cowork's daily email, one Cloud morning_briefs row per owner/day (single-flight claim, email sent once); cron answers fast and finishes via waitUntil; unknown people go to reviewed paste — never auto-writes CRM.
