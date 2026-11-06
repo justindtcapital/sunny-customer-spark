@@ -11,7 +11,11 @@ export interface AttendanceTag {
   eventName: string;
   date: string;
   kind: string;
+  /** Contact "Date Added" — groups people into upload batches. */
+  added?: string;
 }
+
+export interface DateCount { date: string; count: number }
 
 export interface TagGroup {
   tagName: string;
@@ -21,6 +25,16 @@ export interface TagGroup {
   people: AttendanceTag[];
   /** People already on the matched event (clear only). */
   alreadyLinked: number;
+  /** Upload batches (by contact Date Added day) and dates logged on the tag. */
+  batches: DateCount[];
+  tagDates: DateCount[];
+}
+
+export const dayOf = (s?: string) => { const m = (s || "").match(/^\d{4}-\d{2}-\d{2}/); if (m) return m[0]; const t = Date.parse(s || ""); return isNaN(t) ? "" : new Date(t).toISOString().slice(0, 10); };
+export function countByDay(values: Array<string | undefined>): DateCount[] {
+  const m = new Map<string, number>();
+  for (const v of values) { const d = dayOf(v); if (d) m.set(d, (m.get(d) || 0) + 1); }
+  return [...m].map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 const full = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -98,19 +112,20 @@ export function planAttendanceReconcile(tags: AttendanceTag[], events: PlannerEv
     const loose = candidates.every((c) => c.reason === "Similar name — confirm");
     const status: TagGroup["status"] = candidates.length === 1 && !loose ? "clear" : "review";
     const alreadyLinked = status === "clear" ? people.filter((p) => have.has(personKey(candidates[0].urid, p))).length : 0;
-    out.push({ tagName, status, candidates, people, alreadyLinked });
+    out.push({ tagName, status, candidates, people, alreadyLinked, batches: countByDay(people.map((p) => p.added)), tagDates: countByDay(people.map((p) => p.date)) });
   }
   return out.sort((a, b) => b.people.length - a.people.length || a.tagName.localeCompare(b.tagName));
 }
 
 /** Attendee rows for chosen (tag → event) pairs, skipping people already linked. */
-export function attendeeRowsFor(groups: TagGroup[], choices: Record<string, string>, existing: PlannerAttendee[]): PlannerAttendee[] {
+/** Any Events DB event may be chosen (full picker), not only predicted candidates. */
+export function attendeeRowsFor(groups: TagGroup[], choices: Record<string, string>, existing: PlannerAttendee[], events: Array<Pick<PlannerEvent, "urid" | "start">> = []): PlannerAttendee[] {
   const have = new Set(existing.map((a) => personKey(a.eventUrid, a)));
   const rows: PlannerAttendee[] = [];
   for (const g of groups) {
     const urid = choices[g.tagName];
-    if (!urid || !g.candidates.some((c) => c.urid === urid)) continue;
-    const ev = g.candidates.find((c) => c.urid === urid)!;
+    const ev = urid ? g.candidates.find((c) => c.urid === urid) || events.find((e) => e.urid === urid) : undefined;
+    if (!ev) continue;
     for (const p of g.people) {
       const k = personKey(urid, p);
       if (have.has(k)) continue;
