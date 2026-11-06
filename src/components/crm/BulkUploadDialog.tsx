@@ -608,7 +608,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                       <div className="flex items-start gap-1.5">
                         <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-warning" />
                         <span>
-                          <span className="font-semibold">{nameReport.singles.length} of {importable.length} {nameReport.singles.length === 1 ? "person has" : "people have"} only one name.</span>
+                          <span className="font-semibold">{nameReport.singles.length} of {importable.length} {nameReport.singles.length === 1 ? "people has" : "people have"} only one name.</span>
                           {surnameItems.length > 0
                             ? ` ${surnameItems.length} look like their last name was put in Company (e.g. ${surnameItems.slice(0, 3).map(i => `${i.row.name} / ${i.row.company}`).join(", ")}). Check the Last name and Company mapping above.`
                             : mapping.lastName === NO_COLUMN && mapping.name === NO_COLUMN ? " Map a Last name column above if the file has one." : " Check the name mapping above if that's unexpected."}

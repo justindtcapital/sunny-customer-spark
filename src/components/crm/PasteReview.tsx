@@ -66,7 +66,7 @@ export function PasteReviewPanel({ review, noun = "contact" }: { review: PasteRe
           <div className="flex items-start gap-1.5">
             <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-warning" />
             <span>
-              <span className="font-semibold">{report.singles.length} of {toImport.length} {report.singles.length === 1 ? "person has" : "people have"} only one name.</span>
+              <span className="font-semibold">{report.singles.length} of {toImport.length} {report.singles.length === 1 ? "people has" : "people have"} only one name.</span>
               {report.surnameInCompany.length > 0
                 ? ` ${report.surnameInCompany.length} look like their last name was put in Company. Check the table before adding.`
                 : " Add last names below if you have them."}
