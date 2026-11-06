@@ -306,6 +306,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       return;
     }
     setGrid(g);
+    setFixes({});
     setMapping(autoMap(g[0]));
   };
 
@@ -366,6 +367,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setSource("");
     setEnrichOnImport(true);
     setFollowUpEmails(new Set());
+    setFixes({});
     setBusy(false);
   };
 
@@ -382,19 +384,27 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const submit = async () => {
     if (!rows.length) return;
     setBusy(true);
+    const left = attention.length;
+    setRun({ title: `Importing ${rows.length} contact${rows.length === 1 ? "" : "s"}`, step: "validate", total: enrichOnImport ? rows.length : 0, processed: 0 });
     try {
       const prepared = [];
       for (const original of rows) {
         const enriched = enrichOnImport ? await enrichRow(original) : { row: original };
+        setRun(r => r && { ...r, processed: prepared.length + 1 });
         const r = enriched.row;
         prepared.push({ name:r.name,email:r.email,role:r.title,company:r.company,phone:r.phone,location:r.location,prime:r.prime,sector:r.sector,linkedin:r.linkedin,headline:r.headline,employmentHistory:r.employmentHistory,source:"CSV Import",followUp:Boolean(eventName.trim()) || isFlaggedForFollowUp(r.email) });
       }
+      setRun(r => r && { ...r, step: "apply", total: 0 });
       const result = await importContactsBatch({ data: { contacts:prepared,event:eventName.trim(),portcos:portcoNames,portcoSources:portcoSources,sourceNote:source.trim() } });
-      const message = `${result.added} imported · ${result.duplicates} exact duplicates · ${result.review} need review in Admin`;
-      if (result.review) toast.warning(message); else toast.success(message);
+      setRun(r => r && { ...r, step: "verify" });
+      const outcomes = ((result as { outcomes?: BulkOutcome[] }).outcomes) || [];
+      const receipt = outcomes.length ? receiptFromOutcomes(outcomes, "Imported")
+        : { doneLabel: "Imported", done: [{ label: `${result.added} new contacts` }], skipped: [{ label: `${result.duplicates} already in contacts` }], problems: result.review ? [{ label: `${result.review} need review in Admin` }] : [] };
+      if (left) receipt.skipped.push({ label: `${left} row${left === 1 ? "" : "s"} left unfixed in the file`, reason: "not imported" });
+      setRun(r => r && { ...r, step: "done", receipt });
       if (result.added) await onImported?.();
       reset(); onOpenChange(false);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Import failed; review Admin before retrying."); }
+    } catch (e) { setRun(r => r && { ...r, error: e instanceof Error ? e.message : "Import failed; review Admin before retrying." }); }
     finally { setBusy(false); }
   };
 
