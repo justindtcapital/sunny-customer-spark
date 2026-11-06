@@ -158,7 +158,7 @@ function assemble(text: string, today: string, f: Facts) {
 const AiSchema = z.object({
   glance: z.string(),
   priorities: z.array(z.string()),
-  meetings: z.array(z.object({ index: z.number().int(), summary: z.string(), worthChecking: z.array(z.string()), prep: z.array(z.string()) })),
+  meetings: z.array(z.object({ index: z.number().int(), summary: z.string(), companyAbout: z.string(), worthChecking: z.array(z.string()), prep: z.array(z.string()) })),
   quiet: z.array(z.object({ index: z.number().int(), nextStep: z.string() })),
 });
 
@@ -172,15 +172,50 @@ async function synthesize(input: unknown) {
     output: Output.object({ schema: AiSchema }),
     system: `You are V.I.C., chief of staff to a venture investor at Dell Technologies Capital. Write a concise morning brief.
 Rules: use ONLY the facts given. Never invent people, numbers or dates. Keep each meeting summary to 2 sentences.
+Each meeting is about its "company" (an outside company) or its "portcos" (PortCos named in the title). "mentionedPortcos" only came up in passing: name them if relevant, but never summarise their details, status or workstreams.
+Ignore scheduling logistics entirely — offered times, moving or confirming the slot, invites, travel. Focus on discussion topics and relationship history.
+"summary": who the meeting is with and what it is about (lead with the company context for outside companies).
+"companyAbout": only when the meeting has a "company" whose "about" is empty — one or two sentences on what that company does, from well-established general knowledge; empty string if unsure or there is no company.
 "worthChecking": short notes where Outlook context (cowork) conflicts with Venture Pulse facts (e.g. a Back Burner PortCo discussed as a new deal, overdue actions with an attendee, a person not in the CRM). Empty if none.
-"prep": 2-4 short, specific prep points per meeting drawn from both sources.
-"priorities": re-rank Cowork's top priorities using Venture Pulse facts (overdue actions, NM PortCos first); keep wording short; max 6.
+"prep": 2-4 short, specific prep points per meeting drawn from both sources; no scheduling points.
+"priorities": re-rank Cowork's top priorities using Venture Pulse facts (overdue actions, NM PortCos first); drop scheduling-only items (confirming or moving times); keep wording short; max 6.
 "glance": one sentence summarising the day.
 "quiet": one short suggested next step per quiet item (by index).`,
     prompt: JSON.stringify(input),
     providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", store: false, include: ["reasoning.encrypted_content"] } },
   });
   return await result.output;
+}
+
+/** Short web-grounded profile of an outside company (Google Search via Gemini); null when unavailable. */
+async function companyProfile(name: string, domain: string): Promise<{ about: string; sources: string[] } | null> {
+  const { isGeminiConfigured, geminiGenerate } = await import("./gemini.server");
+  if (!isGeminiConfigured()) return null;
+  const prompt = `In 2-3 factual sentences for a venture investor, describe the company "${name}"${domain ? ` (website ${domain})` : ""}: what it does, who it serves, size, ownership or HQ, and any notable news from the last six months. Plain text only, no preamble, no markdown. If you cannot identify this exact company, reply only: UNKNOWN`;
+  try {
+    const resp = await Promise.race([
+      geminiGenerate({ contents: [{ role: "user", parts: [{ text: prompt }] }], tools: [{ googleSearch: {} }], generationConfig: { maxOutputTokens: 600 + 1024, thinkingConfig: { thinkingBudget: 1024 } } }),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 25_000)),
+    ]);
+    const cand = resp.candidates?.[0];
+    const about = (cand?.content?.parts || []).map((p) => (typeof p.text === "string" ? p.text : "")).join("").replace(/\[\d+(,\s*\d+)*\]/g, "").replace(/\s+/g, " ").trim();
+    if (!about || /^UNKNOWN\b/i.test(about)) return null;
+    const gm = cand?.groundingMetadata as { groundingChunks?: Array<{ web?: { title?: string } }> } | undefined;
+    const sources = [...new Set((gm?.groundingChunks || []).map((c) => (c.web?.title || "").trim()).filter(Boolean))].slice(0, 3);
+    return { about: about.slice(0, 700), sources };
+  } catch (e) { console.error(`[brief] company profile ${name}`, e); return null; }
+}
+
+/** Fill each outside company's "about" once per company name, in parallel. */
+async function addCompanyProfiles(meetings: BriefMeeting[]) {
+  const byName = new Map<string, BriefCompany>();
+  for (const m of meetings) if (m.company && !byName.has(norm(m.company.name))) byName.set(norm(m.company.name), m.company);
+  const found = new Map<string, { about: string; sources: string[] } | null>();
+  await Promise.all([...byName].map(async ([k, c]) => { found.set(k, await companyProfile(c.name, c.domain)); }));
+  for (const m of meetings) {
+    const p = m.company && found.get(norm(m.company.name));
+    if (m.company && p) m.company = { ...m.company, about: p.about, aboutSource: "web", sources: p.sources };
+  }
 }
 
 /** Build (or rebuild) today's brief. Single-flight per owner/day. */
@@ -205,15 +240,20 @@ export async function buildMorningBrief(opts: { force?: boolean; sendEmail?: boo
   try {
     const facts = await gather(today);
     const a = assemble(text, today, facts);
+    await addCompanyProfiles(a.meetings);
     const ai = await synthesize({
       today, coworkIntro: a.cowork.intro, coworkPriorities: a.cowork.priorities, gaps: a.cowork.gaps,
-      meetings: a.meetings.map((m, i) => ({ index: i, time: m.time, title: m.title, tags: m.tags, cowork: m.cowork, portcos: m.portcos, people: m.people, openActions: m.actions, recentNotes: m.notes, upcomingEvents: m.events })),
+      meetings: a.meetings.map((m, i) => ({ index: i, time: m.time, title: m.title, tags: m.tags, cowork: m.cowork, company: m.company, portcos: m.portcos, mentionedPortcos: (m.mentionedPortcos || []).map((p) => p.name), people: m.people, openActions: m.actions, recentNotes: m.notes, upcomingEvents: m.events })),
       dueThisWeek: a.due.slice(0, 15), quiet: a.quiet.map((q, i) => ({ index: i, ...q })),
     });
     const brief: MorningBrief = {
       date: today, subject: email.subject, builtAt: new Date().toISOString(), glance: ai.glance,
       priorities: ai.priorities.length ? ai.priorities : a.cowork.priorities,
-      meetings: a.meetings.map((m, i) => { const x = ai.meetings.find((y) => y.index === i); return { ...m, summary: x?.summary || "", worthChecking: x?.worthChecking || [], prep: x?.prep || [] }; }),
+      meetings: a.meetings.map((m, i) => {
+        const x = ai.meetings.find((y) => y.index === i);
+        const company = m.company && !m.company.about && x?.companyAbout ? { ...m.company, about: x.companyAbout, aboutSource: "general" as const } : m.company;
+        return { ...m, company, summary: x?.summary || "", worthChecking: x?.worthChecking || [], prep: x?.prep || [] };
+      }),
       dueThisWeek: a.due, quiet: a.quiet.map((q, i) => ({ label: q.label, detail: q.detail, link: q.link, nextStep: ai.quiet.find((y) => y.index === i)?.nextStep || "" })),
       campaigns: a.campaigns, events: a.events, gaps: a.cowork.gaps, newPeople: a.newPeople, warnings: facts.warnings,
     };
