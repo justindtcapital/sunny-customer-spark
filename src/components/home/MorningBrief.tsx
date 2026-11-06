@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, Building2, CalendarDays, Mail, Megaphone, RefreshCw, Sun, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -81,7 +81,18 @@ function List({ title, items, tone }: { title: string; items: string[]; tone?: "
   </div>;
 }
 
-function MeetingCard({ m }: { m: BriefMeeting }) {
+type NewPerson = { name: string; title: string; company: string; email?: string };
+const personKey = (p: { name: string; email?: string }) => (p.email || p.name).trim().toLowerCase();
+/** Tab-separated rows for the reviewed paste flow; commas inside values would split columns. */
+const cell = (s = "") => s.replace(/[\t,;\n]+/g, " ").trim();
+export const briefPasteText = (people: NewPerson[]) => ["Name\tEmail\tCompany\tTitle", ...people.map((p) => [p.name, p.email, p.company, p.title].map(cell).join("\t"))].join("\n");
+
+function AddButton({ p, added, onAdd }: { p: NewPerson; added: Set<string>; onAdd: (p: NewPerson[]) => void }) {
+  if (added.has(personKey(p))) return <Badge variant="secondary" className="ml-1 text-[10px]">Added</Badge>;
+  return <Button size="sm" variant="outline" className="ml-1 h-5 px-1.5 text-[10px]" onClick={() => onAdd([p])}><UserPlus className="mr-1 h-3 w-3" />Add to Venture Pulse</Button>;
+}
+
+function MeetingCard({ m, added, onAdd }: { m: BriefMeeting; added: Set<string>; onAdd: (p: NewPerson[]) => void }) {
   return <article className="space-y-2 rounded-lg border border-border bg-card p-4">
     <header>
       <div className="font-display text-sm font-semibold text-foreground">{m.time} · {m.title}</div>
@@ -98,8 +109,10 @@ function MeetingCard({ m }: { m: BriefMeeting }) {
         {m.people.length > 0 && <ul className="space-y-0.5">{m.people.map((p) => <li key={p.name}>
           {p.contactId ? <Link to="/crm" search={{ contact: p.contactId }} className="font-medium text-foreground hover:text-primary">{p.name}</Link> : <span className="font-medium text-foreground">{p.name}</span>}
           {p.company ? `, ${p.company}` : ""}
+          {p.status !== "matched" && p.email ? <span className="text-muted-foreground"> · {p.email}</span> : null}
           {p.status === "matched" ? <span className="text-muted-foreground"> · {p.temperature}{p.lastContact ? ` · last touch ${p.lastContact.slice(0, 10)}` : ""}{p.campaigns.length ? ` · in ${p.campaigns.join(", ")}` : ""}{p.events.length ? ` · met at ${p.events.slice(0, 2).join(", ")}` : ""}</span>
-            : <Badge variant="outline" className="ml-1 text-[10px]">{p.status === "possible" ? "possible match" : "not in Venture Pulse"}</Badge>}
+            : p.status === "possible" ? <Badge variant="outline" className="ml-1 text-[10px]">possible match</Badge>
+            : <AddButton p={p} added={added} onAdd={onAdd} />}
         </li>)}</ul>}
         <List title="Open actions" items={m.actions.map((a) => `${a.summary}${a.due ? ` (due ${a.due}${a.overdue ? ", overdue" : ""})` : ""}`)} />
         <List title="Recent notes" items={m.notes.map((n) => `${n.date} ${n.title}`)} />
@@ -115,14 +128,30 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   return <section className="rounded-lg border border-border bg-card p-4"><h2 className="mb-2 inline-flex items-center gap-2 font-display text-sm font-semibold text-foreground">{icon}{title}</h2>{children}</section>;
 }
 
-export function MorningBriefView() {
+export function MorningBriefView({ date, add }: { date?: string; add?: string } = {}) {
   const qc = useQueryClient();
   const q = useBriefs(14);
   const rebuild = useServerFn(rebuildMorningBrief);
   const send = useServerFn(emailMorningBrief);
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "build" | "mail">("");
-  const [addOpen, setAddOpen] = useState(false);
+  const [adding, setAdding] = useState<NewPerson[] | null>(null);
+  const [added, setAdded] = useState<Set<string>>(() => new Set());
+  // "Add to Venture Pulse" link from the emailed brief: open that person's review once the briefs load.
+  const handledLink = useRef(false);
+  useEffect(() => {
+    if (handledLink.current || !add || !q.data?.briefs?.length) return;
+    handledLink.current = true;
+    const want = add.toLowerCase();
+    const rows = q.data.briefs;
+    const target = rows.find((r) => r.date === date) || rows[0];
+    const ordered = [target, ...rows.filter((r) => r !== target)];
+    for (const r of ordered) {
+      const p = r.brief?.newPeople.find((x) => personKey(x) === want || x.name.toLowerCase() === want);
+      if (p) { setPick(r.id); setAdding([p]); return; }
+    }
+    toast.info("That person is no longer listed as new — they may already be in Venture Pulse.");
+  }, [add, date, q.data]);
   if (q.isLoading) return <p className="text-sm text-muted-foreground">Loading brief…</p>;
   if (!q.data?.owner) return <p className="text-sm text-muted-foreground">The Morning Brief is set up for Chris only for now.</p>;
   const rows: BriefRow[] = q.data.briefs;
@@ -142,7 +171,8 @@ export function MorningBriefView() {
     catch (e) { toast.error(e instanceof Error ? e.message : "Send failed"); }
     finally { setBusy(""); refresh(); }
   };
-  const pasteText = b ? ["Name\tCompany\tTitle", ...b.newPeople.map((p) => `${p.name}\t${p.company}\t${p.title}`)].join("\n") : "";
+  const remaining = b ? b.newPeople.filter((p) => !added.has(personKey(p))) : [];
+  const onAdd = (ps: NewPerson[]) => setAdding(ps);
   return <div className="space-y-3">
     <div className="flex flex-wrap items-center gap-2">
       <select aria-label="Brief date" className="h-8 rounded-md border border-input bg-background px-2 text-sm" value={row?.id || ""} onChange={(e) => setPick(e.target.value)}>
@@ -150,7 +180,7 @@ export function MorningBriefView() {
       </select>
       <Button size="sm" variant="outline" onClick={doBuild} disabled={!!busy}><RefreshCw className={`mr-1 h-3.5 w-3.5 ${busy === "build" ? "animate-spin" : ""}`} />Rebuild today</Button>
       <Button size="sm" variant="outline" onClick={doSend} disabled={!!busy || !b}><Mail className="mr-1 h-3.5 w-3.5" />Email to Dell</Button>
-      {b && b.newPeople.length > 0 && <Button size="sm" onClick={() => setAddOpen(true)}><UserPlus className="mr-1 h-3.5 w-3.5" />Add {b.newPeople.length} to Contacts</Button>}
+      {remaining.length > 1 && <Button size="sm" onClick={() => onAdd(remaining)}><UserPlus className="mr-1 h-3.5 w-3.5" />Add all {remaining.length} to Venture Pulse</Button>}
       {row && <span className="text-xs text-muted-foreground">Email: {row.emailStatus || "not sent"}{row.emailError ? ` — ${row.emailError}` : ""}</span>}
     </div>
     {!b ? <p className="text-sm text-muted-foreground">{row ? (row.status === "failed" ? `Couldn't build: ${row.error}` : row.error || "Waiting for Claude Cowork's email.") : "No briefs yet. They appear after Claude Cowork's 5 AM email arrives."}</p> : <>
@@ -160,7 +190,7 @@ export function MorningBriefView() {
         <ol className="mt-1 list-decimal space-y-1 pl-5 text-sm">{b.priorities.map((p, i) => <li key={i}>{p}</li>)}</ol>
         {b.warnings.length > 0 && <p className="mt-2 inline-flex items-center gap-1 text-xs text-warning-foreground"><AlertTriangle className="h-3.5 w-3.5" />{b.warnings.join(", ")}</p>}
       </section>
-      {b.meetings.map((m, i) => <MeetingCard key={i} m={m} />)}
+      {b.meetings.map((m, i) => <MeetingCard key={i} m={m} added={added} onAdd={onAdd} />)}
       <div className="grid gap-3 lg:grid-cols-2">
         <Section title="Due this week" icon={<CalendarDays className="h-4 w-4 text-primary" />}>
           {b.dueThisWeek.length ? <ul className="space-y-1 text-xs">{b.dueThisWeek.map((d, i) => <li key={i}><span className={d.overdue ? "font-semibold text-destructive" : "text-muted-foreground"}>{d.due}</span> {d.summary}{d.person ? ` · ${d.person}` : ""}</li>)}</ul> : <p className="text-xs text-muted-foreground">Nothing due.</p>}
@@ -178,9 +208,17 @@ export function MorningBriefView() {
       </div>
       {(b.gaps || b.newPeople.length > 0) && <Section title="Gaps" icon={<AlertTriangle className="h-4 w-4 text-primary" />}>
         {b.gaps && <p className="text-xs text-muted-foreground">{b.gaps}</p>}
-        {b.newPeople.length > 0 && <p className="mt-1 text-xs">Not in Venture Pulse yet: {b.newPeople.map((p) => p.name).join(", ")}</p>}
+        {b.newPeople.length > 0 && <div className="mt-1 text-xs">
+          <div className="text-foreground">Not in Venture Pulse yet:</div>
+          <ul className="mt-1 space-y-1">{b.newPeople.map((p) => <li key={personKey(p)} className="flex flex-wrap items-center gap-x-1">
+            <span className="font-medium text-foreground">{p.name}</span>
+            <span className="text-muted-foreground">{[p.company, p.title].filter(Boolean).join(" · ")}{p.email ? ` · ${p.email}` : " · no email from Claude"}</span>
+            <AddButton p={p} added={added} onAdd={onAdd} />
+          </li>)}</ul>
+        </div>}
       </Section>}
     </>}
-    <SmartPasteDialog open={addOpen} onOpenChange={setAddOpen} initialText={pasteText} />
+    <SmartPasteDialog open={!!adding} onOpenChange={(o) => { if (!o) setAdding(null); }} initialText={adding ? briefPasteText(adding) : ""}
+      onImported={() => { const ks = (adding || []).map(personKey); setAdded((s) => new Set([...s, ...ks])); }} />
   </div>;
 }
