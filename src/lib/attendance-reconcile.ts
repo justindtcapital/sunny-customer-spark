@@ -30,7 +30,7 @@ export interface TagGroup {
   tagDates: DateCount[];
 }
 
-const dayOf = (s?: string) => { const m = (s || "").match(/^\d{4}-\d{2}-\d{2}/); if (m) return m[0]; const t = Date.parse(s || ""); return isNaN(t) ? "" : new Date(t).toISOString().slice(0, 10); };
+export const dayOf = (s?: string) => { const m = (s || "").match(/^\d{4}-\d{2}-\d{2}/); if (m) return m[0]; const t = Date.parse(s || ""); return isNaN(t) ? "" : new Date(t).toISOString().slice(0, 10); };
 export function countByDay(values: Array<string | undefined>): DateCount[] {
   const m = new Map<string, number>();
   for (const v of values) { const d = dayOf(v); if (d) m.set(d, (m.get(d) || 0) + 1); }

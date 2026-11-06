@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import type { DateCount, TagGroup } from "@/lib/attendance-reconcile";
+import { dayOf, type DateCount, type TagGroup } from "@/lib/attendance-reconcile";
 
 type Ev = { urid: string; name: string; start: string; city: string };
 const fmt = (d: string) => { const t = Date.parse(d + "T12:00:00"); return isNaN(t) ? d : new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); };
@@ -142,7 +142,7 @@ export function AttendanceReconcileDialog({ open, onClose, onSaved }: { open: bo
                     {expanded === g.tagName && (
                       <div className="mt-1 ml-8 space-y-0.5 text-xs text-muted-foreground">
                         {(g.batches.length ? g.batches : [{ date: "", count: g.people.length }]).map((b) => (
-                          <p key={b.date || "none"}><span className="font-medium text-foreground">{b.date ? fmt(b.date) : "Unknown date"}:</span> {g.people.filter((p) => (b.date ? (p.added || "").slice(0, 10) === b.date || (!/^\d{4}-/.test(p.added || "") && new Date(Date.parse(p.added || "")).toISOString?.().slice(0, 10) === b.date) : true)).map((p) => p.name || p.email).join(", ")}</p>
+                          <p key={b.date || "none"}><span className="font-medium text-foreground">{b.date ? fmt(b.date) : "Unknown date"}:</span> {g.people.filter((p) => !b.date || dayOf(p.added) === b.date).map((p) => p.name || p.email).join(", ")}</p>
                         ))}
                       </div>
                     )}

@@ -49,3 +49,15 @@ describe("events-DB-only matching", () => {
     expect(g[0].candidates[0].urid).toBe("1");
   });
 });
+
+import { attendeeRowsFor as rowsFor2, countByDay } from "./attendance-reconcile";
+describe("batches and full picker", () => {
+  it("groups upload days", () => {
+    expect(countByDay(["2026-02-03", "2026-02-03T10:00", "2026-06-01", ""])).toEqual([{ date: "2026-02-03", count: 2 }, { date: "2026-06-01", count: 1 }]);
+  });
+  it("accepts an Events DB event outside the predicted candidates", () => {
+    const g = { tagName: "X", status: "review" as const, candidates: [{ urid: "a", name: "A", start: "2026-01-01", reason: "" }], people: [{ email: "p@x.com", name: "P", eventName: "X", date: "", kind: "Network" }], alreadyLinked: 0, batches: [], tagDates: [] };
+    expect(rowsFor2([g], { X: "z" }, [], [{ urid: "z", start: "2026-03-01" }])[0]).toMatchObject({ eventUrid: "z", date: "2026-03-01" });
+    expect(rowsFor2([g], { X: "nope" }, [], [])).toHaveLength(0);
+  });
+});
