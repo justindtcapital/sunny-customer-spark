@@ -71,6 +71,39 @@ export function mentionedCompanies(text: string, names: string[]): string[] {
   return names.filter((n) => { const k = norm(n); return k.length >= 3 && hay.includes(` ${k} `); });
 }
 
+const INTERNAL_ORGS = new Set(["dell", "dell technologies", "dell technologies capital", "dt capital", "dtc", "dts"]);
+export const isInternalOrg = (name: string) => INTERNAL_ORGS.has(norm(name)) || /^dell\b/.test(norm(name));
+
+/** PortCos the meeting is about (named in the title) vs. ones only mentioned in Cowork's notes. */
+export function splitPortcos(title: string, text: string, names: string[], opts: { portcoTag: boolean; hasExternal: boolean }): { primary: string[]; mentioned: string[] } {
+  const inTitle = mentionedCompanies(title, names);
+  const inText = mentionedCompanies(text, names).filter((n) => !inTitle.includes(n));
+  if (inTitle.length || opts.hasExternal || !opts.portcoTag) return { primary: inTitle, mentioned: inText };
+  return { primary: inText.slice(0, 1), mentioned: inText.slice(1) };
+}
+
+/** Company named after the last comma of a meeting title ("Matt Darcy, Digital Realty"). */
+export function titleCompany(title: string): string {
+  const i = title.lastIndexOf(",");
+  if (i < 0) return "";
+  const c = title.slice(i + 1).trim();
+  return c.length >= 2 && c.length <= 60 && !/\d{1,2}:\d{2}/.test(c) ? c : "";
+}
+
+const SCHEDULING = [
+  /\b(invite|invitation|placeholder|reschedul\w*|slot)\b/i,
+  /\b(offer(?:ed|s)?|propos(?:ed|es)|suggest(?:ed|s)?)\b[^.]*\b(move|times?|next week|\d{1,2}(:\d{2})?)\b/i,
+  /\bmove (it|the (call|meeting))\b/i,
+  /\b\d{1,2}(:\d{2})?\s*(ET|PT|CT|MT|EST|PST|EDT|PDT)\b/,
+  /\bflight\b/i,
+  /\b(confirm(?:ed)?|accepted)\b[^.]*\b(time|Monday|Tuesday|Wednesday|Thursday|Friday)\b/i,
+  /\byou accepted\b/i,
+];
+/** Drop calendar back-and-forth (offered times, moves, invites) from Cowork's prose; keeps discussion and history. */
+export function stripScheduling(text: string): string {
+  return text.split(/(?<=[.!?])\s+(?=[A-Z(])/).filter((s) => !SCHEDULING.some((re) => re.test(s))).join(" ").trim();
+}
+
 export interface PersonRecord { id: string; name: string; company: string; email: string; title?: string; temperature?: string; lastContact?: string; urid?: string }
 export interface PersonMatch { name: string; contact?: PersonRecord; possible?: PersonRecord[]; teammate?: boolean }
 
