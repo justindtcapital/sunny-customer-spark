@@ -159,7 +159,7 @@ function MeetingCard({ m, added, onAdd, websites }: { m: BriefMeeting; added: Se
           {m.people.length > 0 && <div>
             <Label icon={Users}>Contacts</Label>
             <ul className="space-y-1">{m.people.map((p) => <li key={p.name} className="flex items-start gap-2 px-1.5">
-              <ContactAvatar contact={{ name: p.name, email: p.email, company: p.company }} size="sm" className="!h-5 !w-5" />
+              <ContactAvatar contact={{ name: p.name, email: p.email, company: p.company }} size="sm" />
               <div className="min-w-0 flex-1">
                 {p.contactId ? <Link to="/crm" search={{ contact: p.contactId }} className="font-medium text-foreground hover:text-primary">{p.name}</Link> : <span className="font-medium text-foreground">{p.name}</span>}
                 {p.company ? <span className="text-muted-foreground">, {p.company}</span> : null}
