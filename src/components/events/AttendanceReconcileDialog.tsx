@@ -66,7 +66,7 @@ export function AttendanceReconcileDialog({ open, onClose, onSaved }: { open: bo
         {groups && (
           <>
             <div className="flex gap-1.5">
-              {(Object.keys(LABEL) as Tab[]).map((t) => (
+              {(["clear", "review"] as Tab[]).map((t) => (
                 <Button key={t} size="sm" variant={tab === t ? "default" : "outline"} className="h-7 text-xs" onClick={() => setTab(t)}>
                   {LABEL[t]} <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">{by[t].length}</Badge>
                 </Button>

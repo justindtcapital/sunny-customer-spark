@@ -34,3 +34,19 @@ describe("attendance reconciliation", () => {
     expect(rows.map((r) => r.email)).toEqual(["b@x.com"]);
   });
 });
+
+import { isMeetingTag as _m, planAttendanceReconcile as _p } from "./attendance-reconcile";
+describe("events-DB-only matching", () => {
+  const ev = (urid: string, name: string, start: string) => ({ urid, name, start } as never);
+  it("drops calendar meetings and unmatched names", () => {
+    expect(_m("Julia & Taylor Events Sync")).toBe(true);
+    expect(_m("Coffee - catch up: Bimal G / Chris F")).toBe(true);
+    const g = _p([{ email: "a@x.com", name: "A", eventName: "Coffee Meeting", date: "", kind: "" }, { email: "b@x.com", name: "B", eventName: "Random Thing", date: "", kind: "" }], [ev("1", "RSA Conference", "2026-04-27")], []);
+    expect(g).toHaveLength(0);
+  });
+  it("sends informal names to review", () => {
+    const g = _p([{ email: "a@x.com", name: "A", eventName: "RSA Events", date: "", kind: "" }], [ev("1", "RSA Conference", "2026-04-27")], []);
+    expect(g[0].status).toBe("review");
+    expect(g[0].candidates[0].urid).toBe("1");
+  });
+});
