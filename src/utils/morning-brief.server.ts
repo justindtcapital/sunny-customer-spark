@@ -107,13 +107,35 @@ function assemble(text: string, today: string, f: Facts) {
       const hint = personHints(x.name, m.text, m.title);
       return { name: x.name, company: x.possible?.[0]?.company || hint.company, title: hint.title, campaigns: inCampaigns, events: [], status: x.possible ? "possible" as const : "new" as const };
     });
-    const keys = new Set([...ppl.map((p) => norm(p.name)), ...portcos.map((p) => norm(p.name))]);
+    // The meeting's company: a PortCo named in the title, else the outside company
+    // from the title ("Matt Darcy, Digital Realty") or the attendees' employer.
+    const fromTitle = titleCompany(m.title);
+    const outside = (c: string) => !!c && !isInternalOrg(c) && !portcoKeys.has(norm(c)) && !mentionedCompanies(c, companyNames).length;
+    const titlePortco = mentionedCompanies(m.title, companyNames).length > 0;
+    const extName = titlePortco ? "" : outside(fromTitle) ? fromTitle : (ppl.find((p) => p.status === "matched" && outside(p.company))?.company || "");
+    const split = splitPortcos(m.title, m.text, companyNames, { portcoTag: m.tags.some((t) => /portco/i.test(t)), hasExternal: !!extName });
+    const portcos: BriefPortco[] = split.primary.map((name) => {
+      const inv = invFor(name);
+      const ws = f.workstreams.filter((w) => norm(w.company) === norm(name) && !w.completed && activeWorkstream(w));
+      return { name, badge: priorityBadge(inv.priority), priority: inv.priority, stage: inv.stage, ownership: inv.ownership, investment: inv.investment, round: inv.round, investors: inv.investors,
+        workstreams: ws.map((w) => ({ name: w.name, status: workstreamBarStatus(w), priority: w.workstreamPriority, lastActivity: (w.lastActivity || "").slice(0, 10), update: (w.nextSteps || w.notes || "").slice(0, 220), url: w.url })) };
+    });
+    const mentionedPortcos = split.mentioned.map((name) => ({ name, badge: priorityBadge(invFor(name).priority) }));
+    let company: BriefCompany | null = null;
+    if (extName) {
+      const k = norm(extName);
+      const domain = people.filter((p) => norm(p.company) === k).map((p) => normalizeDomain(p.email)).find((d): d is string => !!d && !isSharedEmailDomain(d)) || "";
+      const at = people.filter((p) => norm(p.company) === k || (!!domain && normalizeDomain(p.email) === domain));
+      company = { name: extName, domain, about: "", aboutSource: "", sources: [], totalContacts: at.length,
+        contacts: at.slice(0, 6).map((p) => ({ name: p.name, title: p.title || "", temperature: p.temperature, contactId: p.urid || p.id })) };
+    }
+    const keys = new Set([...ppl.map((p) => norm(p.name)), ...portcos.map((p) => norm(p.name)), ...(company ? [norm(company.name)] : [])]);
     const touches = (person: string, company: string) => keys.has(norm(person)) || keys.has(norm(company));
     const actions = f.reminders.filter((r) => touches(r.person, r.company)).slice(0, 6).map((r) => ({ summary: r.summary, due: (r.due || "").slice(0, 10), person: r.person, overdue: !!r.due && r.due.slice(0, 10) < today }));
     const notes = f.records.filter((r) => (keys.has(norm(r.portco)) || [...keys].some((k) => k.includes(" ") && norm(r.participants).includes(k))) && daysBetween(r.date || r.createdAt, today) <= 60)
       .sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 3).map((r) => ({ title: r.title, date: (r.date || "").slice(0, 10), summary: r.summary.slice(0, 400), url: r.sourceUrl }));
     const events = upcoming.filter((e) => e.portcos.some((p) => keys.has(norm(p))) || f.attendees.some((a) => a.eventUrid === e.urid && keys.has(norm(a.name)))).map((e) => ({ name: e.name, start: e.start }));
-    return { time: m.time, title: m.title, tags: m.tags, platform: m.platform, duration: m.duration, cowork: m.text, summary: "", portcos, people: ppl, actions, notes, events, worthChecking: [], prep: [] };
+    return { time: m.time, title: m.title, tags: m.tags, platform: m.platform, duration: m.duration, cowork: stripScheduling(m.text), summary: "", portcos, mentionedPortcos, company, people: ppl, actions, notes, events, worthChecking: [], prep: [] };
   });
   const todayNames = new Set(meetings.flatMap((m) => m.people.map((p) => norm(p.name))));
   const nm = new Set(f.companies.filter((c) => priorityBadge(investmentStrip(f.portcoFields.get(c.name.trim().toLowerCase())?.fields || c.asanaFields, c.profileOverrides).priority) === "NM").map((c) => norm(c.name)));
