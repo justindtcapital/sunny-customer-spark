@@ -2883,6 +2883,20 @@ function TargetingPage() {
         </DialogContent>
       </Dialog>
 
+      {mergeUrids && (
+        <MergeContactsDialog
+          open
+          urids={mergeUrids}
+          onOpenChange={(o) => { if (!o) setMergeUrids(null); }}
+          onMerged={() => { clearSelection(); setDetailOpen(false); setActiveTarget(null); void refreshTargets(); }}
+        />
+      )}
+      <DuplicatesDialog
+        open={duplicatesOpen}
+        onOpenChange={setDuplicatesOpen}
+        onChanged={() => { setDetailOpen(false); setActiveTarget(null); void refreshTargets(); }}
+      />
+
       <TagToEventDialog
         open={tagEventOpen}
         onOpenChange={setTagEventOpen}
