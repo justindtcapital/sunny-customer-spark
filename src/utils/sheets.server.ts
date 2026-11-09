@@ -28,7 +28,7 @@ import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { planMissingUrids } from "@/lib/contact-ids";
 import { resolveProspectEvents } from "@/lib/prospect-events";
-import { isMergedStatus, splitList } from "@/lib/contact-merge";
+import { isMergedStatus, splitList as splitIds } from "@/lib/contact-merge";
 import { buildProspectView, contactHeaderFor, contactRowFromTarget, isProspectStatus, UNIFIED_CONTACT_COLUMNS, viewHeaders, type ProspectView } from "@/lib/unified-contacts";
 import { normalizeSource, targetKeyOf, normalizeInteractionType } from "@/lib/types";
 import { buildPortCoCanonicalMap, canonicalizePortCo } from "@/lib/portco-canonical";
@@ -2590,7 +2590,7 @@ export async function buildContacts(): Promise<Contact[]> {
       .filter((e) => e.includes("@"));
     const uridKey = (c.urid || "").trim().toLowerCase();
     // URIDs of records merged into this one: their history joins here too.
-    const mergedKeys = splitList(c.mergedUrids || "", /[,;\s]+/).map((u) => u.toLowerCase());
+    const mergedKeys = splitIds(c.mergedUrids || "", /[,;\s]+/).map((u) => u.toLowerCase());
     // Gather child rows by urid and by ANY of the contact's emails (Notes sync
     // writes the primary address; multi-email Contacts must still find them).
     const gather = (g: ParentBuckets) => {
@@ -4309,7 +4309,7 @@ export async function buildTargets(): Promise<TargetLead[]> {
     // key (email else name|company), so editing those fields can't detach them.
     const legacyKey = targetKeyOf({ email: t.email, name, company: t.company });
     const uridKey = (t.urid || "").trim().toLowerCase();
-    const mergedKeys = splitList(t.mergedUrids || "", /[,;\s]+/).map((u) => u.toLowerCase());
+    const mergedKeys = splitIds(t.mergedUrids || "", /[,;\s]+/).map((u) => u.toLowerCase());
     const outreach = [
       ...(uridKey ? outreachMap[uridKey] || [] : []),
       ...mergedKeys.flatMap((m) => outreachMap[m] || []),
