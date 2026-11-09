@@ -27,6 +27,7 @@ import { inferInterestAreas } from "@/lib/interest-domains";
 import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { planMissingUrids } from "@/lib/contact-ids";
+import { resolveProspectEvents } from "@/lib/prospect-events";
 import { buildProspectView, contactHeaderFor, contactRowFromTarget, isProspectStatus, UNIFIED_CONTACT_COLUMNS, viewHeaders, type ProspectView } from "@/lib/unified-contacts";
 import { normalizeSource, targetKeyOf, normalizeInteractionType } from "@/lib/types";
 import { buildPortCoCanonicalMap, canonicalizePortCo } from "@/lib/portco-canonical";
