@@ -33,7 +33,7 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
     const previous = prior.find((o) => o.key === key);
     if (previous && ["changed", "moved", "already_complete", "duplicate"].includes(previous.status)) { results.set(key, previous); continue; }
     const emails = emailIdentities(selected.email);
-    const matches = rows.slice(1).filter((r) => selected.urid ? cell(headers, r, "urid") === selected.urid : !isProspectStatus(cell(headers, r, "relationship status")) && emailIdentities(cell(headers, r, "email")).some((e) => emails.includes(e)));
+    const matches = rows.slice(1).filter((r) => selected.urid ? cell(headers, r, "urid") === selected.urid : !isProspectStatus(cell(headers, r, "relationship status")) && norm(cell(headers, r, "relationship status")) !== "merged" && emailIdentities(cell(headers, r, "email")).some((e) => emails.includes(e)));
     const source = matches[0];
     if (matches.length > 1) { results.set(key, { ...base, status: "blocked", reason: "Multiple matching contacts; review identity." }); continue; }
     if (!source) { results.set(key, { ...base, status: "blocked", reason: "Contact not found; reload the page and try again." }); continue; }

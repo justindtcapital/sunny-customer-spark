@@ -28,6 +28,7 @@ import { normalizeEmails } from "@/lib/email";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { planMissingUrids } from "@/lib/contact-ids";
 import { resolveProspectEvents } from "@/lib/prospect-events";
+import { isMergedStatus, splitList as splitIds } from "@/lib/contact-merge";
 import { buildProspectView, contactHeaderFor, contactRowFromTarget, isProspectStatus, UNIFIED_CONTACT_COLUMNS, viewHeaders, type ProspectView } from "@/lib/unified-contacts";
 import { normalizeSource, targetKeyOf, normalizeInteractionType } from "@/lib/types";
 import { buildPortCoCanonicalMap, canonicalizePortCo } from "@/lib/portco-canonical";
@@ -539,6 +540,7 @@ export async function updateSheetCell(
 export async function updateSheetCells(
   tabName: string,
   updates: { range: string; value: string }[],
+  literal = false,
 ): Promise<void> {
   if (updates.length === 0) return;
   if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return updateProspectCells(updates);
@@ -551,7 +553,8 @@ export async function updateSheetCells(
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      valueInputOption: "USER_ENTERED",
+      // literal (RAW) keeps values exactly as read, e.g. "+1 …" phones.
+      valueInputOption: literal ? "RAW" : "USER_ENTERED",
       data: updates.map((u) => ({
         range: `${tabName}!${u.range}`,
         values: [[u.value]],
@@ -1542,6 +1545,7 @@ const CONTACT_COLS: Record<string, string> = {
   "apollo enriched": "apolloEnriched",
   "apollo enriched date": "apolloEnrichedDate",
   urid: "urid",
+  "merged urids": "mergedUrids",
 };
 
 const EVENT_COLS: Record<string, string> = {
@@ -2040,6 +2044,7 @@ const TARGET_COLS: Record<string, string> = {
   "portco tags": "portcoTags",
   "portfolio tags": "portcoTags",
   "portco tag": "portcoTags",
+  "merged urids": "mergedUrids",
   "date added": "dateAdded",
   "last contacted": "lastContacted",
   "follow up flag": "followUpFlag",
@@ -2556,7 +2561,8 @@ export async function buildContacts(): Promise<Contact[]> {
     r.name ? r : { ...r, name: (contactRows[i + 1]?.[0] || "").trim() },
   );
   // Prospecting-flagged people share the Contacts tab but are not part of the Network.
-  const networkContacts = rawContacts.filter((r) => !isProspectStatus(r.temperature || ""));
+  // Archived merge copies ("Merged") are hidden; their history shows on the main record.
+  const networkContacts = rawContacts.filter((r) => !isProspectStatus(r.temperature || "") && !isMergedStatus(r.temperature || ""));
 
   // Rows stamped "Removed At" are unlinked (append-only removal) — never shown.
   const rawEvents = mapRows<Record<string, string>>(eventRows, EVENT_COLS).filter((r) => !r.removedAt);
@@ -2583,6 +2589,8 @@ export async function buildContacts(): Promise<Contact[]> {
       .map((e) => e.trim().toLowerCase())
       .filter((e) => e.includes("@"));
     const uridKey = (c.urid || "").trim().toLowerCase();
+    // URIDs of records merged into this one: their history joins here too.
+    const mergedKeys = splitIds(c.mergedUrids || "", /[,;\s]+/).map((u) => u.toLowerCase());
     // Gather child rows by urid and by ANY of the contact's emails (Notes sync
     // writes the primary address; multi-email Contacts must still find them).
     const gather = (g: ParentBuckets) => {
@@ -2597,6 +2605,7 @@ export async function buildContacts(): Promise<Contact[]> {
         }
       };
       if (uridKey) add(g.byUrid[uridKey] || []);
+      for (const m of mergedKeys) add(g.byUrid[m] || []);
       for (const e of emailKeys) add(g.byEmail[e] || []);
       return out;
     };
@@ -4300,8 +4309,10 @@ export async function buildTargets(): Promise<TargetLead[]> {
     // key (email else name|company), so editing those fields can't detach them.
     const legacyKey = targetKeyOf({ email: t.email, name, company: t.company });
     const uridKey = (t.urid || "").trim().toLowerCase();
+    const mergedKeys = splitIds(t.mergedUrids || "", /[,;\s]+/).map((u) => u.toLowerCase());
     const outreach = [
       ...(uridKey ? outreachMap[uridKey] || [] : []),
+      ...mergedKeys.flatMap((m) => outreachMap[m] || []),
       ...(outreachMap[legacyKey] || []),
     ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const connectionPlan = (uridKey ? strategyMap[uridKey] : undefined) || strategyMap[legacyKey];
@@ -4316,6 +4327,7 @@ export async function buildTargets(): Promise<TargetLead[]> {
       for (const r of rows) if (!seenLinks.has(r)) { seenLinks.add(r); linkRows.push(r); }
     };
     if (uridKey) addLinks(eventLinks.byUrid[uridKey]);
+    for (const m of mergedKeys) addLinks(eventLinks.byUrid[m]);
     for (const e of (t.email || "").split(/[;,]/)) {
       const k = e.trim().toLowerCase();
       if (k) addLinks(eventLinks.byEmail[k]);
