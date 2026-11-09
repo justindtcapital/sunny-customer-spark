@@ -42,7 +42,9 @@ export function VicChat({ threadId, page, pageLabel }: { threadId: string; page?
 
 function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: string; initial: UIMessage[]; page?: string; pageLabel?: string }) {
   const [text, setText] = useState("");
-  const { skillId, setSkillId, folders } = useVicWorkspace();
+  const { skillId, setSkillId, folders, sources } = useVicWorkspace();
+  const sourcesRef = useRef(sources);
+  sourcesRef.current = sources;
   const skillRef = useRef(skillId);
   skillRef.current = skillId;
   const { email } = useAuth();
@@ -50,7 +52,7 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
   const foldersRef = useRef(folders);
   foldersRef.current = folders;
   const transport = useMemo(
-    () => new DefaultChatTransport({ api: "/api/vic", fetch: vicFetch, body: () => ({ threadId, page, kbFolderIds: foldersRef.current, skillId: skillRef.current }) }),
+    () => new DefaultChatTransport({ api: "/api/vic", fetch: vicFetch, body: () => ({ threadId, page, kbFolderIds: foldersRef.current, skillId: skillRef.current, externalSources: sourcesRef.current }) }),
     [threadId, page],
   );
   const { messages, sendMessage, status, stop } = useChat({

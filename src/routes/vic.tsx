@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { createVicThread } from "@/lib/vic-client";
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/vic")({
 });
 
 interface Thread { id: string; title: string; updated_at: string }
+const RECENT_LIMIT = 4;
 
 function VicLayout() {
   const { skill } = Route.useSearch();
@@ -32,6 +33,10 @@ function VicLayout() {
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const activeId = path.split("/")[2] || "";
+  const [showAll, setShowAll] = useState(false);
+  const recent = threads.slice(0, RECENT_LIMIT);
+  const activeHidden = threads.find((t, i) => t.id === activeId && i >= RECENT_LIMIT);
+  const visibleThreads = showAll ? threads : activeHidden ? [...recent, activeHidden] : recent;
 
   const load = () =>
     supabase.from("vic_threads").select("id,title,updated_at").order("updated_at", { ascending: false }).limit(100)
@@ -65,7 +70,7 @@ function VicLayout() {
             <h2 className="text-sm font-semibold">Recent chats</h2>
             <Button size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-[11px]" onClick={() => void create()}><Plus className="size-3" />New chat</Button>
           </div>
-          {threads.map((t) => (
+          {visibleThreads.map((t) => (
             <div key={t.id} className={`group flex items-center rounded-sm text-[11px] leading-4 ${t.id === activeId ? "bg-muted font-medium" : "hover:bg-muted/60"}`}>
               <Link to="/vic/$threadId" params={{ threadId: t.id }} title={t.title} className="min-w-0 flex-1 px-2 py-1"><span className="line-clamp-2 break-words">{t.title}</span></Link>
               <Button type="button" variant="ghost" size="icon" aria-label="Delete chat" title="Delete chat" onClick={() => void remove(t.id)} className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted-foreground hover:text-destructive">
@@ -74,6 +79,12 @@ function VicLayout() {
             </div>
           ))}
           {threads.length === 0 && <p className="px-2 py-1 text-xs text-muted-foreground">No chats yet.</p>}
+          {threads.length > RECENT_LIMIT && (
+            <Button type="button" variant="ghost" size="sm" aria-expanded={showAll} onClick={() => setShowAll((v) => !v)} className="h-6 w-full justify-start gap-1 px-2 text-[11px] text-muted-foreground">
+              {showAll ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+              {showAll ? "Show fewer" : `Show ${threads.length - visibleThreads.length} more`}
+            </Button>
+          )}
         </nav>
         <VicWorkspaceControls />
         </div>

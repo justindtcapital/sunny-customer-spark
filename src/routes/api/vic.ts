@@ -10,7 +10,7 @@ export const Route = createFileRoute("/api/vic")({
         const auth = await authenticateVic(request);
         if (!auth) return Response.json({ error: "Verified team sign-in required." }, { status: 401 });
 
-        const body = (await request.json()) as { id?: string; threadId?: string; messages?: UIMessage[]; page?: string; kbFolderIds?: unknown; skillId?: unknown };
+        const body = (await request.json()) as { id?: string; threadId?: string; messages?: UIMessage[]; page?: string; kbFolderIds?: unknown; skillId?: unknown; externalSources?: unknown };
         const threadId = body.threadId || body.id;
         const messages = Array.isArray(body.messages) ? body.messages : [];
         if (!threadId || messages.length === 0) return Response.json({ error: "Missing thread or messages." }, { status: 400 });
@@ -35,7 +35,7 @@ export const Route = createFileRoute("/api/vic")({
         const { provider, getRunId } = createVicProvider(request);
         const result = streamText({
           model: provider.responses("openai/gpt-6-astra"),
-          system: vicInstructions(auth.teamEmail, body.page, body.skillId),
+          system: vicInstructions(auth.teamEmail, body.page, body.skillId, body.externalSources),
           messages: await convertToModelMessages(messages),
           tools: vicTools({ teamEmail: auth.teamEmail, kbFolderIds: Array.isArray(body.kbFolderIds) ? body.kbFolderIds.filter((x): x is string => typeof x === "string" && /^[\w-]{10,80}$/.test(x)).slice(0, 20) : [] }),
           stopWhen: stepCountIs(50),

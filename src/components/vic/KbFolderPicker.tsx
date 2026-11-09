@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { BookOpen, Check, Folder, RotateCw } from "lucide-react";
+import { BookOpen, Check, Database, Folder, RotateCw } from "lucide-react";
+import { VIC_EXTERNAL_SOURCES, type VicExternalSource } from "@/lib/vic-sources";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { listKbFoldersFn } from "@/utils/vic.functions";
 
 /** Choose which Knowledge Base folders Vic searches (none = whole KB). */
-export function KbFolderPicker({ value, onChange, placement = "composer" }: { value: string[]; onChange: (v: string[]) => void; placement?: "composer" | "sidebar" }) {
+export function KbFolderPicker({ value, onChange, placement = "composer", sources = [], onSourcesChange }: { value: string[]; onChange: (v: string[]) => void; placement?: "composer" | "sidebar"; sources?: VicExternalSource[]; onSourcesChange?: (v: VicExternalSource[]) => void }) {
   const list = useServerFn(listKbFoldersFn);
   const [open, setOpen] = useState(false);
   const [folders, setFolders] = useState<{ id: string; name: string }[] | null>(null);
@@ -32,6 +33,14 @@ export function KbFolderPicker({ value, onChange, placement = "composer" }: { va
         <Folder aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1">{folder.name}</span>
       </label>)}
     </div>
+    {onSourcesChange && <div className="space-y-0.5 pt-1.5">
+      <h3 className="px-1 text-[11px] font-medium text-muted-foreground">External databases</h3>
+      {VIC_EXTERNAL_SOURCES.map((s) => <label key={s.id} title={`Always check ${s.name} for this chat`} className="flex min-h-6 cursor-pointer items-center gap-2 rounded-sm px-1 py-1 text-[11px] leading-4 hover:bg-muted/60">
+        <Checkbox checked={sources.includes(s.id)} onCheckedChange={() => onSourcesChange(sources.includes(s.id) ? sources.filter((x) => x !== s.id) : [...sources, s.id])} className="size-3.5" />
+        <Database aria-hidden="true" className="size-3 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1">{s.name} <span className="text-muted-foreground">· {s.hint}</span></span>
+      </label>)}
+    </div>}
   </section>;
   return (
     <Popover open={open} onOpenChange={setOpen}>
