@@ -4,6 +4,9 @@ import { requireTeamAuth } from "./team-auth";
 import { activityEvidence, type BulkOperation, type BulkOutcome } from "@/lib/bulk-operation";
 import type { Json } from "@/integrations/supabase/types";
 
+/** Kinds whose interrupted runs can be checked against fresh Contacts and unlocked by the team. */
+const RECONCILABLE = ["target-import","contact-import","contact-merge","contact-merge-undo"];
+
 export const inspectBulkOperation = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
   .inputValidator(input => z.object({ id:z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
@@ -32,21 +35,27 @@ export const reconcileImportOperation = createServerFn({ method: "POST" }).middl
     const db = await journalClient();
     const { data:op,error } = await db.from("bulk_operations").select("*").eq("id",data.id).single();
     if(error || !op) throw new Error("Operation not found.");
-    if(!["target-import","contact-import"].includes(op.kind)) throw new Error("Self-service recovery is available for imports only. Create a fix request for this activity.");
+    if(!RECONCILABLE.includes(op.kind)) throw new Error("Self-service recovery is available for imports and merges only. Create a fix request for this activity.");
     if(op.status !== "uncertain") throw new Error("This operation is not waiting for reconciliation.");
     const quietMs = Date.now() - new Date(op.updated_at).getTime();
     if(quietMs < 120_000) throw new Error("This import stopped less than 2 minutes ago. Wait a moment so any in-flight save can finish, then check again.");
     const input = op.input as Record<string, unknown>;
-    const rows = (op.kind === "target-import" ? input.targets : input.contacts) as Record<string,string>[] || [];
-    const items = rows.map((r,i) => { const name = r.name || `${r.firstName || ""} ${r.lastName || ""}`.trim(); return { key:String(i), label:name || r.email, email:r.email, name, company:r.company }; });
-    const { fetchSheetTab, TAB_NAMES } = await import("./sheets.server");
     const { withDeadline } = await import("./request-deadline.server");
-    const sheet = await withDeadline("read saved contacts",40_000,step => { step("reading Contacts without writes"); return fetchSheetTab(TAB_NAMES.contacts,true); });
-    const h = (sheet[0] || []).map(x => x.trim().toLowerCase()), g = (r:string[],...k:string[]) => k.map(x=>r[h.indexOf(x)]||"").find(Boolean)||"";
-    const saved = sheet.slice(1).map(r => ({ urid:g(r,"urid"), email:g(r,"email"), name:g(r,"name","full name") || `${g(r,"first name")} ${g(r,"last name")}`.trim(), company:g(r,"company","organization"), status:g(r,"relationship status") }));
-    const { planImportReconciliation } = await import("@/lib/import-reconciliation");
     const { operationStatus } = await import("@/lib/bulk-operation");
-    const outcomes = planImportReconciliation(items,(op.outcomes || []) as unknown as BulkOutcome[],saved);
+    let outcomes: BulkOutcome[];
+    if (op.kind === "contact-merge" || op.kind === "contact-merge-undo") {
+      const { mergeSavedState } = await import("./contact-merge.server");
+      outcomes = await withDeadline("read merged contacts",40_000,step => { step("reading Contacts without writes"); return mergeSavedState(op.kind, input); });
+    } else {
+      const rows = (op.kind === "target-import" ? input.targets : input.contacts) as Record<string,string>[] || [];
+      const items = rows.map((r,i) => { const name = r.name || `${r.firstName || ""} ${r.lastName || ""}`.trim(); return { key:String(i), label:name || r.email, email:r.email, name, company:r.company }; });
+      const { fetchSheetTab, TAB_NAMES } = await import("./sheets.server");
+      const sheet = await withDeadline("read saved contacts",40_000,step => { step("reading Contacts without writes"); return fetchSheetTab(TAB_NAMES.contacts,true); });
+      const h = (sheet[0] || []).map(x => x.trim().toLowerCase()), g = (r:string[],...k:string[]) => k.map(x=>r[h.indexOf(x)]||"").find(Boolean)||"";
+      const saved = sheet.slice(1).map(r => ({ urid:g(r,"urid"), email:g(r,"email"), name:g(r,"name","full name") || `${g(r,"first name")} ${g(r,"last name")}`.trim(), company:g(r,"company","organization"), status:g(r,"relationship status") }));
+      const { planImportReconciliation } = await import("@/lib/import-reconciliation");
+      outcomes = planImportReconciliation(items,(op.outcomes || []) as unknown as BulkOutcome[],saved);
+    }
     if(!data.apply) return { applied:false, outcomes };
     const status = operationStatus(outcomes);
     const saves = outcomes.filter(o=>o.status==="changed").length, missing = outcomes.filter(o=>o.status==="failed").length;
@@ -112,5 +121,5 @@ export const fetchBulkLockStatus = createServerFn({ method: "GET" }).middleware(
   const { data:op } = await db.from("bulk_operations").select("id,kind,status,summary,actor,updated_at").eq("id",lock.operation_id).maybeSingle();
   const quietMs = op ? Date.now() - new Date(op.updated_at).getTime() : 0;
   return { locked:true as const, operationId:lock.operation_id, kind:op?.kind || "unknown", status:op?.status || "unknown", summary:op?.summary || "", actor:op?.actor || "", since:op?.updated_at || lock.acquired_at,
-    canReconcile: !!op && op.status === "uncertain" && ["target-import","contact-import"].includes(op.kind), waitMs: Math.max(0, 120_000 - quietMs) };
+    canReconcile: !!op && op.status === "uncertain" && RECONCILABLE.includes(op.kind), waitMs: Math.max(0, 120_000 - quietMs) };
 });
