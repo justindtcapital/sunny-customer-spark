@@ -1160,9 +1160,11 @@ export function ContactDetail({
                       </label>
                       <Input
                         className="h-8 text-sm"
+                        list="vp-team-primes"
                         value={editData.prime || ""}
                         onChange={(e) => setEditData({ ...editData, prime: e.target.value })}
                       />
+                      <datalist id="vp-team-primes">{TEAM_OWNER_NAMES.map((n) => <option key={n} value={n} />)}</datalist>
                     </div>
                     <div>
                       <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
