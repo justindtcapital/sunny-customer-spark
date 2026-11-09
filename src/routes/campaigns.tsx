@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { canonicalOwnerName, TEAM_OWNER_NAMES } from "@/lib/user-ownership";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
