@@ -24,7 +24,7 @@ import { syncGmailCrmTouches } from "@/utils/gmail-crm-sync.functions";
 import { syncEventExposure } from "@/utils/event-exposure.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Activity, Mail, Users } from "lucide-react";
+import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Activity, Mail, Users, Merge } from "lucide-react";
 import { DuplicatesDialog } from "@/components/crm/DuplicatesDialog";
 import {
   Dialog,
@@ -570,6 +570,17 @@ function CrmPage() {
               <Mail className="h-3.5 w-3.5 mr-1.5" />
             )}
             {gmailSyncBusy ? "Syncing Gmail…" : "Sync with Gmail"}
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs"
+            onClick={() => setDuplicatesOpen(true)}
+            title="Find and merge duplicate people. To merge your own picks, tick 2–5 people and press Merge."
+          >
+            <Merge className="h-3.5 w-3.5 mr-1.5" />
+            Merge duplicates
           </Button>
 
           <DropdownMenu>
