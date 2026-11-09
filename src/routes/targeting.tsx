@@ -113,6 +113,8 @@ import {
   repairTargetSectors,
   addTarget,
   logOpsEvent,
+  linkProspectEvents,
+  removeEventLink,
 } from "@/utils/sheets.functions";
 import { promoteTargetsToCrm } from "@/utils/target-crm.functions";
 import {
@@ -147,7 +149,23 @@ import { useTargetingFilters } from "@/lib/targeting-filter-context";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { useTargetSelection } from "@/lib/target-selection-context";
 import { connectionStrategy, type ConnectionStrategy } from "@/utils/insights.functions";
-import { loadEvents } from "@/components/events/EventPicker";
+import { EventPicker, loadEvents } from "@/components/events/EventPicker";
+import {
+  addProspectEvent,
+  hasProspectEvent,
+  prospectEventNames,
+  removeProspectEvent,
+  type EventLinkType,
+  type ProspectEvents,
+} from "@/lib/prospect-events";
+
+/** A prospect's linked events (legacy rows without loaded links fall back to the Event cell). */
+function eventsOf(t: TargetLead): ProspectEvents {
+  return {
+    eventsAttended: t.eventsAttended ?? [],
+    eventsInvited: t.eventsInvited ?? (t.event ? [t.event] : []),
+  };
+}
 import { PersonCampaigns } from "@/components/crm/PersonCampaigns";
 
 
@@ -545,8 +563,9 @@ function TargetingPage() {
     // Count targets per event, then union with the catalog so unused events show 0.
     const targetEventCounts: Record<string, number> = {};
     for (const t of targets) {
-      const name = (t.event || "").trim();
-      if (name) targetEventCounts[name] = (targetEventCounts[name] ?? 0) + 1;
+      for (const name of prospectEventNames(t)) {
+        targetEventCounts[name] = (targetEventCounts[name] ?? 0) + 1;
+      }
     }
     const seen = new Map<string, string>();
     for (const name of [...Object.keys(targetEventCounts), ...catalogEventNames]) {
@@ -582,6 +601,11 @@ function TargetingPage() {
   const [emailDraftOpen, setEmailDraftOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<TargetLead>>({});
+  const [addEventOpen, setAddEventOpen] = useState(false);
+  const [newEvent, setNewEvent] = useState<{ name: string; type: EventLinkType }>({
+    name: "",
+    type: "attended",
+  });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New target form
@@ -629,7 +653,8 @@ function TargetingPage() {
       if (filters.origin !== "all" && t.originSource !== filters.origin) return false;
       if (filters.campaign.length && !filters.campaign.includes((t.campaign || "").trim()))
         return false;
-      if (filters.event.length && !filters.event.includes((t.event || "").trim())) return false;
+      if (filters.event.length && !prospectEventNames(t).some((n) => filters.event.includes(n)))
+        return false;
       if (filters.followUpOnly && !t.followUp) return false;
       if (filters.title && !t.title.toLowerCase().includes(filters.title.toLowerCase()))
         return false;
@@ -1449,21 +1474,101 @@ function TargetingPage() {
     }
   };
 
-  // Bulk event tagging: writes only the Event cell on each selected prospect.
+  // Apply a local change to one prospect's linked events (list + open profile).
+  const patchTargetEvents = (id: string, fn: (ev: ProspectEvents) => ProspectEvents) => {
+    const apply = (t: TargetLead): TargetLead => (t.id === id ? { ...t, ...fn(eventsOf(t)) } : t);
+    setTargets((prev) => prev.map(apply));
+    setActiveTarget((prev) => (prev ? apply(prev) : prev));
+  };
+
+  // Profile: add one event link. Existing links are kept; duplicates are no-ops.
+  const addEventToActiveTarget = async () => {
+    const t = activeTarget;
+    const name = newEvent.name.trim();
+    if (!t || !name) return;
+    if (!t.urid && !t.email) {
+      toast.error("This prospect has no ID or email yet — run Repair IDs first.");
+      return;
+    }
+    if (hasProspectEvent({ ...t, ...eventsOf(t) }, name)) {
+      toast.info(`${name} is already linked.`);
+      return;
+    }
+    const type = newEvent.type;
+    patchTargetEvents(t.id, (ev) => addProspectEvent(ev, name, type));
+    setNewEvent({ name: "", type: "attended" });
+    setAddEventOpen(false);
+    try {
+      await linkProspectEvents({ data: { items: [{ urid: t.urid, email: t.email, eventName: name, type }] } });
+    } catch (e) {
+      console.error("linkProspectEvents failed", e);
+      toast.error("Saving the event link failed — see console.");
+      await refreshTargets();
+    }
+  };
+
+  // Profile: unlink one event from this prospect (the event itself stays).
+  const removeEventFromActiveTarget = async (name: string, type: EventLinkType) => {
+    const t = activeTarget;
+    if (!t) return;
+    if (!t.urid && !t.email) {
+      toast.error("This prospect has no ID or email yet — run Repair IDs first.");
+      return;
+    }
+    patchTargetEvents(t.id, (ev) => removeProspectEvent(ev, name, type));
+    try {
+      await removeEventLink({ data: { urid: t.urid, email: t.email, eventName: name, type } });
+    } catch (e) {
+      console.error("removeEventLink failed", e);
+      toast.error("Removing the event link failed — see console.");
+      await refreshTargets();
+    }
+  };
+
+  // Add one event link to many prospects without replacing their existing links;
+  // the legacy Event cell is only filled where it was blank.
+  const linkEventToTargets = async (chosen: TargetLead[], event: string) => {
+    const linkable = chosen.filter((t) => t.urid || t.email);
+    const fresh = linkable.filter((t) => !hasProspectEvent({ ...t, ...eventsOf(t) }, event));
+    const ids = new Set(fresh.map((t) => t.id));
+    const apply = (t: TargetLead): TargetLead =>
+      ids.has(t.id) ? { ...t, ...addProspectEvent(eventsOf(t), event, "invited"), event: t.event || event } : t;
+    setTargets((prev) => prev.map(apply));
+    setActiveTarget((prev) => (prev ? apply(prev) : prev));
+    const res = fresh.length
+      ? await linkProspectEvents({
+          data: { items: fresh.map((t) => ({ urid: t.urid, email: t.email, eventName: event, type: "invited" as const })) },
+        })
+      : { attendanceWritten: 0, catalogWritten: 0, skipped: 0 };
+    const blanks = fresh.filter((t) => !(t.event || "").trim());
+    if (blanks.length) {
+      await bulkUpdateTargetFields({
+        data: {
+          entries: blanks.map((t) => ({ urid: t.urid, key: targetKeyOf(t), fields: { event } })),
+          fillOnly: true,
+        },
+      });
+    }
+    return { linked: res.attendanceWritten, already: chosen.length - fresh.length - (chosen.length - linkable.length), missing: chosen.length - linkable.length };
+  };
+
+  // Bulk event tagging: adds the event to each selected prospect's links.
   const tagSelectedToEvent = async (event: string) => {
     const chosen = selectedTargets;
     if (chosen.length === 0) return;
-    const ids = new Set(chosen.map((t) => t.id));
-    setTargets((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, event } : t)));
     try {
-      const entries = chosen.map((t) => ({ urid: t.urid, key: targetKeyOf(t), fields: { event } }));
-      const res = await bulkUpdateTargetFields({ data: { entries } });
+      const r = await linkEventToTargets(chosen, event);
       clearSelection();
-      toast.success(`${res.updated} prospect${res.updated !== 1 ? "s" : ""} tagged to ${event}`);
+      const extra = [
+        r.already ? `${r.already} already linked` : "",
+        r.missing ? `${r.missing} skipped (no ID or email)` : "",
+      ].filter(Boolean).join(" · ");
+      toast.success(`${r.linked} prospect${r.linked !== 1 ? "s" : ""} tagged to ${event}${extra ? ` · ${extra}` : ""}`);
       await refreshTargets();
     } catch (e) {
       console.error("tagSelectedToEvent failed", e);
       toast.error("Event tagging failed — see console.");
+      await refreshTargets();
     }
   };
 
