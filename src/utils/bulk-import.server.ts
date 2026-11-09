@@ -5,6 +5,7 @@ import { formatEngagementSources } from "@/lib/engagement-source";
 import type { EngagementSource } from "@/lib/types";
 import { appendSheetRows, appendTargetRows, appendInteractionRows, appendPortcoIntroRows, ensureEventAttendanceBatch, ensureColumn, ensureTab, fetchSheetTab, TAB_NAMES, TARGET_HEADERS, type TargetRowInput } from "./sheets.server";
 import type { JournalRun } from "./bulk-journal.server";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 
 export interface ContactImportRow {
   name: string; email: string; role: string; company: string; phone: string; location: string; prime: string; sector: string;
@@ -78,7 +79,7 @@ export async function importContactRows(input: ContactImportInput, journal: Jour
   for (const h of ["urid","Source","Follow Up Flag","LinkedIn","Headline","Employment History"]) await ensureColumn(TAB_NAMES.contacts,h);
   const rows = await fetchSheetTab(TAB_NAMES.contacts,true), h = (rows[0] || []).map(norm);
   const sourceRows = accepted.map(({row:r,urid}) => {
-    const f: Record<string,string> = { urid, name:r.name, "full name":r.name, email:r.email, role:r.role, title:r.role, company:r.company, organization:r.company, "phone number":r.phone, phone:r.phone, location:r.location, "relationship prime":r.prime, prime:r.prime, "industry category":r.sector, sector:r.sector, "relationship status":"Cold", "date added":new Date().toISOString().slice(0,10), source:r.source || "CSV Import", linkedin:r.linkedin || "", headline:r.headline || "", "employment history":r.employmentHistory || "", "follow up flag":r.followUp || input.event ? "TRUE" : "FALSE" };
+    const f: Record<string,string> = { urid, name:r.name, "full name":r.name, email:r.email, role:r.role, title:r.role, company:r.company, organization:r.company, "phone number":r.phone, phone:r.phone, location:r.location, "relationship prime":canonicalOwnerName(r.prime), prime:canonicalOwnerName(r.prime), "industry category":r.sector, sector:r.sector, "relationship status":"Cold", "date added":new Date().toISOString().slice(0,10), source:r.source || "CSV Import", linkedin:r.linkedin || "", headline:r.headline || "", "employment history":r.employmentHistory || "", "follow up flag":r.followUp || input.event ? "TRUE" : "FALSE" };
     return h.map(k => f[k] || "");
   });
   // Literal input preserves +phones, dates, booleans and formula-like text.
@@ -101,7 +102,8 @@ export async function importContactRows(input: ContactImportInput, journal: Jour
   return { added:accepted.length, duplicates:outcomes.filter(o => o.status === "duplicate").length, review:outcomes.filter(o => o.status === "review").length, outcomes };
 }
 
-export async function importTargetRows(input: TargetImportInput, journal: JournalRun) {
+export async function importTargetRows(rawInput: TargetImportInput, journal: JournalRun) {
+  const input = rawInput.prime === undefined ? rawInput : { ...rawInput, prime: canonicalOwnerName(rawInput.prime) };
   journal.step("checking people across Network and Prospecting");
   const saved = await savedPeople(), outcomes: BulkOutcome[] = [], accepted: TargetRowInput[] = [];
   input.targets.forEach((r,i) => {

@@ -3,6 +3,7 @@
 // FY tabs, which stay untouched); attendance lives in "Event Attendees".
 import { getAccessToken, sheetsFetch, colLetters, buildPortfolioCompanies } from "./sheets.server";
 import { canonicalEventPortcos } from "@/lib/event-portcos";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 import {
   asanaSubcategory,
   mapTrackerCategory,
@@ -133,7 +134,7 @@ function fromRow(r: string[], idx: Record<string, number>): PlannerEvent {
     subcategory: g("Subcategory") || "Unassigned",
     status: (["Confirmed", "Potential", "Declined"] as const).includes(status) ? status : "Potential",
     sectors: splitList(g("Sectors")), portcos: splitList(g("PortCos")), partners: splitList(g("Partners")),
-    owner: g("Owner"), format: g("Format"), website: g("Website"), lumaUrl: g("Luma URL"),
+    owner: canonicalOwnerName(g("Owner")), format: g("Format"), website: g("Website"), lumaUrl: g("Luma URL"),
     source: g("Source"), sourceRef: g("Source Ref"), asanaGid: g("Asana GID"),
     networkCount: Number(g("Network Count")) || 0, notes: g("Notes"), actionsNeeded: g("Actions Needed"),
     eventContact: g("Event Contact"), createdBy: g("Created By"), updated: g("Updated"), dtcStatus: g("DTC Status"),
@@ -174,6 +175,7 @@ function clean(e: Partial<PlannerEvent>, by: string): PlannerEvent {
   b.end = b.end && b.end >= b.start ? b.end : b.start;
   b.category = categoryOfSubcategory(b.subcategory);
   b.sectors = [...new Set(b.sectors.map(normalizeSector).filter(Boolean))];
+  b.owner = canonicalOwnerName(b.owner);
   b.createdBy = b.createdBy || by;
   b.updated = new Date().toISOString();
   return b;
@@ -205,7 +207,7 @@ export async function addPlannerEvents(
     const k = duplicateKey(e);
     const candidates = existing.filter(saved => (i.urid && saved.urid === i.urid) || (i.asanaGid && saved.asanaGid === i.asanaGid) || duplicateKey(saved) === k);
     if (candidates.length) {
-      const exact = candidates.length === 1 && suppliedFieldsMatch(i as Record<string,unknown>, candidates[0] as unknown as Record<string,unknown>, ["urid","createdBy","updated"]);
+      const exact = candidates.length === 1 && suppliedFieldsMatch((i.owner === undefined ? i : { ...i, owner: e.owner }) as Record<string,unknown>, candidates[0] as unknown as Record<string,unknown>, ["urid","createdBy","updated"]);
       if (exact) skipped.push(e.name); else review.push(e.name);
       outcomes.push({ key:String(index),label:e.name,status:exact ? "duplicate" : "review",reason:exact ? "Exact existing event; no repeat write." : "Possible matching event has different fields or tags; incoming version retained for review." });
       continue;
