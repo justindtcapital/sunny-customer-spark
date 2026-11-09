@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import type { VicSkillId } from "@/lib/vic-skills";
+import type { VicExternalSource } from "@/lib/vic-sources";
 import { VicSkillPicker } from "./VicSkillPicker";
 import { KbFolderPicker } from "./KbFolderPicker";
 
@@ -8,12 +9,15 @@ const WorkspaceContext = createContext<{
   setSkillId: (id?: VicSkillId) => void;
   folders: string[];
   setFolders: (ids: string[]) => void;
+  sources: VicExternalSource[];
+  setSources: (ids: VicExternalSource[]) => void;
 } | null>(null);
 
 export function VicWorkspaceProvider({ children, initialSkill }: { children: ReactNode; initialSkill?: VicSkillId }) {
   const [skillId, setSkillId] = useState<VicSkillId | undefined>(initialSkill);
   const [folders, setFolders] = useState<string[]>([]);
-  return <WorkspaceContext.Provider value={{ skillId, setSkillId, folders, setFolders }}>{children}</WorkspaceContext.Provider>;
+  const [sources, setSources] = useState<VicExternalSource[]>([]);
+  return <WorkspaceContext.Provider value={{ skillId, setSkillId, folders, setFolders, sources, setSources }}>{children}</WorkspaceContext.Provider>;
 }
 
 export function useVicWorkspace() {
@@ -23,9 +27,9 @@ export function useVicWorkspace() {
 }
 
 export function VicWorkspaceControls() {
-  const { skillId, setSkillId, folders, setFolders } = useVicWorkspace();
+  const { skillId, setSkillId, folders, setFolders, sources, setSources } = useVicWorkspace();
   return <nav aria-label="V.I.C. tools" className="space-y-3 border-t border-border px-3 py-2.5">
     <VicSkillPicker value={skillId} onChange={setSkillId} onDraft={() => {}} disabled={false} placement="sidebar" />
-    <KbFolderPicker value={folders} onChange={setFolders} placement="sidebar" />
+    <KbFolderPicker value={folders} onChange={setFolders} placement="sidebar" sources={sources} onSourcesChange={setSources} />
   </nav>;
 }
