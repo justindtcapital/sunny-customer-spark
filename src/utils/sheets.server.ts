@@ -4543,6 +4543,8 @@ export interface EventAttendanceInput {
   date?: string;
   type?: "attended" | "invited";
   urid?: string;
+  /** Allow a URID-only link when the person has no email (Prospecting profiles). */
+  allowUridOnly?: boolean;
   /** Also ensure an App Events catalog row (default true). */
   ensureCatalog?: boolean;
   catalogType?: string;
@@ -4573,15 +4575,23 @@ export async function ensureEventAttendanceBatch(
   if (items.some((i) => i.urid)) await ensureColumn(TAB_NAMES.events, "Contact URID");
 
   const existingAttendance = new Set<string>();
-  const evRows = await fetchSheetTab(TAB_NAMES.events).catch(() => [] as string[][]);
+  // Fresh read: Worker instances hold stale caches, and sequential adds must see
+  // each other's rows to avoid duplicate links.
+  const evRows = await fetchSheetTab(TAB_NAMES.events, true).catch(() => [] as string[][]);
   if (evRows.length > 1) {
     const hdr = evRows[0].map((h) => (h || "").trim().toLowerCase());
     const emailIdx = hdr.indexOf("contact email") >= 0 ? hdr.indexOf("contact email") : 0;
     const nameIdx = hdr.indexOf("event name") >= 0 ? hdr.indexOf("event name") : 1;
+    const uridIdx = hdr.indexOf("contact urid");
+    const removedIdx = hdr.indexOf("removed at");
     for (const r of evRows.slice(1)) {
+      // Unlinked rows don't block re-adding the same event later.
+      if (removedIdx >= 0 && (r[removedIdx] || "").trim()) continue;
       const em = (r[emailIdx] || "").trim().toLowerCase();
       const nm = (r[nameIdx] || "").trim().toLowerCase();
+      const cu = uridIdx >= 0 ? (r[uridIdx] || "").trim().toLowerCase() : "";
       if (em && nm) existingAttendance.add(`${em}|${nm}`);
+      if (cu && nm) existingAttendance.add(`urid:${cu}|${nm}`);
     }
   }
 
@@ -4602,9 +4612,10 @@ export async function ensureEventAttendanceBatch(
   let skipped = 0;
 
   for (const item of items) {
-    const email = primarySheetEmail(item.email);
+    const email = primarySheetEmail(item.email || "");
     const eventName = (item.eventName || "").trim();
-    if (!email.includes("@") || !eventName) {
+    const uridOnly = !email.includes("@") && !!item.allowUridOnly && !!(item.urid || "").trim();
+    if ((!email.includes("@") && !uridOnly) || !eventName) {
       skipped++;
       continue;
     }
@@ -4614,7 +4625,9 @@ export async function ensureEventAttendanceBatch(
       continue;
     }
     const nameKey = eventName.toLowerCase();
-    const pairKey = `${email.toLowerCase()}|${nameKey}`;
+    const uridKey = (item.urid || "").trim().toLowerCase();
+    const pairKey = uridOnly ? `urid:${uridKey}|${nameKey}` : `${email.toLowerCase()}|${nameKey}`;
+    const uridPairKey = uridKey ? `urid:${uridKey}|${nameKey}` : "";
     const date = isIso(item.date) ? item.date! : today;
     const linkType: "attended" | "invited" =
       item.type || (isIso(item.date) && item.date! > today ? "invited" : "attended");
@@ -4627,11 +4640,12 @@ export async function ensureEventAttendanceBatch(
       existingCatalog.add(nameKey);
     }
 
-    if (existingAttendance.has(pairKey)) {
+    if (existingAttendance.has(pairKey) || (uridPairKey && existingAttendance.has(uridPairKey))) {
       skipped++;
       continue;
     }
     existingAttendance.add(pairKey);
+    if (uridPairKey) existingAttendance.add(uridPairKey);
     attendancePending.push({
       email,
       eventName,
