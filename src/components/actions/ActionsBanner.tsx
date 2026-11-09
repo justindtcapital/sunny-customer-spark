@@ -40,8 +40,8 @@ function Tile({ label, checked, onClick, tone }: { label: string; checked: boole
 function BigButton({ title, sub, active, onClick }: { title: string; sub: string; active: boolean; onClick: () => void }) {
   return (
     <button type="button" role="tab" aria-selected={active} onClick={onClick}
-      className={`flex h-full min-h-[4.5rem] w-32 shrink-0 flex-col items-center justify-center rounded-2xl border-2 px-3 text-center leading-tight transition-colors ${active ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"}`}>
-      <span className="font-display text-lg font-semibold">{title}</span>
+      className={`flex h-full min-h-[4.5rem] w-28 shrink-0 flex-col items-center justify-center rounded-2xl border-2 px-3 text-center leading-tight transition-colors ${active ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"}`}>
+      <span className="font-display text-base font-semibold">{title}</span>
       <span className={`text-xs ${active ? "text-primary-foreground/80" : "text-primary/80"}`}>{sub}</span>
     </button>
   );
@@ -79,15 +79,15 @@ export function ActionsBanner({ view, onView, counts, toggles, onToggle, priorit
     <div role="tablist" aria-label="My Actions views" className="flex min-w-0 flex-col gap-3">
       <div className="flex items-stretch gap-2">
         <BigButton title="My Inbox" sub="(to review)" active={inbox} onClick={() => onView(inbox ? view : "notes")} />
-        <div className="grid w-44 content-center gap-1.5">
+        <div className="grid w-40 content-center gap-1.5">
           <SubButton label="Notes" count={counts.notes} active={view === "notes"} onClick={() => onView("notes")} />
           <SubButton label="Activity" count={counts.activity} active={view === "activity"} onClick={() => onView("activity")} />
         </div>
       </div>
       <div className="flex items-stretch gap-2">
         <BigButton title="My Actions" sub="(to do)" active={!inbox} onClick={() => onView("actions")} />
-        <div role="group" aria-label="Company and item filters" className="grid w-44 content-start gap-1.5">{left}</div>
-        <div role="group" aria-label="Priority filters" className="grid w-44 content-start gap-1.5">
+        <div role="group" aria-label="Company and item filters" className="grid w-40 content-start gap-1.5">{left}</div>
+        <div role="group" aria-label="Priority filters" className="grid w-40 content-start gap-1.5">
           {pri.map((p) => <Tile key={p} label={p} tone={priorityTone(p)} checked={!hiddenPriorities.includes(p)} onClick={() => onTogglePriority(p)} />)}
           <Tile label="Completed" tone="border-foreground/70 bg-card text-foreground" checked={view === "done"} onClick={() => onView(view === "done" ? "actions" : "done")} />
         </div>

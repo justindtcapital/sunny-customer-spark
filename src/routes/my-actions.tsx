@@ -107,7 +107,7 @@ function MyActionsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-border pb-4">
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-4 border-b border-border pb-4">
         <ActionCalendar owner={owner} range={dateRange} onChange={(r) => { setDateRange(r); toActions(); }} />
         <ActionsBanner view={view} onView={onView} counts={counts}
           toggles={toggles} onToggle={(k) => { setToggles((t) => ({ ...t, [k]: !t[k] })); toActions(); }}
