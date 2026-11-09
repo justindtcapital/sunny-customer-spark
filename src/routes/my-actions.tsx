@@ -26,6 +26,7 @@ import { ActionComposer, type ActionContext } from "@/components/actions/ActionC
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { inActionRange, type ActionDateRange } from "@/lib/action-calendar";
+import { ACTION_SORTS, companyKindVisible, sortActions, type ActionSort } from "@/lib/action-sort";
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -202,6 +203,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   // Completed workstreams live in the Completed view; a deep link to one still shows it here.
   const [showDone, setShowDone] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [sort, setSort] = useState<ActionSort>("portco");
   const [sel, setSel] = useState<Sel | null>(focusGid ? { kind: "ws", id: focusGid } : focusFu ? { kind: "fu", id: focusFu } : null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -264,12 +266,21 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         for (const w of g.ws) if (linked.has(w.gid)) gLinked.set(w.gid, linked.get(w.gid)!);
         return { company, ws: g.ws, linked: gLinked, general: g.fu, kind };
       })
-      .filter((g) => toggles[g.kind] && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
+      .filter((g) => companyKindVisible(toggles, g.kind) && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
       .sort((a, b) => a.company.localeCompare(b.company));
   }, [wsList, fuList, toggles, portcoNames]);
 
+  // Non-PortCo sorts show one flat list; a linked follow-up takes its workstream's priority.
+  const flat = useMemo(() => sort === "portco" ? [] : sortActions(groups.flatMap((g) => [
+    ...g.ws.flatMap((w) => [
+      { key: `ws:${w.gid}`, ws: w, company: g.company, title: w.name || w.rawName, date: w.lastActivity || w.createdAt, due: "", priority: w.workstreamPriority },
+      ...(g.linked.get(w.gid) || []).map((x) => ({ key: `fu:${x.id}`, fu: x, company: g.company, title: x.summary || x.person, date: x.date, due: x.due, priority: w.workstreamPriority })),
+    ]),
+    ...g.general.map((x) => ({ key: `fu:${x.id}`, fu: x, company: g.company, title: x.summary || x.person, date: x.date, due: x.due, priority: "" })),
+  ] as { key: string; ws?: Workstream; fu?: Reminder; company: string; title: string; date?: string; due?: string; priority?: string }[]), sort), [groups, sort]);
+
   const firstGroupFu = (g: (typeof groups)[number] | undefined) => g ? [...g.ws.flatMap((w) => g.linked.get(w.gid) || []), ...g.general][0] : undefined;
-  const firstSel: Sel | null = groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
+  const firstSel: Sel | null = flat[0] ? (flat[0].ws ? { kind: "ws", id: flat[0].ws.gid } : { kind: "fu", id: flat[0].fu!.id }) : groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
   const resolved = sel?.kind === "ws" ? (wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (fuList.some((x) => x.id === sel.id) ? sel : null) : null;
   const cur = resolved || firstSel;
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
@@ -411,12 +422,53 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     </div>;
   };
 
+  const fuRow = (x: Reminder, company: string, website: string, nested: boolean, showCompany: boolean) => (
+    <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} ${showCompany ? "pl-3" : nested ? "pl-16" : "pl-10"}`}>
+      <div className="flex min-w-0 items-start gap-2">
+        {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
+        <Bullet kind="fu" company={company} website={website} />
+        <div className="min-w-0 flex-1">
+          <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
+          <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+            {showCompany && <span className="max-w-[140px] truncate font-medium text-foreground/80">{company}</span>}
+            <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
+            <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
+            <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+  const wsRow = (w: Workstream, company: string, website: string, showCompany: boolean) => (
+    <button onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} ${showCompany ? "pl-3" : "pl-10"}`}>
+      <div className="flex min-w-0 items-start gap-2">
+        <Bullet kind="ws" company={company} website={website} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm">{w.name || w.rawName}</div>
+          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
+            {showCompany && <span className="mr-auto max-w-[160px] truncate text-xs font-medium text-foreground/80">{company}</span>}
+            <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
+            <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
+            {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground tabular-nums">
           {toggles.workstreams ? `${wsList.length} workstreams` : ""}{toggles.workstreams && toggles.followups ? " · " : ""}{toggles.followups ? `${fuList.length} follow-ups` : ""}
         </span>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span>· Sort by</span>
+          <Select value={sort} onValueChange={(v) => setSort(v as ActionSort)}>
+            <SelectTrigger aria-label="Sort actions by" className="h-6 w-auto gap-1 border-0 bg-transparent px-1 text-xs font-medium text-foreground shadow-none"><SelectValue /></SelectTrigger>
+            <SelectContent>{ACTION_SORTS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </label>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button size="sm" variant={mergeMode ? "secondary" : "outline"} className="h-7" onClick={() => { setMergeMode((m) => !m); setMergeSel([]); }}>
             <Merge className="mr-1 h-3.5 w-3.5" />{mergeMode ? `Merging (${mergeSel.length})` : "Merge"}
@@ -428,26 +480,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       {loading && <p className="text-sm text-muted-foreground">Loading actions…</p>}
       {!loading && !groups.length && <p className="text-sm text-muted-foreground">No actions for {owner} with these filters.</p>}
       {groups.length > 0 && <SplitPane
-        list={<div className="divide-y divide-border">{groups.map((g) => {
+        list={<div className="divide-y divide-border">{sort !== "portco" ? flat.map((it) => {
+          const website = websites.get(norm(it.company)) || "";
+          return it.ws ? <div key={it.key}>{wsRow(it.ws, it.company, website, true)}</div> : fuRow(it.fu!, it.company, website, false, true);
+        }) : groups.map((g) => {
           const isClosed = closed.has(g.company);
           const website = websites.get(norm(g.company)) || "";
           const fuCount = g.general.length + [...g.linked.values()].flat().length;
-          const fuRow = (x: Reminder, nested: boolean) => (
-            <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} ${nested ? "pl-16" : "pl-10"}`}>
-              <div className="flex min-w-0 items-start gap-2">
-                {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
-                <Bullet kind="fu" company={g.company} website={website} />
-                <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
-                  <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
-                    <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
-                    <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
-                  </span>
-                </div>
-              </div>
-            </button>
-          );
           return (
             <div key={g.company}>
               <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
@@ -460,23 +499,11 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
               {!isClosed && <div className="divide-y divide-border">
                 {g.ws.map((w) => (
                   <div key={w.gid}>
-                    <button onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} pl-10`}>
-                      <div className="flex min-w-0 items-start gap-2">
-                        <Bullet kind="ws" company={g.company} website={website} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm">{w.name || w.rawName}</div>
-                          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
-                            <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
-                            <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
-                            {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                    {(g.linked.get(w.gid) || []).map((x) => fuRow(x, true))}
+                    {wsRow(w, g.company, website, false)}
+                    {(g.linked.get(w.gid) || []).map((x) => fuRow(x, g.company, website, true, false))}
                   </div>
                 ))}
-                {g.general.map((x) => fuRow(x, false))}
+                {g.general.map((x) => fuRow(x, g.company, website, false, false))}
               </div>}
             </div>
           );
