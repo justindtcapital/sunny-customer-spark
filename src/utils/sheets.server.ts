@@ -1549,6 +1549,7 @@ const EVENT_COLS: Record<string, string> = {
   "event name": "eventName",
   date: "date",
   type: "type",
+  "removed at": "removedAt",
 };
 
 const PORTCO_INTRO_COLS: Record<string, string> = {

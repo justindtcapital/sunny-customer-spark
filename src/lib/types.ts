@@ -332,6 +332,9 @@ export interface TargetLead {
   campaign?: string;
   /** Event this lead came from (Targets "Event" column; set when source = Event). */
   event?: string;
+  /** Linked events (shared CRM "Events" tab, plus the legacy Event cell as Invited). */
+  eventsAttended?: string[];
+  eventsInvited?: string[];
   /** Portfolio companies this lead is tagged to (Targets "PortCo Tags" column). */
   portcoTags?: string[];
   /** Date the lead was added to the pipeline (from the Targets "Date Added" column). */
