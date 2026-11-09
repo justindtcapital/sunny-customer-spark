@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Pencil, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
-import { ActionsBanner, DEFAULT_TOGGLES, type BannerView, type FeedToggle } from "@/components/actions/ActionsBanner";
+import { ActionsBanner, DEFAULT_INBOX, DEFAULT_TOGGLES, type BannerView, type FeedToggle, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
@@ -76,7 +76,7 @@ function MyActionsPage() {
   const owner = ACTION_OWNERS.find((o) => o.name === search.owner)?.name || teamProfile(email)?.displayName || "";
   const [ctx, setCtx] = useState<ActionContext | null>(null);
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
-  const [inboxSub, setInboxSub] = useState<"notes" | "activity">("notes");
+  const [inbox, setInbox] = useState<InboxToggles>(DEFAULT_INBOX);
   const [dateRange, setDateRange] = useState<ActionDateRange>(null);
   const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>(DEFAULT_TOGGLES);
   const [hiddenPriorities, setHiddenPriorities] = useState<string[]>([]);
@@ -84,10 +84,12 @@ function MyActionsPage() {
   const priorities = useMemo(() => [...new Set(workstreams.filter((w) => ownerMatches(w.owner, owner)).map((w) => w.workstreamPriority).filter(Boolean))].sort(), [workstreams, owner]);
   const qc = useQueryClient();
   const set = (p: { tab?: Tab; owner?: string }) => navigate({ search: (s) => ({ ...s, ...p }), replace: true });
-  const view: BannerView = tab === "notes" ? inboxSub : tab;
-  const onView = (v: BannerView) => {
-    if (v === "notes" || v === "activity") { setInboxSub(v); set({ tab: "notes" }); }
-    else set({ tab: v });
+  const view: BannerView = tab === "notes" ? "inbox" : tab;
+  const onView = (v: BannerView) => set({ tab: v === "inbox" ? "notes" : v });
+  // In the inbox a tick toggles; from another view it opens the inbox with that list ticked.
+  const onToggleInbox = (k: InboxKind) => {
+    if (tab === "notes") setInbox((b) => ({ ...b, [k]: !b[k] }));
+    else { setInbox((b) => ({ ...b, [k]: true })); set({ tab: "notes" }); }
   };
   // Changing a filter always shows the to-do feed it filters.
   const toActions = () => { if (tab !== "actions") set({ tab: "actions" }); };
@@ -107,9 +109,9 @@ function MyActionsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-4 border-b border-border pb-4">
+      <div className="flex flex-wrap items-stretch gap-x-4 gap-y-4 border-b border-border pb-4">
         <ActionCalendar owner={owner} range={dateRange} onChange={(r) => { setDateRange(r); toActions(); }} />
-        <ActionsBanner view={view} onView={onView} counts={counts}
+        <ActionsBanner view={view} onView={onView} counts={counts} inbox={inbox} onToggleInbox={onToggleInbox}
           toggles={toggles} onToggle={(k) => { setToggles((t) => ({ ...t, [k]: !t[k] })); toActions(); }}
           priorities={priorities} hiddenPriorities={hiddenPriorities}
           onTogglePriority={(p) => { setHiddenPriorities((h) => h.includes(p) ? h.filter((x) => x !== p) : [...h, p]); toActions(); }} />
@@ -118,7 +120,7 @@ function MyActionsPage() {
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
         {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} toggles={toggles} hiddenPriorities={hiddenPriorities} />}
         {/* Kept mounted so the inbox counts in the banner are always current. */}
-        <div className={tab === "notes" ? "" : "hidden"}><NotesTab owner={owner} sub={inboxSub} onAction={setCtx} onCounts={setCounts} /></div>
+        <div className={tab === "notes" ? "" : "hidden"}><NotesTab owner={owner} show={inbox} onAction={setCtx} onCounts={setCounts} /></div>
         {tab === "done" && <DoneTab owner={owner} />}
       </div>}
 
@@ -127,13 +129,14 @@ function MyActionsPage() {
   );
 }
 
-function NotesTab({ owner, sub, onAction, onCounts }: { owner: string; sub: "notes" | "activity"; onAction: (c: ActionContext) => void; onCounts: (c: { notes: number; activity: number }) => void }) {
+function NotesTab({ owner, show, onAction, onCounts }: { owner: string; show: InboxToggles; onAction: (c: ActionContext) => void; onCounts: (c: { notes: number; activity: number }) => void }) {
   const [, setN] = useState({ notes: 0, activity: 0 });
   const update = (k: "notes" | "activity", v: number) => setN((c) => { const next = { ...c, [k]: v }; onCounts(next); return next; });
   return (
-    <div className="space-y-2">
-      <div className={sub === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onStats={(s) => update("notes", s.pending)} onActionNow={(i) => onAction(fromNote(i, "note"))} split /></div>
-      <div className={sub === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onStats={(s) => update("activity", s.pending)} onActionNow={(i) => onAction(fromNote(i, "activity"))} split /></div>
+    <div className="space-y-4">
+      {!show.notes && !show.activity && <p className="text-sm text-muted-foreground">Tick Notes or Activity to see what's waiting for review.</p>}
+      <div className={show.notes ? "" : "hidden"}><NotesImports actionOwner={owner} onStats={(s) => update("notes", s.pending)} onActionNow={(i) => onAction(fromNote(i, "note"))} split /></div>
+      <div className={show.activity ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onStats={(s) => update("activity", s.pending)} onActionNow={(i) => onAction(fromNote(i, "activity"))} split /></div>
     </div>
   );
 }
