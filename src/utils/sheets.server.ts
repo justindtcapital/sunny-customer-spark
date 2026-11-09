@@ -2557,7 +2557,8 @@ export async function buildContacts(): Promise<Contact[]> {
   // Prospecting-flagged people share the Contacts tab but are not part of the Network.
   const networkContacts = rawContacts.filter((r) => !isProspectStatus(r.temperature || ""));
 
-  const rawEvents = mapRows<Record<string, string>>(eventRows, EVENT_COLS);
+  // Rows stamped "Removed At" are unlinked (append-only removal) — never shown.
+  const rawEvents = mapRows<Record<string, string>>(eventRows, EVENT_COLS).filter((r) => !r.removedAt);
   const rawIntros = mapRows<Record<string, string>>(introRows, PORTCO_INTRO_COLS).map((r) =>
     // Self-heal a mislabeled header on the PortCos Introduced tab (the email
     // column has shipped titled "Engagement Source" before). Without this the
@@ -4877,7 +4878,7 @@ export async function readContactEventTags(): Promise<Array<{ email: string; nam
   for (const c of contacts) for (const e of (c.email || "").split(/[;,]/)) if (e.trim()) byEmail.set(e.trim().toLowerCase(), c);
   const rows = mapRows<Record<string, string>>(await fetchSheetTab(TAB_NAMES.events, true).catch(() => [] as string[][]), EVENT_COLS);
   return rows
-    .filter((r) => (r.type || "attended").toLowerCase() === "attended" && (r.eventName || "").trim())
+    .filter((r) => !r.removedAt && (r.type || "attended").toLowerCase() === "attended" && (r.eventName || "").trim())
     .map((r) => {
       const c = byUrid.get((r.curid || "").toLowerCase()) || byEmail.get((r.email || "").toLowerCase());
       const email = (c?.email || r.email || "").split(/[;,]/)[0].trim();
