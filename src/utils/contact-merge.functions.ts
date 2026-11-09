@@ -60,7 +60,7 @@ export const fetchDuplicateSuggestions = createServerFn({ method: "GET" })
 
 export const dismissDuplicateGroup = createServerFn({ method: "POST" })
   .middleware([requireTeamAuth])
-  .inputValidator((input) => z.object({ urids, names: z.array(z.string().max(200)).max(MAX_MERGE * 2) }).parse(input))
+  .inputValidator((input) => z.object({ urids: z.array(z.string().trim().min(1).max(100)).min(2).max(8), names: z.array(z.string().max(200)).max(8) }).parse(input))
   .handler(async ({ data, context }) => {
     const { dismissDuplicate } = await import("./contact-merge.server");
     await dismissDuplicate(data.urids, data.names, context);
