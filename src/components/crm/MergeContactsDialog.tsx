@@ -86,7 +86,7 @@ export function MergeContactsDialog({ open, urids, onOpenChange, onMerged }: { o
         {!preview && !error && <div className="flex items-center gap-2 py-10 justify-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading the latest details…</div>}
 
         {preview && (
-          <div className="max-h-[62vh] overflow-y-auto pr-2">
+          <div className="max-h-[62vh] min-w-0 overflow-y-auto overflow-x-hidden pr-2">
             <div className="space-y-4">
               {/* Record headers: which one to keep */}
               <div className="grid gap-2" style={{ gridTemplateColumns: `9rem repeat(${n}, minmax(0, 1fr))` }}>

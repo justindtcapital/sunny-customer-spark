@@ -75,13 +75,13 @@ export function DuplicatesDialog({ open, onOpenChange, onChanged }: { open: bool
         {error && <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {!data && !error && <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Checking everyone for duplicates…</div>}
         {data && (
-          <Tabs defaultValue="suggested">
+          <Tabs defaultValue="suggested" className="min-w-0">
             <TabsList>
               <TabsTrigger value="suggested">Suggested · {data.total}</TabsTrigger>
               <TabsTrigger value="recent">Recent merges · {data.merges.length}</TabsTrigger>
             </TabsList>
             <TabsContent value="suggested">
-              <div className="h-[60vh] overflow-y-auto pr-2">
+              <div className="h-[60vh] min-w-0 overflow-y-auto overflow-x-hidden pr-2">
                 {data.groups.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No likely duplicates found.</p>}
                 <div className="space-y-2">
                   {data.groups.map((g) => {
@@ -117,7 +117,7 @@ export function DuplicatesDialog({ open, onOpenChange, onChanged }: { open: bool
               </div>
             </TabsContent>
             <TabsContent value="recent">
-              <div className="h-[60vh] overflow-y-auto pr-2">
+              <div className="h-[60vh] min-w-0 overflow-y-auto overflow-x-hidden pr-2">
                 {data.merges.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No merges yet.</p>}
                 <div className="space-y-1.5">
                   {data.merges.map((m) => (
