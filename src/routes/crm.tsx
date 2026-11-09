@@ -39,6 +39,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useFilters } from "@/lib/filter-context";
 import { useFilterOptions } from "@/lib/filter-options-context";
