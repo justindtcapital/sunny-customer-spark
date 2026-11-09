@@ -1577,8 +1577,8 @@ function TargetingPage() {
   const addSelectedToCampaign = async (result: AddToCampaignResult) => {
     const chosen = selectedTargets;
     if (chosen.length === 0) return;
+    // The event (if any) is added as a link below — never overwriting existing ones.
     const fields: Record<string, string> = { campaign: result.campaign };
-    if (result.event) fields.event = result.event;
     if (result.portcos.length) fields.portcoTags = result.portcos.join(", ");
     if (result.followUp) {
       fields.followUpFlag = "TRUE";
@@ -1590,7 +1590,6 @@ function TargetingPage() {
     const patch = (t: TargetLead): TargetLead => ({
       ...t,
       campaign: result.campaign,
-      event: result.event || t.event,
       portcoTags: result.portcos.length ? result.portcos : t.portcoTags,
       followUp: result.followUp ? true : t.followUp,
     });
@@ -1601,6 +1600,7 @@ function TargetingPage() {
     try {
       const entries = chosen.map((t) => ({ urid: t.urid, key: targetKeyOf(t), fields }));
       const res = await bulkUpdateTargetFields({ data: { entries } });
+      if (result.event) await linkEventToTargets(chosen, result.event);
       invalidateCampaignCache();
       clearSelection();
       const missed = chosen.length - res.updated;
