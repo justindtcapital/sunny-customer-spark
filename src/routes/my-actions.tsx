@@ -202,6 +202,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   // Completed workstreams live in the Completed view; a deep link to one still shows it here.
   const [showDone, setShowDone] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [sort, setSort] = useState<ActionSort>("portco");
   const [sel, setSel] = useState<Sel | null>(focusGid ? { kind: "ws", id: focusGid } : focusFu ? { kind: "fu", id: focusFu } : null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -264,12 +265,21 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         for (const w of g.ws) if (linked.has(w.gid)) gLinked.set(w.gid, linked.get(w.gid)!);
         return { company, ws: g.ws, linked: gLinked, general: g.fu, kind };
       })
-      .filter((g) => toggles[g.kind] && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
+      .filter((g) => companyKindVisible(toggles, g.kind) && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
       .sort((a, b) => a.company.localeCompare(b.company));
   }, [wsList, fuList, toggles, portcoNames]);
 
+  // Non-PortCo sorts show one flat list; a linked follow-up takes its workstream's priority.
+  const flat = useMemo(() => sort === "portco" ? [] : sortActions(groups.flatMap((g) => [
+    ...g.ws.flatMap((w) => [
+      { key: `ws:${w.gid}`, ws: w, company: g.company, title: w.name || w.rawName, date: w.lastActivity || w.createdAt, due: "", priority: w.workstreamPriority },
+      ...(g.linked.get(w.gid) || []).map((x) => ({ key: `fu:${x.id}`, fu: x, company: g.company, title: x.summary || x.person, date: x.date, due: x.due, priority: w.workstreamPriority })),
+    ]),
+    ...g.general.map((x) => ({ key: `fu:${x.id}`, fu: x, company: g.company, title: x.summary || x.person, date: x.date, due: x.due, priority: "" })),
+  ] as { key: string; ws?: Workstream; fu?: Reminder; company: string; title: string; date?: string; due?: string; priority?: string }[]), sort), [groups, sort]);
+
   const firstGroupFu = (g: (typeof groups)[number] | undefined) => g ? [...g.ws.flatMap((w) => g.linked.get(w.gid) || []), ...g.general][0] : undefined;
-  const firstSel: Sel | null = groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
+  const firstSel: Sel | null = flat[0] ? (flat[0].ws ? { kind: "ws", id: flat[0].ws.gid } : { kind: "fu", id: flat[0].fu!.id }) : groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
   const resolved = sel?.kind === "ws" ? (wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (fuList.some((x) => x.id === sel.id) ? sel : null) : null;
   const cur = resolved || firstSel;
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
@@ -417,6 +427,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         <span className="text-xs text-muted-foreground tabular-nums">
           {toggles.workstreams ? `${wsList.length} workstreams` : ""}{toggles.workstreams && toggles.followups ? " · " : ""}{toggles.followups ? `${fuList.length} follow-ups` : ""}
         </span>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span>· Sort by</span>
+          <Select value={sort} onValueChange={(v) => setSort(v as ActionSort)}>
+            <SelectTrigger aria-label="Sort actions by" className="h-6 w-auto gap-1 border-0 bg-transparent px-1 text-xs font-medium text-foreground shadow-none"><SelectValue /></SelectTrigger>
+            <SelectContent>{ACTION_SORTS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </label>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button size="sm" variant={mergeMode ? "secondary" : "outline"} className="h-7" onClick={() => { setMergeMode((m) => !m); setMergeSel([]); }}>
             <Merge className="mr-1 h-3.5 w-3.5" />{mergeMode ? `Merging (${mergeSel.length})` : "Merge"}
