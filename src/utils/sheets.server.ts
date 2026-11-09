@@ -539,6 +539,7 @@ export async function updateSheetCell(
 export async function updateSheetCells(
   tabName: string,
   updates: { range: string; value: string }[],
+  literal = false,
 ): Promise<void> {
   if (updates.length === 0) return;
   if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return updateProspectCells(updates);
@@ -551,7 +552,8 @@ export async function updateSheetCells(
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      valueInputOption: "USER_ENTERED",
+      // literal (RAW) keeps values exactly as read, e.g. "+1 …" phones.
+      valueInputOption: literal ? "RAW" : "USER_ENTERED",
       data: updates.map((u) => ({
         range: `${tabName}!${u.range}`,
         values: [[u.value]],
