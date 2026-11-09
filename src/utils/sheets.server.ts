@@ -22,6 +22,7 @@ import type {
   AsanaActivity,
 } from "@/lib/types";
 import { scoreContact } from "@/lib/activity-score";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 import { creationRating } from "@/lib/relationship-rating";
 import { inferInterestAreas } from "@/lib/interest-domains";
 import { normalizeEmails } from "@/lib/email";
@@ -736,7 +737,7 @@ function activityTrackRow(a: AsanaActivity): string[] {
     a.name || "",
     a.type || "",
     a.status || "",
-    a.owner || "",
+    canonicalOwnerName(a.owner),
     a.company || "",
     a.person || "",
     a.completed ? "TRUE" : "FALSE",
@@ -800,7 +801,9 @@ async function syncOneActivityTrack(
     cellUpdates.push({ range: `${colLetters(colIdx)}${rowNumber}`, value });
   };
 
-  for (const a of activities) {
+  for (const raw of activities) {
+    // Teammates are always stored by official name, never by email.
+    const a = raw.owner ? { ...raw, owner: canonicalOwnerName(raw.owner) } : raw;
     const existing = byGid.get(a.gid);
     if (existing) {
       skipped++;
@@ -933,7 +936,7 @@ function parseActivityTrackTab(rows: string[][], track: "BD" | "GTM"): AsanaActi
       date: parseToIsoDate(r.date) || undefined,
       completed: /^(true|yes|1)$/i.test(r.completed || ""),
       status: r.status || undefined,
-      owner: r.owner || undefined,
+      owner: canonicalOwnerName(r.owner) || undefined,
       type: r.type || undefined,
       company: r.company || undefined,
       person: r.person || undefined,
@@ -1394,8 +1397,8 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
     location: data.location,
     city: data.location,
     linkedin: normalizeLinkedinUrl(data.linkedin),
-    "relationship prime": data.prime,
-    prime: data.prime,
+    "relationship prime": canonicalOwnerName(data.prime),
+    prime: canonicalOwnerName(data.prime),
     "industry category": sector,
     sector: sector,
     "relationship status": creationRating(data.temperature as Temperature, data.ratingExplicitlySelected),
@@ -1427,7 +1430,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
       email,
       data.phone,
       data.location,
-      data.prime,
+      canonicalOwnerName(data.prime),
       data.sector,
       creationRating(data.temperature as Temperature, data.ratingExplicitlySelected),
       data.followUp ? "TRUE" : "FALSE",
@@ -2158,8 +2161,8 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
         .join(", "),
       "follow up flag": t.followUp ? "TRUE" : "FALSE",
       "follow up due": (t.followUpDue || "").trim(),
-      prime: (t.prime || "").trim(),
-      "contact prime": (t.prime || "").trim(),
+      prime: canonicalOwnerName(t.prime),
+      "contact prime": canonicalOwnerName(t.prime),
     };
     return headers.map((h) => valueByHeader[h] ?? "");
   });
@@ -2697,7 +2700,7 @@ export async function buildContacts(): Promise<Contact[]> {
       email,
       phone: c.phone || "",
       address: "",
-      prime: c.prime || "",
+      prime: canonicalOwnerName(c.prime),
       sector: c.sector || "",
       areasOfInterest,
       primaryArea: c.primaryArea || undefined,
@@ -2947,6 +2950,7 @@ export async function mergeContactFields(
   source: "user" | "apollo",
   urid?: string,
 ): Promise<MergeResult> {
+  if (fields.prime !== undefined) fields = { ...fields, prime: canonicalOwnerName(fields.prime) };
   // A human edit may target a column that doesn't exist on older sheets
   // (e.g. "Contact Type", "Areas of Interest"); create it first. Idempotent.
   // Columns that may not exist on older sheets. Created for both sources so that
@@ -3415,6 +3419,7 @@ export async function bulkUpdateContacts(
 ): Promise<{ updated: number }> {
   const header = BULK_FIELD_HEADERS[field];
   if (!header) throw new Error(`Unsupported bulk-edit field: ${field}`);
+  if (field === "prime") value = canonicalOwnerName(value);
 
   // Make sure the target column exists (e.g. "Contact Type" on older sheets).
   // Idempotent — a no-op when the column is already present.
@@ -3595,6 +3600,7 @@ export async function updateTargetFields(
   if (fields.linkedinUrl !== undefined) {
     fields = { ...fields, linkedinUrl: normalizeLinkedinUrl(fields.linkedinUrl) };
   }
+  if (fields.prime !== undefined) fields = { ...fields, prime: canonicalOwnerName(fields.prime) };
 
   // Ensure columns that may not exist on older sheets (e.g. "Phone").
   if (fields.phone !== undefined) await ensureColumn(TAB_NAMES.targets, "Phone");
@@ -4367,7 +4373,7 @@ export async function buildTargets(): Promise<TargetLead[]> {
       dateAdded: t.dateAdded || "",
       followUp: (t.followUpFlag || "").trim().toLowerCase() === "true",
       followUpDue: (t.followUpDue || "").trim(),
-      prime: (t.prime || "").trim(),
+      prime: canonicalOwnerName(t.prime),
       outreach,
       notes: t.researchPurpose || "",
       connectionPlan,

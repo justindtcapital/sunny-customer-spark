@@ -9,6 +9,7 @@ import {
   formatActivityNotes,
 } from "@/lib/activity-thread-intel";
 import { emailBodyExcerpt } from "@/lib/email-excerpt";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 import { isInternalEmail, isNoiseEmail, type InternalConfig } from "@/lib/email-noise";
 import { peopleEntriesFromActivity } from "@/lib/activity-canonical";
 import { isNameOnlyAttendeeEmail } from "@/lib/email-address";
@@ -362,7 +363,7 @@ export async function fetchAllAsanaEvents(): Promise<AsanaEvent[]> {
       lead,
       format,
       createdAt: task.created_at || "",
-      owner: task.assignee?.name || lead || "",
+      owner: canonicalOwnerName(task.assignee?.name || lead),
       sectors: industry,
       attendeeCount,
     });
@@ -467,7 +468,7 @@ export function parseActivity(
     date: dueDate || fieldDate || undefined,
     completed: Boolean(task.completed),
     status: intel.detected ? intel.status || existingStatus : existingStatus,
-    owner: task.assignee?.name || fieldByName(task, isOwnerField) || undefined,
+    owner: canonicalOwnerName(task.assignee?.name || fieldByName(task, isOwnerField)) || undefined,
     type: intel.detected ? intel.type || existingType : existingType,
     company: intel.company || existingCompany,
     person: intel.person || existingPerson,
@@ -782,7 +783,7 @@ function mapSubtask(sub: AsanaTask, company: string): Workstream {
     notes: (sub.notes || "").trim(),
     fields,
     editable,
-    owner: sub.assignee?.name?.trim() || "",
+    owner: canonicalOwnerName(sub.assignee?.name),
     completed: sub.completed === true || /^(complete|completed)$/i.test(v("workstreamStatus").trim()),
     createdAt: sub.created_at || "",
     completedAt: sub.completed_at || "",

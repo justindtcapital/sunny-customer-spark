@@ -1,4 +1,5 @@
 import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 import { mergeCompanyEvents } from "@/lib/event-portcos";
 import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
@@ -820,7 +821,7 @@ export function PortfolioDetail({
                               <span className="text-xs font-medium text-foreground truncate">{a.title}</span>
                             </div>
                             <div className="text-[10px] text-muted-foreground truncate">
-                              {a.date}{a.person ? ` · ${a.person}` : ""}{a.owner ? ` · ${a.owner}` : ""}
+                              {a.date}{a.person ? ` · ${a.person}` : ""}{a.owner ? ` · ${canonicalOwnerName(a.owner)}` : ""}
                             </div>
                             {a.summary && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{a.summary}</p>}
                           </div>

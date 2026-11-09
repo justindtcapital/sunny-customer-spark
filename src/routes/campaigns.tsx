@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { canonicalOwnerName, TEAM_OWNER_NAMES } from "@/lib/user-ownership";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -870,7 +871,7 @@ function CampaignOverview({
         <SectionLabel>In this campaign</SectionLabel>
         <span className="text-[11px] text-muted-foreground">
           Created {fmt(campaign.created)}
-          {campaign.createdBy ? ` by ${campaign.createdBy}` : ""} · Updated {fmt(campaign.updated)}
+          {campaign.createdBy ? ` by ${canonicalOwnerName(campaign.createdBy)}` : ""} · Updated {fmt(campaign.updated)}
         </span>
       </div>
       {q.isLoading ? (
@@ -1487,12 +1488,12 @@ function ConfirmStep({
             <div className="ml-auto flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">Contact Prime for {newCount} new prospects</span>
               <Select value={prime || "none"} onValueChange={(v) => setPrime(v === "none" ? "" : v)}>
-                <SelectTrigger className="h-8 w-32">
+                <SelectTrigger className="h-8 w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">None</SelectItem>
-                  {["Julia", "Hillock", "Falloon", "Shane"].map((p) => (
+                  {TEAM_OWNER_NAMES.map((p) => (
                     <SelectItem key={p} value={p}>
                       {p}
                     </SelectItem>

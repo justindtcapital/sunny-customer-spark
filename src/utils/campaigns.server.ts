@@ -12,6 +12,7 @@ import {
   fetchSheetTab,
   updateSheetCells,
 } from "./sheets.server";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 import { memberRowsFor, type CampaignMember, type CampaignRecord, type CampaignStatus, type MemberKind } from "@/lib/campaigns";
 
 export const CAMPAIGNS_TAB = "Campaigns";
@@ -113,7 +114,7 @@ function rowToCampaign(headers: string[], r: string[]): CampaignRecord {
     purpose: o.purpose || "",
     events: splitList(o.events || ""),
     portcos: splitList(o.portcos || ""),
-    owner: o.owner || "",
+    owner: canonicalOwnerName(o.owner),
     channel: (o.channel as CampaignRecord["channel"]) || "email",
     templateSubject: o.templateSubject || "",
     templateBody: o.templateBody || "",
@@ -185,7 +186,7 @@ function campaignValues(c: CampaignRecord): Record<string, string> {
     purpose: c.purpose,
     events: c.events.join(", "),
     portcos: c.portcos.join(", "),
-    owner: c.owner,
+    owner: canonicalOwnerName(c.owner),
     channel: c.channel,
     "template subject": c.templateSubject,
     "template body": c.templateBody,
