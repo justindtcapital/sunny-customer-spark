@@ -3,7 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Inbox, Merge, Pencil, Plus, Trash2, Undo2, Users, Sparkles, Wrench } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Pencil, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
+import { ActionsBanner, DEFAULT_TOGGLES, type BannerView, type FeedToggle } from "@/components/actions/ActionsBanner";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
@@ -31,11 +32,6 @@ import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actio
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
 const TABS = ["actions", "notes", "done"] as const;
-const TAB_STYLE = {
-  actions: { label: "My Actions", Icon: GitBranch, tone: "text-primary", selected: "bg-primary text-primary-foreground hover:bg-primary/90" },
-  notes: { label: "Notes & Activity inbox", Icon: Inbox, tone: "text-council-foreground", selected: "bg-council-foreground text-primary-foreground hover:text-primary-foreground hover:bg-council-foreground/90" },
-  done: { label: "Completed", Icon: CheckCircle2, tone: "text-good-foreground", selected: "bg-good-foreground text-primary-foreground hover:text-primary-foreground hover:bg-good-foreground/90" },
-};
 type Tab = (typeof TABS)[number];
 /** Legacy deep links used tab=workstreams / tab=followups; both now open the merged My Actions feed. */
 const normalizeTab = (t: unknown): Tab | undefined => {
