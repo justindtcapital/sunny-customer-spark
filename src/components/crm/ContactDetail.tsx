@@ -1,4 +1,5 @@
 import { PartnerChip } from "@/components/crm/PartnerChip";
+import { TEAM_OWNER_NAMES } from "@/lib/user-ownership";
 import { useState } from "react";
 import {
   addNote,
