@@ -1,4 +1,5 @@
 import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 import { mergeCompanyEvents } from "@/lib/event-portcos";
 import { useState, useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
