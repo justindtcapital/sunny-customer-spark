@@ -18,23 +18,37 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
   "chris.falloon@dell.com": {
     displayName: "Chris Falloon",
     firstName: "Chris",
-    aliases: ["falloon, chris", "c. falloon", "chris f", "chris", "chrisf", "chris f @", "chris f@"],
-    emails: ["chrisf@dt-capital.net", "chris.falloon@del.com"],
+    aliases: ["falloon, chris", "c. falloon", "chris f", "chris", "chrisf", "chris f @", "chris f@", "falloon"],
+    emails: ["chrisf@dt-capital.net", "chris.falloon@del.com", "chris.falloon@dt-capital.net"],
   },
   "julia.beech@dell.com": {
     displayName: "Julia Beech",
     firstName: "Julia",
-    aliases: ["julia beach", "julia"],
+    aliases: ["julia beach", "julia", "beech", "beech, julia"],
     emails: ["julia@dt-capital.net", "juliab@dt-capital.net"],
   },
   "chris.hillock@dell.com": {
     displayName: "Chris Hillock",
     firstName: "Chris",
-    aliases: ["hillock, chris"],
+    aliases: ["hillock, chris", "hillock"],
     emails: ["chrish@dt-capital.net"],
   },
-  "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane", aliases: ["shane early", "shane"], emails: ["shane@dt-capital.net", "shane@dt-capital.com"] },
+  "shane.earley@dell.com": { displayName: "Shane Earley", firstName: "Shane", aliases: ["shane early", "shane", "earley", "earley, shane"], emails: ["shane@dt-capital.net", "shane@dt-capital.com"] },
 };
+
+/**
+ * The official full name for any way a DTC teammate is written (email, DT Capital
+ * mailbox, "Falloon", "Earley, Shane <…>"). Anything that isn't a teammate is
+ * returned unchanged (trimmed), so outside owners and "Unassigned" stay as typed.
+ */
+export function canonicalOwnerName(value: string | null | undefined): string {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+  return teamMemberFor(raw)?.displayName || raw;
+}
+
+/** Official names offered in owner / Relationship Prime pickers (never emails). */
+export const TEAM_OWNER_NAMES: string[] = ["Chris Falloon", "Chris Hillock", "Julia Beech", "Shane Earley"];
 
 /** Core action owners only; identity aliases do not create extra contact records. */
 export const CORE_TEAM = Object.entries(TEAM).filter(([, t]) => t.displayName !== "Justin Adorante").map(([email, t]) => ({ email, name: t.displayName, company: "DT Capital", where: "Team" as const, searchTerms: [email, t.displayName, ...(t.aliases || []), ...(t.emails || [])] }));
