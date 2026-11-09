@@ -4273,12 +4273,16 @@ export async function saveTargetStrategy(
 }
 
 export async function buildTargets(): Promise<TargetLead[]> {
-  const [targetRows, outreachMap, strategyMap] = await Promise.all([
+  const [targetRows, outreachMap, strategyMap, eventRows] = await Promise.all([
     fetchTabWithUrids(TAB_NAMES.targets),
     buildTargetOutreachMap(),
     buildTargetStrategyMap(),
+    fetchSheetTab(TAB_NAMES.events).catch(() => [] as string[][]),
   ]);
   const rawTargets = mapRows<Record<string, string>>(targetRows, TARGET_COLS);
+  // Prospect event links share the CRM "Events" tab with Network (URID, then email).
+  // Removed rows stay in the list so resolveProspectEvents can honour removals.
+  const eventLinks = splitByParent(mapRows<Record<string, string>>(eventRows, EVENT_COLS));
 
   // Guarantee a unique client id per row even when the sheet has blank or
   // duplicated URIDs (legacy rows, manual copy-paste). repairTargetUrids fixes the
@@ -4305,6 +4309,21 @@ export async function buildTargets(): Promise<TargetLead[]> {
     if (seenIds.has(id)) id = `${id}-${idx}`;
     seenIds.add(id);
 
+    const linkRows: Record<string, string>[] = [];
+    const seenLinks = new Set<Record<string, string>>();
+    const addLinks = (rows: Record<string, string>[] = []) => {
+      for (const r of rows) if (!seenLinks.has(r)) { seenLinks.add(r); linkRows.push(r); }
+    };
+    if (uridKey) addLinks(eventLinks.byUrid[uridKey]);
+    for (const e of (t.email || "").split(/[;,]/)) {
+      const k = e.trim().toLowerCase();
+      if (k) addLinks(eventLinks.byEmail[k]);
+    }
+    const linked = resolveProspectEvents(
+      linkRows.map((r) => ({ eventName: r.eventName || "", type: r.type, removedAt: r.removedAt })),
+      t.event,
+    );
+
     return {
       id,
       urid: t.urid || undefined,
@@ -4326,6 +4345,8 @@ export async function buildTargets(): Promise<TargetLead[]> {
       reasonSurfaced: t.reasonSurfaced || "",
       campaign: (t.campaign || "").trim(),
       event: (t.event || "").trim(),
+      eventsAttended: linked.eventsAttended,
+      eventsInvited: linked.eventsInvited,
       portcoTags: (t.portcoTags || "")
         .split(",")
         .map((p) => p.trim())
@@ -4683,6 +4704,60 @@ export async function ensureEventAttendanceBatch(
     catalogWritten: catalogRows.length,
     skipped,
   };
+}
+
+/**
+ * Unlink one event from one person (append-only). Stamps "Removed At" on every
+ * active matching row (by Contact URID, else email; same event name and type).
+ * When no row exists — the link came only from the legacy Targets "Event" cell —
+ * a stamped row is appended instead, so the cell itself is never cleared.
+ * The event itself (Events DB / App Events) is never touched.
+ */
+export async function unlinkEventAttendance(input: {
+  urid?: string;
+  email?: string;
+  eventName: string;
+  type: "attended" | "invited";
+}): Promise<{ stamped: number; appended: number }> {
+  const eventName = (input.eventName || "").trim();
+  const urid = (input.urid || "").trim();
+  const emails = (input.email || "").split(/[;,]/).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  if (!eventName || (!urid && !emails.length)) throw new Error("Missing person or event");
+
+  await ensureTab(TAB_NAMES.events, EVENT_ATTENDANCE_HEADERS);
+  if (urid) await ensureColumn(TAB_NAMES.events, "Contact URID");
+  const removedCol = await ensureColumn(TAB_NAMES.events, "Removed At");
+  const rows = await fetchSheetTab(TAB_NAMES.events, true);
+  const hdr = (rows[0] || []).map((h) => (h || "").trim().toLowerCase());
+  const col = (h: string) => hdr.indexOf(h);
+  const [uridIdx, emailIdx, nameIdx, typeIdx] = [col("contact urid"), col("contact email"), col("event name"), col("type")];
+  const today = new Date().toISOString().slice(0, 10);
+  const nameKey = eventName.toLowerCase();
+  const updates: { range: string; value: string }[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if ((r[removedCol] || "").trim()) continue;
+    if ((r[nameIdx] || "").trim().toLowerCase() !== nameKey) continue;
+    if (((r[typeIdx] || "attended").trim().toLowerCase() === "invited" ? "invited" : "attended") !== input.type) continue;
+    const rowUrid = uridIdx >= 0 ? (r[uridIdx] || "").trim().toLowerCase() : "";
+    const rowEmail = (r[emailIdx] || "").trim().toLowerCase();
+    const mine = (urid && rowUrid === urid.toLowerCase()) || (!rowUrid && rowEmail && emails.includes(rowEmail));
+    if (mine) updates.push({ range: `${colLetters(removedCol)}${i + 1}`, value: today });
+  }
+  if (updates.length) {
+    await updateSheetCells(TAB_NAMES.events, updates);
+    return { stamped: updates.length, appended: 0 };
+  }
+  const byHeader: Record<string, string> = {
+    "contact urid": urid,
+    "contact email": emails[0] || "",
+    "event name": eventName,
+    date: today,
+    type: input.type,
+    "removed at": today,
+  };
+  await appendSheetRows(TAB_NAMES.events, [hdr.map((h) => byHeader[h] ?? "")]);
+  return { stamped: 0, appended: 1 };
 }
 
 /**
