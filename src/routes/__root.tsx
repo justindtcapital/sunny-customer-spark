@@ -9,6 +9,7 @@ import { TargetSelectionProvider } from "@/lib/target-selection-context";
 import { PortfolioFilterProvider, usePortfolioFilters } from "@/lib/portfolio-filter-context";
 import { FilterOptionsProvider } from "@/lib/filter-options-context";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
+import { teamProfile } from "@/lib/user-ownership";
 import { LoginScreen } from "@/components/login-screen";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
@@ -156,7 +157,7 @@ function UserMenu() {
   const { email, logout } = useAuth();
   return (
     <div className="flex items-center gap-3">
-      <span className="text-sm text-muted-foreground">{email}</span>
+      <span className="text-sm text-muted-foreground" title={email || undefined}>{teamProfile(email)?.displayName || email}</span>
       <Button variant="ghost" size="sm" onClick={logout}>
         Sign out
       </Button>
