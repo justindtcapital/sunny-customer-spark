@@ -143,7 +143,9 @@ export function planContactMerge(input: { headers: string[]; records: MergeRecor
     }
     for (const h of f.headers) after[h] = records[choice].values[h] || "";
   }
-  after["relationship status"] = input.status;
+  // Keep the saved spelling (e.g. blank = Cold) when the chosen status is unchanged.
+  const keptStatus = keeper.values["relationship status"] || "";
+  after["relationship status"] = statusLabel(keptStatus) === input.status ? keptStatus : input.status;
   const mergedUrids = splitList(
     [keeper.values["merged urids"] || "", ...others.map((o) => [o.urid, o.values["merged urids"] || ""].join(","))].join(","),
     /[,;\s]+/,
