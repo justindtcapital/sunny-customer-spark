@@ -14,7 +14,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Cpu, Loader2, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Cpu, Loader2, Merge, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { MergeContactsDialog } from "./MergeContactsDialog";
+import { MAX_MERGE } from "@/lib/contact-merge";
 import { toast } from "sonner";
 import { useRouter } from "@tanstack/react-router";
 import { useSelection } from "@/lib/selection-context";
@@ -77,6 +79,7 @@ export function BulkEditBar() {
   // Which mass action is currently running ("" = none). Disables the whole bar.
   const [action, setAction] = useState<"" | "enrich" | "interests" | "tech">("");
   const [techConfirmOpen, setTechConfirmOpen] = useState(false);
+  const [mergeUrids, setMergeUrids] = useState<string[] | null>(null);
   const [changingLevel, setChangingLevel] = useState(false);
   const changeLevels = useServerFn(bulkChangeRelationshipLevels);
   const resumeOp = useServerFn(retryBulkOperation);
@@ -432,6 +435,21 @@ export function BulkEditBar() {
       <Button
         size="sm"
         variant="outline"
+        className="h-8 text-xs"
+        disabled={anyBusy || count < 2 || count > MAX_MERGE}
+        title={count < 2 || count > MAX_MERGE ? `Select 2–${MAX_MERGE} people to merge` : "Merge the selected people into one"}
+        onClick={() => {
+          const urids = selectedContacts.map((c) => c.urid || "").filter(Boolean);
+          if (urids.length !== selectedContacts.length) { toast.error("Some selected people don't have a stable ID yet. Reload the page and try again."); return; }
+          setMergeUrids(urids);
+        }}
+      >
+        <Merge className="h-3.5 w-3.5 mr-1" /> Merge
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
         className="h-8 text-xs ml-auto text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
         onClick={() => setConfirmOpen(true)}
         disabled={anyBusy}
@@ -441,6 +459,15 @@ export function BulkEditBar() {
       <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={clearSelection} disabled={anyBusy}>
         <X className="h-3.5 w-3.5 mr-1" /> Clear
       </Button>
+
+      {mergeUrids && (
+        <MergeContactsDialog
+          open
+          urids={mergeUrids}
+          onOpenChange={(o) => { if (!o) setMergeUrids(null); }}
+          onMerged={() => { clearSelection(); void router.invalidate(); }}
+        />
+      )}
 
       <AlertDialog open={levelChange !== null} onOpenChange={(open) => { if (!open && !changingLevel) setLevelChange(null); }}>
         <AlertDialogContent>

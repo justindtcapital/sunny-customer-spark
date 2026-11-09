@@ -132,7 +132,10 @@ import {
   type AddToCampaignResult,
 } from "@/components/crm/AddToCampaignDialog";
 import { TagToEventDialog } from "@/components/crm/TagToEventDialog";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, Merge, Users } from "lucide-react";
+import { MergeContactsDialog } from "@/components/crm/MergeContactsDialog";
+import { DuplicatesDialog } from "@/components/crm/DuplicatesDialog";
+import { MAX_MERGE } from "@/lib/contact-merge";
 import { invalidateCampaignCache } from "@/components/crm/CampaignCombobox";
 import { EmailDraftDialog } from "@/components/crm/EmailDraftDialog";
 import {
@@ -524,6 +527,8 @@ function TargetingPage() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [addCampaignOpen, setAddCampaignOpen] = useState(false);
   const [tagEventOpen, setTagEventOpen] = useState(false);
+  const [mergeUrids, setMergeUrids] = useState<string[] | null>(null);
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [deletingTargets, setDeletingTargets] = useState(false);
   const [promotingCrm, setPromotingCrm] = useState(false);
   const { updateOptions } = useFilterOptions();
@@ -1757,6 +1762,11 @@ function TargetingPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => setDuplicatesOpen(true)}>
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              Find duplicates
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="text-xs">
@@ -1847,6 +1857,21 @@ function TargetingPage() {
               >
                 <CalendarPlus className="h-3 w-3 mr-1" />
                 Tag to Event
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className={actionBtnClass}
+                disabled={researching || deletingTargets || promotingCrm || selectedIds.size < 2 || selectedIds.size > MAX_MERGE}
+                title={selectedIds.size < 2 || selectedIds.size > MAX_MERGE ? `Select 2–${MAX_MERGE} people to merge` : "Merge the selected people into one"}
+                onClick={() => {
+                  const urids = selectedTargets.map((t) => t.urid || "").filter(Boolean);
+                  if (urids.length !== selectedTargets.length) { toast.error("Some selected people don't have a stable ID yet. Run Import → Repair IDs first."); return; }
+                  setMergeUrids(urids);
+                }}
+              >
+                <Merge className="h-3 w-3 mr-1" />
+                Merge
               </Button>
               <Button
                 variant="outline"

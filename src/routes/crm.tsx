@@ -24,7 +24,8 @@ import { syncGmailCrmTouches } from "@/utils/gmail-crm-sync.functions";
 import { syncEventExposure } from "@/utils/event-exposure.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Activity, Mail } from "lucide-react";
+import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Activity, Mail, Users } from "lucide-react";
+import { DuplicatesDialog } from "@/components/crm/DuplicatesDialog";
 import {
   Dialog,
   DialogContent,
@@ -120,6 +121,7 @@ function CrmPage() {
     [contacts, pyramidSel],
   );
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [addContactOpen, setAddContactOpen] = useState(false);
   const [addBusy, setAddBusy] = useState(false);
   const [addForm, setAddForm] = useState({
@@ -609,6 +611,11 @@ function CrmPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <Button variant="outline" size="sm" className="text-xs" onClick={() => setDuplicatesOpen(true)}>
+            <Users className="h-3.5 w-3.5 mr-1.5" />
+            Find duplicates
+          </Button>
+
           <Button
             size="sm"
             className="text-xs"
@@ -820,6 +827,8 @@ function CrmPage() {
         existingEmails={allContacts.map((c) => c.email)}
         onImported={() => router.invalidate()}
       />
+
+      <DuplicatesDialog open={duplicatesOpen} onOpenChange={setDuplicatesOpen} onChanged={() => void router.invalidate()} />
 
       <SmartPasteDialog
         open={pasteOpen}
