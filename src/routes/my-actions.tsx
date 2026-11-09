@@ -175,17 +175,6 @@ function similarFollowUps(r: Reminder, all: Reminder[]): Reminder[] {
 
 type Sel = { kind: "ws" | "fu"; id: string };
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
-/** Which companies to show — separate from which item types to show. */
-const COMPANY_TOGGLES = [
-  { key: "portcos", label: "PortCos", Icon: Building2 },
-  { key: "network", label: "Network", Icon: Users },
-  { key: "ops", label: "PortDev Ops", Icon: Wrench },
-] as const;
-const ITEM_TOGGLES = [
-  { key: "workstreams", label: "Workstreams", Icon: GitBranch },
-  { key: "followups", label: "Follow-ups", Icon: CalendarDays },
-] as const;
-type FeedToggle = (typeof COMPANY_TOGGLES)[number]["key"] | (typeof ITEM_TOGGLES)[number]["key"];
 
 /** Workstream / follow-up bullet: icon in a circle tinted with the company logo's primary color. */
 function Bullet({ kind, company, website }: { kind: "ws" | "fu"; company: string; website?: string }) {
@@ -202,7 +191,7 @@ function Bullet({ kind, company, website }: { kind: "ws" | "fu"; company: string
 }
 
 /** Merged My Actions feed: workstreams and follow-ups grouped by PortCo / company. */
-function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange }) {
+function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hiddenPriorities }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange; toggles: Record<FeedToggle, boolean>; hiddenPriorities: string[] }) {
   const { workstreams, loading: wsLoading, refresh } = useWorkstreams();
   const qc = useQueryClient();
   const ownerEmail = teamMemberFor(owner)?.email || "";
@@ -211,10 +200,9 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange }: { owner: 
   const updInteraction = useServerFn(updateInteraction);
   const clearFlag = useServerFn(clearContactFollowUpFlag);
   const completeAction = useServerFn(completeActionFn);
+  // Completed workstreams live in the Completed view; a deep link to one still shows it here.
   const [showDone, setShowDone] = useState(false);
-  const [priority, setPriority] = useState("");
   const [creating, setCreating] = useState(false);
-  const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>({ portcos: true, network: true, ops: true, workstreams: true, followups: true });
   const [sel, setSel] = useState<Sel | null>(focusGid ? { kind: "ws", id: focusGid } : focusFu ? { kind: "fu", id: focusFu } : null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -233,9 +221,8 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange }: { owner: 
 
   // Workstreams owned by the selected person.
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
-  const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && (!priority || w.workstreamPriority.toLowerCase() === priority.toLowerCase()))
-    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, priority]); // eslint-disable-line react-hooks/exhaustive-deps
-  const priorities = useMemo(() => [...new Set(mine.map((w) => w.workstreamPriority).filter(Boolean))].sort(), [mine]);
+  const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && !hiddenPriorities.includes(w.workstreamPriority))
+    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, hiddenPriorities]);
   const companies = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [workstreams]);
 
   // Follow-ups owned by the selected person, date-filtered by the calendar.
@@ -428,36 +415,10 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange }: { owner: 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Company filters">
-          {COMPANY_TOGGLES.map(({ key, label, Icon }) => (
-            <Button key={key} size="sm" variant={toggles[key] ? "default" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
-              <Icon className="mr-1 h-3.5 w-3.5" />{label}
-            </Button>
-          ))}
-        </div>
-        <span className="h-6 w-px bg-border" aria-hidden />
-        <div className="inline-flex rounded-md border border-border p-0.5" role="group" aria-label="Item type filters">
-          {ITEM_TOGGLES.map(({ key, label, Icon }) => (
-            <Button key={key} size="sm" variant={toggles[key] ? "default" : "ghost"} aria-pressed={toggles[key]} onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}>
-              <Icon className="mr-1 h-3.5 w-3.5" />{label}
-              <span className="ml-1 rounded bg-current/10 px-1.5 text-xs tabular-nums">{key === "workstreams" ? wsList.length : fuList.length}</span>
-            </Button>
-          ))}
-        </div>
-
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {toggles.workstreams ? `${wsList.length} workstreams` : ""}{toggles.workstreams && toggles.followups ? " · " : ""}{toggles.followups ? `${fuList.length} follow-ups` : ""}
+        </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {priorities.length > 0 && (
-            <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
-              {["", ...priorities].map((p) => (
-                <button key={p || "all"} onClick={() => setPriority(p)} className={`rounded px-2.5 py-1 ${priority === p ? "bg-secondary text-secondary-foreground" : ""}`}>{p || "All priorities"}</button>
-              ))}
-            </div>
-          )}
-          <div className="inline-flex rounded-md border border-border p-0.5 text-xs">
-            {[false, true].map((v) => (
-              <button key={String(v)} onClick={() => setShowDone(v)} className={`rounded px-2.5 py-1 ${showDone === v ? "bg-secondary text-secondary-foreground" : ""}`}>{v ? "All" : "Active"}</button>
-            ))}
-          </div>
           <Button size="sm" variant={mergeMode ? "secondary" : "outline"} className="h-7" onClick={() => { setMergeMode((m) => !m); setMergeSel([]); }}>
             <Merge className="mr-1 h-3.5 w-3.5" />{mergeMode ? `Merging (${mergeSel.length})` : "Merge"}
           </Button>
