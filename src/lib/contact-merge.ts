@@ -3,7 +3,8 @@
 // A merge keeps ONE record (the "main" record, which keeps its URID) and
 // archives the others in place: their Relationship Status becomes "Merged" and
 // "Merged Into" points at the main record. The main record lists the archived
-// URIDs in "Merged URIDs" and carries every email address, so events, notes,
+// URIDs in "Merged URIDs" and carries every email address (cleared from the
+// archived copy, restored on undo), so events, notes,
 // PortCo intros and campaigns keyed by the old URID or email show on the main
 // profile at read time — no history rows are rewritten, and undo is exact.
 
@@ -155,7 +156,9 @@ export function planContactMerge(input: { headers: string[]; records: MergeRecor
     archivedUrids: others.map((o) => o.urid),
     keeperUpdates,
     keeperAfter: after,
-    archivedUpdates: others.map((o) => ({ urid: o.urid, values: { "relationship status": MERGED_STATUS, "merged into": keeper.urid } })),
+    // The archived copy's email moves to the main record (it is cleared here so
+    // email-matched writers and imports only ever find the main record).
+    archivedUpdates: others.map((o) => ({ urid: o.urid, values: { "relationship status": MERGED_STATUS, "merged into": keeper.urid, ...(o.values["email"] ? { email: "" } : {}) } })),
   };
 }
 

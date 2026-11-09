@@ -13,7 +13,7 @@ describe("contact merge plan", () => {
   it("keeps the main record's ID and archives the other as Merged", () => {
     const plan = planContactMerge({ headers, records: [a, b], keeperIndex: 0, choices: {}, status: "Warm" });
     expect(plan.keeperUrid).toBe("u-a");
-    expect(plan.archivedUpdates).toEqual([{ urid: "u-b", values: { "relationship status": "Merged", "merged into": "u-a" } }]);
+    expect(plan.archivedUpdates).toEqual([{ urid: "u-b", values: { "relationship status": "Merged", "merged into": "u-a", email: "" } }]);
     expect(plan.keeperAfter["merged urids"]).toBe("u-b");
   });
 
