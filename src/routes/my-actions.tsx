@@ -26,6 +26,7 @@ import { ActionComposer, type ActionContext } from "@/components/actions/ActionC
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { inActionRange, type ActionDateRange } from "@/lib/action-calendar";
+import { ACTION_SORTS, companyKindVisible, sortActions, type ActionSort } from "@/lib/action-sort";
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -421,6 +422,40 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     </div>;
   };
 
+  const fuRow = (x: Reminder, company: string, website: string, nested: boolean, showCompany: boolean) => (
+    <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} ${showCompany ? "pl-3" : nested ? "pl-16" : "pl-10"}`}>
+      <div className="flex min-w-0 items-start gap-2">
+        {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
+        <Bullet kind="fu" company={company} website={website} />
+        <div className="min-w-0 flex-1">
+          <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
+          <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
+            {showCompany && <span className="max-w-[140px] truncate font-medium text-foreground/80">{company}</span>}
+            <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
+            <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
+            <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+  const wsRow = (w: Workstream, company: string, website: string, showCompany: boolean) => (
+    <button onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} ${showCompany ? "pl-3" : "pl-10"}`}>
+      <div className="flex min-w-0 items-start gap-2">
+        <Bullet kind="ws" company={company} website={website} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm">{w.name || w.rawName}</div>
+          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
+            {showCompany && <span className="mr-auto max-w-[160px] truncate text-xs font-medium text-foreground/80">{company}</span>}
+            <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
+            <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
+            {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -445,26 +480,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       {loading && <p className="text-sm text-muted-foreground">Loading actions…</p>}
       {!loading && !groups.length && <p className="text-sm text-muted-foreground">No actions for {owner} with these filters.</p>}
       {groups.length > 0 && <SplitPane
-        list={<div className="divide-y divide-border">{groups.map((g) => {
+        list={<div className="divide-y divide-border">{sort !== "portco" ? flat.map((it) => {
+          const website = websites.get(norm(it.company)) || "";
+          return it.ws ? <div key={it.key}>{wsRow(it.ws, it.company, website, true)}</div> : fuRow(it.fu!, it.company, website, false, true);
+        }) : groups.map((g) => {
           const isClosed = closed.has(g.company);
           const website = websites.get(norm(g.company)) || "";
           const fuCount = g.general.length + [...g.linked.values()].flat().length;
-          const fuRow = (x: Reminder, nested: boolean) => (
-            <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} ${nested ? "pl-16" : "pl-10"}`}>
-              <div className="flex min-w-0 items-start gap-2">
-                {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
-                <Bullet kind="fu" company={g.company} website={website} />
-                <div className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
-                  <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-                    <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
-                    <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
-                    <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
-                  </span>
-                </div>
-              </div>
-            </button>
-          );
           return (
             <div key={g.company}>
               <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
@@ -477,23 +499,11 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
               {!isClosed && <div className="divide-y divide-border">
                 {g.ws.map((w) => (
                   <div key={w.gid}>
-                    <button onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} pl-10`}>
-                      <div className="flex min-w-0 items-start gap-2">
-                        <Bullet kind="ws" company={g.company} website={website} />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm">{w.name || w.rawName}</div>
-                          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
-                            <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
-                            <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
-                            {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                    {(g.linked.get(w.gid) || []).map((x) => fuRow(x, true))}
+                    {wsRow(w, g.company, website, false)}
+                    {(g.linked.get(w.gid) || []).map((x) => fuRow(x, g.company, website, true, false))}
                   </div>
                 ))}
-                {g.general.map((x) => fuRow(x, false))}
+                {g.general.map((x) => fuRow(x, g.company, website, false, false))}
               </div>}
             </div>
           );
