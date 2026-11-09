@@ -394,6 +394,20 @@ export function BulkEditBar() {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
       <span className="text-xs font-semibold text-foreground">{count} selected</span>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 text-xs"
+        disabled={anyBusy || count < 2 || count > MAX_MERGE}
+        title={count < 2 || count > MAX_MERGE ? `Select 2–${MAX_MERGE} people to merge` : "Merge the selected people into one"}
+        onClick={() => {
+          const urids = selectedContacts.map((c) => c.urid || "").filter(Boolean);
+          if (urids.length !== selectedContacts.length) { toast.error("Some selected people don't have a stable ID yet. Reload the page and try again."); return; }
+          setMergeUrids(urids);
+        }}
+      >
+        <Merge className="h-3.5 w-3.5 mr-1" /> Merge
+      </Button>
       <span className="text-xs text-muted-foreground">· Set</span>
       <Select
         value={field}
@@ -430,21 +444,6 @@ export function BulkEditBar() {
       <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setTechConfirmOpen(true)} disabled={anyBusy}>
         {action === "tech" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Cpu className="h-3.5 w-3.5 mr-1" />}
         Load tech stack
-      </Button>
-
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-8 text-xs"
-        disabled={anyBusy || count < 2 || count > MAX_MERGE}
-        title={count < 2 || count > MAX_MERGE ? `Select 2–${MAX_MERGE} people to merge` : "Merge the selected people into one"}
-        onClick={() => {
-          const urids = selectedContacts.map((c) => c.urid || "").filter(Boolean);
-          if (urids.length !== selectedContacts.length) { toast.error("Some selected people don't have a stable ID yet. Reload the page and try again."); return; }
-          setMergeUrids(urids);
-        }}
-      >
-        <Merge className="h-3.5 w-3.5 mr-1" /> Merge
       </Button>
 
       <Button

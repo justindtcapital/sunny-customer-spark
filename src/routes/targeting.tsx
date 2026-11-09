@@ -1702,7 +1702,17 @@ function TargetingPage() {
               Build and work your DTC prospecting pipeline
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setDuplicatesOpen(true)}
+              title="Find and merge duplicate people. To merge your own picks, tick 2–5 people and press Merge."
+            >
+              <Merge className="h-3.5 w-3.5 mr-1.5" />
+              Merge duplicates
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="text-xs">
@@ -1799,17 +1809,32 @@ function TargetingPage() {
       </div>
 
       {/* Count, selection actions, and view toggle */}
-      <div className="flex items-center justify-between gap-2 mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <p className="text-xs text-muted-foreground">
           <span className="font-semibold text-foreground">{filtered.length}</span> target
           {filtered.length !== 1 ? "s" : ""}
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {selectedIds.size > 0 && (
             <>
               <span className="text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">{selectedIds.size}</span> selected
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className={actionBtnClass}
+                disabled={researching || deletingTargets || promotingCrm || selectedIds.size < 2 || selectedIds.size > MAX_MERGE}
+                title={selectedIds.size < 2 || selectedIds.size > MAX_MERGE ? `Select 2–${MAX_MERGE} people to merge` : "Merge the selected people into one"}
+                onClick={() => {
+                  const urids = selectedTargets.map((t) => t.urid || "").filter(Boolean);
+                  if (urids.length !== selectedTargets.length) { toast.error("Some selected people don't have a stable ID yet. Run Import → Repair IDs first."); return; }
+                  setMergeUrids(urids);
+                }}
+              >
+                <Merge className="h-3 w-3 mr-1" />
+                Merge
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -1856,21 +1881,6 @@ function TargetingPage() {
               >
                 <CalendarPlus className="h-3 w-3 mr-1" />
                 Tag to Event
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className={actionBtnClass}
-                disabled={researching || deletingTargets || promotingCrm || selectedIds.size < 2 || selectedIds.size > MAX_MERGE}
-                title={selectedIds.size < 2 || selectedIds.size > MAX_MERGE ? `Select 2–${MAX_MERGE} people to merge` : "Merge the selected people into one"}
-                onClick={() => {
-                  const urids = selectedTargets.map((t) => t.urid || "").filter(Boolean);
-                  if (urids.length !== selectedTargets.length) { toast.error("Some selected people don't have a stable ID yet. Run Import → Repair IDs first."); return; }
-                  setMergeUrids(urids);
-                }}
-              >
-                <Merge className="h-3 w-3 mr-1" />
-                Merge
               </Button>
               <Button
                 variant="outline"
