@@ -36,9 +36,9 @@ function priorityLabel(p: string) {
 
 const FILTER_TONE = "border-primary bg-primary text-primary-foreground";
 
-function Tile({ label, count, checked, onClick, tone, className = "" }: { label: string; count?: number; checked: boolean; onClick: () => void; tone: string; className?: string }) {
+function Tile({ label, count, checked, onClick, tone, className = "", row }: { label: string; count?: number; checked: boolean; onClick: () => void; tone: string; className?: string; row?: number }) {
   return (
-    <button type="button" role="checkbox" aria-checked={checked} onClick={onClick}
+    <button type="button" role="checkbox" aria-checked={checked} onClick={onClick} style={row ? { gridRowStart: row } : undefined}
       className={`flex min-h-7 w-full items-center justify-between gap-2 rounded-md border px-2 text-xs font-medium transition-opacity hover:opacity-90 ${tone} ${checked ? "" : "opacity-50"} ${className}`}>
       <span className="truncate">{label}{count !== undefined && <span className="ml-1 tabular-nums opacity-75">({count})</span>}</span>
       <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[3px] border border-current bg-background text-foreground">
@@ -88,12 +88,12 @@ export function ActionsBanner({ view, onView, counts, inbox, onToggleInbox, togg
 
       <BigButton title="My Actions" sub="(to do)" active={view !== "inbox"} onClick={() => onView("actions")} className="col-start-1 row-span-5 row-start-4" />
       {feed.map(({ key, label }, i) => (
-        <Tile key={key} label={label} tone={FILTER_TONE} checked={toggles[key]} onClick={() => onToggle(key)} className="col-start-2" style-row={i} {...rowAt(4 + i)} />
+        <Tile key={key} label={label} tone={FILTER_TONE} checked={toggles[key]} onClick={() => onToggle(key)} className="col-start-2" row={4 + i} />
       ))}
       {pri.map((p, i) => (
-        <Tile key={p} label={priorityLabel(p)} tone={priorityTone(p)} checked={!hiddenPriorities.includes(p)} onClick={() => onTogglePriority(p)} className="col-start-3" {...rowAt(4 + i)} />
+        <Tile key={p} label={priorityLabel(p)} tone={priorityTone(p)} checked={!hiddenPriorities.includes(p)} onClick={() => onTogglePriority(p)} className="col-start-3" row={4 + i} />
       ))}
-      <Tile label="Completed" tone="border-foreground/60 bg-card text-foreground" checked={view === "done"} onClick={() => onView(view === "done" ? "actions" : "done")} className="col-start-3" {...rowAt(4 + pri.length)} />
+      <Tile label="Completed" tone="border-foreground/60 bg-card text-foreground" checked={view === "done"} onClick={() => onView(view === "done" ? "actions" : "done")} className="col-start-3" row={4 + pri.length} />
     </div>
   );
 }
