@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, ChevronDown, ChevronRight, Combine, Loader2, Merge } from "lucide-react";
 import { fetchMergePreview, mergeContacts } from "@/utils/contact-merge.functions";
 import { mergeFields, statusOptions, type FieldChoice } from "@/lib/contact-merge";
@@ -87,7 +86,7 @@ export function MergeContactsDialog({ open, urids, onOpenChange, onMerged }: { o
         {!preview && !error && <div className="flex items-center gap-2 py-10 justify-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading the latest details…</div>}
 
         {preview && (
-          <ScrollArea className="max-h-[62vh] pr-3">
+          <div className="max-h-[62vh] overflow-y-auto pr-2">
             <div className="space-y-4">
               {/* Record headers: which one to keep */}
               <div className="grid gap-2" style={{ gridTemplateColumns: `9rem repeat(${n}, minmax(0, 1fr))` }}>
@@ -175,7 +174,7 @@ export function MergeContactsDialog({ open, urids, onOpenChange, onMerged }: { o
                 <span className="font-medium text-foreground">{keeperName}</span> stays as the one person. Events, notes, PortCo intros and campaigns from the other record{n > 2 ? "s" : ""} will show on this profile. The other record{n > 2 ? "s are" : " is"} archived (hidden, kept as a backup) and can be restored from <span className="font-medium text-foreground">Find duplicates → Recent merges</span>.
               </div>
             </div>
-          </ScrollArea>
+          </div>
         )}
 
         <DialogFooter>

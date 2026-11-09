@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Merge, RotateCcw, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { dismissDuplicateGroup, fetchDuplicateSuggestions, undoContactMerge } from "@/utils/contact-merge.functions";
@@ -68,7 +67,7 @@ export function DuplicatesDialog({ open, onOpenChange, onChanged }: { open: bool
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Users className="h-4 w-4" />Find duplicates</DialogTitle>
           <DialogDescription>Possible duplicate people across Network and Prospecting. Nothing changes until you review and merge.</DialogDescription>
@@ -82,7 +81,7 @@ export function DuplicatesDialog({ open, onOpenChange, onChanged }: { open: bool
               <TabsTrigger value="recent">Recent merges · {data.merges.length}</TabsTrigger>
             </TabsList>
             <TabsContent value="suggested">
-              <ScrollArea className="h-[60vh] pr-3">
+              <div className="h-[60vh] overflow-y-auto pr-2">
                 {data.groups.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No likely duplicates found.</p>}
                 <div className="space-y-2">
                   {data.groups.map((g) => {
@@ -95,11 +94,10 @@ export function DuplicatesDialog({ open, onOpenChange, onChanged }: { open: bool
                         </div>
                         <div className="space-y-1">
                           {g.people.map((p) => (
-                            <label key={p.urid} className="flex cursor-pointer items-center gap-2 text-xs">
+                            <label key={p.urid} className="flex min-w-0 cursor-pointer items-center gap-2 text-xs">
                               <Checkbox checked={sel.includes(p.urid)} onCheckedChange={(c) => setPicked((s) => ({ ...s, [g.key]: c ? [...sel, p.urid] : sel.filter((u) => u !== p.urid) }))} />
-                              <span className="font-medium text-foreground">{p.name}</span>
-                              <span className="text-muted-foreground truncate">{[p.title, p.company].filter(Boolean).join(" · ")}</span>
-                              <span className="text-muted-foreground truncate">{p.email}</span>
+                              <span className="shrink-0 font-medium text-foreground">{p.name}</span>
+                              <span className="min-w-0 flex-1 truncate text-muted-foreground">{[p.title, p.company, p.email].filter(Boolean).join(" · ")}</span>
                               <Badge variant="secondary" className="ml-auto shrink-0 text-[10px] px-1.5 py-0">{p.where === "Network" ? `Network · ${p.statusLabel}` : "Prospecting"}</Badge>
                             </label>
                           ))}
@@ -116,10 +114,10 @@ export function DuplicatesDialog({ open, onOpenChange, onChanged }: { open: bool
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             </TabsContent>
             <TabsContent value="recent">
-              <ScrollArea className="h-[60vh] pr-3">
+              <div className="h-[60vh] overflow-y-auto pr-2">
                 {data.merges.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No merges yet.</p>}
                 <div className="space-y-1.5">
                   {data.merges.map((m) => (
@@ -141,7 +139,7 @@ export function DuplicatesDialog({ open, onOpenChange, onChanged }: { open: bool
                     </div>
                   ))}
                 </div>
-              </ScrollArea>
+              </div>
             </TabsContent>
           </Tabs>
         )}

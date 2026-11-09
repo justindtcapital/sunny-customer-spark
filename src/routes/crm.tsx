@@ -608,13 +608,13 @@ function CrmPage() {
                 <Upload className="h-3.5 w-3.5 mr-2" />
                 Upload CSV
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setDuplicatesOpen(true)}>
+                <Users className="h-3.5 w-3.5 mr-2" />
+                Find duplicates
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <Button variant="outline" size="sm" className="text-xs" onClick={() => setDuplicatesOpen(true)}>
-            <Users className="h-3.5 w-3.5 mr-1.5" />
-            Find duplicates
-          </Button>
 
           <Button
             size="sm"

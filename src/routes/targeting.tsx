@@ -1737,6 +1737,10 @@ function TargetingPage() {
                   Upload CSV
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setDuplicatesOpen(true)}>
+                  <Users className="h-3.5 w-3.5 mr-2" />
+                  Find duplicates
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => void handleRepairIds()}
                   disabled={repairing}
@@ -1761,11 +1765,6 @@ function TargetingPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => setDuplicatesOpen(true)}>
-              <Users className="h-3.5 w-3.5 mr-1.5" />
-              Find duplicates
-            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
