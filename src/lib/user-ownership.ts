@@ -44,7 +44,15 @@ const TEAM: Record<string, { displayName: string; firstName: string; aliases?: s
 export function canonicalOwnerName(value: string | null | undefined): string {
   const raw = (value || "").trim();
   if (!raw) return "";
-  return teamMemberFor(raw)?.displayName || raw;
+  const whole = teamMemberFor(raw);
+  if (whole) return whole.displayName;
+  // Shared ownership ("Falloon, Beech"): rename only when every part is a teammate.
+  const parts = raw.split(/\s*[,;&/]\s*/).filter(Boolean);
+  if (parts.length > 1) {
+    const names = parts.map((p) => teamMemberFor(p)?.displayName);
+    if (names.every(Boolean)) return [...new Set(names)].join(", ");
+  }
+  return raw;
 }
 
 /** Official names offered in owner / Relationship Prime pickers (never emails). */

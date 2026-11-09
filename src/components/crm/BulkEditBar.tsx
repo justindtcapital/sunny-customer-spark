@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { TEAM_OWNER_NAMES } from "@/lib/user-ownership";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -62,7 +63,7 @@ const TEMPERATURES: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
 const PRIMARY_AREAS = ["Security", "AI & Data", "Logistics", "Other"];
 
 // Selectable Contact Primes for the bulk-edit multi-select.
-const PRIMES = ["Julia", "Hillock", "Falloon", "Shane"] as const;
+const PRIMES = TEAM_OWNER_NAMES;
 
 // In-list bulk editor: appears above the contact table once rows are selected.
 // Persists the change to the Contacts sheet (bulkUpdateContacts) and reflects it
