@@ -2950,6 +2950,7 @@ export async function mergeContactFields(
   source: "user" | "apollo",
   urid?: string,
 ): Promise<MergeResult> {
+  if (fields.prime !== undefined) fields = { ...fields, prime: canonicalOwnerName(fields.prime) };
   // A human edit may target a column that doesn't exist on older sheets
   // (e.g. "Contact Type", "Areas of Interest"); create it first. Idempotent.
   // Columns that may not exist on older sheets. Created for both sources so that
