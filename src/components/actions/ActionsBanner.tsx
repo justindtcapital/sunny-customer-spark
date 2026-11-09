@@ -25,6 +25,12 @@ function priorityTone(p: string) {
   return "border-border bg-muted text-foreground";
 }
 
+/** "1: High - Must Do" → "1. Must Do" (the short wording used on the banner). */
+function priorityLabel(p: string) {
+  const m = p.match(/^\s*(\d+)\s*[:.)-]?.*?-\s*(.+)$/);
+  return m ? `${m[1]}. ${m[2]!.trim()}` : p;
+}
+
 function Tile({ label, checked, onClick, tone }: { label: string; checked: boolean; onClick: () => void; tone: string }) {
   return (
     <button type="button" role="checkbox" aria-checked={checked} onClick={onClick}
@@ -88,7 +94,7 @@ export function ActionsBanner({ view, onView, counts, toggles, onToggle, priorit
         <BigButton title="My Actions" sub="(to do)" active={!inbox} onClick={() => onView("actions")} />
         <div role="group" aria-label="Company and item filters" className="grid w-40 content-start gap-1.5">{left}</div>
         <div role="group" aria-label="Priority filters" className="grid w-40 content-start gap-1.5">
-          {pri.map((p) => <Tile key={p} label={p} tone={priorityTone(p)} checked={!hiddenPriorities.includes(p)} onClick={() => onTogglePriority(p)} />)}
+          {pri.map((p) => <Tile key={p} label={priorityLabel(p)} tone={priorityTone(p)} checked={!hiddenPriorities.includes(p)} onClick={() => onTogglePriority(p)} />)}
           <Tile label="Completed" tone="border-foreground/70 bg-card text-foreground" checked={view === "done"} onClick={() => onView(view === "done" ? "actions" : "done")} />
         </div>
       </div>
