@@ -32,7 +32,7 @@ import {
 } from "@/utils/knowledge.functions";
 import type { NoteInboxItem, PersonMatch } from "@/utils/notes-inbox.server";
 import { resolveWho } from "@/lib/meeting-roster";
-import { CORE_TEAM, teamMemberFor, teamProfile } from "@/lib/user-ownership";
+import { canonicalOwnerName, CORE_TEAM, teamMemberFor, teamProfile } from "@/lib/user-ownership";
 import { coreAssignee, normalizeAssignedStep } from "@/lib/team-next-steps";
 import { usePartners } from "@/lib/use-partners";
 import { detectPartners } from "@/lib/partners";
@@ -272,7 +272,7 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
                       {!isActivity && i.track === "Network" && <Badge variant="secondary" className="shrink-0 text-[10px]">NWK</Badge>}
                       <span className="truncate text-sm font-medium">{i.title}</span>
                     </div>
-                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{i.date} · {i.portco || "No PortCo matched"}{i.author ? ` · From ${i.author}` : ""}</div>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">{i.date} · {i.portco || "No PortCo matched"}{i.author ? ` · From ${canonicalOwnerName(i.author)}` : ""}</div>
                   </button>
                 ))}
               </div>
@@ -473,7 +473,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
           {!isActivity && item.track === "Network" && <Badge variant="secondary" className="shrink-0 text-[10px]">NWK</Badge>}
           <div>
             <div className="text-sm font-medium">{item.title}</div>
-            <div className="text-xs text-muted-foreground">{item.date} · {item.portco || "No PortCo matched"}{item.author ? ` · From ${item.author}` : ""}</div>
+            <div className="text-xs text-muted-foreground">{item.date} · {item.portco || "No PortCo matched"}{item.author ? ` · From ${canonicalOwnerName(item.author)}` : ""}</div>
           </div>
         </button>
         {!isActivity && <Tick ok={item.saved} label="Saved" />}
@@ -506,7 +506,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
 
           {item.review ? (
             <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span>Reviewed {item.review.reviewedAt.slice(0, 10)} by {item.review.reviewedBy || "—"}</span>
+              <span>Reviewed {item.review.reviewedAt.slice(0, 10)} by {canonicalOwnerName(item.review.reviewedBy) || "—"}</span>
               {item.review.track && <span>Track: {item.review.track}</span>}
               {item.review.filedTo && <span>Filed to: {item.review.filedTo}</span>}
               {item.review.partners?.length ? <span>Partners: {item.review.partners.join(", ")}</span> : null}
