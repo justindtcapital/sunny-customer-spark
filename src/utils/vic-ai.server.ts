@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { allowedTeamEmail } from "@/lib/team-access";
 import { getVicSkill } from "@/lib/vic-skills";
+import { vicSourceInstructions } from "@/lib/vic-sources";
 
 const RUN_ID = "X-Lovable-AIG-Run-ID";
 
