@@ -59,6 +59,7 @@ import {
   appendTargetRows as appendTargetRowsServer,
   recordDailySnapshot as recordDailySnapshotServer,
   ensureEventAttendanceBatch,
+  unlinkEventAttendance,
   flagContactsForFollowUp as flagContactsForFollowUpServer,
   primarySheetEmail,
   type ImportResultInput,
@@ -356,6 +357,68 @@ export const addEvent = createServerFn({ method: "POST" })
       items: [`${email} ← ${data.eventName.trim()} [${type}]`],
     });
     return { success: true as const, ...res, followUpsFlagged };
+  });
+
+// Prospecting profiles: add event links for one or many prospects. Appends to the
+// shared CRM "Events" tab (URID, else email; URID-only allowed for prospects with
+// no email). Existing links are never replaced and duplicates are skipped after a
+// fresh read. No follow-up flag is stamped — prospects track follow-ups separately.
+export const linkProspectEvents = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: {
+      items: { urid?: string; email?: string; eventName: string; type: "attended" | "invited" }[];
+    }) => data,
+  )
+  .middleware([requireTeamAuth])
+  .handler(async ({ data }) => {
+    const items = (data.items || [])
+      .filter((i) => (i.eventName || "").trim() && ((i.urid || "").trim() || (i.email || "").trim()))
+      .map((i) => ({
+        email: i.email || "",
+        eventName: i.eventName.trim(),
+        type: i.type === "invited" ? ("invited" as const) : ("attended" as const),
+        urid: (i.urid || "").trim() || undefined,
+        allowUridOnly: true,
+        ensureCatalog: true,
+        catalogType: "meeting",
+      }));
+    if (!items.length) return { attendanceWritten: 0, catalogWritten: 0, skipped: 0 };
+    const res = await ensureEventAttendanceBatch(items);
+    await logOpsEventServer({
+      action: "sync",
+      source: "event_attendance",
+      status: "ok",
+      summary: `Prospect events · ${res.attendanceWritten} linked${res.skipped ? ` · ${res.skipped} already linked` : ""}`,
+      records: res.attendanceWritten,
+      details: { ...res },
+      items: items.slice(0, 50).map((i) => `${i.email || i.urid} ← ${i.eventName} [${i.type}]`),
+    }).catch(() => {});
+    return res;
+  });
+
+// Unlink one event from one person. Append-only: stamps "Removed At" (or appends
+// a stamped row for a legacy Event-cell link); the event itself is untouched.
+export const removeEventLink = createServerFn({ method: "POST" })
+  .inputValidator(
+    (data: { urid?: string; email?: string; eventName: string; type: "attended" | "invited" }) => data,
+  )
+  .middleware([requireTeamAuth])
+  .handler(async ({ data }) => {
+    const res = await unlinkEventAttendance({
+      urid: data.urid,
+      email: data.email,
+      eventName: data.eventName,
+      type: data.type === "invited" ? "invited" : "attended",
+    });
+    await logOpsEventServer({
+      action: "edit",
+      source: "event_attendance",
+      status: "ok",
+      summary: `Event unlinked · ${data.email || data.urid} ✕ ${data.eventName.trim()} [${data.type}]`,
+      records: 1,
+      details: { ...res },
+    }).catch(() => {});
+    return { success: true as const, ...res };
   });
 
 export const addPortcoIntro = createServerFn({ method: "POST" })
