@@ -80,9 +80,21 @@ function MyActionsPage() {
   const owner = ACTION_OWNERS.find((o) => o.name === search.owner)?.name || teamProfile(email)?.displayName || "";
   const [ctx, setCtx] = useState<ActionContext | null>(null);
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
+  const [inboxSub, setInboxSub] = useState<"notes" | "activity">("notes");
   const [dateRange, setDateRange] = useState<ActionDateRange>(null);
+  const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>(DEFAULT_TOGGLES);
+  const [hiddenPriorities, setHiddenPriorities] = useState<string[]>([]);
+  const { workstreams } = useWorkstreams();
+  const priorities = useMemo(() => [...new Set(workstreams.filter((w) => ownerMatches(w.owner, owner)).map((w) => w.workstreamPriority).filter(Boolean))].sort(), [workstreams, owner]);
   const qc = useQueryClient();
   const set = (p: { tab?: Tab; owner?: string }) => navigate({ search: (s) => ({ ...s, ...p }), replace: true });
+  const view: BannerView = tab === "notes" ? inboxSub : tab;
+  const onView = (v: BannerView) => {
+    if (v === "notes" || v === "activity") { setInboxSub(v); set({ tab: "notes" }); }
+    else set({ tab: v });
+  };
+  // Changing a filter always shows the to-do feed it filters.
+  const toActions = () => { if (tab !== "actions") set({ tab: "actions" }); };
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4 p-6">
@@ -99,22 +111,18 @@ function MyActionsPage() {
         </div>
       </div>
 
-      {tab === "actions" && <ActionCalendar owner={owner} range={dateRange} onChange={setDateRange} />}
-
-
-      <div role="tablist" aria-label="My Actions inboxes" className="flex flex-wrap gap-2 border-b border-border pb-4">
-        {TABS.map((k) => {
-          const { label, Icon, tone, selected } = TAB_STYLE[k];
-          return <Button role="tab" aria-selected={tab === k} aria-controls={`actions-${k}`} key={k} onClick={() => set({ tab: k })} variant="outline" className={`h-10 border-2 px-4 ${tab === k ? `${selected} border-transparent font-semibold` : `${tone} border-border bg-card`}`}>
-            <Icon className="h-4 w-4" />{label}
-            {k === "notes" && <span className="ml-1 rounded bg-current/10 px-1.5 text-xs tabular-nums">{counts.notes + counts.activity}</span>}
-          </Button>;
-        })}
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-border pb-4">
+        <ActionCalendar owner={owner} range={dateRange} onChange={(r) => { setDateRange(r); toActions(); }} />
+        <ActionsBanner view={view} onView={onView} counts={counts}
+          toggles={toggles} onToggle={(k) => { setToggles((t) => ({ ...t, [k]: !t[k] })); toActions(); }}
+          priorities={priorities} hiddenPriorities={hiddenPriorities}
+          onTogglePriority={(p) => { setHiddenPriorities((h) => h.includes(p) ? h.filter((x) => x !== p) : [...h, p]); toActions(); }} />
       </div>
 
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
-        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} />}
-        {tab === "notes" && <NotesTab owner={owner} onAction={setCtx} onCounts={setCounts} />}
+        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} toggles={toggles} hiddenPriorities={hiddenPriorities} />}
+        {/* Kept mounted so the inbox counts in the banner are always current. */}
+        <div className={tab === "notes" ? "" : "hidden"}><NotesTab owner={owner} sub={inboxSub} onAction={setCtx} onCounts={setCounts} /></div>
         {tab === "done" && <DoneTab owner={owner} />}
       </div>}
 
@@ -123,19 +131,11 @@ function MyActionsPage() {
   );
 }
 
-function NotesTab({ owner, onAction, onCounts }: { owner: string; onAction: (c: ActionContext) => void; onCounts: (c: { notes: number; activity: number }) => void }) {
-  const [sub, setSub] = useState<"notes" | "activity">("notes");
-  const [n, setN] = useState({ notes: 0, activity: 0 });
+function NotesTab({ owner, sub, onAction, onCounts }: { owner: string; sub: "notes" | "activity"; onAction: (c: ActionContext) => void; onCounts: (c: { notes: number; activity: number }) => void }) {
+  const [, setN] = useState({ notes: 0, activity: 0 });
   const update = (k: "notes" | "activity", v: number) => setN((c) => { const next = { ...c, [k]: v }; onCounts(next); return next; });
   return (
     <div className="space-y-2">
-      <div className="inline-flex rounded-md border border-border p-0.5">
-        {(["notes", "activity"] as const).map((k) => (
-          <Button key={k} size="sm" variant={sub === k ? "default" : "ghost"} aria-pressed={sub === k} onClick={() => setSub(k)}>
-            {k === "notes" ? "Notes Imports" : "Activity Review"}<span className="ml-1.5 rounded bg-muted px-1.5 text-xs text-muted-foreground">{n[k]}</span>
-          </Button>
-        ))}
-      </div>
       <div className={sub === "notes" ? "" : "hidden"}><NotesImports actionOwner={owner} onStats={(s) => update("notes", s.pending)} onActionNow={(i) => onAction(fromNote(i, "note"))} split /></div>
       <div className={sub === "activity" ? "" : "hidden"}><NotesImports kind="activity" actionOwner={owner} onStats={(s) => update("activity", s.pending)} onActionNow={(i) => onAction(fromNote(i, "activity"))} split /></div>
     </div>
