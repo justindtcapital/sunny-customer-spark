@@ -28,7 +28,8 @@ async function savedPeople(): Promise<SavedPerson[]> {
   }
   return lists.flatMap((rows, index) => {
     const h = (rows[0] || []).map(norm);
-    return rows.slice(1).map(r => {
+    // Archived merge copies are not people anymore; their identity lives on the main record.
+    return rows.slice(1).filter(r => (r[h.indexOf("relationship status")] || "").trim().toLowerCase() !== "merged").map(r => {
       const get = (...keys: string[]) => keys.map(k => r[h.indexOf(k)] || "").find(Boolean) || "";
       const name = get("name") || `${get("first name")} ${get("last name")}`.trim();
       const p = { urid: get("urid"), name, email: get("email"), company: get("company"), linkedin: get("linkedin") };
