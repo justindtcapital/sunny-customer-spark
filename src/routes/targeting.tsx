@@ -2349,6 +2349,70 @@ function TargetingPage() {
                           name={activeTarget.name}
                           company={activeTarget.company}
                         />
+                        {/* Events — mirrors the Network profile section. Several
+                            events per prospect; removing unlinks only that one. */}
+                        <section className="mt-2 rounded-md border border-border p-2">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
+                              Events
+                            </h3>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-[11px] font-medium"
+                              onClick={() => setAddEventOpen(true)}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add Events
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            {(
+                              [
+                                ["attended", "Attended", eventsOf(activeTarget).eventsAttended],
+                                ["invited", "Invited", eventsOf(activeTarget).eventsInvited],
+                              ] as const
+                            ).map(([type, label, list]) => (
+                              <div key={type}>
+                                <p className="text-[10px] uppercase tracking-wider font-medium text-muted-foreground mb-2">
+                                  {label}
+                                </p>
+                                {list.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {list.map((ev) => (
+                                      <Badge
+                                        key={`${type}-${ev}`}
+                                        variant="outline"
+                                        className={
+                                          type === "attended"
+                                            ? "text-xs font-medium border-emerald-200 bg-emerald-50 text-emerald-700 gap-1 pr-1"
+                                            : "text-xs font-medium gap-1 pr-1"
+                                        }
+                                      >
+                                        {ev}
+                                        <button
+                                          type="button"
+                                          onClick={() => void removeEventFromActiveTarget(ev, type)}
+                                          className={
+                                            type === "attended"
+                                              ? "ml-0.5 rounded-sm hover:bg-emerald-100 p-0.5"
+                                              : "ml-0.5 rounded-sm hover:bg-foreground/10 p-0.5"
+                                          }
+                                          title="Remove link"
+                                          aria-label={`Remove ${ev}`}
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">None</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </section>
                         {/* Where this prospect came from: campaign, event roster and
                             the portfolio companies the sourcing was run for. */}
                         {(activeTarget.campaign ||
@@ -2748,6 +2812,51 @@ function TargetingPage() {
         portcoOptions={companies.map((c) => c.name).filter(Boolean)}
         onImported={refreshTargets}
       />
+
+      {/* Add Event (prospect profile) — same picker as Network */}
+      <Dialog open={addEventOpen} onOpenChange={setAddEventOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Event</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Event Name
+              </label>
+              <EventPicker
+                value={newEvent.name}
+                onChange={(name) => setNewEvent({ ...newEvent, name })}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                Type
+              </label>
+              <Select
+                value={newEvent.type}
+                onValueChange={(v) => setNewEvent({ ...newEvent, type: v as EventLinkType })}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="attended">Attended</SelectItem>
+                  <SelectItem value="invited">Invited</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddEventOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void addEventToActiveTarget()} disabled={!newEvent.name.trim()}>
+              Add Event
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <TagToEventDialog
         open={tagEventOpen}

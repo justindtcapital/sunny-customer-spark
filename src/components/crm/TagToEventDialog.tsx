@@ -15,7 +15,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   count: number;
-  /** Writes only the Event field on the selected prospects. */
+  /** Adds the event as a link on the selected prospects (existing links kept). */
   onSave: (event: string) => Promise<void>;
 }
 
@@ -39,8 +39,8 @@ export function TagToEventDialog({ open, onOpenChange, count, onSave }: Props) {
         <DialogHeader>
           <DialogTitle>Tag to event</DialogTitle>
           <DialogDescription>
-            Tags {count} selected prospect{count !== 1 ? "s" : ""} to an event. Nothing else on
-            their records changes.
+            Adds an event to {count} selected prospect{count !== 1 ? "s" : ""}. Events they're
+            already linked to are kept, and nothing else on their records changes.
           </DialogDescription>
         </DialogHeader>
         <EventPicker value={event} onChange={setEvent} placeholder="Pick an event" />
