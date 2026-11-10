@@ -59,6 +59,9 @@ export interface HomeReminder {
   details?: string;
   people?: { name: string; email: string }[];
   tracks?: ("BD" | "GTM")[];
+  /** Read-time only: company of the outside person this follow-up is about, when it has no company tag. */
+  groupCompany?: string;
+  contactName?: string;
 }
 
 /** KB contact trails hold the update; assigned next steps are separate activities. */

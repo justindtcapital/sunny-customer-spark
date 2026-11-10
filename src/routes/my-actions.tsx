@@ -26,6 +26,7 @@ import { ActionComposer, type ActionContext } from "@/components/actions/ActionC
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { inActionRange, type ActionDateRange } from "@/lib/action-calendar";
+import { portcoMatchKey } from "@/lib/action-grouping";
 import { ACTION_SORTS, abbreviateTitle, companyKindVisible, networkGroupKey, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
 
 type FeedToggles = Record<CompanyKind | "workstreams" | "followups", boolean>;
@@ -233,8 +234,9 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
 
   const { data: homeData, isLoading: fuLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
-  const portcoNames = useMemo(() => new Set(portcoList.map((p) => norm(p.name))), [portcoList]);
-  const websites = useMemo(() => new Map(portcoList.map((p) => [norm(p.name), p.website || ""])), [portcoList]);
+  // PortCo names keyed loosely so "Bland" and "Bland AI" are one company.
+  const portcoNames = useMemo(() => new Map(portcoList.map((p) => [portcoMatchKey(p.name), p.name])), [portcoList]);
+  const websites = useMemo(() => { const m = new Map(portcoList.map((p) => [portcoMatchKey(p.name), p.website || ""])); return { get: (k: string) => m.get(portcoMatchKey(k)) }; }, [portcoList]);
 
   // Workstreams owned by the selected person.
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
@@ -269,15 +271,20 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       if (w && toggles.workstreams) linked.set(w.gid, [...(linked.get(w.gid) || []), x]);
       else general.push(x);
     }
-    const m = new Map<string, { ws: Workstream[]; fu: Reminder[] }>();
-    const ensure = (k: string) => { const g = m.get(k) || { ws: [] as Workstream[], fu: [] as Reminder[] }; m.set(k, g); return g; };
-    if (toggles.workstreams) for (const w of wsList) ensure(w.company || "No PortCo").ws.push(w);
-    for (const x of general) ensure(networkGroupKey(x.company, x.person) || "No company").fu.push(x);
+    const OPS = "PortDev Ops";
+    const m = new Map<string, { company: string; ws: Workstream[]; fu: Reminder[] }>();
+    const ensure = (name: string) => {
+      const isOps = !name.trim() || /^(no portco|no company|portdev ops)$/i.test(name.trim());
+      const key = isOps ? "~ops" : portcoMatchKey(name);
+      const g = m.get(key) || { company: isOps ? OPS : portcoNames.get(key) || name.trim(), ws: [] as Workstream[], fu: [] as Reminder[] };
+      m.set(key, g); return g;
+    };
+    if (toggles.workstreams) for (const w of wsList) ensure(w.company).ws.push(w);
+    // Untagged follow-ups go under the outside person's company (looked up on the server), then their name — never a teammate's.
+    for (const x of general) ensure(x.company?.trim() ? networkGroupKey(x.company, "") : x.groupCompany || (teamMemberFor(x.person) ? "" : x.contactName || x.person)).fu.push(x);
     return [...m.entries()]
-      .map(([company, g]) => {
-        const kind = portcoNames.has(norm(company)) ? "portcos" as const
-          : company === "No PortCo" || company === "No company" ? "ops" as const
-          : "network" as const;
+      .map(([key, { company, ...g }]) => {
+        const kind = key === "~ops" ? "ops" as const : portcoNames.has(key) ? "portcos" as const : "network" as const;
         const gLinked = new Map<string, Reminder[]>();
         for (const w of g.ws) if (linked.has(w.gid)) gLinked.set(w.gid, linked.get(w.gid)!);
         return { company, ws: g.ws, linked: gLinked, general: g.fu, kind };
@@ -309,7 +316,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
   const r = cur?.kind === "fu" ? fuList.find((x) => x.id === cur.id) || null : null;
   // Detail pane: follow-ups linked to this workstream first, falling back to the same company.
-  const wsGroup = ws ? groups.find((g) => g.company === (ws.company || "No PortCo")) : undefined;
+  const wsGroup = ws ? groups.find((g) => g.ws.some((w) => w.gid === ws.gid)) : undefined;
   const wsGroupFu = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
 
   const mergeRows = mergeSel.map((id) => fuList.find((x) => x.id === id)).filter(Boolean) as Reminder[];
@@ -475,7 +482,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Follow-ups · {wsGroupFu.length}</div>
             {wsGroupFu.map((x) => (
               <button key={x.id} onClick={() => setSel({ kind: "fu", id: x.id })} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/40">
-                <Bullet kind="fu" company={ws.company} website={websites.get(norm(ws.company)) || ""} />
+                <Bullet kind="fu" company={ws.company} website={websites.get(ws.company) || ""} />
                 <span className="min-w-0 flex-1 truncate text-sm">{x.summary || `Follow up with ${x.person}`}</span>
                 <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
               </button>
@@ -544,14 +551,14 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       {!loading && !groups.length && <p className="text-sm text-muted-foreground">No actions for {owner} with these filters.</p>}
       {groups.length > 0 && <SplitPane
         list={sort !== "portco" ? flat.map((it) => {
-          const website = websites.get(norm(it.company)) || "";
+          const website = websites.get(it.company) || "";
           return it.ws ? <div key={it.key}>{wsRow(it.ws, it.company, website, true)}</div> : fuRow(it.fu!, it.company, website, false, true, it.priority);
         }) : (["portcos", "network", "ops"] as const).filter((k) => groups.some((g) => g.kind === k)).map((k, _i, shown) => (
           <section key={k} className="space-y-1 pb-2">
             {shown.length > 1 && <h2 className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{KIND_LABEL[k]}</h2>}
             {groups.filter((g) => g.kind === k).map((g) => {
               const isClosed = closed.has(g.company);
-              const website = websites.get(norm(g.company)) || "";
+              const website = websites.get(g.company) || "";
               const fuCount = g.general.length + [...g.linked.values()].flat().length;
               return (
                 <div key={g.company} className="space-y-1">
