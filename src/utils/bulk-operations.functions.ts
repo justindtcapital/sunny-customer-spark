@@ -6,6 +6,8 @@ import type { Json } from "@/integrations/supabase/types";
 
 /** Kinds whose interrupted runs can be checked against fresh Contacts and unlocked by the team. */
 const RECONCILABLE = ["target-import","contact-import","contact-merge","contact-merge-undo"];
+/** Every interrupted activity can be checked and unlocked; kinds without a saved-state reader record their last journaled outcomes for review. */
+const canSelfRecover = (_kind: string) => true;
 
 export const inspectBulkOperation = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
   .inputValidator(input => z.object({ id:z.string().uuid() }).parse(input))
@@ -35,7 +37,7 @@ export const reconcileImportOperation = createServerFn({ method: "POST" }).middl
     const db = await journalClient();
     const { data:op,error } = await db.from("bulk_operations").select("*").eq("id",data.id).single();
     if(error || !op) throw new Error("Operation not found.");
-    if(!RECONCILABLE.includes(op.kind)) throw new Error("Self-service recovery is available for imports and merges only. Create a fix request for this activity.");
+    if(!canSelfRecover(op.kind)) throw new Error("Self-service recovery is unavailable for this activity.");
     if(op.status !== "uncertain") throw new Error("This operation is not waiting for reconciliation.");
     const quietMs = Date.now() - new Date(op.updated_at).getTime();
     if(quietMs < 120_000) throw new Error("This import stopped less than 2 minutes ago. Wait a moment so any in-flight save can finish, then check again.");
@@ -46,6 +48,13 @@ export const reconcileImportOperation = createServerFn({ method: "POST" }).middl
     if (op.kind === "contact-merge" || op.kind === "contact-merge-undo") {
       const { mergeSavedState } = await import("./contact-merge.server");
       outcomes = await withDeadline("read merged contacts",40_000,step => { step("reading Contacts without writes"); return mergeSavedState(op.kind, input); });
+    } else if (op.kind === "relationship-change") {
+      const { inspectRelationshipState } = await import("./relationship-reconciliation.server");
+      outcomes = await withDeadline("inspect relationship saved state",40_000,step => { step("reading Network and Prospecting without writes"); return inspectRelationshipState(input as unknown as import("./relationship-levels.server").RelationshipInput); });
+    } else if (!RECONCILABLE.includes(op.kind)) {
+      const prior = (op.outcomes || []) as unknown as BulkOutcome[];
+      outcomes = prior.length ? prior.map(o => ["changed","moved","already_complete","duplicate"].includes(o.status) ? o : { ...o, status:"review", reason:`Stopped mid-save; check this record before re-running. ${o.reason || ""}`.trim() })
+        : [{ key:"batch", label:op.summary || op.kind, status:"review", reason:"Stopped before any progress was recorded. Check the affected records, then re-run it from its page." }];
     } else {
       const rows = (op.kind === "target-import" ? input.targets : input.contacts) as Record<string,string>[] || [];
       const items = rows.map((r,i) => { const name = r.name || `${r.firstName || ""} ${r.lastName || ""}`.trim(); return { key:String(i), label:name || r.email, email:r.email, name, company:r.company }; });
@@ -121,5 +130,5 @@ export const fetchBulkLockStatus = createServerFn({ method: "GET" }).middleware(
   const { data:op } = await db.from("bulk_operations").select("id,kind,status,summary,actor,updated_at").eq("id",lock.operation_id).maybeSingle();
   const quietMs = op ? Date.now() - new Date(op.updated_at).getTime() : 0;
   return { locked:true as const, operationId:lock.operation_id, kind:op?.kind || "unknown", status:op?.status || "unknown", summary:op?.summary || "", actor:op?.actor || "", since:op?.updated_at || lock.acquired_at,
-    canReconcile: !!op && op.status === "uncertain" && RECONCILABLE.includes(op.kind), waitMs: Math.max(0, 120_000 - quietMs) };
+    canReconcile: !!op && op.status === "uncertain" && canSelfRecover(op.kind), waitMs: Math.max(0, 120_000 - quietMs) };
 });
