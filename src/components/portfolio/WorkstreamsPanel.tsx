@@ -128,13 +128,13 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
         {keys.map(([label, key]) => {
           const m = w.editable?.[key];
           return (
-            <div key={label} className={key === "nextSteps" ? "sm:col-span-2 space-y-0.5" : "space-y-0.5"}>
+            <div key={label} className="space-y-0.5">
               <p className="text-[10px] text-muted-foreground">{label}</p>
               {m && m.editable ? (
                 <WorkstreamFieldEditor
                   meta={m}
                   value={key in draft ? draft[key]! : m.value}
-                  multiline={key === "nextSteps" || key === "dellStakeholders"}
+                  multiline={key === "dellStakeholders"}
                   onChange={(v) => setDraft((d) => ({ ...d, [key]: v }))}
                 />
               ) : (

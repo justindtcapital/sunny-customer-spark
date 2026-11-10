@@ -120,7 +120,6 @@ export const PROGRAM_FIELDS: Record<WorkstreamSegment, Array<[string, keyof Work
     ["Stakeholders", "dellStakeholders"],
     ["Sell-in status", "sellInStatus"],
     ["Traction", "traction"],
-    ["Next steps", "nextSteps"],
   ],
   GTM: [
     ["Strategy work status", "status"],
@@ -129,12 +128,10 @@ export const PROGRAM_FIELDS: Record<WorkstreamSegment, Array<[string, keyof Work
     ["GTM maturity", "gtmMaturity"],
     ["Sales maturity", "salesMaturity"],
     ["GTM category", "category"],
-    ["Next steps", "nextSteps"],
   ],
   Other: [
     ["Status", "status"],
     ["Category", "category"],
-    ["Next steps", "nextSteps"],
   ],
 };
 
