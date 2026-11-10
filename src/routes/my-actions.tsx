@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
-import { ActionsFilterBar, DEFAULT_INBOX, type BannerView, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
+import { ActionsFilterBar, DEFAULT_INBOX, priorityShort, priorityTone, type BannerView, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
@@ -543,34 +543,39 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       {loading && <p className="text-sm text-muted-foreground">Loading actions…</p>}
       {!loading && !groups.length && <p className="text-sm text-muted-foreground">No actions for {owner} with these filters.</p>}
       {groups.length > 0 && <SplitPane
-        list={<div className="divide-y divide-border">{sort !== "portco" ? flat.map((it) => {
+        list={sort !== "portco" ? flat.map((it) => {
           const website = websites.get(norm(it.company)) || "";
-          return it.ws ? <div key={it.key}>{wsRow(it.ws, it.company, website, true)}</div> : fuRow(it.fu!, it.company, website, false, true);
-        }) : groups.map((g) => {
-          const isClosed = closed.has(g.company);
-          const website = websites.get(norm(g.company)) || "";
-          const fuCount = g.general.length + [...g.linked.values()].flat().length;
-          return (
-            <div key={g.company}>
-              <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
-                className="flex w-full items-center gap-2 bg-muted/20 px-3 py-2 text-left hover:bg-muted/40">
-                {isClosed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                <Logo name={g.company} size="sm" />
-                <span className="flex-1 truncate text-sm font-semibold">{g.company}</span>
-                <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{g.ws.length + fuCount}</span>
-              </button>
-              {!isClosed && <div className="divide-y divide-border">
-                {g.ws.map((w) => (
-                  <div key={w.gid}>
-                    {wsRow(w, g.company, website, false)}
-                    {(g.linked.get(w.gid) || []).map((x) => fuRow(x, g.company, website, true, false))}
-                  </div>
-                ))}
-                {g.general.map((x) => fuRow(x, g.company, website, false, false))}
-              </div>}
-            </div>
-          );
-        })}</div>}
+          return it.ws ? <div key={it.key}>{wsRow(it.ws, it.company, website, true)}</div> : fuRow(it.fu!, it.company, website, false, true, it.priority);
+        }) : (["portcos", "network", "ops"] as const).filter((k) => groups.some((g) => g.kind === k)).map((k, _i, shown) => (
+          <section key={k} className="space-y-1 pb-2">
+            {shown.length > 1 && <h2 className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{KIND_LABEL[k]}</h2>}
+            {groups.filter((g) => g.kind === k).map((g) => {
+              const isClosed = closed.has(g.company);
+              const website = websites.get(norm(g.company)) || "";
+              const fuCount = g.general.length + [...g.linked.values()].flat().length;
+              return (
+                <div key={g.company} className="space-y-1">
+                  <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
+                    className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-muted/40">
+                    {isClosed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <Logo name={g.company} size="sm" />
+                    <span className="flex-1 truncate text-sm font-semibold">{g.company}</span>
+                    <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{g.ws.length + fuCount}</span>
+                  </button>
+                  {!isClosed && <div className="space-y-1 pl-5">
+                    {g.ws.map((w) => (
+                      <div key={w.gid} className="space-y-1">
+                        {wsRow(w, g.company, website, false)}
+                        {(g.linked.get(w.gid) || []).map((x) => fuRow(x, g.company, website, true, false, w.workstreamPriority))}
+                      </div>
+                    ))}
+                    {g.general.map((x) => fuRow(x, g.company, website, false, false))}
+                  </div>}
+                </div>
+              );
+            })}
+          </section>
+        ))}
         detail={detailNode} wide={wide}
       />}
     </div>
