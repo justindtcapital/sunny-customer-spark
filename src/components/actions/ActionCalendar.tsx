@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
 import { fetchHomeMomentum } from "@/utils/home.functions";
 import { teamMemberFor } from "@/lib/user-ownership";
-import { actionDayCounts, inActionRange, orderedDateRange, type ActionDateRange } from "@/lib/action-calendar";
+import { actionDayCounts, orderedDateRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
 
 /** Full-month action calendar with per-day counts; click a day or drag across days to filter. */
@@ -25,7 +25,7 @@ export function ActionCalendar({ owner, range, onChange, compact = false }: { ow
 
   const cell = (date: Date, dim = false) => {
     const key = format(date, "yyyy-MM-dd");
-    const selected = !!range && inActionRange(key, range);
+    const selected = !!range && key >= range.start && key <= range.end;
     const count = counts.get(key) || 0;
     return <Button key={key} data-daykey={key} aria-label={`${key}, ${count} actions`} aria-pressed={selected} variant={selected ? "default" : "ghost"} className={`${compact ? "h-6 text-[11px]" : "h-8 text-xs"} w-full flex-col gap-0 rounded-sm p-0 leading-none ${key === today ? "ring-1 ring-primary" : ""} ${dim ? "opacity-40" : ""}`} onClick={(e) => { if (e.detail === 0) onChange(orderedDateRange(key, key)); }}><span>{date.getDate()}</span><span className={`${compact ? "h-2 text-[8px]" : "h-2.5 text-[9px]"} tabular-nums ${selected ? "text-primary-foreground/80" : count ? "text-primary" : "text-muted-foreground"}`}>{count || ""}</span></Button>;
   };
