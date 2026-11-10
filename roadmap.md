@@ -1,5 +1,9 @@
 # Roadmap
 
+## Completion note controls
+- [ ] Add dictation and optional dated future follow-up to Mark complete; reuse existing action saving
+- [ ] Test scheduling rules and verify signed-in completion controls
+
 ## Network contact-list bulk failures — November 5 request
 - [x] Inspect Network bulk controls, selection paths and available logs; prepare approval plan without changing code or contacts
 - [x] Reconciled Shane's 67-contact import: 65 saved contacts and two existing prospects verified by fresh unique email/URID matches; revoked uncertain attempt and released its lock without replaying writes
