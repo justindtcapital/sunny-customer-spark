@@ -58,5 +58,12 @@ export function resolveActionContact(
     const hit = unique(mentioned[0]![1]);
     if (hit && !isTeammate(hit.email || hit.name)) return { name: hit.name, company: hit.company.trim() };
   }
+  // "Re-connect w Mongeon": a surname right after "w"/"with" that only one person has.
+  const sur = title.match(/\b(?:w|with)\s+([a-z'-]{4,})\s/)?.[1];
+  if (sur) {
+    const people = directory.filter((p) => nameKey(p.name).split(" ").length > 1 && nameKey(p.name).endsWith(` ${sur}`));
+    const hit = unique(people);
+    if (hit && people.length === 1 && !isTeammate(hit.email || hit.name)) return { name: hit.name, company: hit.company.trim() };
+  }
   return null;
 }

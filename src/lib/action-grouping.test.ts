@@ -29,6 +29,9 @@ describe("resolveActionContact", () => {
   it("finds one full name written in the title when the person is a teammate", () => {
     expect(resolveActionContact({ person: "Chris Falloon", summary: "Meet Matt Darcy in New York" }, dir, team)?.company).toBe("Digital Realty");
   });
+  it("matches a unique surname after 'w'", () => {
+    expect(resolveActionContact({ person: "Chris Falloon", summary: "Re-Connect w Mongeon" }, dir, team)?.company).toBe("Acme");
+  });
   it("never groups under a teammate", () => {
     expect(resolveActionContact({ person: "Chris Falloon", summary: "Prep board deck" }, dir, team)).toBeNull();
   });
