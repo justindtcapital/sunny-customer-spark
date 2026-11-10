@@ -59,3 +59,23 @@ export function sortActions<T extends SortableAction>(items: T[], sort: ActionSo
   };
   return [...items].sort(cmp);
 }
+
+/**
+ * Short list-row title: drops a leading "Company –"/"[BD]"/"GTM:" style prefix and cuts
+ * at a word boundary. The detail pane always shows the full title.
+ */
+export function abbreviateTitle(title: string, company = "", max = 60): string {
+  let t = (title || "").trim();
+  const esc = company.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (esc) t = t.replace(new RegExp(`^${esc}\\s*[-–—:|]\\s*`, "i"), "");
+  t = t.replace(/^\s*(\[(BD|GTM)\]|(BD|GTM)\s*[-–—:|])\s*/i, "").trim() || (title || "").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const sp = cut.lastIndexOf(" ");
+  return `${(sp > max * 0.5 ? cut.slice(0, sp) : cut).replace(/[\s,;:–—-]+$/, "")}…`;
+}
+
+/** Network follow-ups group by the contact's company, otherwise by the contact's name. */
+export function networkGroupKey(company: string | undefined, person: string | undefined): string {
+  return (company || "").split(/\s*,\s*/)[0]?.trim() || (person || "").trim();
+}
