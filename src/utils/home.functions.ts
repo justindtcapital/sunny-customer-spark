@@ -2,7 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { scopeMomentum, dedupeReminders, isContactTask, type HomeReminder } from "@/lib/home-momentum";
 import { targetKeyOf } from "@/lib/types";
-import { ownerMatches, teamProfile } from "@/lib/user-ownership";
+import { ownerMatches, teamMemberFor, teamProfile } from "@/lib/user-ownership";
+import { resolveActionContact } from "@/lib/action-grouping";
 import { coreAssignee } from "@/lib/team-next-steps";
 import { applyFollowUpEdit } from "@/lib/follow-up-edit";
 
@@ -56,7 +57,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
         const who = i.owner || c.prime;
         reminders.push({ id: `${c.id}:${i.id}`, person: c.name, company: c.company, email: c.email, owner: who, due: i.followUpDue || "", source: "Network", summary: i.summary, originalNote: i.summary, date: i.date });
       }
-      if (c.followUpPending && !c.interactions.some((i) => i.isFollowUp && !i.followUpComplete)) reminders.push({ id: `flag:${c.id}`, person: c.name, company: c.company, email: c.email, owner: c.prime, due: "", source: "Network", summary: "Follow-up flagged" });
+      if (c.followUpPending && !c.interactions.some((i) => i.isFollowUp && !i.followUpComplete)) reminders.push({ id: `flag:${c.id}`, person: c.name, company: c.company, email: c.email, owner: c.prime, due: "", source: "Network", summary: `Follow up with ${c.name}` });
     }
     for (const t of targets) if (t.followUp) reminders.push({ id: `target:${t.id}`, person: t.name, company: t.company, email: t.email, targetKey: targetKeyOf(t), owner: t.prime || "", due: t.followUpDue || "", source: "Prospecting", summary: t.campaign || "Prospecting follow-up" });
     for (const m of members) {
@@ -84,7 +85,14 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     const recordDates = new Map(records.map((r) => [r.recordId, r.createdAt]));
     const { readFollowUpEdits } = await import("./follow-up-edit.server");
     const edits = await read("Task edits", readFollowUpEdits, new Map());
-    const editedReminders = dedupeReminders(reminders).map((r) => applyFollowUpEdit(r, edits.get(r.id))).filter((r) => matches(r.owner));
+    const directory = [...contacts, ...targets].map((p) => ({ name: p.name || "", email: p.email || "", company: p.company || "" }));
+    const editedReminders = dedupeReminders(reminders).map((r) => applyFollowUpEdit(r, edits.get(r.id))).filter((r) => matches(r.owner))
+      .map((r) => {
+        // Read-time grouping only: an outside person's company, never written back.
+        if (r.company?.trim()) return r;
+        const hit = resolveActionContact(r, directory, (x) => !!teamMemberFor(x));
+        return hit ? { ...r, groupCompany: hit.company, contactName: hit.name } : r;
+      });
     return { ...scoped, notes: notes.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), emails: emails.map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), history: [...noteHistory, ...emailHistory].filter((n) => n.review?.status !== "skipped").map((n) => ({ ...n, importedAt: recordDates.get(n.recordId) || "" })), reminders: editedReminders, errors, asOf: new Date().toISOString() };
   });
 
