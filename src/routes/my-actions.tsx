@@ -36,6 +36,7 @@ const KIND_LABEL: Record<CompanyKind, string> = { portcos: "PortCo", network: "N
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
+import { WorkstreamTrail } from "@/components/actions/WorkstreamTrail";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
 const TABS = ["actions", "notes", "done"] as const;
@@ -480,7 +481,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
             <Button size="sm" className="h-8 shrink-0" onClick={() => onAction({
               sourceKind: "workstream", sourceId: `ws:${ws.gid}`, title: `${ws.company} – ${ws.name}`,
               text: [ws.notes, ws.traction, ws.dellStakeholders && `Dell stakeholders: ${ws.dellStakeholders}`, ws.lastActivity && `Last activity: ${ws.lastActivity}`].filter(Boolean).join("\n"),
-              nextSteps: ws.nextSteps ? [ws.nextSteps] : [], people: [], portcos: [ws.company],
+              people: [], portcos: [ws.company],
               tracks: ws.segment === "BD" || ws.segment === "GTM" ? [ws.segment] : [],
             })}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>
           </div>
@@ -495,6 +496,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
               </button>
             ))}
           </div>}
+          <WorkstreamTrail gid={ws.gid} company={ws.company} segment={ws.segment} />
         </div> : r ? fuDetail(r) : <p className="text-sm text-muted-foreground">Select an action to see its details.</p>;
   const inline = (on: boolean) => !wide && on ? <div className="mb-2 mt-1 rounded-lg border border-border bg-card p-4 [overflow-wrap:anywhere]">{detailNode}</div> : null;
   const priChip = (p?: string) => p ? <span title={p} className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold ${priorityTone(p)}`}>{priorityShort(p)}</span> : null;

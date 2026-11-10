@@ -125,6 +125,16 @@ export const listDoneActionsFn = createServerFn({ method: "POST" })
     return completedActions(rows, data.owner, undone);
   });
 
+/** Recent activity trail for one workstream (emails sent, logged actions, linked notes, completed follow-ups). Read-only. */
+export const workstreamTrailFn = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .inputValidator((d: { gid: string; company: string; segment: string }) => z.object({ gid: z.string().min(1).max(40), company: z.string().max(200), segment: z.string().max(20) }).parse(d))
+  .handler(async ({ data }) => {
+    const k = await import("./knowledge.server");
+    const { workstreamTrail } = await import("@/lib/workstream-trail");
+    const [activities, links, undoneRaw] = await Promise.all([k.listHarvestedActivities(), k.listWorkstreamLinks(), k.getHarvestState("action-undone")]);
+    return workstreamTrail({ ...data, activities, links, undone: new Set(undoneRaw.split(",").filter(Boolean)) });
+  });
+
 export const undoActionFn = createServerFn({ method: "POST" })
   .inputValidator((d: { actionId: string; followUpActivityId?: string }) => z.object({ actionId: z.string().min(1).max(120), followUpActivityId: z.string().max(100).optional() }).parse(d))
   .handler(async ({ data }) => {
