@@ -67,11 +67,11 @@ export const reconcileImportOperation = createServerFn({ method: "POST" }).middl
       outcomes = planImportReconciliation(items,(op.outcomes || []) as unknown as BulkOutcome[],saved);
     }
     if(!data.apply) return { applied:false, outcomes };
-    const status = midFlight ? operationStatus(outcomes) : op.status;
+    const status = operationStatus(outcomes);
     const saves = outcomes.filter(o=>o.status==="changed").length, missing = outcomes.filter(o=>o.status==="failed").length;
     const summary = `${op.kind}: reconciled — ${saves} saved once · ${missing} not saved · ${outcomes.length-saves-missing} review`;
     const attempts = [...((op.attempts || []) as unknown as BulkOperation["attempts"]), { at:new Date().toISOString(), status:`reconciled by ${context.teamEmail}`, outcomes }];
-    const { data:updated,error:upErr } = await db.from("bulk_operations").update({ status, summary, outcomes:JSON.parse(JSON.stringify(outcomes)) as Json, attempts:JSON.parse(JSON.stringify(attempts)) as Json, execution_token:null, reconciliation:JSON.parse(JSON.stringify({ at:new Date().toISOString(), by:context.teamEmail, outcomes, lockReleased:true })) as Json, updated_at:new Date().toISOString() }).eq("id",op.id).eq("status",op.status).eq("updated_at",op.updated_at).select("id");
+    const { data:updated,error:upErr } = await db.from("bulk_operations").update({ ...(midFlight ? { status, summary, outcomes:JSON.parse(JSON.stringify(outcomes)) as Json, execution_token:null } : {}), attempts:JSON.parse(JSON.stringify(attempts)) as Json, reconciliation:JSON.parse(JSON.stringify({ at:new Date().toISOString(), by:context.teamEmail, outcomes, lockReleased:true })) as Json, updated_at:new Date().toISOString() }).eq("id",op.id).eq("status",op.status).eq("updated_at",op.updated_at).select("id");
     if(upErr || !updated?.length) throw new Error("The operation changed while checking; nothing was released. Refresh and check again.");
     const { error:lockErr } = await db.from("bulk_operation_locks").delete().eq("resource","shared-bulk-writes").eq("operation_id",op.id);
     if(lockErr) throw new Error("Results were recorded but the safety lock could not be released. Refresh and check again.");

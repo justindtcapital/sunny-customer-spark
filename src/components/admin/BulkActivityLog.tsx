@@ -91,7 +91,7 @@ export function BulkActivityLog({ onAction }: { onAction: (context: ActivityDraf
     <Dialog open={!!plan} onOpenChange={open=>{if(!open&&!applying)setPlan(null);}}><DialogContent><DialogHeader><DialogTitle>What was saved</DialogTitle></DialogHeader>
       {plan && (()=>{const c=(s:string)=>plan.outcomes.filter(o=>o.status===s).length;return <div className="space-y-2 text-sm">
         <p>Checked this activity against the live records. <strong>{c("changed")}</strong> saved exactly once · <strong>{c("failed")}</strong> not saved · <strong>{c("review")+c("blocked")+c("duplicate")}</strong> need review or were skipped.</p>
-        <p className="text-xs text-muted-foreground">Confirming only records these results and unlocks bulk actions for the team. It does not add, change or delete any contact, and nothing is re-imported. People marked "not saved" can be imported again safely — existing people are always detected.</p>
+        <p className="text-xs text-muted-foreground">Confirming only records these results and releases any lock this job holds. It does not add, change or delete any contact, and nothing is re-imported. People marked "not saved" can be imported again safely — existing people are always detected.</p>
         <OperationResults outcomes={plan.outcomes}/></div>;})()}
       <DialogFooter><Button variant="outline" disabled={applying} onClick={()=>setPlan(null)}>Cancel</Button><Button disabled={applying} onClick={()=>void applyPlan()}>{applying?<Loader2 className="size-4 animate-spin"/>:<ShieldCheck className="size-4"/>}Record results & unlock</Button></DialogFooter>
     </DialogContent></Dialog>
