@@ -56,7 +56,7 @@ export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, k
   const total = kindCounts.portcos + kindCounts.network + kindCounts.ops;
   const toggle = <T,>(list: T[], v: T) => list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
   return (
-    <div className="flex min-w-0 flex-1 flex-col justify-between gap-2.5">
+    <div className="flex min-w-0 flex-1 flex-col justify-center gap-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <RowLabel>My Inbox</RowLabel>
         <Chip label="Notes" count={counts.notes} on={inInbox && inbox.notes} onClick={() => onToggleInbox("notes")} />
