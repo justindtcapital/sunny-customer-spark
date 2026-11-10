@@ -10,7 +10,8 @@ import { actionDayCounts, inActionRange, orderedDateRange, type ActionDateRange 
 import { reportingDay } from "@/lib/home-momentum";
 
 /** Full-month action calendar with per-day counts; click a day or drag across days to filter. */
-export function ActionCalendar({ owner, range, onChange }: { owner: string; range: ActionDateRange; onChange: (r: ActionDateRange) => void }) {
+export function ActionCalendar({ owner, range, onChange, compact = false }: { owner: string; range: ActionDateRange; onChange: (r: ActionDateRange) => void; compact?: boolean }) {
+  const W = compact ? "w-[224px]" : "w-[280px]";
   const [month, setMonth] = useState<Date | null>(null);
   const [today, setToday] = useState("");
   const anchor = useRef("");
@@ -19,14 +20,14 @@ export function ActionCalendar({ owner, range, onChange }: { owner: string; rang
   const { data } = useQuery({ queryKey: ["my-actions", "followups", email], queryFn: () => fetchHome({ data: { email, scope: "mine" } }), enabled: !!email, staleTime: 60_000 });
   useEffect(() => { const day = reportingDay(new Date()); setToday(day); setMonth(new Date(`${day}T12:00:00`)); }, []);
   const counts = actionDayCounts(data?.reminders || []);
-  if (!month) return <div aria-hidden className="h-[264px] w-[280px] rounded-md border border-border bg-card" />;
+  if (!month) return <div aria-hidden className={`${compact ? "h-[210px]" : "h-[264px]"} ${W} rounded-md border border-border bg-card`} />;
   const todayDate = new Date(`${today}T12:00:00`);
 
   const cell = (date: Date, dim = false) => {
     const key = format(date, "yyyy-MM-dd");
     const selected = !!range && inActionRange(key, range);
     const count = counts.get(key) || 0;
-    return <Button key={key} data-daykey={key} aria-label={`${key}, ${count} actions`} aria-pressed={selected} variant={selected ? "default" : "ghost"} className={`h-8 w-full flex-col gap-0 rounded-sm p-0 text-xs leading-none ${key === today ? "ring-1 ring-primary" : ""} ${dim ? "opacity-40" : ""}`} onClick={(e) => { if (e.detail === 0) onChange(orderedDateRange(key, key)); }}><span>{date.getDate()}</span><span className={`h-2.5 text-[9px] tabular-nums ${selected ? "text-primary-foreground/80" : count ? "text-primary" : "text-muted-foreground"}`}>{count || ""}</span></Button>;
+    return <Button key={key} data-daykey={key} aria-label={`${key}, ${count} actions`} aria-pressed={selected} variant={selected ? "default" : "ghost"} className={`${compact ? "h-6 text-[11px]" : "h-8 text-xs"} w-full flex-col gap-0 rounded-sm p-0 leading-none ${key === today ? "ring-1 ring-primary" : ""} ${dim ? "opacity-40" : ""}`} onClick={(e) => { if (e.detail === 0) onChange(orderedDateRange(key, key)); }}><span>{date.getDate()}</span><span className={`${compact ? "h-2 text-[8px]" : "h-2.5 text-[9px]"} tabular-nums ${selected ? "text-primary-foreground/80" : count ? "text-primary" : "text-muted-foreground"}`}>{count || ""}</span></Button>;
   };
 
   const drag = {
@@ -38,7 +39,7 @@ export function ActionCalendar({ owner, range, onChange }: { owner: string; rang
 
   const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month), { weekStartsOn: 1 }), end: endOfWeek(endOfMonth(month), { weekStartsOn: 1 }) });
   return (
-    <div aria-label="Action calendar" className="w-[280px] shrink-0 select-none rounded-md border border-border bg-card p-2">
+    <div aria-label="Action calendar" className={`${W} shrink-0 select-none rounded-md border border-border bg-card p-2`}>
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="icon" className="h-6 w-6" aria-label="Previous month" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft className="h-3.5 w-3.5" /></Button>
         <span className="text-xs font-semibold">{format(month, "MMMM yyyy")}</span>
