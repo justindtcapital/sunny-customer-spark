@@ -31,7 +31,7 @@ export function WorkstreamTrail({ gid, company, segment }: { gid: string; compan
             <Badge variant="outline" className="shrink-0 px-1 text-[10px]">{a.label}</Badge>
             <span className="min-w-0 flex-1 truncate text-sm" title={a.title}>{a.title}</span>
             {a.url && <a href={a.url} target="_blank" rel="noreferrer" aria-label="Open source" className="shrink-0 text-primary"><ExternalLink className="h-3.5 w-3.5" /></a>}
-            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{a.date ? `${Number(a.date.slice(5, 7))}/${Number(a.date.slice(8, 10))}` : "—"}</span>
+            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{a.date ? `${Number(a.date.slice(5, 7))}/${Number(a.date.slice(8, 10))}${a.date.slice(0, 4) !== String(new Date().getFullYear()) ? `/${a.date.slice(2, 4)}` : ""}` : "—"}</span>
           </div>
           {(a.person || a.owner) && <div className="mt-0.5 truncate pl-1 text-[11px] text-muted-foreground">{[a.person, a.owner && `by ${canonicalOwnerName(a.owner)}`].filter(Boolean).join(" · ")}</div>}
         </div>

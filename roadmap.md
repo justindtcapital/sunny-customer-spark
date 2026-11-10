@@ -153,3 +153,7 @@
 - [x] Backed up and repaired 65 contacts: full names restored, first/last split, real companies from Apollo (7 personal-email people left without a company); read-back verified
 - [x] Paste contacts/targets now show an editable review table with first/last name detection
 - [x] Single-name and surname-in-Company warning on paste and CSV uploads, with one-click fix
+
+## Workstream activity trail and Asana next steps
+- [x] Show a read-only Recent activity list (emails sent, logged actions, linked notes, completed follow-ups) under a workstream's follow-ups in My Actions; six tests pass, verified signed in
+- [x] Remove the Asana "Next steps" field from workstream fields/editor and stop feeding it into Action with V.I.C.
