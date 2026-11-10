@@ -38,9 +38,10 @@ export const reconcileImportOperation = createServerFn({ method: "POST" }).middl
     const { data:op,error } = await db.from("bulk_operations").select("*").eq("id",data.id).single();
     if(error || !op) throw new Error("Operation not found.");
     if(!canSelfRecover(op.kind)) throw new Error("Self-service recovery is unavailable for this activity.");
-    if(op.status !== "uncertain") throw new Error("This operation is not waiting for reconciliation.");
+    if(op.status === "succeeded") throw new Error("This activity finished successfully; nothing to unlock.");
+    const midFlight = op.status === "uncertain" || op.status === "running" || op.status === "queued";
     const quietMs = Date.now() - new Date(op.updated_at).getTime();
-    if(quietMs < 120_000) throw new Error("This import stopped less than 2 minutes ago. Wait a moment so any in-flight save can finish, then check again.");
+    if(midFlight && quietMs < 120_000) throw new Error("This activity stopped less than 2 minutes ago. Wait a moment so any in-flight save can finish, then check again.");
     const input = op.input as Record<string, unknown>;
     const { withDeadline } = await import("./request-deadline.server");
     const { operationStatus } = await import("@/lib/bulk-operation");
@@ -66,11 +67,11 @@ export const reconcileImportOperation = createServerFn({ method: "POST" }).middl
       outcomes = planImportReconciliation(items,(op.outcomes || []) as unknown as BulkOutcome[],saved);
     }
     if(!data.apply) return { applied:false, outcomes };
-    const status = operationStatus(outcomes);
+    const status = midFlight ? operationStatus(outcomes) : op.status;
     const saves = outcomes.filter(o=>o.status==="changed").length, missing = outcomes.filter(o=>o.status==="failed").length;
     const summary = `${op.kind}: reconciled — ${saves} saved once · ${missing} not saved · ${outcomes.length-saves-missing} review`;
     const attempts = [...((op.attempts || []) as unknown as BulkOperation["attempts"]), { at:new Date().toISOString(), status:`reconciled by ${context.teamEmail}`, outcomes }];
-    const { data:updated,error:upErr } = await db.from("bulk_operations").update({ status, summary, outcomes:JSON.parse(JSON.stringify(outcomes)) as Json, attempts:JSON.parse(JSON.stringify(attempts)) as Json, execution_token:null, reconciliation:JSON.parse(JSON.stringify({ at:new Date().toISOString(), by:context.teamEmail, outcomes, lockReleased:true })) as Json, updated_at:new Date().toISOString() }).eq("id",op.id).eq("status","uncertain").eq("updated_at",op.updated_at).select("id");
+    const { data:updated,error:upErr } = await db.from("bulk_operations").update({ status, summary, outcomes:JSON.parse(JSON.stringify(outcomes)) as Json, attempts:JSON.parse(JSON.stringify(attempts)) as Json, execution_token:null, reconciliation:JSON.parse(JSON.stringify({ at:new Date().toISOString(), by:context.teamEmail, outcomes, lockReleased:true })) as Json, updated_at:new Date().toISOString() }).eq("id",op.id).eq("status",op.status).eq("updated_at",op.updated_at).select("id");
     if(upErr || !updated?.length) throw new Error("The operation changed while checking; nothing was released. Refresh and check again.");
     const { error:lockErr } = await db.from("bulk_operation_locks").delete().eq("resource","shared-bulk-writes").eq("operation_id",op.id);
     if(lockErr) throw new Error("Results were recorded but the safety lock could not be released. Refresh and check again.");
