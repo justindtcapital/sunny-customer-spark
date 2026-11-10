@@ -3,8 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Pencil, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
-import { ActionsBanner, DEFAULT_INBOX, DEFAULT_TOGGLES, type BannerView, type FeedToggle, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
+import { ActionsFilterBar, DEFAULT_INBOX, type BannerView, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
@@ -26,7 +26,10 @@ import { ActionComposer, type ActionContext } from "@/components/actions/ActionC
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { inActionRange, type ActionDateRange } from "@/lib/action-calendar";
-import { ACTION_SORTS, companyKindVisible, sortActions, type ActionSort } from "@/lib/action-sort";
+import { ACTION_SORTS, abbreviateTitle, companyKindVisible, networkGroupKey, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
+
+type FeedToggles = Record<CompanyKind | "workstreams" | "followups", boolean>;
+const KIND_LABEL: Record<CompanyKind, string> = { portcos: "PortCo", network: "Network", ops: "PortDev Ops" };
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -79,8 +82,11 @@ function MyActionsPage() {
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
   const [inbox, setInbox] = useState<InboxToggles>(DEFAULT_INBOX);
   const [dateRange, setDateRange] = useState<ActionDateRange>(null);
-  const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>(DEFAULT_TOGGLES);
-  const [hiddenPriorities, setHiddenPriorities] = useState<string[]>([]);
+  const [kinds, setKinds] = useState<CompanyKind[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [showWs, setShowWs] = useState(true);
+  const [listSearch, setListSearch] = useState("");
+  const [kindCounts, setKindCounts] = useState<Record<CompanyKind, number>>({ portcos: 0, network: 0, ops: 0 });
   const { workstreams } = useWorkstreams();
   const priorities = useMemo(() => [...new Set(workstreams.filter((w) => ownerMatches(w.owner, owner)).map((w) => w.workstreamPriority).filter(Boolean))].sort(), [workstreams, owner]);
   const qc = useQueryClient();
@@ -94,6 +100,8 @@ function MyActionsPage() {
   };
   // Changing a filter always shows the to-do feed it filters.
   const toActions = () => { if (tab !== "actions") set({ tab: "actions" }); };
+  const toggles: FeedToggles = { portcos: kinds.includes("portcos"), network: kinds.includes("network"), ops: kinds.includes("ops"), workstreams: showWs, followups: true };
+  const hiddenPriorities = picked.length ? priorities.filter((p) => !picked.includes(p)) : [];
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4 p-6">
@@ -110,16 +118,16 @@ function MyActionsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-stretch gap-x-4 gap-y-4 border-b border-border pb-4">
-        <ActionCalendar owner={owner} range={dateRange} onChange={(r) => { setDateRange(r); toActions(); }} />
-        <ActionsBanner view={view} onView={onView} counts={counts} inbox={inbox} onToggleInbox={onToggleInbox}
-          toggles={toggles} onToggle={(k) => { setToggles((t) => ({ ...t, [k]: !t[k] })); toActions(); }}
-          priorities={priorities} hiddenPriorities={hiddenPriorities}
-          onTogglePriority={(p) => { setHiddenPriorities((h) => h.includes(p) ? h.filter((x) => x !== p) : [...h, p]); toActions(); }} />
+      <div className="flex flex-wrap items-stretch gap-x-4 gap-y-3 border-b border-border pb-3">
+        <ActionCalendar compact owner={owner} range={dateRange} onChange={(r) => { setDateRange(r); toActions(); }} />
+        <ActionsFilterBar view={view} onView={onView} counts={counts} inbox={inbox} onToggleInbox={onToggleInbox}
+          kinds={kinds} kindCounts={kindCounts} onKinds={setKinds}
+          priorities={priorities} picked={picked} onPicked={setPicked}
+          showWs={showWs} onShowWs={setShowWs} search={listSearch} onSearch={setListSearch} />
       </div>
 
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
-        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} toggles={toggles} hiddenPriorities={hiddenPriorities} />}
+        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} toggles={toggles} hiddenPriorities={hiddenPriorities} search={listSearch} onKindCounts={setKindCounts} />}
         {/* Kept mounted so the inbox counts in the banner are always current. */}
         <div className={tab === "notes" ? "" : "hidden"}><NotesTab owner={owner} show={inbox} onAction={setCtx} onCounts={setCounts} /></div>
         {tab === "done" && <DoneTab owner={owner} />}
@@ -142,16 +150,22 @@ function NotesTab({ owner, show, onAction, onCounts }: { owner: string; show: In
   );
 }
 
-function SplitPane({ list, detail }: { list: React.ReactNode; detail: React.ReactNode }) {
+/** PortCo-page layout: compact list left, detail right; on narrow screens the detail opens inline under its row. */
+function SplitPane({ list, detail, wide }: { list: React.ReactNode; detail: React.ReactNode; wide: boolean }) {
   return (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <Card className="min-w-0"><CardContent className="max-h-[75vh] overflow-x-hidden overflow-y-auto p-0">{list}</CardContent></Card>
-      <Card className="min-w-0 lg:sticky lg:top-4 self-start w-full"><CardContent className="max-h-[75vh] overflow-x-hidden overflow-y-auto p-4 [overflow-wrap:anywhere]">{detail}</CardContent></Card>
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
+      <div className="min-w-0 space-y-1 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">{list}</div>
+      {wide && <Card className="min-w-0 self-start w-full"><CardContent className="lg:max-h-[calc(100vh-220px)] overflow-x-hidden overflow-y-auto p-4 [overflow-wrap:anywhere]">{detail}</CardContent></Card>}
     </div>
   );
 }
+function useIsWide() {
+  const [wide, setWide] = useState(true);
+  useEffect(() => { const m = window.matchMedia("(min-width: 1024px)"); const f = () => setWide(m.matches); f(); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, []);
+  return wide;
+}
 
-const rowCls = (on: boolean) => `block w-full px-3 py-2 text-left hover:bg-muted/40 ${on ? "bg-secondary/60" : ""}`;
+const rowCls = (on: boolean) => `block w-full rounded-md border bg-card px-2 py-1.5 text-left ${on ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`;
 
 function Logo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   const { data = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
@@ -191,7 +205,10 @@ function Bullet({ kind, company, website }: { kind: "ws" | "fu"; company: string
 }
 
 /** Merged My Actions feed: workstreams and follow-ups grouped by PortCo / company. */
-function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hiddenPriorities }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange; toggles: Record<FeedToggle, boolean>; hiddenPriorities: string[] }) {
+function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hiddenPriorities, search, onKindCounts }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange; toggles: FeedToggles; hiddenPriorities: string[]; search: string; onKindCounts: (c: Record<CompanyKind, number>) => void }) {
+  const wide = useIsWide();
+  const q = search.trim().toLowerCase();
+  const hit = (...xs: (string | undefined)[]) => !q || xs.some((x) => (x || "").toLowerCase().includes(q));
   const { workstreams, loading: wsLoading, refresh } = useWorkstreams();
   const qc = useQueryClient();
   const ownerEmail = teamMemberFor(owner)?.email || "";
@@ -213,7 +230,6 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const [pick, setPick] = useState({ summary: "", person: "", due: "", company: "" });
   const [noteFor, setNoteFor] = useState("");
   const [noteText, setNoteText] = useState("");
-  const [editFor, setEditFor] = useState("");
 
   const { data: homeData, isLoading: fuLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
@@ -222,13 +238,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
 
   // Workstreams owned by the selected person.
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
-  const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && !hiddenPriorities.includes(w.workstreamPriority))
-    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, hiddenPriorities]);
+  const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && !hiddenPriorities.includes(w.workstreamPriority) && hit(w.name, w.rawName, w.company))
+    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, hiddenPriorities, q]); // eslint-disable-line react-hooks/exhaustive-deps
   const companies = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [workstreams]);
 
   // Follow-ups owned by the selected person, date-filtered by the calendar.
   const fuAll = useMemo(() => [...(homeData?.reminders || [])].filter((x) => !hidden.has(x.id)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")), [homeData, hidden]);
-  const fuList = useMemo(() => fuAll.filter((x) => !dateRange || inActionRange(x.due, dateRange)), [fuAll, dateRange]);
+  const fuList = useMemo(() => fuAll.filter((x) => (!dateRange || inActionRange(x.due, dateRange)) && hit(x.summary, x.person, x.company, x.details)), [fuAll, dateRange, q]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deep link (?ws=gid): select it, and show completed ones too if that's where it lives.
   useEffect(() => {
@@ -243,7 +259,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   // Groups keyed by company: workstreams first, then follow-ups. A follow-up linked
   // to a workstream (via the editor or Action Now) nests under that workstream even
   // when the follow-up's company tag differs from the workstream's company name.
-  const groups = useMemo(() => {
+  const allGroups = useMemo(() => {
     const byGid = new Map(wsList.map((w) => [w.gid, w]));
     const linked = new Map<string, Reminder[]>();
     const general: Reminder[] = [];
@@ -256,7 +272,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     const m = new Map<string, { ws: Workstream[]; fu: Reminder[] }>();
     const ensure = (k: string) => { const g = m.get(k) || { ws: [] as Workstream[], fu: [] as Reminder[] }; m.set(k, g); return g; };
     if (toggles.workstreams) for (const w of wsList) ensure(w.company || "No PortCo").ws.push(w);
-    for (const x of general) ensure((x.company || "").split(/\s*,\s*/)[0] || "No company").fu.push(x);
+    for (const x of general) ensure(networkGroupKey(x.company, x.person) || "No company").fu.push(x);
     return [...m.entries()]
       .map(([company, g]) => {
         const kind = portcoNames.has(norm(company)) ? "portcos" as const
@@ -266,9 +282,16 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         for (const w of g.ws) if (linked.has(w.gid)) gLinked.set(w.gid, linked.get(w.gid)!);
         return { company, ws: g.ws, linked: gLinked, general: g.fu, kind };
       })
-      .filter((g) => companyKindVisible(toggles, g.kind) && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
+      .filter((g) => g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0)
       .sort((a, b) => a.company.localeCompare(b.company));
-  }, [wsList, fuList, toggles, portcoNames]);
+  }, [wsList, fuList, toggles.workstreams, portcoNames]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => allGroups.filter((g) => companyKindVisible(toggles, g.kind)), [allGroups, toggles.portcos, toggles.network, toggles.ops]); // eslint-disable-line react-hooks/exhaustive-deps
+  const kindCountKey = allGroups.map((g) => `${g.kind}:${g.ws.length + g.general.length + [...g.linked.values()].flat().length}`).join(",");
+  useEffect(() => {
+    const c = { portcos: 0, network: 0, ops: 0 };
+    for (const g of allGroups) c[g.kind] += g.ws.length + g.general.length + [...g.linked.values()].flat().length;
+    onKindCounts(c);
+  }, [kindCountKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Non-PortCo sorts show one flat list; a linked follow-up takes its workstream's priority.
   const flat = useMemo(() => sort === "portco" ? [] : sortActions(groups.flatMap((g) => [
@@ -388,9 +411,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
         {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
         {x.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={x.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
-        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditFor(editFor === x.id ? "" : x.id); setNoteFor(""); }}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>
       </div>
-      {editFor === x.id && <FollowUpEditor key={x.id} reminder={x} onClose={() => setEditFor("")} />}
       {noteFor === x.id && <div className="space-y-2 rounded-md border border-border p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What did you do? (optional note)</div>
         <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3} placeholder='e.g. "Sent the intro deck" or "Already handled on the call"' className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
@@ -401,13 +422,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       </div>}
       {!canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
       {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
-      <div className="flex justify-end border-t border-border pt-3">
-        <div className="space-y-0.5 text-right text-xs text-muted-foreground">
-          <div className="flex items-center justify-end gap-1.5"><Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>{x.company}</div>
-          <div>{x.people ? x.people.map((p) => p.name || p.email).join(", ") : `${x.person}${x.email ? ` · ${x.email}` : ""}`}</div>
-          <div className="tabular-nums">{x.due ? `Due ${x.due.slice(0, 10)}` : "No date"}</div>
-        </div>
-      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 text-xs sm:grid-cols-4">
+        <div><dt className="text-muted-foreground">Source</dt><dd className="font-medium">{x.source}</dd></div>
+        <div><dt className="text-muted-foreground">Created</dt><dd className="font-medium tabular-nums">{x.date ? x.date.slice(0, 10) : "—"}</dd></div>
+        <div><dt className="text-muted-foreground">Due</dt><dd className="font-medium tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</dd></div>
+        <div><dt className="text-muted-foreground">Owner</dt><dd className="font-medium">{teamMemberFor(x.owner)?.displayName || x.owner || "—"}</dd></div>
+      </dl>
+      <FollowUpEditor inline key={x.id} reminder={x} />
       {similar.length > 0 && <div className="space-y-2 rounded-md border border-border p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Similar actions · {similar.length}</div>
