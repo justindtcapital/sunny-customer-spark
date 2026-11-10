@@ -25,7 +25,8 @@ import { WorkstreamDetail, statusTone } from "@/components/portfolio/Workstreams
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
-import { inActionRange, type ActionDateRange } from "@/lib/action-calendar";
+import { actionDueLabel, inActionRange, type ActionDateRange } from "@/lib/action-calendar";
+import { reportingDay } from "@/lib/home-momentum";
 import { portcoMatchKey } from "@/lib/action-grouping";
 import { ACTION_SORTS, abbreviateTitle, companyKindVisible, networkGroupKey, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
 
@@ -208,6 +209,9 @@ function Bullet({ kind, company, website }: { kind: "ws" | "fu"; company: string
 /** Merged My Actions feed: workstreams and follow-ups grouped by PortCo / company. */
 function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hiddenPriorities, search, onKindCounts }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange; toggles: FeedToggles; hiddenPriorities: string[]; search: string; onKindCounts: (c: Record<CompanyKind, number>) => void }) {
   const wide = useIsWide();
+  // Set after hydration so server and browser render the same list first.
+  const [today, setToday] = useState("");
+  useEffect(() => setToday(reportingDay(new Date())), []);
   const q = search.trim().toLowerCase();
   const hit = (...xs: (string | undefined)[]) => !q || xs.some((x) => (x || "").toLowerCase().includes(q));
   const { workstreams, loading: wsLoading, refresh } = useWorkstreams();
@@ -503,7 +507,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{abbreviateTitle(full, company, 48)}</span>
           {showCompany && <span className="hidden max-w-[90px] truncate text-[11px] text-muted-foreground sm:inline">{company}</span>}
           {priChip(priority)}
-          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{x.due ? x.due.slice(5, 10) : "—"}</span>
+          {(() => { const d = actionDueLabel(x.due, today); return <span title={d.overdue ? "Overdue" : undefined} className={`shrink-0 text-[11px] tabular-nums ${d.overdue ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{d.text}</span>; })()}
         </div>
       </button>
       {inline(on)}
