@@ -24,6 +24,7 @@ import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
+import { CompleteFollowUpForm } from "@/components/actions/CompleteFollowUpForm";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { actionDueLabel, inActionRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
@@ -234,7 +235,6 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const [mergeSel, setMergeSel] = useState<string[]>([]);
   const [pick, setPick] = useState({ summary: "", person: "", due: "", company: "" });
   const [noteFor, setNoteFor] = useState("");
-  const [noteText, setNoteText] = useState("");
 
   const { data: homeData, isLoading: fuLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
@@ -344,12 +344,12 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     return false;
   };
   /** Completes a follow-up and records a note about what was done (logged as an action). */
-  const completeWithNote = async (x: Reminder, note: string) => {
-    if (note.trim()) {
+  const completeWithNote = async (x: Reminder, note: string, nextFollowUp?: { date: string; note: string }) => {
+    if (note.trim() || nextFollowUp) {
       await completeAction({ data: {
         sourceKind: "followup", sourceId: x.activityId || x.id, subject: x.summary || `Follow-up with ${x.person}`,
-        recipients: [{ name: x.person, email: x.email || "" }], portcos: x.company ? x.company.split(/\s*,\s*/) : [],
-        tracks: [], actor: owner, followUpActivityId: x.activityId || undefined, mode: "log", note: note.trim(),
+        recipients: x.people?.length ? x.people : [{ name: x.contactName || x.person, email: x.email || "" }], portcos: (x.company || x.groupCompany || "").split(/\s*,\s*/).filter(Boolean),
+        tracks: x.tracks || [], actor: owner, followUpActivityId: x.activityId || undefined, mode: "log", note: note.trim(), nextFollowUp,
       } });
     }
     return closeOne(x, false);
@@ -418,19 +418,22 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
           text: x.details || x.originalNote || x.summary, people: x.people || [{ name: x.person, email: x.email || "" }],
           portcos: x.company ? x.company.split(/\s*,\s*/) : [], tracks: x.tracks, followUpActivityId: x.activityId,
         })}><Sparkles className="mr-1 h-3.5 w-3.5" />Action with V.I.C.</Button>
-        <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => { setNoteFor(noteFor === x.id ? "" : x.id); setNoteText(""); }}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
+        <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => setNoteFor(noteFor === x.id ? "" : x.id)}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
         <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
         {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
         {x.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={x.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
       </div>
-      {noteFor === x.id && <div className="space-y-2 rounded-md border border-border p-3">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What did you do? (optional note)</div>
-        <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3} placeholder='e.g. "Sent the intro deck" or "Already handled on the call"' className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
-        <div className="flex gap-2">
-          <Button size="sm" disabled={!!busy} onClick={() => { const n = noteText; setNoteFor(""); setNoteText(""); setBusy("Marked complete"); void completeWithNote(x, n).then((ok) => { if (ok) { setHidden((h) => new Set([...h, x.id])); toast.success("Marked complete"); void qc.invalidateQueries({ queryKey: ["my-actions"] }); } else toast.error("Couldn't update the follow-up"); }).finally(() => setBusy("")); }}>Save & complete</Button>
-          <Button size="sm" variant="ghost" onClick={() => { setNoteFor(""); setNoteText(""); }}>Cancel</Button>
-        </div>
-      </div>}
+      {noteFor === x.id && <CompleteFollowUpForm key={x.id} busy={!!busy} onCancel={() => setNoteFor("")} onSave={async (note, next) => {
+        setBusy("Marked complete");
+        try {
+          const ok = await completeWithNote(x, note, next);
+          if (!ok) throw new Error("Couldn't update the follow-up");
+          setNoteFor(""); setHidden((h) => new Set([...h, x.id]));
+          toast.success(next ? "Marked complete and future follow-up scheduled" : "Marked complete");
+          void qc.invalidateQueries({ queryKey: ["my-actions"] });
+          void qc.invalidateQueries({ queryKey: ["home-momentum"] });
+        } finally { setBusy(""); }
+      }} />}
       {!canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
       {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 text-xs sm:grid-cols-4">

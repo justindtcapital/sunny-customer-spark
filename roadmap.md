@@ -1,5 +1,10 @@
 # Roadmap
 
+## Completion note controls
+- [x] Add dictation and optional dated future follow-up to Mark complete; reuse existing action saving
+- [x] Nine tests passed; signed-in desktop/mobile controls verified with no overflow or runtime errors; cancelled without completing a real action
+- [ ] Verify actual microphone transcription and saved completion/reminder read-back; requires audio input and an action approved for completion
+
 ## Network contact-list bulk failures — November 5 request
 - [x] Inspect Network bulk controls, selection paths and available logs; prepare approval plan without changing code or contacts
 - [x] Reconciled Shane's 67-contact import: 65 saved contacts and two existing prospects verified by fresh unique email/URID matches; revoked uncertain attempt and released its lock without replaying writes
