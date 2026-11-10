@@ -316,7 +316,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
   const r = cur?.kind === "fu" ? fuList.find((x) => x.id === cur.id) || null : null;
   // Detail pane: follow-ups linked to this workstream first, falling back to the same company.
-  const wsGroup = ws ? groups.find((g) => g.company === (ws.company || "No PortCo")) : undefined;
+  const wsGroup = ws ? groups.find((g) => g.ws.some((w) => w.gid === ws.gid)) : undefined;
   const wsGroupFu = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
 
   const mergeRows = mergeSel.map((id) => fuList.find((x) => x.id === id)).filter(Boolean) as Reminder[];
