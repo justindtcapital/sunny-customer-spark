@@ -443,39 +443,81 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     </div>;
   };
 
-  const fuRow = (x: Reminder, company: string, website: string, nested: boolean, showCompany: boolean) => (
-    <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} ${showCompany ? "pl-3" : nested ? "pl-16" : "pl-10"}`}>
-      <div className="flex min-w-0 items-start gap-2">
-        {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
-        <Bullet kind="fu" company={company} website={website} />
-        <div className="min-w-0 flex-1">
-          <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
-          <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-            {showCompany && <span className="max-w-[140px] truncate font-medium text-foreground/80">{company}</span>}
-            <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
-            <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
-            <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
-          </span>
-        </div>
-      </div>
-    </button>
-  );
-  const wsRow = (w: Workstream, company: string, website: string, showCompany: boolean) => (
-    <button onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} ${showCompany ? "pl-3" : "pl-10"}`}>
-      <div className="flex min-w-0 items-start gap-2">
-        <Bullet kind="ws" company={company} website={website} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm">{w.name || w.rawName}</div>
-          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
-            {showCompany && <span className="mr-auto max-w-[160px] truncate text-xs font-medium text-foreground/80">{company}</span>}
-            <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
-            <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
-            {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
+  const detailNode = mergeMode && mergeRows.length >= 2 ? <div className="space-y-4">
+          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Merge {mergeRows.length} follow-ups</div>
+          <p className="text-xs text-muted-foreground">Pick which value to keep for each field. The follow-up whose summary you keep stays open; the others close with a merge note.</p>
+          {mergeField("Summary (this one stays open)", "summary", (x) => x.summary || `Follow up with ${x.person}`)}
+          {mergeField("Person", "person", (x) => x.person)}
+          {mergeField("Due date", "due", (x) => (x.due ? x.due.slice(0, 10) : ""))}
+          {mergeField("PortCo / Partner", "company", (x) => x.company || "")}
+          <div className="flex gap-2 border-t border-border pt-3">
+            <Button size="sm" disabled={!!busy} onClick={() => void doMerge()}><Merge className="mr-1 h-3.5 w-3.5" />Merge into one</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setMergeMode(false); setMergeSel([]); }}>Cancel</Button>
           </div>
+        </div> : mergeMode ? <p className="text-sm text-muted-foreground">Tick two or more follow-ups in the list to merge them.</p> : ws ? <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Logo name={ws.company} />
+              <div className="min-w-0">
+                <div className="font-display text-base font-semibold">{ws.name || ws.rawName}</div>
+                <div className="text-xs text-muted-foreground">{ws.company} · {ws.segment}{ws.owner ? ` · ${ws.owner}` : ""}</div>
+              </div>
+            </div>
+            <Button size="sm" className="h-8 shrink-0" onClick={() => onAction({
+              sourceKind: "workstream", sourceId: `ws:${ws.gid}`, title: `${ws.company} – ${ws.name}`,
+              text: [ws.notes, ws.traction, ws.dellStakeholders && `Dell stakeholders: ${ws.dellStakeholders}`, ws.lastActivity && `Last activity: ${ws.lastActivity}`].filter(Boolean).join("\n"),
+              nextSteps: ws.nextSteps ? [ws.nextSteps] : [], people: [], portcos: [ws.company],
+              tracks: ws.segment === "BD" || ws.segment === "GTM" ? [ws.segment] : [],
+            })}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>
+          </div>
+          <WorkstreamDetail key={ws.gid} w={ws} onSaved={() => { void refresh(); void qc.invalidateQueries({ queryKey: ["my-actions", "done"] }); }} />
+          {wsGroupFu.length > 0 && <div className="space-y-1 border-t border-border pt-3">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Follow-ups · {wsGroupFu.length}</div>
+            {wsGroupFu.map((x) => (
+              <button key={x.id} onClick={() => setSel({ kind: "fu", id: x.id })} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/40">
+                <Bullet kind="fu" company={ws.company} website={websites.get(norm(ws.company)) || ""} />
+                <span className="min-w-0 flex-1 truncate text-sm">{x.summary || `Follow up with ${x.person}`}</span>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
+              </button>
+            ))}
+          </div>}
+        </div> : r ? fuDetail(r) : <p className="text-sm text-muted-foreground">Select an action to see its details.</p>;
+  const inline = (on: boolean) => !wide && on ? <div className="mb-2 mt-1 rounded-lg border border-border bg-card p-4 [overflow-wrap:anywhere]">{detailNode}</div> : null;
+  const priChip = (p?: string) => p ? <span title={p} className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold ${priorityTone(p)}`}>{priorityShort(p)}</span> : null;
+
+  const fuRow = (x: Reminder, company: string, website: string, nested: boolean, showCompany: boolean, priority?: string) => {
+    const on = !mergeMode && cur?.kind === "fu" && cur.id === x.id;
+    const full = x.summary || `Follow up with ${x.person}`;
+    return <div key={x.id} className={nested ? "pl-6" : ""}>
+      <button onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} aria-expanded={on} title={full} className={rowCls(on)}>
+        <div className="flex min-w-0 items-center gap-2">
+          {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="h-3.5 w-3.5 shrink-0 accent-primary" />}
+          <Bullet kind="fu" company={company} website={website} />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{abbreviateTitle(full, company, 48)}</span>
+          {showCompany && <span className="hidden max-w-[90px] truncate text-[11px] text-muted-foreground sm:inline">{company}</span>}
+          {priChip(priority)}
+          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{x.due ? x.due.slice(5, 10) : "—"}</span>
         </div>
-      </div>
-    </button>
-  );
+      </button>
+      {inline(on)}
+    </div>;
+  };
+  const wsRow = (w: Workstream, company: string, website: string, showCompany: boolean) => {
+    const on = cur?.kind === "ws" && cur.id === w.gid;
+    const full = w.name || w.rawName;
+    return <>
+      <button onClick={() => setSel({ kind: "ws", id: w.gid })} aria-expanded={on} title={full} className={rowCls(on)}>
+        <div className="flex min-w-0 items-center gap-2">
+          <Bullet kind="ws" company={company} website={website} />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{abbreviateTitle(full, company, 44)}</span>
+          {showCompany && <span className="hidden max-w-[90px] truncate text-[11px] text-muted-foreground sm:inline">{company}</span>}
+          {priChip(w.workstreamPriority)}
+          <Badge variant="outline" className={`shrink-0 px-1 text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
+        </div>
+      </button>
+      {inline(on)}
+    </>;
+  };
 
   return (
     <div className="space-y-2">
@@ -529,45 +571,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
             </div>
           );
         })}</div>}
-        detail={mergeMode && mergeRows.length >= 2 ? <div className="space-y-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Merge {mergeRows.length} follow-ups</div>
-          <p className="text-xs text-muted-foreground">Pick which value to keep for each field. The follow-up whose summary you keep stays open; the others close with a merge note.</p>
-          {mergeField("Summary (this one stays open)", "summary", (x) => x.summary || `Follow up with ${x.person}`)}
-          {mergeField("Person", "person", (x) => x.person)}
-          {mergeField("Due date", "due", (x) => (x.due ? x.due.slice(0, 10) : ""))}
-          {mergeField("PortCo / Partner", "company", (x) => x.company || "")}
-          <div className="flex gap-2 border-t border-border pt-3">
-            <Button size="sm" disabled={!!busy} onClick={() => void doMerge()}><Merge className="mr-1 h-3.5 w-3.5" />Merge into one</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setMergeMode(false); setMergeSel([]); }}>Cancel</Button>
-          </div>
-        </div> : mergeMode ? <p className="text-sm text-muted-foreground">Tick two or more follow-ups in the list to merge them.</p> : ws ? <div className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <Logo name={ws.company} />
-              <div className="min-w-0">
-                <div className="font-display text-base font-semibold">{ws.name || ws.rawName}</div>
-                <div className="text-xs text-muted-foreground">{ws.company} · {ws.segment}{ws.owner ? ` · ${ws.owner}` : ""}</div>
-              </div>
-            </div>
-            <Button size="sm" className="h-8 shrink-0" onClick={() => onAction({
-              sourceKind: "workstream", sourceId: `ws:${ws.gid}`, title: `${ws.company} – ${ws.name}`,
-              text: [ws.notes, ws.traction, ws.dellStakeholders && `Dell stakeholders: ${ws.dellStakeholders}`, ws.lastActivity && `Last activity: ${ws.lastActivity}`].filter(Boolean).join("\n"),
-              nextSteps: ws.nextSteps ? [ws.nextSteps] : [], people: [], portcos: [ws.company],
-              tracks: ws.segment === "BD" || ws.segment === "GTM" ? [ws.segment] : [],
-            })}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>
-          </div>
-          <WorkstreamDetail key={ws.gid} w={ws} onSaved={() => { void refresh(); void qc.invalidateQueries({ queryKey: ["my-actions", "done"] }); }} />
-          {wsGroupFu.length > 0 && <div className="space-y-1 border-t border-border pt-3">
-            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Follow-ups · {wsGroupFu.length}</div>
-            {wsGroupFu.map((x) => (
-              <button key={x.id} onClick={() => setSel({ kind: "fu", id: x.id })} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/40">
-                <Bullet kind="fu" company={ws.company} website={websites.get(norm(ws.company)) || ""} />
-                <span className="min-w-0 flex-1 truncate text-sm">{x.summary || `Follow up with ${x.person}`}</span>
-                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
-              </button>
-            ))}
-          </div>}
-        </div> : r ? fuDetail(r) : <p className="text-sm text-muted-foreground">Select an action to see its details.</p>}
+        detail={detailNode} wide={wide}
       />}
     </div>
   );
