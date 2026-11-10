@@ -9,6 +9,8 @@ import { teamMemberFor } from "@/lib/user-ownership";
 import { actionDayCounts, orderedDateRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
 
+const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+
 /** Full-month action calendar with per-day counts; click a day or drag across days to filter. */
 export function ActionCalendar({ owner, range, onChange, compact = false }: { owner: string; range: ActionDateRange; onChange: (r: ActionDateRange) => void; compact?: boolean }) {
   const W = compact ? "w-[224px]" : "w-[280px]";
@@ -49,7 +51,7 @@ export function ActionCalendar({ owner, range, onChange, compact = false }: { ow
       <div className="mt-0.5 grid touch-none grid-cols-7 gap-0.5" {...drag}>{days.map((date) => cell(date, date.getMonth() !== month.getMonth()))}</div>
       <div className="mt-1 flex items-center gap-1">
         <Button size="sm" variant="ghost" className="h-6 px-1 text-[11px]" onClick={() => { setMonth(todayDate); onChange(orderedDateRange(today, today)); }}>Today</Button>
-        {range && <span className="text-[10px] text-muted-foreground">{range.start.slice(5)}{range.end !== range.start ? ` – ${range.end.slice(5)}` : ""}</span>}
+        {range && <span className="text-[10px] text-muted-foreground">{md(range.start)}{range.end !== range.start ? ` – ${md(range.end)}` : ""} and earlier</span>}
         {range && <Button size="sm" variant="ghost" className="ml-auto h-6 px-1 text-[11px]" onClick={() => onChange(null)}><X className="mr-1 h-3 w-3" />All dates</Button>}
       </div>
     </div>
