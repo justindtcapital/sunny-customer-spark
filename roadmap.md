@@ -1,8 +1,9 @@
 # Roadmap
 
 ## Completion note controls
-- [ ] Add dictation and optional dated future follow-up to Mark complete; reuse existing action saving
-- [ ] Test scheduling rules and verify signed-in completion controls
+- [x] Add dictation and optional dated future follow-up to Mark complete; reuse existing action saving
+- [x] Nine tests passed; signed-in desktop/mobile controls verified with no overflow or runtime errors; cancelled without completing a real action
+- [ ] Verify actual microphone transcription and saved completion/reminder read-back; requires audio input and an action approved for completion
 
 ## Network contact-list bulk failures — November 5 request
 - [x] Inspect Network bulk controls, selection paths and available logs; prepare approval plan without changing code or contacts
