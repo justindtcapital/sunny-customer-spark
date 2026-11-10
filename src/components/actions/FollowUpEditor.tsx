@@ -17,7 +17,8 @@ import { editFollowUpFn } from "@/utils/follow-up-edit.functions";
 import { searchPeopleFn, fetchReviewCompaniesFn } from "@/utils/knowledge.functions";
 import { fetchPartnersFn } from "@/utils/partners.functions";
 
-export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; onClose: () => void }) {
+/** `inline` keeps the form always open in the detail pane (no title or Cancel; saving keeps it open). */
+export function FollowUpEditor({ reminder, onClose, inline = false }: { reminder: HomeReminder; onClose?: () => void; inline?: boolean }) {
   const [values, setValues] = useState(() => followUpValues(reminder));
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
@@ -50,12 +51,12 @@ export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; 
     try {
       await save({ data: { id: reminder.id, edit: values } });
       await Promise.all([qc.invalidateQueries({ queryKey: ["my-actions"] }), qc.invalidateQueries({ queryKey: ["home-momentum"] })]);
-      toast.success("Action updated"); onClose();
+      toast.success("Action updated"); onClose?.();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not save the action"); }
     finally { setBusy(false); }
   };
-  return <div className="space-y-3 border-b border-border pb-4" aria-label="Edit action">
-    <div className="text-sm font-semibold">Edit action</div>
+  return <div className={inline ? "space-y-3" : "space-y-3 border-b border-border pb-4"} aria-label="Edit action">
+    {!inline && <div className="text-sm font-semibold">Edit action</div>}
     <div className="space-y-1"><Label htmlFor="task-title">Title</Label><Input id="task-title" value={values.summary} maxLength={500} onChange={(e) => setValues({ ...values, summary: e.target.value })} /></div>
     <div className="space-y-1"><Label htmlFor="task-details">Details / next steps</Label><Textarea id="task-details" rows={3} maxLength={4000} value={values.details} onChange={(e) => setValues({ ...values, details: e.target.value })} /></div>
     <div className="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -76,6 +77,6 @@ export function FollowUpEditor({ reminder, onClose }: { reminder: HomeReminder; 
       {results.length > 0 && <div className="max-h-40 overflow-y-auto divide-y divide-border border border-border">{results.map((p, i) => <Button key={`${p.email}:${i}`} variant="ghost" className="h-auto w-full justify-start whitespace-normal rounded-none px-2 py-1.5 text-left" onClick={() => { setValues({ ...values, people: [...values.people.filter((x) => p.email ? x.email !== p.email : x.name !== p.name), { name: p.name, email: p.email }] }); setQuery(""); }}><span>{p.name}<span className="ml-2 text-xs text-muted-foreground">{p.where} · {p.company || p.email}</span></span></Button>)}</div>}
     </div>
     <div className="space-y-1"><Label>Activity tracking</Label><div className="flex gap-2">{(["BD", "GTM"] as const).map((t) => <Button key={t} size="sm" variant={values.tracks.includes(t) ? "secondary" : "outline"} onClick={() => setValues({ ...values, tracks: values.tracks.includes(t) ? values.tracks.filter((x) => x !== t) : [...values.tracks, t] })}>{t}</Button>)}</div></div>
-    <div className="flex gap-2"><Button size="sm" disabled={busy || !values.summary.trim()} onClick={() => void submit()}><Save className="mr-1 h-3.5 w-3.5" />{busy ? "Saving…" : "Save changes"}</Button><Button size="sm" variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button></div>
+    <div className="flex gap-2"><Button size="sm" disabled={busy || !values.summary.trim()} onClick={() => void submit()}><Save className="mr-1 h-3.5 w-3.5" />{busy ? "Saving…" : "Save changes"}</Button>{!inline && <Button size="sm" variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>}</div>
   </div>;
 }

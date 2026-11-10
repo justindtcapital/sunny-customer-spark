@@ -3,8 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Pencil, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
-import { ActionsBanner, DEFAULT_INBOX, DEFAULT_TOGGLES, type BannerView, type FeedToggle, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
+import { ActionsFilterBar, DEFAULT_INBOX, priorityShort, priorityTone, type BannerView, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
@@ -26,7 +26,10 @@ import { ActionComposer, type ActionContext } from "@/components/actions/ActionC
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { inActionRange, type ActionDateRange } from "@/lib/action-calendar";
-import { ACTION_SORTS, companyKindVisible, sortActions, type ActionSort } from "@/lib/action-sort";
+import { ACTION_SORTS, abbreviateTitle, companyKindVisible, networkGroupKey, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
+
+type FeedToggles = Record<CompanyKind | "workstreams" | "followups", boolean>;
+const KIND_LABEL: Record<CompanyKind, string> = { portcos: "PortCo", network: "Network", ops: "PortDev Ops" };
 import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functions";
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
@@ -79,8 +82,11 @@ function MyActionsPage() {
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
   const [inbox, setInbox] = useState<InboxToggles>(DEFAULT_INBOX);
   const [dateRange, setDateRange] = useState<ActionDateRange>(null);
-  const [toggles, setToggles] = useState<Record<FeedToggle, boolean>>(DEFAULT_TOGGLES);
-  const [hiddenPriorities, setHiddenPriorities] = useState<string[]>([]);
+  const [kinds, setKinds] = useState<CompanyKind[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [showWs, setShowWs] = useState(true);
+  const [listSearch, setListSearch] = useState("");
+  const [kindCounts, setKindCounts] = useState<Record<CompanyKind, number>>({ portcos: 0, network: 0, ops: 0 });
   const { workstreams } = useWorkstreams();
   const priorities = useMemo(() => [...new Set(workstreams.filter((w) => ownerMatches(w.owner, owner)).map((w) => w.workstreamPriority).filter(Boolean))].sort(), [workstreams, owner]);
   const qc = useQueryClient();
@@ -94,6 +100,8 @@ function MyActionsPage() {
   };
   // Changing a filter always shows the to-do feed it filters.
   const toActions = () => { if (tab !== "actions") set({ tab: "actions" }); };
+  const toggles: FeedToggles = { portcos: kinds.includes("portcos"), network: kinds.includes("network"), ops: kinds.includes("ops"), workstreams: showWs, followups: true };
+  const hiddenPriorities = picked.length ? priorities.filter((p) => !picked.includes(p)) : [];
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4 p-6">
@@ -110,16 +118,16 @@ function MyActionsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-stretch gap-x-4 gap-y-4 border-b border-border pb-4">
-        <ActionCalendar owner={owner} range={dateRange} onChange={(r) => { setDateRange(r); toActions(); }} />
-        <ActionsBanner view={view} onView={onView} counts={counts} inbox={inbox} onToggleInbox={onToggleInbox}
-          toggles={toggles} onToggle={(k) => { setToggles((t) => ({ ...t, [k]: !t[k] })); toActions(); }}
-          priorities={priorities} hiddenPriorities={hiddenPriorities}
-          onTogglePriority={(p) => { setHiddenPriorities((h) => h.includes(p) ? h.filter((x) => x !== p) : [...h, p]); toActions(); }} />
+      <div className="flex flex-wrap items-stretch gap-x-4 gap-y-3 border-b border-border pb-3">
+        <ActionCalendar compact owner={owner} range={dateRange} onChange={(r) => { setDateRange(r); toActions(); }} />
+        <ActionsFilterBar view={view} onView={onView} counts={counts} inbox={inbox} onToggleInbox={onToggleInbox}
+          kinds={kinds} kindCounts={kindCounts} onKinds={setKinds}
+          priorities={priorities} picked={picked} onPicked={setPicked}
+          showWs={showWs} onShowWs={setShowWs} search={listSearch} onSearch={setListSearch} />
       </div>
 
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
-        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} toggles={toggles} hiddenPriorities={hiddenPriorities} />}
+        {tab === "actions" && <ActionsTab owner={owner} onAction={setCtx} focusGid={search.ws} focusFu={search.fu} dateRange={dateRange} toggles={toggles} hiddenPriorities={hiddenPriorities} search={listSearch} onKindCounts={setKindCounts} />}
         {/* Kept mounted so the inbox counts in the banner are always current. */}
         <div className={tab === "notes" ? "" : "hidden"}><NotesTab owner={owner} show={inbox} onAction={setCtx} onCounts={setCounts} /></div>
         {tab === "done" && <DoneTab owner={owner} />}
@@ -142,16 +150,22 @@ function NotesTab({ owner, show, onAction, onCounts }: { owner: string; show: In
   );
 }
 
-function SplitPane({ list, detail }: { list: React.ReactNode; detail: React.ReactNode }) {
+/** PortCo-page layout: compact list left, detail right; on narrow screens the detail opens inline under its row. */
+function SplitPane({ list, detail, wide }: { list: React.ReactNode; detail: React.ReactNode; wide: boolean }) {
   return (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <Card className="min-w-0"><CardContent className="max-h-[75vh] overflow-x-hidden overflow-y-auto p-0">{list}</CardContent></Card>
-      <Card className="min-w-0 lg:sticky lg:top-4 self-start w-full"><CardContent className="max-h-[75vh] overflow-x-hidden overflow-y-auto p-4 [overflow-wrap:anywhere]">{detail}</CardContent></Card>
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
+      <div className="min-w-0 space-y-1 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">{list}</div>
+      {wide && <Card className="min-w-0 self-start w-full"><CardContent className="lg:max-h-[calc(100vh-220px)] overflow-x-hidden overflow-y-auto p-4 [overflow-wrap:anywhere]">{detail}</CardContent></Card>}
     </div>
   );
 }
+function useIsWide() {
+  const [wide, setWide] = useState(true);
+  useEffect(() => { const m = window.matchMedia("(min-width: 1024px)"); const f = () => setWide(m.matches); f(); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, []);
+  return wide;
+}
 
-const rowCls = (on: boolean) => `block w-full px-3 py-2 text-left hover:bg-muted/40 ${on ? "bg-secondary/60" : ""}`;
+const rowCls = (on: boolean) => `block w-full rounded-md border bg-card px-2 py-1.5 text-left ${on ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`;
 
 function Logo({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   const { data = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
@@ -191,7 +205,10 @@ function Bullet({ kind, company, website }: { kind: "ws" | "fu"; company: string
 }
 
 /** Merged My Actions feed: workstreams and follow-ups grouped by PortCo / company. */
-function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hiddenPriorities }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange; toggles: Record<FeedToggle, boolean>; hiddenPriorities: string[] }) {
+function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hiddenPriorities, search, onKindCounts }: { owner: string; onAction: (c: ActionContext) => void; focusGid?: string; focusFu?: string; dateRange: ActionDateRange; toggles: FeedToggles; hiddenPriorities: string[]; search: string; onKindCounts: (c: Record<CompanyKind, number>) => void }) {
+  const wide = useIsWide();
+  const q = search.trim().toLowerCase();
+  const hit = (...xs: (string | undefined)[]) => !q || xs.some((x) => (x || "").toLowerCase().includes(q));
   const { workstreams, loading: wsLoading, refresh } = useWorkstreams();
   const qc = useQueryClient();
   const ownerEmail = teamMemberFor(owner)?.email || "";
@@ -213,7 +230,6 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const [pick, setPick] = useState({ summary: "", person: "", due: "", company: "" });
   const [noteFor, setNoteFor] = useState("");
   const [noteText, setNoteText] = useState("");
-  const [editFor, setEditFor] = useState("");
 
   const { data: homeData, isLoading: fuLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
@@ -222,13 +238,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
 
   // Workstreams owned by the selected person.
   const mine = useMemo(() => workstreams.filter((w) => ownerMatches(w.owner, owner)), [workstreams, owner]);
-  const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && !hiddenPriorities.includes(w.workstreamPriority))
-    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, hiddenPriorities]);
+  const wsList = useMemo(() => mine.filter((w) => (showDone || !isWorkstreamCompleted(w)) && !hiddenPriorities.includes(w.workstreamPriority) && hit(w.name, w.rawName, w.company))
+    .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name)), [mine, showDone, hiddenPriorities, q]); // eslint-disable-line react-hooks/exhaustive-deps
   const companies = useMemo(() => [...new Set(workstreams.map((w) => w.company).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [workstreams]);
 
   // Follow-ups owned by the selected person, date-filtered by the calendar.
   const fuAll = useMemo(() => [...(homeData?.reminders || [])].filter((x) => !hidden.has(x.id)).sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999")), [homeData, hidden]);
-  const fuList = useMemo(() => fuAll.filter((x) => !dateRange || inActionRange(x.due, dateRange)), [fuAll, dateRange]);
+  const fuList = useMemo(() => fuAll.filter((x) => (!dateRange || inActionRange(x.due, dateRange)) && hit(x.summary, x.person, x.company, x.details)), [fuAll, dateRange, q]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deep link (?ws=gid): select it, and show completed ones too if that's where it lives.
   useEffect(() => {
@@ -243,7 +259,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   // Groups keyed by company: workstreams first, then follow-ups. A follow-up linked
   // to a workstream (via the editor or Action Now) nests under that workstream even
   // when the follow-up's company tag differs from the workstream's company name.
-  const groups = useMemo(() => {
+  const allGroups = useMemo(() => {
     const byGid = new Map(wsList.map((w) => [w.gid, w]));
     const linked = new Map<string, Reminder[]>();
     const general: Reminder[] = [];
@@ -256,7 +272,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     const m = new Map<string, { ws: Workstream[]; fu: Reminder[] }>();
     const ensure = (k: string) => { const g = m.get(k) || { ws: [] as Workstream[], fu: [] as Reminder[] }; m.set(k, g); return g; };
     if (toggles.workstreams) for (const w of wsList) ensure(w.company || "No PortCo").ws.push(w);
-    for (const x of general) ensure((x.company || "").split(/\s*,\s*/)[0] || "No company").fu.push(x);
+    for (const x of general) ensure(networkGroupKey(x.company, x.person) || "No company").fu.push(x);
     return [...m.entries()]
       .map(([company, g]) => {
         const kind = portcoNames.has(norm(company)) ? "portcos" as const
@@ -266,9 +282,16 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         for (const w of g.ws) if (linked.has(w.gid)) gLinked.set(w.gid, linked.get(w.gid)!);
         return { company, ws: g.ws, linked: gLinked, general: g.fu, kind };
       })
-      .filter((g) => companyKindVisible(toggles, g.kind) && (g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0))
+      .filter((g) => g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0)
       .sort((a, b) => a.company.localeCompare(b.company));
-  }, [wsList, fuList, toggles, portcoNames]);
+  }, [wsList, fuList, toggles.workstreams, portcoNames]); // eslint-disable-line react-hooks/exhaustive-deps
+  const groups = useMemo(() => allGroups.filter((g) => companyKindVisible(toggles, g.kind)), [allGroups, toggles.portcos, toggles.network, toggles.ops]); // eslint-disable-line react-hooks/exhaustive-deps
+  const kindCountKey = allGroups.map((g) => `${g.kind}:${g.ws.length + g.general.length + [...g.linked.values()].flat().length}`).join(",");
+  useEffect(() => {
+    const c = { portcos: 0, network: 0, ops: 0 };
+    for (const g of allGroups) c[g.kind] += g.ws.length + g.general.length + [...g.linked.values()].flat().length;
+    onKindCounts(c);
+  }, [kindCountKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Non-PortCo sorts show one flat list; a linked follow-up takes its workstream's priority.
   const flat = useMemo(() => sort === "portco" ? [] : sortActions(groups.flatMap((g) => [
@@ -388,9 +411,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
         {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
         {x.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={x.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
-        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setEditFor(editFor === x.id ? "" : x.id); setNoteFor(""); }}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>
       </div>
-      {editFor === x.id && <FollowUpEditor key={x.id} reminder={x} onClose={() => setEditFor("")} />}
       {noteFor === x.id && <div className="space-y-2 rounded-md border border-border p-3">
         <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What did you do? (optional note)</div>
         <textarea value={noteText} onChange={(e) => setNoteText(e.target.value)} rows={3} placeholder='e.g. "Sent the intro deck" or "Already handled on the call"' className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
@@ -401,13 +422,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       </div>}
       {!canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
       {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
-      <div className="flex justify-end border-t border-border pt-3">
-        <div className="space-y-0.5 text-right text-xs text-muted-foreground">
-          <div className="flex items-center justify-end gap-1.5"><Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>{x.company}</div>
-          <div>{x.people ? x.people.map((p) => p.name || p.email).join(", ") : `${x.person}${x.email ? ` · ${x.email}` : ""}`}</div>
-          <div className="tabular-nums">{x.due ? `Due ${x.due.slice(0, 10)}` : "No date"}</div>
-        </div>
-      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 text-xs sm:grid-cols-4">
+        <div><dt className="text-muted-foreground">Source</dt><dd className="font-medium">{x.source}</dd></div>
+        <div><dt className="text-muted-foreground">Created</dt><dd className="font-medium tabular-nums">{x.date ? x.date.slice(0, 10) : "—"}</dd></div>
+        <div><dt className="text-muted-foreground">Due</dt><dd className="font-medium tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</dd></div>
+        <div><dt className="text-muted-foreground">Owner</dt><dd className="font-medium">{teamMemberFor(x.owner)?.displayName || x.owner || "—"}</dd></div>
+      </dl>
+      <FollowUpEditor inline key={x.id} reminder={x} />
       {similar.length > 0 && <div className="space-y-2 rounded-md border border-border p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Similar actions · {similar.length}</div>
@@ -422,93 +443,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     </div>;
   };
 
-  const fuRow = (x: Reminder, company: string, website: string, nested: boolean, showCompany: boolean) => (
-    <button key={x.id} onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} className={`${rowCls(!mergeMode && cur?.kind === "fu" && cur.id === x.id)} ${showCompany ? "pl-3" : nested ? "pl-16" : "pl-10"}`}>
-      <div className="flex min-w-0 items-start gap-2">
-        {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-primary" />}
-        <Bullet kind="fu" company={company} website={website} />
-        <div className="min-w-0 flex-1">
-          <span className="block text-sm font-medium [overflow-wrap:anywhere]">{x.summary || `Follow up with ${x.person}`}</span>
-          <span className="mt-1 flex flex-wrap justify-end gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-            {showCompany && <span className="max-w-[140px] truncate font-medium text-foreground/80">{company}</span>}
-            <Badge variant="outline" className="h-4 px-1 text-[9px]">{x.source}</Badge>
-            <span className="hidden max-w-[110px] truncate sm:inline">{x.person}</span>
-            <span className="tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</span>
-          </span>
-        </div>
-      </div>
-    </button>
-  );
-  const wsRow = (w: Workstream, company: string, website: string, showCompany: boolean) => (
-    <button onClick={() => setSel({ kind: "ws", id: w.gid })} className={`${rowCls(cur?.kind === "ws" && cur.id === w.gid)} ${showCompany ? "pl-3" : "pl-10"}`}>
-      <div className="flex min-w-0 items-start gap-2">
-        <Bullet kind="ws" company={company} website={website} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm">{w.name || w.rawName}</div>
-          <div className="mt-1 flex flex-wrap items-center justify-end gap-1">
-            {showCompany && <span className="mr-auto max-w-[160px] truncate text-xs font-medium text-foreground/80">{company}</span>}
-            <Badge variant="outline" className="text-[10px]">{w.segment}</Badge>
-            <Badge variant="outline" className={`text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
-            {w.workstreamPriority && <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground">{w.workstreamPriority}</Badge>}
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {toggles.workstreams ? `${wsList.length} workstreams` : ""}{toggles.workstreams && toggles.followups ? " · " : ""}{toggles.followups ? `${fuList.length} follow-ups` : ""}
-        </span>
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>· Sort by</span>
-          <Select value={sort} onValueChange={(v) => setSort(v as ActionSort)}>
-            <SelectTrigger aria-label="Sort actions by" className="h-6 w-auto gap-1 border-0 bg-transparent px-1 text-xs font-medium text-foreground shadow-none"><SelectValue /></SelectTrigger>
-            <SelectContent>{ACTION_SORTS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </label>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button size="sm" variant={mergeMode ? "secondary" : "outline"} className="h-7" onClick={() => { setMergeMode((m) => !m); setMergeSel([]); }}>
-            <Merge className="mr-1 h-3.5 w-3.5" />{mergeMode ? `Merging (${mergeSel.length})` : "Merge"}
-          </Button>
-          <Button size="sm" variant="outline" className="h-7" onClick={() => setCreating((c) => !c)}><Plus className="h-3.5 w-3.5 mr-1" />New workstream</Button>
-        </div>
-      </div>
-      {creating && <NewWorkstreamForm companies={companies} onDone={(gid) => { setCreating(false); if (gid) { void refresh().then(() => setSel({ kind: "ws", id: gid })); } }} />}
-      {loading && <p className="text-sm text-muted-foreground">Loading actions…</p>}
-      {!loading && !groups.length && <p className="text-sm text-muted-foreground">No actions for {owner} with these filters.</p>}
-      {groups.length > 0 && <SplitPane
-        list={<div className="divide-y divide-border">{sort !== "portco" ? flat.map((it) => {
-          const website = websites.get(norm(it.company)) || "";
-          return it.ws ? <div key={it.key}>{wsRow(it.ws, it.company, website, true)}</div> : fuRow(it.fu!, it.company, website, false, true);
-        }) : groups.map((g) => {
-          const isClosed = closed.has(g.company);
-          const website = websites.get(norm(g.company)) || "";
-          const fuCount = g.general.length + [...g.linked.values()].flat().length;
-          return (
-            <div key={g.company}>
-              <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
-                className="flex w-full items-center gap-2 bg-muted/20 px-3 py-2 text-left hover:bg-muted/40">
-                {isClosed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                <Logo name={g.company} size="sm" />
-                <span className="flex-1 truncate text-sm font-semibold">{g.company}</span>
-                <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{g.ws.length + fuCount}</span>
-              </button>
-              {!isClosed && <div className="divide-y divide-border">
-                {g.ws.map((w) => (
-                  <div key={w.gid}>
-                    {wsRow(w, g.company, website, false)}
-                    {(g.linked.get(w.gid) || []).map((x) => fuRow(x, g.company, website, true, false))}
-                  </div>
-                ))}
-                {g.general.map((x) => fuRow(x, g.company, website, false, false))}
-              </div>}
-            </div>
-          );
-        })}</div>}
-        detail={mergeMode && mergeRows.length >= 2 ? <div className="space-y-4">
+  const detailNode = mergeMode && mergeRows.length >= 2 ? <div className="space-y-4">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Merge {mergeRows.length} follow-ups</div>
           <p className="text-xs text-muted-foreground">Pick which value to keep for each field. The follow-up whose summary you keep stays open; the others close with a merge note.</p>
           {mergeField("Summary (this one stays open)", "summary", (x) => x.summary || `Follow up with ${x.person}`)}
@@ -546,7 +481,102 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
               </button>
             ))}
           </div>}
-        </div> : r ? fuDetail(r) : <p className="text-sm text-muted-foreground">Select an action to see its details.</p>}
+        </div> : r ? fuDetail(r) : <p className="text-sm text-muted-foreground">Select an action to see its details.</p>;
+  const inline = (on: boolean) => !wide && on ? <div className="mb-2 mt-1 rounded-lg border border-border bg-card p-4 [overflow-wrap:anywhere]">{detailNode}</div> : null;
+  const priChip = (p?: string) => p ? <span title={p} className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold ${priorityTone(p)}`}>{priorityShort(p)}</span> : null;
+
+  const fuRow = (x: Reminder, company: string, website: string, nested: boolean, showCompany: boolean, priority?: string) => {
+    const on = !mergeMode && cur?.kind === "fu" && cur.id === x.id;
+    const full = x.summary || `Follow up with ${x.person}`;
+    return <div key={x.id} className={nested ? "pl-6" : ""}>
+      <button onClick={() => mergeMode ? toggleMerge(x.id) : setSel({ kind: "fu", id: x.id })} aria-expanded={on} title={full} className={rowCls(on)}>
+        <div className="flex min-w-0 items-center gap-2">
+          {mergeMode && <input type="checkbox" checked={mergeSel.includes(x.id)} readOnly className="h-3.5 w-3.5 shrink-0 accent-primary" />}
+          <Bullet kind="fu" company={company} website={website} />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{abbreviateTitle(full, company, 48)}</span>
+          {showCompany && <span className="hidden max-w-[90px] truncate text-[11px] text-muted-foreground sm:inline">{company}</span>}
+          {priChip(priority)}
+          <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">{x.due ? x.due.slice(5, 10) : "—"}</span>
+        </div>
+      </button>
+      {inline(on)}
+    </div>;
+  };
+  const wsRow = (w: Workstream, company: string, website: string, showCompany: boolean) => {
+    const on = cur?.kind === "ws" && cur.id === w.gid;
+    const full = w.name || w.rawName;
+    return <>
+      <button onClick={() => setSel({ kind: "ws", id: w.gid })} aria-expanded={on} title={full} className={rowCls(on)}>
+        <div className="flex min-w-0 items-center gap-2">
+          <Bullet kind="ws" company={company} website={website} />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{abbreviateTitle(full, company, 44)}</span>
+          {showCompany && <span className="hidden max-w-[90px] truncate text-[11px] text-muted-foreground sm:inline">{company}</span>}
+          {priChip(w.workstreamPriority)}
+          <Badge variant="outline" className={`shrink-0 px-1 text-[10px] ${statusTone(workstreamBarStatus(w))}`}>{workstreamBarStatus(w)}</Badge>
+        </div>
+      </button>
+      {inline(on)}
+    </>;
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {toggles.workstreams ? `${wsList.length} workstreams` : ""}{toggles.workstreams && toggles.followups ? " · " : ""}{toggles.followups ? `${fuList.length} follow-ups` : ""}
+        </span>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <span>· Sort by</span>
+          <Select value={sort} onValueChange={(v) => setSort(v as ActionSort)}>
+            <SelectTrigger aria-label="Sort actions by" className="h-6 w-auto gap-1 border-0 bg-transparent px-1 text-xs font-medium text-foreground shadow-none"><SelectValue /></SelectTrigger>
+            <SelectContent>{ACTION_SORTS.map((o) => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </label>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button size="sm" variant={mergeMode ? "secondary" : "outline"} className="h-7" onClick={() => { setMergeMode((m) => !m); setMergeSel([]); }}>
+            <Merge className="mr-1 h-3.5 w-3.5" />{mergeMode ? `Merging (${mergeSel.length})` : "Merge"}
+          </Button>
+          <Button size="sm" variant="outline" className="h-7" onClick={() => setCreating((c) => !c)}><Plus className="h-3.5 w-3.5 mr-1" />New workstream</Button>
+        </div>
+      </div>
+      {creating && <NewWorkstreamForm companies={companies} onDone={(gid) => { setCreating(false); if (gid) { void refresh().then(() => setSel({ kind: "ws", id: gid })); } }} />}
+      {loading && <p className="text-sm text-muted-foreground">Loading actions…</p>}
+      {!loading && !groups.length && <p className="text-sm text-muted-foreground">No actions for {owner} with these filters.</p>}
+      {groups.length > 0 && <SplitPane
+        list={sort !== "portco" ? flat.map((it) => {
+          const website = websites.get(norm(it.company)) || "";
+          return it.ws ? <div key={it.key}>{wsRow(it.ws, it.company, website, true)}</div> : fuRow(it.fu!, it.company, website, false, true, it.priority);
+        }) : (["portcos", "network", "ops"] as const).filter((k) => groups.some((g) => g.kind === k)).map((k, _i, shown) => (
+          <section key={k} className="space-y-1 pb-2">
+            {shown.length > 1 && <h2 className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{KIND_LABEL[k]}</h2>}
+            {groups.filter((g) => g.kind === k).map((g) => {
+              const isClosed = closed.has(g.company);
+              const website = websites.get(norm(g.company)) || "";
+              const fuCount = g.general.length + [...g.linked.values()].flat().length;
+              return (
+                <div key={g.company} className="space-y-1">
+                  <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
+                    className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-muted/40">
+                    {isClosed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <Logo name={g.company} size="sm" />
+                    <span className="flex-1 truncate text-sm font-semibold">{g.company}</span>
+                    <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">{g.ws.length + fuCount}</span>
+                  </button>
+                  {!isClosed && <div className="space-y-1 pl-5">
+                    {g.ws.map((w) => (
+                      <div key={w.gid} className="space-y-1">
+                        {wsRow(w, g.company, website, false)}
+                        {(g.linked.get(w.gid) || []).map((x) => fuRow(x, g.company, website, true, false, w.workstreamPriority))}
+                      </div>
+                    ))}
+                    {g.general.map((x) => fuRow(x, g.company, website, false, false))}
+                  </div>}
+                </div>
+              );
+            })}
+          </section>
+        ))}
+        detail={detailNode} wide={wide}
       />}
     </div>
   );

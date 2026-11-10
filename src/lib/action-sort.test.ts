@@ -34,3 +34,23 @@ describe("sortActions", () => {
     expect(priorityRank("")).toBeGreaterThan(priorityRank("3. Could Do"));
   });
 });
+
+import { abbreviateTitle, networkGroupKey } from "./action-sort";
+
+describe("abbreviateTitle", () => {
+  it("drops the company and track prefix", () => {
+    expect(abbreviateTitle("Acme – GTM: Intro to Dell sales", "Acme")).toBe("Intro to Dell sales");
+  });
+  it("cuts long titles at a word boundary with an ellipsis", () => {
+    expect(abbreviateTitle("Send the updated partnership deck to the whole team", "", 30)).toBe("Send the updated partnership…");
+  });
+});
+
+describe("networkGroupKey", () => {
+  it("uses the contact's first company", () => {
+    expect(networkGroupKey("NVIDIA, Dell", "Chris Brown")).toBe("NVIDIA");
+  });
+  it("falls back to the contact's name with no company", () => {
+    expect(networkGroupKey("", "Chris Brown")).toBe("Chris Brown");
+  });
+});
