@@ -20,10 +20,16 @@ export interface OwnershipLayout {
   /** Log view: companies invested under this ($M) sit in a separate left column. */
   lowBandBelow: number | null;
   lowBand: MatrixPoint[];
+  /** Log view: companies owning under this fraction sit in a separate bottom row. */
+  lowOwnershipBelow: number | null;
+  lowOwnership: MatrixPoint[];
 }
 
 /** Under this many $M, the log view groups companies into the left "Under $2M" column. */
 export const LOW_INVESTMENT_BAND = 2;
+
+/** Under this ownership fraction, the log view groups companies into the bottom "Under 1%" row. */
+export const LOW_OWNERSHIP_BAND = 0.01;
 
 /** "Nice" ceiling for an axis so ticks land on round numbers. */
 export function niceCeil(v: number): number {
@@ -80,19 +86,28 @@ export function ownershipLayout(points: MatrixPoint[], kind: AxisKind = "log"): 
     else notPlotted.push(p);
   }
   const inv = (p: MatrixPoint) => p.investment ?? 0;
+  const own = (p: MatrixPoint) => p.ownership ?? 0;
   const band =
     kind === "log" && plotted.some((p) => inv(p) < LOW_INVESTMENT_BAND) && plotted.some((p) => inv(p) >= LOW_INVESTMENT_BAND)
       ? LOW_INVESTMENT_BAND
       : null;
   const lowBand = band == null ? [] : plotted.filter((p) => inv(p) < band);
   const onAxis = band == null ? plotted : plotted.filter((p) => inv(p) >= band);
+  const ownBand =
+    kind === "log" && plotted.some((p) => own(p) < LOW_OWNERSHIP_BAND) && plotted.some((p) => own(p) >= LOW_OWNERSHIP_BAND)
+      ? LOW_OWNERSHIP_BAND
+      : null;
+  const lowOwnership = ownBand == null ? [] : plotted.filter((p) => own(p) < ownBand);
+  const onOwnAxis = ownBand == null ? plotted : plotted.filter((p) => own(p) >= ownBand);
   return {
     plotted,
     notPlotted,
     investment: fitAxis(onAxis.map(inv), kind, band ?? undefined),
-    ownership: fitAxis(plotted.map((p) => p.ownership ?? 0), kind),
+    ownership: fitAxis(onOwnAxis.map(own), kind, ownBand ?? undefined),
     lowBandBelow: band,
     lowBand,
+    lowOwnershipBelow: ownBand,
+    lowOwnership,
   };
 }
 
