@@ -510,14 +510,14 @@
 .network-overview { container-type: inline-size; }
 .network-overview-body {
   display: grid;
-  --chart-w: clamp(210px, 28cqi, 320px);
+  --chart-w: clamp(180px, 24cqi, 260px);
   grid-template-columns: var(--chart-w) minmax(0, 1fr);
   gap: 24px;
 }
 .network-tier-chart {
   display: grid;
-  height: 280px;
-  padding-top: 30px;
+  height: 224px;
+  padding-top: 24px;
 }
 .network-breakdown { --network-columns: 4; }
 .network-breakdown-geo { --network-columns: 8; }
@@ -527,9 +527,9 @@
   display: grid;
   grid-template-columns: repeat(var(--network-columns), minmax(0, 1fr));
 }
-.network-column-headings { height: 30px; align-items: start; }
+.network-column-headings { height: 24px; align-items: start; }
 .network-data-row {
-  height: 50px;
+  height: 40px;
   align-items: center;
   border-bottom: 1px solid var(--border);
 }
@@ -554,7 +554,7 @@
 .network-tier:hover polygon, .network-tier:focus-visible polygon { filter: brightness(1.12); }
 .network-tier[aria-pressed="true"] polygon { stroke: var(--foreground); stroke-width: 1.5; }
 .network-cell {
-  height: 44px;
+  height: 36px;
   flex-direction: column;
   gap: 1px;
   overflow: hidden;

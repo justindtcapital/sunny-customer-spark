@@ -22,12 +22,10 @@ import { DEFAULT_VISIBLE_TIERS, prospectAsContact, tierVisible, toggleTier } fro
 import { isPortCoContact, portcoKeys } from "@/lib/portco-contacts";
 
 import { ContactList } from "@/components/crm/ContactList";
-import { syncAsanaActivities, syncActivityTracks } from "@/utils/activity-sync.functions";
-import { syncGmailCrmTouches } from "@/utils/gmail-crm-sync.functions";
 import { syncEventExposure } from "@/utils/event-exposure.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Activity, Mail, Users, Merge } from "lucide-react";
+import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Users, Merge } from "lucide-react";
 import { DuplicatesDialog } from "@/components/crm/DuplicatesDialog";
 import {
   Dialog,
@@ -120,7 +118,6 @@ function CrmPage() {
   const router = useRouter();
   const navigate = useNavigate({ from: "/crm" });
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
-  const [pyramidOpen, setPyramidOpen] = useState(true);
   const [pyramidSel, setPyramidSel] = useState<PyramidSelection | null>(null);
   const [visibleTiers, setVisibleTiers] = useState<PyramidTier[]>(DEFAULT_VISIBLE_TIERS);
   const prospectContacts = useMemo(() => prospects.map(prospectAsContact), [prospects]);
@@ -151,9 +148,6 @@ function CrmPage() {
   const [addNoteText, setAddNoteText] = useState("");
   const [addFollowUp, setAddFollowUp] = useState(false);
 
-  const [asanaSyncBusy, setAsanaSyncBusy] = useState(false);
-  const [gmailSyncBusy, setGmailSyncBusy] = useState(false);
-  const syncBusy = asanaSyncBusy || gmailSyncBusy;
 
   const handleAddContact = async () => {
     const name = addForm.name.trim();
@@ -170,7 +164,7 @@ function CrmPage() {
     setAddBusy(true);
     try {
       // Stamp the signed-in teammate as Relationship Prime so the contact shows
-      // under the default "Mine" ownership filter (not just Everyone).
+      // under the "My contacts" ownership filter.
       const prime = profile?.displayName || email || "";
 
       let role = addForm.title.trim();
@@ -294,168 +288,6 @@ function CrmPage() {
     }
   };
 
-  // Pull BD/GTM activities from Asana (or Gmail aliases) and log onto matched
-  // contacts (deduped, read-only). Safe to re-run — only new rows land.
-  const handleSyncAsana = async () => {
-    setAsanaSyncBusy(true);
-    try {
-      const [res, exp, tracks] = await Promise.all([
-        syncAsanaActivities({ data: { source: "asana" } }),
-        syncEventExposure(),
-        syncActivityTracks({ data: { source: "asana" } }),
-      ]);
-      if (!res.ok) {
-        toast.error(
-          /fetch failed|timed out|UND_ERR|ENOTFOUND|network/i.test(res.error || "")
-            ? "Couldn't reach Asana — connection timed out. BD/GTM still displays from the sheet tabs."
-            : res.error || "Asana sync failed.",
-        );
-        return;
-      }
-      if (res.activities === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0) {
-        toast.info("No BD/GTM Asana activities found (check ASANA_* project GIDs).");
-      } else if (res.logged === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0 && res.contactsCreated === 0) {
-        toast.success(
-          `Asana up to date — ${res.matched} matched activit${res.matched !== 1 ? "ies" : "y"}, nothing new to log.`,
-        );
-      } else {
-        const parts: string[] = [];
-        if (res.contactsCreated > 0) {
-          parts.push(
-            `+${res.contactsCreated} new contact${res.contactsCreated !== 1 ? "s" : ""}`,
-          );
-        }
-        if (res.logged > 0) {
-          parts.push(
-            `Logged ${res.logged} Asana activit${res.logged !== 1 ? "ies" : "y"} across ${res.contactsTouched} contact${res.contactsTouched !== 1 ? "s" : ""}`,
-          );
-        }
-        if (res.portcosLogged > 0) {
-          parts.push(
-            `${res.portcosLogged} PortCo tag${res.portcosLogged !== 1 ? "s" : ""}`,
-          );
-        }
-        if (res.portcosBackfilled > 0) {
-          parts.push(
-            `${res.portcosBackfilled} PortCo backfill${res.portcosBackfilled !== 1 ? "s" : ""}`,
-          );
-        }
-        toast.success(
-          parts.join(" · ") +
-            (res.skipped > 0 && res.logged > 0 ? ` · ${res.skipped} already synced.` : "."),
-        );
-      }
-      if (!exp.ok) {
-        toast.error(exp.error || "Event-exposure sync failed.");
-      } else if (exp.exposuresLogged > 0 || exp.engagementsLogged > 0) {
-        toast.success(
-          `Event exposure: tagged ${exp.exposuresLogged} compan${exp.exposuresLogged !== 1 ? "ies" : "y"}` +
-            (exp.engagementsLogged > 0
-              ? ` · ${exp.engagementsLogged} attendee engagement${exp.engagementsLogged !== 1 ? "s" : ""}.`
-              : "."),
-        );
-      }
-      if (!tracks.ok) {
-        toast.error(tracks.error || "BD/GTM tab sync failed.");
-      } else if (tracks.bdLogged > 0 || tracks.gtmLogged > 0) {
-        toast.success(
-          `BD/GTM tabs: added ${tracks.bdLogged} BD · ${tracks.gtmLogged} GTM row${tracks.gtmLogged !== 1 ? "s" : ""}.`,
-        );
-      }
-      await router.invalidate();
-      await ownershipQuery.refetch();
-    } catch (e) {
-      console.error("sync with Asana failed", e);
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(
-        /fetch failed|timed out|UND_ERR|ENOTFOUND|network/i.test(msg)
-          ? "Couldn't reach Asana — connection timed out. BD/GTM still displays from the sheet tabs."
-          : "Asana sync failed — see console.",
-      );
-    } finally {
-      setAsanaSyncBusy(false);
-    }
-  };
-
-  // Pull BD/GTM alias email (and subject-classified threads) into Notes + BD/GTM tabs.
-  const handleSyncGmail = async () => {
-    setGmailSyncBusy(true);
-    try {
-      const [res, tracks, gmailCrm] = await Promise.all([
-        syncAsanaActivities({ data: { source: "gmail" } }),
-        syncActivityTracks({ data: { source: "gmail" } }),
-        syncGmailCrmTouches(),
-      ]);
-      if (!res.ok) {
-        toast.error(res.error || "Gmail sync failed.");
-        return;
-      }
-      if (res.activities === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0) {
-        toast.info("No BD/GTM Gmail activities found (check GMAIL_BD_ALIAS / GMAIL_GTM_ALIAS).");
-      } else if (res.logged === 0 && res.portcosLogged === 0 && res.portcosBackfilled === 0 && res.contactsCreated === 0) {
-        toast.success(
-          `Gmail up to date — ${res.matched} matched activit${res.matched !== 1 ? "ies" : "y"}, nothing new to log.`,
-        );
-      } else {
-        const parts: string[] = [];
-        if (res.contactsCreated > 0) {
-          parts.push(
-            `+${res.contactsCreated} new contact${res.contactsCreated !== 1 ? "s" : ""}`,
-          );
-        }
-        if (res.logged > 0) {
-          parts.push(
-            `Logged ${res.logged} Gmail activit${res.logged !== 1 ? "ies" : "y"} across ${res.contactsTouched} contact${res.contactsTouched !== 1 ? "s" : ""}`,
-          );
-        }
-        if (res.portcosLogged > 0) {
-          parts.push(
-            `${res.portcosLogged} PortCo tag${res.portcosLogged !== 1 ? "s" : ""}`,
-          );
-        }
-        if (res.portcosBackfilled > 0) {
-          parts.push(
-            `${res.portcosBackfilled} PortCo backfill${res.portcosBackfilled !== 1 ? "s" : ""}`,
-          );
-        }
-        toast.success(
-          parts.join(" · ") +
-            (res.skipped > 0 && res.logged > 0 ? ` · ${res.skipped} already synced.` : "."),
-        );
-      }
-      if (!tracks.ok) {
-        toast.error(tracks.error || "BD/GTM tab sync failed.");
-      } else if (tracks.bdLogged > 0 || tracks.gtmLogged > 0) {
-        toast.success(
-          `BD/GTM tabs: added ${tracks.bdLogged} BD · ${tracks.gtmLogged} GTM row${tracks.gtmLogged !== 1 ? "s" : ""}.`,
-        );
-      }
-      if (!gmailCrm.ok) {
-        toast.error(gmailCrm.error || "Gmail CRM deepen failed.");
-      } else if (!gmailCrm.skipped && (gmailCrm.logged > 0 || gmailCrm.eventsLogged > 0)) {
-        const parts: string[] = [];
-        if (gmailCrm.logged > 0) {
-          parts.push(
-            `${gmailCrm.logged} touch${gmailCrm.logged !== 1 ? "es" : ""} across ${gmailCrm.matchedContacts} contact${gmailCrm.matchedContacts !== 1 ? "s" : ""}`,
-          );
-        }
-        if (gmailCrm.eventsLogged > 0) {
-          parts.push(
-            `${gmailCrm.eventsLogged} event link${gmailCrm.eventsLogged !== 1 ? "s" : ""}`,
-          );
-        }
-        toast.success(`Gmail CRM: ${parts.join(" · ")}.`);
-      }
-      await router.invalidate();
-      await ownershipQuery.refetch();
-    } catch (e) {
-      console.error("sync with Gmail failed", e);
-      toast.error("Gmail sync failed — see console.");
-    } finally {
-      setGmailSyncBusy(false);
-    }
-  };
-
   // Export the checkbox-selected contacts if any are selected, otherwise
   // everything currently in view (respecting active filters).
   const handleExport = (format: "csv" | "xlsx") => {
@@ -537,7 +369,7 @@ function CrmPage() {
 
   return (
     <div className="min-w-0 p-4 sm:p-6 max-w-[1400px] mx-auto">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 mb-6">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 mb-4">
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-foreground">Network CRM</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -545,41 +377,6 @@ function CrmPage() {
           </p>
         </div>
         <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 xl:col-span-1 xl:justify-end">
-          {!pyramidOpen && (
-            <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded={false} onExpandedChange={setPyramidOpen} />
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs"
-            onClick={handleSyncAsana}
-            disabled={syncBusy}
-            title="Pull BD/GTM activities from Asana and log each onto matched contacts (read-only, deduped). Safe to re-run."
-          >
-            {asanaSyncBusy ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Activity className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {asanaSyncBusy ? "Syncing Asana…" : "Sync with Asana"}
-          </Button>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs"
-            onClick={handleSyncGmail}
-            disabled={syncBusy}
-            title="Pull BD/GTM tracking-alias email into Notes and the BD/GTM tabs (read-only, deduped). Safe to re-run."
-          >
-            {gmailSyncBusy ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Mail className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {gmailSyncBusy ? "Syncing Gmail…" : "Sync with Gmail"}
-          </Button>
-
           <Button
             variant="outline"
             size="sm"
@@ -647,9 +444,7 @@ function CrmPage() {
         </div>
       </div>
 
-      {pyramidOpen && (
-        <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} visibleTiers={visibleTiers} onToggleTier={onToggleTier} expanded onExpandedChange={setPyramidOpen} />
-      )}
+      <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} visibleTiers={visibleTiers} onToggleTier={onToggleTier} expanded onExpandedChange={() => {}} />
       <ContactList
         portcoVisibilityControl
         contacts={listContacts}
