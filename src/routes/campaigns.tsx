@@ -48,6 +48,7 @@ import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { useAuth } from "@/lib/auth-context";
 import { CampaignList, CampaignTypeBadge } from "@/components/campaigns/CampaignList";
 import { CampaignResults } from "@/components/campaigns/CampaignResults";
+import { clearPreload, readPreload } from "@/lib/campaign-preload";
 import {
   CAMPAIGN_PURPOSES,
   CAMPAIGN_TEAM,
@@ -408,12 +409,6 @@ function StartStep({
   // People picked on the Network page ("Add to campaign" → New); added once this campaign is named and saved.
   const preloadSearch = Route.useSearch().preload;
   const [preloaded, setPreloaded] = useState<CandidatePerson[]>([]);
-  useEffect(() => {
-    if (!preloadSearch) return;
-    const people = readPreload();
-    setPreloaded(people);
-    if (people.length) setPurpose((p) => p || "Network outreach");
-  }, [preloadSearch]);
   const discardPreload = () => {
     clearPreload();
     setPreloaded([]);
@@ -450,6 +445,13 @@ function StartStep({
     else pick(selection.id || NEW);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection.n]);
+  // Runs after the list-driven pick above so its default reason isn't reset.
+  useEffect(() => {
+    if (!preloadSearch) return;
+    const people = readPreload();
+    setPreloaded(people);
+    if (people.length) setPurpose((p) => p || "Network outreach");
+  }, [preloadSearch]);
 
   const nameTaken = campaigns.some(
     (c) => c.id !== existing?.id && c.name.trim().toLowerCase() === name.trim().toLowerCase(),
