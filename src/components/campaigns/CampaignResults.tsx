@@ -14,7 +14,7 @@ import {
 import { closeCampaign, fetchCampaignResults, saveCampaignFn, saveCampaignResults, setCampaignFollowUps } from "@/utils/campaigns.functions";
 import { CAMPAIGN_TEAM, followUpDueDate, type CampaignMember, type CampaignRecord } from "@/lib/campaigns";
 import { canonicalOwnerName } from "@/lib/user-ownership";
-import { RESULT_LABEL, campaignTypeOf, isClosedStatus, type CampaignResult } from "@/lib/campaign-results";
+import { RESULT_LABEL, campaignTypeOf, isClosedStatus, isEventType, type CampaignResult } from "@/lib/campaign-results";
 
 type Mark = { result: CampaignResult | ""; followUpOwner: string; followUpDue: string };
 
@@ -48,7 +48,7 @@ export function CampaignResults({
     (!!campaign.createdBy && canonicalOwnerName(campaign.createdBy) === me);
   const closed = isClosedStatus(campaign.status);
   const editable = isOwner && !closed;
-  const isEvent = campaignTypeOf(campaign.purpose) === "Event";
+  const isEvent = isEventType(campaignTypeOf(campaign.purpose));
   const options: CampaignResult[] = [isEvent ? "attending" : "interested", "follow-up", "declined", "no-reply"];
 
   const saved = useMemo(() => {

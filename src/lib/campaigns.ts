@@ -1,7 +1,7 @@
 // Shared (client-safe) Campaign Builder model + pure helpers.
 import { targetKeyOf } from "./types";
 
-/** One per campaign type (Event ×2, Network outreach, Business development); older purposes still read. */
+/** One per campaign type; older purposes still read. */
 export const CAMPAIGN_PURPOSES = [
   "Event outreach",
   "Event follow-up",

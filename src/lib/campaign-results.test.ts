@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { attendeesToRegister, campaignTypeOf, latestResults, ownerInitials, resultCounts } from "./campaign-results";
+import { attendeesToRegister, campaignTypeOf, isEventType, latestResults, ownerInitials, resultCounts } from "./campaign-results";
 
 describe("campaign results", () => {
-  it("only three types: Event, Network outreach, Business development", () => {
+  it("four types: Event outreach, Event follow-up, Network outreach, Business development", () => {
     expect(["Event outreach", "Event follow-up", "Network outreach", "Business development"].map(campaignTypeOf))
-      .toEqual(["Event", "Event", "Network", "BD"]);
+      .toEqual(["Event", "EventFollowUp", "Network", "BD"]);
   });
-  it("older purposes fold into the three types (demand is an event)", () => {
+  it("both event types allow Attending; network and BD do not", () => {
+    expect((["Event", "EventFollowUp", "Network", "BD"] as const).map(isEventType)).toEqual([true, true, false, false]);
+  });
+  it("older purposes fold into the types (demand is event outreach)", () => {
     expect(["PortCo demand gen", "Network development", "General outreach", ""].map(campaignTypeOf))
       .toEqual(["Event", "Network", "Network", "Network"]);
   });
