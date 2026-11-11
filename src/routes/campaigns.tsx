@@ -105,13 +105,15 @@ export const Route = createFileRoute("/campaigns")({
   component: CampaignBuilderPage,
 });
 
-type Step = "start" | "build" | "confirm" | "decide" | "message" | "send";
+type Step = "start" | "build" | "confirm" | "decide" | "message" | "send" | "results";
+type Selection = { id?: string; legacy?: string; n: number };
 const STEPS: { id: Step; label: string }[] = [
   { id: "start", label: "Campaign" },
   { id: "build", label: "Build list" },
   { id: "confirm", label: "Confirm list" },
   { id: "message", label: "Message" },
   { id: "send", label: "Send & follow up" },
+  { id: "results", label: "Results" },
 ];
 const NEW = "__new__";
 
@@ -278,13 +280,13 @@ function CampaignBuilderPage() {
 
 function StartStep({
   campaigns,
-  loading,
   userEmail,
+  selection,
   onReady,
 }: {
   campaigns: CampaignRecord[];
-  loading: boolean;
   userEmail: string;
+  selection: Selection;
   onReady: (c: CampaignRecord, next: Step, prefill?: CandidatePerson[]) => void;
 }) {
   const save = useServerFn(saveCampaignFn);
@@ -301,7 +303,6 @@ function StartStep({
   const [name, setName] = useState("");
   const [autoName, setAutoName] = useState("");
   const [legacy, setLegacy] = useState("");
-  const [listFilter, setListFilter] = useState<"mine" | "others" | "all">("all");
   const [purpose, setPurpose] = useState("");
   const [eventName, setEventName] = useState("");
   const [portcos, setPortcos] = useState<string[]>([]);
@@ -352,31 +353,12 @@ function StartStep({
     setPurpose((p) => p || "General outreach");
   };
 
-  const me = userEmail.trim().toLowerCase();
-  const visibleList = useMemo(() => {
-    const builder = campaigns.map((c) => ({
-      key: c.id,
-      name: c.name,
-      sub: c.purpose || "—",
-      count: c.memberCount ?? 0,
-      status: c.status as string,
-      legacy: false,
-      mine: (c.createdBy || "").trim().toLowerCase() === me,
-    }));
-    const old = legacyLabels
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((l) => ({
-        key: `legacy:${l.name}`,
-        name: l.name,
-        sub: "From Network/Prospecting",
-        count: l.count,
-        status: "existing",
-        legacy: true,
-        mine: false,
-      }));
-    const all = [...builder, ...old];
-    return listFilter === "all" ? all : all.filter((x) => (listFilter === "mine" ? x.mine : !x.mine));
-  }, [campaigns, legacyLabels, listFilter, me]);
+  // The left-hand list drives which campaign this step shows.
+  useEffect(() => {
+    if (selection.legacy) pickLegacy(selection.legacy);
+    else pick(selection.id || NEW);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selection.n]);
 
   const nameTaken =
     choice === NEW && campaigns.some((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
@@ -512,7 +494,7 @@ function StartStep({
   };
 
   return (
-    <div className="grid gap-5 md:grid-cols-[1fr_320px]">
+    <div>
       <div className="rounded-lg border border-border bg-card p-5 space-y-4">
         <div>
           <SectionLabel>Why are you building this campaign?</SectionLabel>
@@ -667,50 +649,6 @@ function StartStep({
         )}
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-foreground">Current Campaigns</p>
-          <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => pick(NEW)}>
-            <Plus className="h-3 w-3 mr-1" /> New
-          </Button>
-        </div>
-        <div className="flex gap-1 mb-2">
-          {(["mine", "others", "all"] as const).map((f) => (
-            <Button
-              key={f}
-              size="sm"
-              variant={listFilter === f ? "default" : "outline"}
-              className="h-6 px-2 text-[11px] flex-1"
-              onClick={() => setListFilter(f)}
-            >
-              {f === "mine" ? "My campaigns" : f === "others" ? "Others'" : "All"}
-            </Button>
-          ))}
-        </div>
-        {visibleList.length === 0 && (
-          <p className="text-xs text-muted-foreground">{loading ? "Loading…" : "No campaigns here."}</p>
-        )}
-        <div className="space-y-1.5 max-h-[520px] overflow-auto">
-          {visibleList.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => (c.legacy ? pickLegacy(c.name) : pick(c.key))}
-              className={`w-full text-left rounded-md border px-3 py-2 text-xs hover:bg-muted/50 ${
-                (c.legacy ? legacy === c.name : choice === c.key) ? "border-primary" : "border-border"
-              }`}
-            >
-              <div className="font-medium text-foreground truncate">{c.name}</div>
-              <div className="flex items-center gap-2 text-muted-foreground mt-0.5">
-                <span className="truncate">{c.sub}</span>·<span>{c.count} people</span>
-                <Badge variant="outline" className="ml-auto text-[9px] capitalize">
-                  {c.status}
-                </Badge>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
