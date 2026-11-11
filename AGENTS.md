@@ -14,7 +14,7 @@
 
 - The homepage is fixed-size panels (src/components/home/HomePanels.tsx) that reuse existing read functions (home aggregate, planner, campaigns) plus pure helpers in src/lib/home-panels.ts; V.I.C. is the only AI surface, and panels show "unavailable" rather than demo rows so counts reflect real records.
 - Contact creation uses a shared manual-rating policy and the legacy recalculation endpoint is inert; this prevents imports and sync callers from silently overriding human ratings.
-- Follow-up edits use per-task Harvest State overlays before owner filtering; source match keys stay unchanged. My Actions PortCo/Network filing is the pure fileFollowUp helper plus an optional saved "filing" in that overlay, so PortCo tags never get conflated with the person's company. Dates/completion use Notes or Harvested Activities; KB trails stay informational.
+- Follow-up edits use per-task Harvest State overlays before owner filtering; source match keys stay unchanged. Dates/completion use Notes or Harvested Activities; KB trails stay informational.
 
 - Dashboard deep links use validated owner and section search parameters to select the action owner, expand the requested section, and scroll there; URL state keeps homepage navigation and browser history consistent.
 - Original author (email sender to an alias, Granola note owner, uploader, Drive file owner) is stamped once on ingest as importedBy:<recordId>; owner filters use it before any name matching, and reviewers are stored separately — keeps provenance after re-filing.
