@@ -185,14 +185,13 @@ export function NetworkPyramid({
         </div>
       </header>}
       {data?.error && <p role="alert" className="mt-3 text-xs text-destructive">{data.error}</p>}
-      {view === "kpis" && <div className={cn("flex", viewProp ? "mb-3" : "mt-3 border-t pt-3")} data-kpi-bar="" style={{}}><div className="contents" /></div>}
-      {view === "kpis" && false && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+      {view === "kpis" && <div className={cn("flex flex-wrap items-center justify-between gap-2", viewProp ? "mb-3 border-b pb-3" : "mt-3 border-t pt-3")}>
         <div className="flex items-center gap-1">
           {(Object.keys(WINDOWS) as WindowKey[]).map(w => <Button key={w} size="sm" variant={win === w ? "secondary" : "ghost"} aria-pressed={win === w} className="h-7 px-2" onClick={() => setWin(w)}>{w === "30d" ? "30 days" : w === "6m" ? "6 months" : "12 months"}</Button>)}
         </div>
         <div className="flex items-center gap-1">{editing ? <><Button size="sm" className="h-7" onClick={saveTargets}><Check />Save targets</Button><Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(false)}>Cancel</Button></> : <Button size="sm" variant="outline" className="h-7" disabled={!data} onClick={() => { setDraft({}); setEditing(true); }}><Pencil />Edit targets</Button>}</div>
       </div>}
-      <div className={cn("network-overview-body", !embedded && "mt-3")}>
+      <div className={cn("network-overview-body", !embedded && !viewProp && "mt-3")}>
         <TierChart counts={counts} visible={visibleTiers} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
           if (onToggleTier) { onToggleTier(t); return; }
           if (t === "Prospect") { navigate({ to: "/crm" }); return; }
