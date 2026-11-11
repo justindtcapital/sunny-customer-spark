@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attendeesToRegister, campaignTypeOf, isEventType, latestResults, ownerInitials, resultCounts } from "./campaign-results";
+import { attendeesToRegister, campaignTypeOf, isEventType, statusAfterAddingPeople, latestResults, ownerInitials, resultCounts } from "./campaign-results";
 
 describe("campaign results", () => {
   it("four types: Event outreach, Event follow-up, Network outreach, Business development", () => {
@@ -32,5 +32,8 @@ describe("campaign results", () => {
       [{ name: "Someone", email: "ANN@x.com" }, { name: "bob  ray", email: "" }],
     );
     expect(out).toEqual([{ name: "Cy Do", email: "cy@x.com" }]);
+  });
+  it("adding people never pulls an actioning or closed campaign back to saved", () => {
+    expect(["draft", "saved", "actioning", "done", "closed"].map(statusAfterAddingPeople)).toEqual(["saved", "saved", "actioning", "done", "closed"]);
   });
 });

@@ -105,3 +105,6 @@ export function attendeesToRegister(
 
 /** Closed campaigns leave the main list; legacy "done" means sent, still open for results. */
 export const isClosedStatus = (s: string) => s === "closed";
+
+/** Adding people only promotes a draft to "saved"; actioning/closed campaigns keep their status. */
+export const statusAfterAddingPeople = (s: string) => (!s || s === "draft" ? "saved" : s);
