@@ -13,11 +13,12 @@ const PH = H - PAD.top - PAD.bottom;
 /** Keeps the largest logo circles inside the plot at the ends of each axis. */
 const INSET = 30;
 /** Width of the left "Under $2M" column in the log view. */
-const BAND = 90;
+const BAND = 44;
 /** Height of the bottom "Under 1%" row in the log view. */
-const LOW_H = 104;
+const LOW_H = 44;
+const BAND_RADIUS = 16;
 /** Vertical nudge between crowded companies in that row. */
-const STRIP_DY = 11;
+const STRIP_DY = 5;
 
 /** Alternates two rows so crowded companies in the bottom row don't stack exactly. */
 function stripOffsets(
@@ -28,7 +29,7 @@ function stripOffsets(
   const ends = [-Infinity, -Infinity];
   const out = new Map<string, number>();
   for (const p of sorted) {
-    const r = bubbleRadius(p.investment);
+    const r = Math.min(bubbleRadius(p.investment), BAND_RADIUS);
     const cx = cxOf(p);
     const row = cx - r >= ends[0] ? 0 : cx - r >= ends[1] ? 1 : ends[0] <= ends[1] ? 0 : 1;
     ends[row] = cx + r;
@@ -94,8 +95,9 @@ export function OwnershipMatrix({
             <rect x={PAD.left} y={PAD.top} width={BAND} height={PH} fill="var(--muted)" opacity={0.5} />
             <line x1={plotLeft} x2={plotLeft} y1={PAD.top} y2={PAD.top + PH} stroke="var(--border)" />
             {!compact && (
-              <text x={bandX} y={PAD.top + PH + 20} textAnchor="middle" className="fill-muted-foreground" fontSize={12}>
-                Under {formatInvestment(layout.lowBandBelow ?? 0)}
+              <text x={bandX} y={PAD.top + PH + 14} textAnchor="middle" className="fill-muted-foreground" fontSize={10}>
+                <tspan x={bandX}>Under</tspan>
+                <tspan x={bandX} dy={12}>{formatInvestment(layout.lowBandBelow ?? 0)}</tspan>
               </text>
             )}
           </>
@@ -143,7 +145,8 @@ export function OwnershipMatrix({
             p={p}
             cx={cxOf(p)}
             cy={isLowOwn(p) ? stripY + (stripDy.get(p.key) ?? 0) : y(p.ownership ?? 0)}
-            dim={visible ? !visible(p) : false}
+            dim={(selectedKey !== null && selectedKey !== p.key) || (visible ? !visible(p) : false)}
+            maxRadius={isLow(p) || isLowOwn(p) ? BAND_RADIUS : undefined}
             active={selectedKey === p.key}
             onSelect={() => onSelect(selectedKey === p.key ? null : p.key)}
             onHover={() => {}}

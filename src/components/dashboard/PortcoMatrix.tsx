@@ -108,6 +108,7 @@ export function Bubble({
   active,
   onSelect,
   onHover,
+  maxRadius,
 }: {
   p: MatrixPoint;
   cx: number;
@@ -116,6 +117,7 @@ export function Bubble({
   active: boolean;
   onSelect: () => void;
   onHover: (v: MatrixPoint | null) => void;
+  maxRadius?: number;
 }) {
   const [srcIdx, setSrcIdx] = useState(0);
   // Only trust a real website: a domain guessed from the company name pulls the
@@ -126,13 +128,13 @@ export function Bubble({
       ? companyLogoSources(resolved.domain, resolved.confidence)
       : [];
   const src = sources[srcIdx];
-  const r = bubbleRadius(p.investment);
+  const r = Math.min(bubbleRadius(p.investment), maxRadius ?? Infinity);
   const id = `logo-${p.key.replace(/[^a-z0-9]/gi, "")}`;
 
   return (
     <g
       transform={`translate(${cx} ${cy})`}
-      opacity={dim ? 0.18 : 1}
+      opacity={dim ? 0.05 : 1}
       className="cursor-pointer"
       onClick={(e) => {
         e.stopPropagation();

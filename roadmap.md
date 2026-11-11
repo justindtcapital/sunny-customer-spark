@@ -173,6 +173,7 @@
 - [x] Added independent Workstreams and Actions checkboxes; preserved priority sorting and verified workstreams-only and actions-only views signed in; 25 tests passed, build OK
 
 ## Dashboards — November 11 request
+- [ ] Shrink ownership threshold bands and fade non-selected logos; verify company and investor focus in the signed-in chart
 - [x] Dashboards hub with three tiles; PortCo Dashboard with Maturity / Ownership & Investment views
 - [x] Events Dashboard: monthly stacked bars by type (click a month) + five breakdown charts
 - [x] Network Dashboard: pyramid + adds/removes, outreach, conversion, promotions by teammate, campaigns open/active/closed and by owner
