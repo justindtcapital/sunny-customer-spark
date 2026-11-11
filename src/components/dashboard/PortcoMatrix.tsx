@@ -100,6 +100,18 @@ function offsetFor(index: number): { dx: number; dy: number } {
   return { dx: Math.cos(a) * r, dy: Math.sin(a) * r };
 }
 
+/**
+ * SVG paints later circles on top: larger first so small ones stay clickable,
+ * and the selected company always last so it comes to the foreground.
+ */
+export function paintOrder(a: MatrixPoint, b: MatrixPoint, selectedKey: string | null): number {
+  if (selectedKey) {
+    if (a.key === selectedKey) return 1;
+    if (b.key === selectedKey) return -1;
+  }
+  return (b.investment ?? 0) - (a.investment ?? 0);
+}
+
 export function Bubble({
   p,
   cx,
@@ -109,6 +121,7 @@ export function Bubble({
   onSelect,
   onHover,
   maxRadius,
+  passive = false,
 }: {
   p: MatrixPoint;
   cx: number;
@@ -118,6 +131,8 @@ export function Bubble({
   onSelect: () => void;
   onHover: (v: MatrixPoint | null) => void;
   maxRadius?: number;
+  /** Filtered-out circles stay visible but never catch clicks meant for circles beneath them. */
+  passive?: boolean;
 }) {
   const [srcIdx, setSrcIdx] = useState(0);
   // Only trust a real website: a domain guessed from the company name pulls the
@@ -134,8 +149,9 @@ export function Bubble({
   return (
     <g
       transform={`translate(${cx} ${cy})`}
-      opacity={dim ? 0.05 : 1}
-      className="cursor-pointer"
+      opacity={dim && !active ? 0.05 : 1}
+      className={passive ? undefined : "cursor-pointer"}
+      pointerEvents={passive ? "none" : undefined}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
@@ -360,7 +376,7 @@ export function PortcoMatrix({
         {/* bubbles — larger first so small ones stay clickable on top */}
         {[...plotted]
           .filter(({ p }) => !hiddenByInvestor(p))
-          .sort((a, b) => (b.p.investment ?? 0) - (a.p.investment ?? 0))
+          .sort((a, b) => paintOrder(a.p, b.p, selectedKey))
           .map(({ p, cx, cy }) => (
             <Bubble
               key={p.key}

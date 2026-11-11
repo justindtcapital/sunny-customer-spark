@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { MatrixPoint } from "@/lib/portco-matrix";
 import { bubbleRadius } from "@/lib/portco-matrix";
 import { formatInvestment, formatOwnership, ownershipLayout, type AxisKind } from "@/lib/portco-ownership";
-import { Bubble } from "@/components/dashboard/PortcoMatrix";
+import { Bubble, paintOrder } from "@/components/dashboard/PortcoMatrix";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const W = 1100;
@@ -139,13 +139,20 @@ export function OwnershipMatrix({
             <text transform={`translate(20 ${PAD.top + PH / 2}) rotate(-90)`} textAnchor="middle" className="fill-foreground font-medium" fontSize={13}>DTC ownership{logNote}</text>
           </>
         )}
-        {layout.plotted.map((p) => (
+        {[...layout.plotted]
+          .sort((a, b) => {
+            // Filtered-out circles sit underneath so they never cover a matching company.
+            const layer = (p: MatrixPoint) => (p.key === selectedKey ? 2 : visible && !visible(p) ? 0 : 1);
+            return layer(a) - layer(b) || paintOrder(a, b, selectedKey);
+          })
+          .map((p) => (
           <Bubble
             key={p.key}
             p={p}
             cx={cxOf(p)}
             cy={isLowOwn(p) ? stripY + (stripDy.get(p.key) ?? 0) : y(p.ownership ?? 0)}
             dim={(selectedKey !== null && selectedKey !== p.key) || (visible ? !visible(p) : false)}
+            passive={!!visible && !visible(p) && selectedKey !== p.key}
             maxRadius={isLow(p) || isLowOwn(p) ? BAND_RADIUS : undefined}
             active={selectedKey === p.key}
             onSelect={() => onSelect(selectedKey === p.key ? null : p.key)}
