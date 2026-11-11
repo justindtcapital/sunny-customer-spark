@@ -361,7 +361,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
 
   const firstGroupFu = (g: (typeof groups)[number] | undefined) => g ? [...g.ws.flatMap((w) => g.linked.get(w.gid) || []), ...g.general][0] : undefined;
   const firstSel: Sel | null = flat[0] ? (flat[0].ws ? { kind: "ws", id: flat[0].ws.gid } : { kind: "fu", id: flat[0].fu!.id }) : groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
-  const resolved = sel?.kind === "ws" ? (wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (fuList.some((x) => x.id === sel.id) ? sel : null) : null;
+  const resolved = sel?.kind === "ws" ? (toggles.workstreams && wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (toggles.followups && fuList.some((x) => x.id === sel.id) ? sel : null) : null;
   const cur = resolved || firstSel;
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
   const r = cur?.kind === "fu" ? fuList.find((x) => x.id === cur.id) || null : null;
