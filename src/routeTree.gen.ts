@@ -23,6 +23,7 @@ import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as TargetingRouteImport } from './routes/targeting'
 import { Route as VicRouteImport } from './routes/vic'
 import { Route as ApiVicRouteImport } from './routes/api/vic'
+import { Route as DashboardsIndexRouteImport } from './routes/dashboards.index'
 import { Route as DashboardsEventsRouteImport } from './routes/dashboards.events'
 import { Route as DashboardsNetworkRouteImport } from './routes/dashboards.network'
 import { Route as DashboardsPortcoRouteImport } from './routes/dashboards.portco'
@@ -105,6 +106,11 @@ const ApiVicRoute = ApiVicRouteImport.update({
   path: '/api/vic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardsIndexRoute = DashboardsIndexRouteImport.update({
+  id: '/dashboards/',
+  path: '/dashboards/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardsEventsRoute = DashboardsEventsRouteImport.update({
   id: '/dashboards/events',
   path: '/dashboards/events',
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/dashboards/network': typeof DashboardsNetworkRoute
   '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
+  '/dashboards/': typeof DashboardsIndexRoute
   '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/dashboards/network': typeof DashboardsNetworkRoute
   '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
+  '/dashboards': typeof DashboardsIndexRoute
   '/vic': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/dashboards/network': typeof DashboardsNetworkRoute
   '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
+  '/dashboards/': typeof DashboardsIndexRoute
   '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
@@ -266,6 +275,7 @@ export interface FileRouteTypes {
     | '/dashboards/network'
     | '/dashboards/portco'
     | '/vic/$threadId'
+    | '/dashboards/'
     | '/vic/'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
@@ -292,6 +302,7 @@ export interface FileRouteTypes {
     | '/dashboards/network'
     | '/dashboards/portco'
     | '/vic/$threadId'
+    | '/dashboards'
     | '/vic'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
@@ -319,6 +330,7 @@ export interface FileRouteTypes {
     | '/dashboards/network'
     | '/dashboards/portco'
     | '/vic/$threadId'
+    | '/dashboards/'
     | '/vic/'
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
@@ -346,6 +358,7 @@ export interface RootRouteChildren {
   DashboardsEventsRoute: typeof DashboardsEventsRoute
   DashboardsNetworkRoute: typeof DashboardsNetworkRoute
   DashboardsPortcoRoute: typeof DashboardsPortcoRoute
+  DashboardsIndexRoute: typeof DashboardsIndexRoute
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
@@ -452,6 +465,13 @@ declare module '@tanstack/react-router' {
       path: '/api/vic'
       fullPath: '/api/vic'
       preLoaderRoute: typeof ApiVicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboards/': {
+      id: '/dashboards/'
+      path: '/dashboards'
+      fullPath: '/dashboards/'
+      preLoaderRoute: typeof DashboardsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboards/events': {
@@ -564,6 +584,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardsEventsRoute: DashboardsEventsRoute,
   DashboardsNetworkRoute: DashboardsNetworkRoute,
   DashboardsPortcoRoute: DashboardsPortcoRoute,
+  DashboardsIndexRoute: DashboardsIndexRoute,
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
