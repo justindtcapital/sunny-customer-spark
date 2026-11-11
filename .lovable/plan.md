@@ -16,6 +16,7 @@
   - **BD** (Business development)
   - **General** (General outreach)
 - A small type filter (chips) above the list lets you show just one type.
+- Each campaign in the list shows a small circle with the owner's initials (CF, CH, JB, SE), so with **All** selected you can see who's who.
 - Existing campaigns keep their current purpose; the type is worked out from it, so nothing needs re-entering.
 
 **3. New step 6: Results**
@@ -39,7 +40,10 @@ Steps become: Campaign → Build list → Confirm list → Message → Send & fo
 - The campaign then moves to the Closed list and leaves the main view.
 - If the campaign is linked to more than one event, you pick which event the attendees go to.
 
-**5. No duplicate attendees**
+**5. Results show on each contact**
+- Every result you mark (Attending, Interested, Follow up, Declined, No reply) appears in that person's activity history on their contact page, credited to whoever marked it. Changing a mark updates the entry instead of adding a second one.
+
+**6. No duplicate attendees**
 - Registering checks the event's existing attendee list by email, then by full name, so someone already there (or uploaded later after the event) is never added twice.
 - When an attendee list is uploaded after the event, people who were registered from a campaign are matched and confirmed instead of being added again; ambiguous name-only matches go to review rather than merging silently.
 - Attendees registered from a campaign are marked as coming from that campaign, so you can tell "said yes" apart from "actually attended".
@@ -56,5 +60,7 @@ Steps become: Campaign → Build list → Confirm list → Message → Send & fo
 - New server functions in `campaigns.functions.ts`: `fetchCampaignResults`, `saveCampaignResults` (batch, owner-checked), `closeCampaign` (owner-checked, withDeadline steps: write No-reply rows, register attendees via `addAttendees`, set status).
 - Attendee rows get Kind/Status like `campaign:<id>` / `Registered`; `addAttendees` dedupe key extended to email then normalised full name. Post-event upload/reconcile treats a `Registered` match as confirm-in-place.
 - Follow-ups reuse `setCampaignFollowUps`.
+- Contact history: results surface in the contact activity register at read time from the Campaign Results tab (latest per campaign+person), so changes never duplicate.
+- Owner initials: helper on top of canonicalOwnerName, badge in list rows.
 - Pure helpers + tests: `campaignTypeOf`, `latestResults`, `resultCounts`, `attendeesToRegister` (dedupe by email then name, skips existing).
 - Update `AGENTS.md` with the results-tab and close rules.
