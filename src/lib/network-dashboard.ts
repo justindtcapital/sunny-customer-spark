@@ -206,10 +206,10 @@ export function weeklyOutreach(touches: Touch[], days: number, now = Date.now())
 export type CampaignBucket = "Open" | "Active" | "Closed";
 export const CAMPAIGN_BUCKETS: CampaignBucket[] = ["Open", "Active", "Closed"];
 
-/** draft/saved = Open, actioning = Active, done = Closed. */
+/** draft/saved = Open, actioning/done (sent) = Active, closed = Closed. */
 export function campaignBucket(status: string): CampaignBucket {
   const s = (status || "").toLowerCase();
-  return s === "done" ? "Closed" : s === "actioning" ? "Active" : "Open";
+  return s === "closed" ? "Closed" : s === "actioning" || s === "done" ? "Active" : "Open";
 }
 
 export function campaignStats(campaigns: Pick<CampaignRecord, "status" | "owner" | "createdBy">[]) {

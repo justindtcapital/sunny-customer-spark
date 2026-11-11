@@ -372,3 +372,33 @@ export async function deleteCampaign(
     followUps,
   };
 }
+
+// ── Campaign Results: append-only (campaign, person) result marks; latest row wins on read.
+export const RESULTS_TAB = "Campaign Results";
+const RESULT_HEADERS = ["Campaign ID", "Person Key", "Result", "Follow Up Owner", "Follow Up Due", "By", "At"];
+
+export async function listResults(campaignId?: string): Promise<import("@/lib/campaign-results").ResultRow[]> {
+  await ensureTab(RESULTS_TAB, RESULT_HEADERS);
+  const { rows } = await readTab(RESULTS_TAB);
+  return rows
+    .map((r) => ({
+      campaignId: (r[0] || "").trim(),
+      personKey: (r[1] || "").trim().toLowerCase(),
+      result: (r[2] || "").trim() as import("@/lib/campaign-results").CampaignResult | "",
+      followUpOwner: (r[3] || "").trim(),
+      followUpDue: (r[4] || "").trim(),
+      by: (r[5] || "").trim(),
+      at: (r[6] || "").trim(),
+    }))
+    .filter((r) => r.campaignId && r.personKey && (!campaignId || r.campaignId === campaignId));
+}
+
+export async function appendResults(rows: import("@/lib/campaign-results").ResultRow[]): Promise<void> {
+  if (!rows.length) return;
+  await ensureTab(RESULTS_TAB, RESULT_HEADERS);
+  await appendSheetRows(
+    RESULTS_TAB,
+    rows.map((r) => [r.campaignId, r.personKey, r.result, r.followUpOwner, r.followUpDue, r.by, r.at]),
+    true,
+  );
+}

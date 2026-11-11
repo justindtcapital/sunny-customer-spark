@@ -252,11 +252,19 @@ export async function updatePlannerEvent(
 
 export async function addAttendees(rows: PlannerAttendee[]): Promise<number> {
   await ensureTab(ATTENDEES_TAB, ATTENDEE_HEADERS);
-  const have = new Set((await readAttendees()).map((a) => `${a.eventUrid}|${(a.email || a.name).toLowerCase()}`));
+  // Same event + same email, or same normalised full name, is one attendee (campaign sign-ups vs later uploads).
+  const n = (s: string) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const have = new Set<string>();
+  for (const a of await readAttendees()) {
+    if (n(a.email)) have.add(`${a.eventUrid}|e:${n(a.email)}`);
+    if (n(a.name)) have.add(`${a.eventUrid}|n:${n(a.name)}`);
+  }
   const out = rows.filter((a) => {
-    const k = `${a.eventUrid}|${(a.email || a.name).toLowerCase()}`;
-    if (have.has(k)) return false;
-    have.add(k);
+    const ek = n(a.email) ? `${a.eventUrid}|e:${n(a.email)}` : "";
+    const nk = n(a.name) ? `${a.eventUrid}|n:${n(a.name)}` : "";
+    if ((ek && have.has(ek)) || (nk && have.has(nk))) return false;
+    if (ek) have.add(ek);
+    if (nk) have.add(nk);
     return true;
   });
   await appendRows(ATTENDEES_TAB, out.map((a) => [a.eventUrid, a.name, a.email, a.kind, a.status, a.date]));

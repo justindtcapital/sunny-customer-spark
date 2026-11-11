@@ -63,7 +63,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     for (const m of members) {
       if (!m.followUpDue) continue;
       const campaign = campaigns.find((c) => c.id === m.campaignId);
-      if (!campaign || campaign.status === "done") continue;
+      if (!campaign || campaign.status === "closed") continue;
       const target = targets.find((t) => targetKeyOf(t) === m.personKey || (!!m.email && t.email?.toLowerCase() === m.email.toLowerCase()));
       const contact = contacts.find((c) => c.urid === m.personKey || (!!m.email && c.email.toLowerCase() === m.email.toLowerCase()));
       if (m.kind === "prospect" && target && !target.followUp) continue;

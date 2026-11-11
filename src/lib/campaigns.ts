@@ -12,7 +12,8 @@ export const CAMPAIGN_PURPOSES = [
 
 export const CAMPAIGN_TEAM = ["Chris Falloon", "Chris Hillock", "Shane Earley", "Julia Beech"];
 
-export type CampaignStatus = "draft" | "saved" | "actioning" | "done";
+/** "done" = legacy "actioned" (messages sent, results still open); "closed" = results final. */
+export type CampaignStatus = "draft" | "saved" | "actioning" | "done" | "closed";
 export type CampaignChannel = "email" | "linkedin" | "both";
 export type MemberKind = "network" | "prospect";
 
