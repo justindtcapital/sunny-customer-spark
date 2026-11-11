@@ -369,7 +369,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const wsGroup = ws ? groups.find((g) => g.ws.some((w) => w.gid === ws.gid)) : undefined;
   const wsGroupBase = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
   // Network follow-ups linked to this workstream are filed elsewhere but still listed here.
-  const wsGroupFu = ws ? [...wsGroupBase, ...fuList.filter((x) => !wsGroupBase.includes(x) && (x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "")) === ws.gid)] : [];
+  const wsGroupFu = ws && toggles.followups ? [...wsGroupBase, ...fuList.filter((x) => !wsGroupBase.includes(x) && (x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "")) === ws.gid)] : [];
 
   const mergeRows = mergeSel.map((id) => fuList.find((x) => x.id === id)).filter(Boolean) as Reminder[];
   // Default each merged field to the first selected follow-up.
