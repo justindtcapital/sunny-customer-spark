@@ -188,6 +188,21 @@ function CampaignBuilderPage() {
       setStep("start");
     }
   };
+  // Any saved campaign can step back — edit details, add people, re-send — even once actioning.
+  const sent = !!campaign && campaign.status !== "draft" && campaign.status !== "saved";
+  const closed = !!campaign && campaign.status === "closed";
+  const canJumpTo = (id: Step) => {
+    if (!campaign) return false;
+    if (id === "start" || id === "build") return !closed || id === "start";
+    if (id === "confirm") return !closed && staged.length > 0;
+    if (id === "message" || id === "send") return !closed && members.length > 0;
+    if (id === "results") return sent;
+    return false;
+  };
+  const jumpTo = (id: Step) => {
+    if (id === "start" && campaign) setSelection((s) => ({ id: campaign.id, n: s.n + 1 }));
+    setStep(id);
+  };
   const resetToNew = () => {
     setCampaign(null);
     setStaged([]);
@@ -231,19 +246,20 @@ function CampaignBuilderPage() {
       <div className="flex flex-wrap gap-2 mb-5">
         {STEPS.map((s, i) => {
           const active = s.id === step || (step === "decide" && s.id === "confirm");
-          const canJump = s.id === "results" && !!campaign && campaign.status !== "draft" && campaign.status !== "saved";
+          const canJump = !active && canJumpTo(s.id);
+          const label = s.id === "build" && sent ? "Add more people" : s.id === "start" && campaign ? "Edit campaign" : s.label;
           return (
             <button
               type="button"
               key={s.id}
               disabled={!canJump}
-              onClick={() => canJump && setStep("results")}
+              onClick={() => canJump && jumpTo(s.id)}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
                 active ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border text-muted-foreground"
               } ${canJump && !active ? "hover:bg-muted/50" : ""}`}
             >
               <span>{i + 1}</span>
-              {s.label}
+              {label}
             </button>
           );
         })}
@@ -296,6 +312,11 @@ function CampaignBuilderPage() {
             <Button variant="outline" onClick={() => setStep("build")}>
               <Plus className="h-4 w-4 mr-1" /> Add more people
             </Button>
+            {sent && (
+              <Button variant="outline" onClick={() => setStep("results")}>
+                Back to results
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => {
@@ -413,8 +434,10 @@ function StartStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection.n]);
 
-  const nameTaken =
-    choice === NEW && campaigns.some((c) => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const nameTaken = campaigns.some(
+    (c) => c.id !== existing?.id && c.name.trim().toLowerCase() === name.trim().toLowerCase(),
+  );
+  const existingSent = !!existing && existing.status !== "draft" && existing.status !== "saved";
 
   const attendees = useMemo(
     () => (eventName ? eventAttendees(eventName, contactsQ.data || [], targetsQ.data || []) : null),
@@ -518,7 +541,7 @@ function StartStep({
     await go("message");
   };
 
-  const go = async (next: Step) => {
+  const go = async (next: Step, savedMsg?: string) => {
     setBusy(true);
     try {
       const res = await save({
@@ -538,6 +561,7 @@ function StartStep({
       }
       const pre = [...(attendees?.people || []), ...(legacyPeople || [])];
       const prefill = next === "build" && pre.length ? mergeCandidates([], pre).list : undefined;
+      if (savedMsg) toast.success(savedMsg);
       onReady({ ...res.campaign, memberCount: existing?.memberCount }, next, prefill);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the campaign");
@@ -603,11 +627,11 @@ function StartStep({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Q4 Security Dinner"
-                disabled={!!existing}
               />
               {existing && (
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Managing an existing campaign. Click <span className="font-medium">New</span> on the right to start a fresh one.
+                  Editing an existing campaign — change its name, type, event, owner or companies, then <span className="font-medium">Save changes</span>.
+                  People and results stay as they are.
                 </p>
               )}
               {legacyPeople && (
@@ -615,7 +639,7 @@ function StartStep({
                   Existing label from Network/Prospecting · {legacyPeople.length} people will be pre-loaded. Their records stay unchanged.
                 </p>
               )}
-              {nameTaken && <p className="text-[11px] text-destructive mt-1">That name is already used. Pick it from the list instead.</p>}
+              {nameTaken && <p className="text-[11px] text-destructive mt-1">That name is already used by another campaign.</p>}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {!/event/i.test(purpose) && (
@@ -680,16 +704,27 @@ function StartStep({
             <div className="flex justify-end gap-2 pt-2">
               {existing ? (
                 <>
-                  <Button variant="outline" disabled={busy} onClick={() => void go("build")}>
-                    <Plus className="h-4 w-4 mr-1" /> Add more people
-                  </Button>
                   <Button
-                    disabled={busy || !((existingMembersQ.data?.length ?? existing.memberCount ?? 0) + untaggedExtra.length)}
-                    onClick={() => void actionNow()}
+                    variant="outline"
+                    disabled={busy || !name.trim() || !purpose || nameTaken}
+                    onClick={() => void go(existingSent ? "results" : "start", "Campaign saved")}
                   >
-                    {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                    Action it now <ArrowRight className="h-4 w-4 ml-1" />
+                    Save changes
                   </Button>
+                  {existing.status !== "closed" && (
+                    <>
+                      <Button variant="outline" disabled={busy || !name.trim() || nameTaken} onClick={() => void go("build")}>
+                        <Plus className="h-4 w-4 mr-1" /> Add more people
+                      </Button>
+                      <Button
+                        disabled={busy || nameTaken || !((existingMembersQ.data?.length ?? existing.memberCount ?? 0) + untaggedExtra.length)}
+                        onClick={() => void actionNow()}
+                      >
+                        {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                        {existingSent ? "Message & send" : "Action it now"} <ArrowRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </>
+                  )}
                 </>
               ) : (
                 <Button disabled={busy || !name.trim() || !purpose || nameTaken} onClick={() => void go("build")}>
