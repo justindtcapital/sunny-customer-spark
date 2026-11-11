@@ -26,7 +26,7 @@ export const draftDashboardChart = createServerFn({ method: "POST" })
       return [
         `Dataset "${k}" (${def.label}): ${def.description}`,
         ...Object.entries(def.fields).map(([f, d]) => `  - ${f}: ${d}${samples[f]?.length ? ` e.g. ${samples[f].slice(0, 12).join(" | ")}` : ""}`),
-        ...Object.entries(def.numbers || {}).map(([f, d]) => `  - number ${f}: ${d}`),
+        ...Object.entries(def.numbers || {}).map(([f, d]) => `  - ${f} (number field — only valid as sumField): ${d}`),
       ].join("\n");
     }).join("\n\n");
     const system = [
@@ -50,7 +50,9 @@ export const draftDashboardChart = createServerFn({ method: "POST" })
         output: Output.object({ schema: chartSpecSchema }),
         providerOptions: { openai: { store: false, reasoningEffort: "low" } },
       });
-      const spec = result.output as ChartSpec;
+      const raw = result.output as ChartSpec;
+      const clean = (f: string | null) => (f ? f.replace(/^(number|field)\s+/i, "").trim() : f);
+      const spec: ChartSpec = { ...raw, x: clean(raw.x) || raw.x, series: clean(raw.series), sumField: clean(raw.sumField) };
       const problems = specProblems(spec, data.dashboard);
       if (problems.length) return { spec: null, error: `V.I.C. couldn't build that chart: ${problems.join(" ")}` };
       return { spec, error: null };
