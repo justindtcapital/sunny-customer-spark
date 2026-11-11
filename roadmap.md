@@ -165,3 +165,6 @@
 - [ ] Try a real Prospect ↔ Cold move; not run to avoid adding test moves to the KPI history
 - [x] Coherence pass: prospects honor manual type; homepage pyramid counts every type like Network; V.I.C. introductions honor manual PortCo; bulk Status skips PortCo; 210 tests pass
 - [x] Network layout: view switch alone top-right; one control bar under pyramid (types, My contacts/Everyone, Add Contact, layout); Import/Export in left menu; Merge duplicates button removed (Find duplicates kept in Import)
+
+## V.I.C. Asana access — November 11 request
+- [x] Read-only Asana lookups for V.I.C. (workstreams, task search, task details, projects, any read request)
