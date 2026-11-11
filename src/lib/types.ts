@@ -212,6 +212,10 @@ export interface Contact {
   temperature: Temperature;
   /** Derived at read time: works at a PortCo, so excluded from the Network tiers. Never saved. */
   portco?: boolean;
+  /** Read-time: a Prospecting-flagged row shown in Network as the Prospect tier. Never saved. */
+  prospect?: boolean;
+  /** Prospecting profile key (opens the prospect profile). */
+  prospectKey?: string;
   portCoIntros: string[];
   /** Portfolio engagements with their source category (richer than portCoIntros). */
   portCoEngagements?: PortCoEngagement[];

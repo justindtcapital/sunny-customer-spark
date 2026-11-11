@@ -10,6 +10,7 @@ interface TemperatureBadgeProps {
   showLabel?: boolean;
   /** PortCo people show a PortCo tag instead of a Network tier. */
   portco?: boolean;
+  prospect?: boolean;
 }
 
 export function TemperatureBadge({
@@ -18,7 +19,11 @@ export function TemperatureBadge({
   pulse = true,
   showLabel = true,
   portco = false,
+  prospect = false,
 }: TemperatureBadgeProps) {
+  if (prospect) {
+    return <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground", className)} title="Prospect — open the profile for pipeline stage">Prospect</span>;
+  }
   if (portco) {
     return <span className={cn("inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground", className)} title="Works at a PortCo — not counted in Network tiers">PortCo</span>;
   }

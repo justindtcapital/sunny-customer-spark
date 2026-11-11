@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useState, useMemo, useEffect, useRef } from "react";
 import type { Contact, ContactFilters as Filters } from "@/lib/types";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
@@ -38,7 +39,7 @@ export function ContactList({
   ownershipLoading,
   portcoVisibilityControl = false,
 }: ContactListProps) {
-  const [view, setView] = useState<"cards" | "table">("cards");
+  const [view, setView] = useState<"cards" | "table">("table");
   const [showPortCo, setShowPortCo] = useState(true);
   const [showDell, setShowDell] = useState(true);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -170,7 +171,10 @@ export function ContactList({
     }
   }, [focusEmail, localContacts]);
 
+  const navigate = useNavigate();
   const handleSelect = (contact: Contact) => {
+    // Prospects open their Prospecting profile (stage, research, outreach).
+    if (contact.prospect) { navigate({ to: "/targeting", search: { target: contact.prospectKey } }); return; }
     setSelectedContact(contact);
     setDetailOpen(true);
   };

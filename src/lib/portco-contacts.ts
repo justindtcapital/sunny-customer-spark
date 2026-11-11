@@ -26,8 +26,9 @@ export function isPortCoContact(c: Pick<Contact, "company" | "sector">, keys: Se
 }
 
 /** Temperature filter: PortCo people match only "PortCo", never Hot/Warm/Cold/Council. */
-export function matchesTemperatureFilter(c: Pick<Contact, "temperature" | "portco">, selected: string[]): boolean {
+export function matchesTemperatureFilter(c: Pick<Contact, "temperature" | "portco" | "prospect">, selected: string[]): boolean {
   if (!selected.length) return true;
+  if (c.prospect) return selected.includes("Prospect");
   return c.portco ? selected.includes("PortCo") : selected.includes(c.temperature);
 }
 

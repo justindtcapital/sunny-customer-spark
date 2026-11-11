@@ -20,7 +20,7 @@ export interface PyramidSelection { tier: PyramidTier; view: "domain" | "geo" | 
 type View = "kpis" | "domain" | "geo";
 
 export function contactMatchesPyramid(c: Contact, sel: PyramidSelection): boolean {
-  if (c.portco || c.temperature !== sel.tier) return false;
+  if (c.portco || (c.prospect ? "Prospect" : c.temperature) !== sel.tier) return false;
   if (sel.view === "tier") return true;
   const col = sel.view === "domain" ? primaryDomainFor(c.primaryArea, c.areasOfInterest) : marketFor(c.location);
   return col === sel.column;
@@ -48,7 +48,7 @@ function MiniPyramid() {
   </svg>;
 }
 
-function TierChart({ counts, active, onTier }: { counts: Record<PyramidTier, number | null>; active: PyramidTier | null; onTier: (t: PyramidTier) => void }) {
+function TierChart({ counts, active, onTier, visible }: { counts: Record<PyramidTier, number | null>; active: PyramidTier | null; onTier: (t: PyramidTier) => void; visible?: PyramidTier[] }) {
   return <div className="network-tier-chart" aria-label="Relationship tiers">
     <svg viewBox="0 0 240 250" className="h-full w-full" preserveAspectRatio="xMidYMid meet" role="img"
       aria-label={PYRAMID_TIERS.map(t => `${t === "Prospect" ? "Prospects" : t} ${counts[t] ?? "pending"}`).join(", ")}>
@@ -61,10 +61,10 @@ function TierChart({ counts, active, onTier }: { counts: Record<PyramidTier, num
         // Left edge x at the label baseline (edge slopes 24 units per band).
         const labelY = bottom - 4;
         const leftAtLabel = 120 - topWidth / 2 - ((labelY - top) / (bottom - top)) * 24;
-        return <g key={tier} role="button" tabIndex={0} aria-label={`Show everyone in ${label}`} aria-pressed={active === tier}
+        return <g key={tier} role="button" tabIndex={0} aria-label={visible ? `${visible.includes(tier) ? "Hide" : "Show"} ${label}` : `Show everyone in ${label}`} aria-pressed={visible ? visible.includes(tier) : active === tier}
           onClick={() => onTier(tier)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTier(tier); } }}
-          className={cn("network-tier cursor-pointer outline-none", tierTone[tier], active && active !== tier && "opacity-45")}>
-          <title>{tier === "Prospect" ? "Open the Prospecting page" : `Show everyone in ${label}`}</title>
+          className={cn("network-tier cursor-pointer outline-none", tierTone[tier], (visible ? !visible.includes(tier) : active && active !== tier) && "opacity-30")}>
+          <title>{visible ? `${visible.includes(tier) ? "Hide" : "Show"} ${label} in the list` : `Show everyone in ${label}`}</title>
           <polygon className="fill-current" points={`${120-topWidth/2},${top} ${120+topWidth/2},${top} ${120+bottomWidth/2},${bottom} ${120-bottomWidth/2},${bottom}`} />
           <text x={120} y={apex ? top + 30 : (top + bottom) / 2 + 4} textAnchor="middle" className="fill-background font-semibold tabular-nums" style={{ fontSize: apex ? 12 : 18 }}>{n?.toLocaleString() ?? "—"}</text>
           <text x={leftAtLabel + (apex ? 3 : 6)} y={labelY} textAnchor="start" className="fill-background font-medium uppercase" style={{ fontSize: apex ? 6 : 7.5, letterSpacing: apex ? 0.2 : 0.8 }}>{label}</text>
@@ -76,7 +76,11 @@ function TierChart({ counts, active, onTier }: { counts: Record<PyramidTier, num
 
 export function NetworkPyramid({
   contacts, profile, ownedGids, selection, onSelect, expanded, onExpandedChange: setExpanded, embedded = false,
+  visibleTiers, onToggleTier,
 }: {
+  /** Network page: each tier band is an independent on/off switch for the list. */
+  visibleTiers?: PyramidTier[];
+  onToggleTier?: (t: PyramidTier) => void;
   /** Homepage tile: contacts arrive already scoped to "mine"; header controls are hidden. */
   embedded?: boolean;
   ownedGids?: Set<string>;
@@ -188,8 +192,9 @@ export function NetworkPyramid({
         <div className="flex items-center gap-1">{editing ? <><Button size="sm" className="h-7" onClick={saveTargets}><Check />Save targets</Button><Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(false)}>Cancel</Button></> : <Button size="sm" variant="outline" className="h-7" disabled={!data} onClick={() => { setDraft({}); setEditing(true); }}><Pencil />Edit targets</Button>}</div>
       </div>}
       <div className={cn("network-overview-body", !embedded && "mt-5")}>
-        <TierChart counts={counts} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
-          if (t === "Prospect") { navigate({ to: "/targeting" }); return; }
+        <TierChart counts={counts} visible={visibleTiers} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
+          if (onToggleTier) { onToggleTier(t); return; }
+          if (t === "Prospect") { navigate({ to: "/crm" }); return; }
           onSelect(selection?.view === "tier" && selection.tier === t ? null : { tier: t, view: "tier", column: "" });
         }} />
         <div className={cn("network-breakdown min-w-0", view === "geo" && !embedded ? "network-breakdown-geo" : embedded ? "network-breakdown-change" : view === "kpis" ? "network-breakdown-kpis" : "network-breakdown-domain")}>
@@ -211,8 +216,8 @@ export function NetworkPyramid({
                 </div>;
                 const c = cellCount(tier, col);
                 const active = selection?.tier === tier && selection.column === col && selection.view === view;
-                const clickable = tier !== "Prospect" && c > 0;
-                return <Button key={col} variant="ghost" disabled={!clickable} aria-label={`Show ${tier} · ${col}: ${c}`} aria-pressed={!!active} onClick={() => onSelect(active ? null : { tier, view: view as "domain" | "geo", column: col })} title={tier === "Prospect" ? "Prospects are listed on the Prospecting page" : `Show ${tier} · ${col}`} className={cn("network-cell min-w-0 rounded-sm px-1 text-current disabled:opacity-100", active && "bg-accent ring-1 ring-primary ring-inset")}>
+                const clickable = c > 0 && (!!onToggleTier || tier !== "Prospect");
+                return <Button key={col} variant="ghost" disabled={!clickable} aria-label={`Show ${tier} · ${col}: ${c}`} aria-pressed={!!active} onClick={() => onSelect(active ? null : { tier, view: view as "domain" | "geo", column: col })} title={`Show ${tier} · ${col}`} className={cn("network-cell min-w-0 rounded-sm px-1 text-current disabled:opacity-100", active && "bg-accent ring-1 ring-primary ring-inset")}>
                   <span className="network-mobile-label text-[11px] font-normal text-muted-foreground">{col}</span>
                   <span className={cn("text-base font-semibold tabular-nums", c ? "text-foreground" : "text-muted-foreground/50")}>{c.toLocaleString()}</span>
                   <span className="network-cell-dots"><Dots n={c} /></span>
