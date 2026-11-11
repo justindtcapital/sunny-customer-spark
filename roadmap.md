@@ -175,5 +175,5 @@
 ## Dashboards — November 11 request
 - [x] Dashboards hub with three tiles; PortCo Dashboard with Maturity / Ownership & Investment views
 - [x] Events Dashboard: monthly stacked bars by type (click a month) + five breakdown charts
-- [ ] Network Dashboard: pyramid + adds/removes, outreach, conversion, promotions by teammate, campaigns open/active/closed and by owner — waits on answers (what counts as outreach, credit rule, time window)
-- [ ] Build a chart with V.I.C. on Events and Network — waits on answer (private or shared charts)
+- [x] Network Dashboard: pyramid + adds/removes, outreach, conversion, promotions by teammate, campaigns open/active/closed and by owner
+- [x] Build a chart with V.I.C. on Events and Network (shared team charts)
