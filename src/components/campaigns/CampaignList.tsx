@@ -11,20 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { saveCampaignFn } from "@/utils/campaigns.functions";
 import { canonicalOwnerName } from "@/lib/user-ownership";
 import type { CampaignRecord } from "@/lib/campaigns";
-import { CAMPAIGN_TYPES, TYPE_DEFAULT_PURPOSE, campaignTypeOf, isClosedStatus, ownerInitials, type CampaignType } from "@/lib/campaign-results";
+import { CAMPAIGN_TYPES, CAMPAIGN_TYPE_LABEL, TYPE_DEFAULT_PURPOSE, campaignTypeOf, isClosedStatus, ownerInitials, type CampaignType } from "@/lib/campaign-results";
 
 /** Semantic chart tokens per type (stripe + badge). */
 export const TYPE_STYLE: Record<CampaignType, { stripe: string; badge: string }> = {
   Event: { stripe: "border-l-chart-1", badge: "bg-chart-1/15 text-chart-1 border-chart-1/30" },
-  Demand: { stripe: "border-l-chart-3", badge: "bg-chart-3/15 text-chart-3 border-chart-3/30" },
   Network: { stripe: "border-l-chart-2", badge: "bg-chart-2/15 text-chart-2 border-chart-2/30" },
   BD: { stripe: "border-l-chart-4", badge: "bg-chart-4/15 text-chart-4 border-chart-4/30" },
-  General: { stripe: "border-l-muted-foreground", badge: "bg-muted text-muted-foreground border-border" },
 };
 
 export function CampaignTypeBadge({ purpose }: { purpose: string }) {
   const t = campaignTypeOf(purpose);
-  return <Badge variant="outline" className={`text-[9px] px-1.5 ${TYPE_STYLE[t].badge}`}>{t}</Badge>;
+  return <Badge variant="outline" className={`text-[9px] px-1.5 ${TYPE_STYLE[t].badge}`}>{CAMPAIGN_TYPE_LABEL[t]}</Badge>;
 }
 
 export const statusLabel = (s: string) => (s === "done" ? "actioned" : s);
@@ -76,7 +74,7 @@ export function CampaignList({
     [campaigns, filter, type, showClosed, me],
   );
   const closedCount = campaigns.filter((c) => isClosedStatus(c.status)).length;
-  const showLegacy = !showClosed && filter !== "mine" && (!type || type === "General");
+  const showLegacy = !showClosed && filter !== "mine" && (!type || type === "Network");
 
   const create = async () => {
     const name = newName.trim();
@@ -116,7 +114,7 @@ export function CampaignList({
           <div className="flex gap-1.5">
             <Select value={newType} onValueChange={(v) => setNewType(v as CampaignType)}>
               <SelectTrigger className="h-7 text-[11px] flex-1"><SelectValue /></SelectTrigger>
-              <SelectContent>{CAMPAIGN_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              <SelectContent>{CAMPAIGN_TYPES.map((t) => <SelectItem key={t} value={t}>{CAMPAIGN_TYPE_LABEL[t]}</SelectItem>)}</SelectContent>
             </Select>
             <Button type="submit" size="sm" className="h-7 px-2 text-[11px]" disabled={busy || !newName.trim()}>
               {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : "Create"}
@@ -141,7 +139,7 @@ export function CampaignList({
             onClick={() => setType((cur) => (cur === t ? "" : t))}
             className={`rounded-full border px-2 py-0.5 text-[10px] ${type === t ? TYPE_STYLE[t].badge + " font-semibold" : "border-border text-muted-foreground hover:bg-muted/50"}`}
           >
-            {t}
+            {CAMPAIGN_TYPE_LABEL[t]}
           </button>
         ))}
       </div>

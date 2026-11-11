@@ -2,26 +2,32 @@
 import { initialsOf } from "./workstream-parse";
 import { canonicalOwnerName } from "./user-ownership";
 
-export const CAMPAIGN_TYPES = ["Event", "Demand", "Network", "BD", "General"] as const;
+export const CAMPAIGN_TYPES = ["Event", "Network", "BD"] as const;
 export type CampaignType = (typeof CAMPAIGN_TYPES)[number];
 
-/** Type worked out from the campaign's purpose — no stored field needed. */
+/** Display names for the three campaign types. */
+export const CAMPAIGN_TYPE_LABEL: Record<CampaignType, string> = {
+  Event: "Event",
+  Network: "Network outreach",
+  BD: "Business development",
+};
+
+/**
+ * Type worked out from the campaign's purpose — no stored field needed.
+ * Only three types: demand gen counts as Event; anything else that isn't BD is Network outreach.
+ */
 export function campaignTypeOf(purpose: string): CampaignType {
   const p = (purpose || "").toLowerCase();
-  if (/event/.test(p)) return "Event";
-  if (/demand/.test(p)) return "Demand";
-  if (/network/.test(p)) return "Network";
   if (/business|\bbd\b/.test(p)) return "BD";
-  return "General";
+  if (/event|demand/.test(p)) return "Event";
+  return "Network";
 }
 
 /** Default purpose for a type picked in the quick "Add new" row. */
 export const TYPE_DEFAULT_PURPOSE: Record<CampaignType, string> = {
   Event: "Event outreach",
-  Demand: "PortCo demand gen",
-  Network: "Network development",
+  Network: "Network outreach",
   BD: "Business development",
-  General: "General outreach",
 };
 
 /** Initials of the campaign owner by full canonical name (e.g. "CF", "SE"). */
