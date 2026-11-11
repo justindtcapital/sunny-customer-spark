@@ -251,7 +251,7 @@ export function AppSidebar({
     prime: "Contact Prime",
     title: "Title",
     company: "Company",
-    contactType: "Contact Type",
+    contactType: "Type",
     areasOfInterest: "Area of Interest",
     primaryArea: "Primary Area of Interest",
     source: "Source",
@@ -278,7 +278,7 @@ export function AppSidebar({
           else if (bulkField === "prime") u.prime = value;
           else if (bulkField === "title") u.title = value;
           else if (bulkField === "company") u.company = value;
-          else if (bulkField === "contactType") u.contactType = value;
+          else if (bulkField === "contactType") { u.contactType = value; u.kind = value as Contact["kind"]; u.portco = value === "PortCo"; }
           else if (bulkField === "source") u.source = value as Contact["source"];
           else if (bulkField === "areasOfInterest")
             u.areasOfInterest = value
