@@ -48,12 +48,13 @@ export const draftDashboardChart = createServerFn({ method: "POST" })
         system,
         prompt,
         output: Output.object({ schema: chartSpecSchema }),
-        providerOptions: { openai: { store: false, reasoningEffort: "low" } },
+        providerOptions: { openai: { store: false } },
       });
       const raw = result.output as ChartSpec;
       const clean = (f: string | null) => (f ? f.replace(/^(number|field)\s+/i, "").trim() : f);
       const spec: ChartSpec = { ...raw, x: clean(raw.x) || raw.x, series: clean(raw.series), sumField: clean(raw.sumField) };
       const problems = specProblems(spec, data.dashboard);
+      if (problems.length) console.warn("draftDashboardChart rejected spec", JSON.stringify(raw));
       if (problems.length) return { spec: null, error: `V.I.C. couldn't build that chart: ${problems.join(" ")}` };
       return { spec, error: null };
     } catch (e) {
