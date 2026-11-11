@@ -77,6 +77,9 @@ export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, k
         <label className="ml-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Checkbox checked={showWs} onCheckedChange={(v) => { onShowWs(v === true); onView("actions"); }} aria-label="Show workstreams" />Show workstreams
         </label>
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Checkbox checked={showActions} onCheckedChange={(v) => { onShowActions(v === true); onView("actions"); }} aria-label="Show actions" />Show actions
+        </label>
         <div className="relative ml-auto w-full sm:w-56">
           <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input className="h-8 pl-7 text-sm" placeholder="Search actions" value={search} onChange={(e) => { onSearch(e.target.value); if (view === "inbox") onView("actions"); }} />

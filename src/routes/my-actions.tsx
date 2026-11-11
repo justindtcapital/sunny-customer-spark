@@ -130,7 +130,7 @@ function MyActionsPage() {
         <ActionsFilterBar view={view} onView={onView} counts={counts} inbox={inbox} onToggleInbox={onToggleInbox}
           kinds={kinds} kindCounts={kindCounts} onKinds={setKinds}
           priorities={priorities} picked={picked} onPicked={setPicked}
-          showWs={showWs} onShowWs={setShowWs} search={listSearch} onSearch={setListSearch} />
+          showWs={showWs} onShowWs={setShowWs} showActions={showActions} onShowActions={setShowActions} search={listSearch} onSearch={setListSearch} />
       </div>
 
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
