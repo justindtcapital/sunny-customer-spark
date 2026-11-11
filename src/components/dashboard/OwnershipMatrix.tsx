@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { MatrixPoint } from "@/lib/portco-matrix";
+import { bubbleRadius } from "@/lib/portco-matrix";
 import { formatInvestment, formatOwnership, ownershipLayout, type AxisKind } from "@/lib/portco-ownership";
 import { Bubble } from "@/components/dashboard/PortcoMatrix";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -13,6 +14,28 @@ const PH = H - PAD.top - PAD.bottom;
 const INSET = 30;
 /** Width of the left "Under $2M" column in the log view. */
 const BAND = 90;
+/** Height of the bottom "Under 1%" row in the log view. */
+const LOW_H = 104;
+/** Vertical nudge between crowded companies in that row. */
+const STRIP_DY = 11;
+
+/** Alternates two rows so crowded companies in the bottom row don't stack exactly. */
+function stripOffsets(
+  points: MatrixPoint[],
+  cxOf: (p: MatrixPoint) => number,
+): Map<string, number> {
+  const sorted = [...points].sort((a, b) => cxOf(a) - cxOf(b));
+  const ends = [-Infinity, -Infinity];
+  const out = new Map<string, number>();
+  for (const p of sorted) {
+    const r = bubbleRadius(p.investment);
+    const cx = cxOf(p);
+    const row = cx - r >= ends[0] ? 0 : cx - r >= ends[1] ? 1 : ends[0] <= ends[1] ? 0 : 1;
+    ends[row] = cx + r;
+    out.set(p.key, row === 0 ? -STRIP_DY : STRIP_DY);
+  }
+  return out;
+}
 
 /** DTC invested dollars (x) vs DTC ownership % (y), same logo circles as the maturity view. */
 export function OwnershipMatrix({
