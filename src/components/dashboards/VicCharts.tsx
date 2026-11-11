@@ -43,11 +43,14 @@ export function SpecChart({ spec, records, colorFor, height = 260 }: { spec: Cha
       {keys.map((k, i) => <Line key={k} dataKey={k} name={k === "value" ? spec.measure === "sum" ? spec.sumField || "total" : "count" : k} stroke={color(k, i)} strokeWidth={2} dot={false} />)}
     </LineChart></ResponsiveContainer>;
   }
-  return <ResponsiveContainer width="100%" height={height}><BarChart data={data.rows} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
-    <CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} interval={0} angle={data.rows.length > 6 ? -25 : 0} textAnchor={data.rows.length > 6 ? "end" : "middle"} height={data.rows.length > 6 ? 60 : 30} />
+  const angled = data.rows.length > 6 || data.rows.some((r) => r.label.length > 14);
+  return <ResponsiveContainer width="100%" height={height + (angled ? 40 : 0)}><BarChart data={data.rows} margin={{ top: 8, right: 12, left: angled ? 24 : -16, bottom: 0 }}>
+    <CartesianGrid vertical={false} stroke="var(--border)" /><XAxis dataKey="label" tick={axis} tickLine={false} axisLine={false} interval={0} angle={angled ? -30 : 0} textAnchor={angled ? "end" : "middle"} height={angled ? 90 : 30} tickFormatter={(l: string) => (l.length > 22 ? `${l.slice(0, 21)}…` : l)} />
     <YAxis allowDecimals={false} tick={axis} tickLine={false} axisLine={false} />
     <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={tip} />{legend}
-    {keys.map((k, i) => <Bar key={k} dataKey={k} name={k === "value" ? spec.measure === "sum" ? spec.sumField || "total" : "count" : k} stackId={spec.chart === "stacked" || spec.series ? "s" : undefined} fill={color(k, i)} />)}
+    {keys.map((k, i) => <Bar key={k} dataKey={k} name={k === "value" ? spec.measure === "sum" ? spec.sumField || "total" : "count" : k} stackId={spec.chart === "stacked" || spec.series ? "s" : undefined} fill={color(k, i)}>
+      {!spec.series && data.rows.map((r) => <Cell key={r.label} fill={colorFor?.(r.label) ?? PALETTE[0]} />)}
+    </Bar>)}
   </BarChart></ResponsiveContainer>;
 }
 
