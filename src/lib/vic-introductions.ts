@@ -1,6 +1,7 @@
 import type { Contact } from "./types";
 import { teamMemberFor } from "./user-ownership";
 import { isPortCoContact, portcoKeys } from "./portco-contacts";
+import { manualKind } from "./contact-kind";
 
 /** Evidence shortlist only; no ratings or records are changed. */
 export function introductionCandidates(contacts: Contact[], input: { terms: string[]; mine: boolean; teamEmail: string; portcos: string[]; target: string }) {
@@ -10,7 +11,8 @@ export function introductionCandidates(contacts: Contact[], input: { terms: stri
   const keys = portcoKeys(input.portcos);
   const seen = new Set<string>();
   const candidates = contacts.flatMap((c) => {
-    if (c.portco || isPortCoContact(c, keys)) return [];
+    const manual = manualKind(c.contactType);
+    if (manual ? manual === "PortCo" : c.portco || isPortCoContact(c, keys)) return [];
     if (input.mine && (!me || teamMemberFor(c.prime)?.email !== me.email)) return [];
     const identity = c.urid || c.email.trim().toLowerCase();
     if (!identity || seen.has(identity)) return [];

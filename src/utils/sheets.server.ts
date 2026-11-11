@@ -2018,6 +2018,7 @@ export async function appendInteractionRows(rows: InteractionRowInput[]): Promis
 
 const TARGET_COLS: Record<string, string> = {
   urid: "urid",
+  "contact type": "contactType",
   "first name": "firstName",
   "last name": "lastName",
   company: "company",
@@ -4362,6 +4363,7 @@ export async function buildTargets(): Promise<TargetLead[]> {
       // (legacy values like "Customer Discovery — Acme" → "Customer Discovery").
       originSource: normalizeSource(t.originSource),
       reasonSurfaced: t.reasonSurfaced || "",
+      contactType: t.contactType || "",
       campaign: (t.campaign || "").trim(),
       event: (t.event || "").trim(),
       eventsAttended: linked.eventsAttended,

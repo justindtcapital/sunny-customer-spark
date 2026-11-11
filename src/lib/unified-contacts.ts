@@ -34,6 +34,7 @@ export const TARGET_TO_CONTACT: Record<string, string> = {
   "network profile": "Network Profile",
   prime: "Relationship Prime",
   "merged urids": "Merged URIDs",
+  "contact type": "Contact Type",
 };
 
 /** Contacts columns the unified list needs beyond the original Network ones. */
@@ -47,7 +48,7 @@ export const isNetworkStatus = (status: string) => !isProspectStatus(status);
 /** Legacy Targets view header order: the canonical order first, then any extra mapped fields. */
 export function viewHeaders(targetHeaders: string[]): string[] {
   const out: string[] = [];
-  for (const h of [...targetHeaders, "Follow Up Flag", "Follow Up Due", "Network Profile", "Prime", "Merged URIDs"]) if (!out.some((o) => norm(o) === norm(h))) out.push(h);
+  for (const h of [...targetHeaders, "Follow Up Flag", "Follow Up Due", "Network Profile", "Prime", "Merged URIDs", "Contact Type"]) if (!out.some((o) => norm(o) === norm(h))) out.push(h);
   return out;
 }
 
