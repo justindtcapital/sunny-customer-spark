@@ -101,3 +101,29 @@ export function eventYears(events: PlannerEvent[], current: number): number[] {
   }
   return [...ys].sort((a, b) => b - a);
 }
+
+/** Flat rows for charts built with V.I.C. (fields match CHART_DATASETS.events). */
+export function eventChartRecords(events: PlannerEvent[], attendees: PlannerAttendee[]) {
+  const byEvent = new Map<string, Set<string>>();
+  for (const a of attendees) {
+    const who = (a.email || a.name || "").trim().toLowerCase();
+    if (!who) continue;
+    if (!byEvent.has(a.eventUrid)) byEvent.set(a.eventUrid, new Set());
+    byEvent.get(a.eventUrid)!.add(who);
+  }
+  return events.filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.start || "")).map((e) => ({
+    _date: e.start,
+    month: e.start.slice(0, 7),
+    year: e.start.slice(0, 4),
+    type: eventType(e),
+    category: e.category || "",
+    city: eventCity(e.location),
+    domain: e.sectors,
+    portco: e.portcos,
+    partner: e.partners,
+    status: e.dtcStatus || e.status || "",
+    owner: e.owner || "",
+    format: e.format || "",
+    attendees: byEvent.get(e.urid)?.size ?? 0,
+  }));
+}

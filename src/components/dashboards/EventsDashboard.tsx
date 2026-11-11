@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { VicChartBuilder } from "@/components/dashboards/VicCharts";
+import { eventChartRecords } from "@/lib/events-dashboard";
 
 export const plannerDashboardQuery = { queryKey: ["home-planner"], queryFn: () => fetchPlannerFn(), staleTime: 5 * 60_000 };
 
@@ -91,6 +93,7 @@ export function EventsDashboard() {
     { id: "type", title: "Events per type", bars: b.perType, colorFor: typeColor },
   ];
   const open = cards.find((c) => c.id === expanded);
+  const chartRecords = useMemo(() => ({ events: eventChartRecords(events, data?.attendees ?? []) }), [events, data?.attendees]);
   const usedTypes = EVENT_TYPES.filter((t) => rows.some((r) => (r[t.name] as number) > 0));
 
   if (data?.error) return <p className="text-sm text-muted-foreground">Event data is unavailable right now.</p>;
@@ -132,6 +135,8 @@ export function EventsDashboard() {
           {open && <BarList bars={open.bars} colorFor={open.colorFor} />}
         </DialogContent>
       </Dialog>
+      <VicChartBuilder dashboard="events" records={chartRecords} loading={isLoading}
+        colorFor={(s) => (EVENT_TYPES.some((t) => t.name === s) ? typeColor(s) : undefined)} />
     </div>
   );
 }
