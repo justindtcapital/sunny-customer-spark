@@ -1,5 +1,6 @@
 // Events dashboard: pure aggregation over Event Planner rows (no I/O).
 import { PLANNER_CATEGORIES, type PlannerAttendee, type PlannerEvent } from "@/lib/event-planner";
+import { canonicalOwnerName } from "@/lib/user-ownership";
 
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -122,7 +123,7 @@ export function eventChartRecords(events: PlannerEvent[], attendees: PlannerAtte
     portco: e.portcos,
     partner: e.partners,
     status: e.dtcStatus || e.status || "",
-    owner: e.owner || "",
+    owner: canonicalOwnerName(e.owner) || "",
     format: e.format || "",
     attendees: byEvent.get(e.urid)?.size ?? 0,
   }));
