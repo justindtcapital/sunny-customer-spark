@@ -141,7 +141,7 @@ export function NetworkDashboard() {
       {dash?.error && <p role="alert" className="text-xs text-destructive">{dash.error}</p>}
       {dashQ.isError && <p role="alert" className="text-xs text-destructive">Network activity is unavailable right now.</p>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <Stat label="Outreach" value={loading ? "…" : t.outreach.toLocaleString()} sub={`last ${periodLabel(days)}`} />
         <Stat label="People reached" value={loading ? "…" : t.reached.toLocaleString()} />
         <Stat label="Outreach → Network" value={loading ? "…" : pct(t.conversionRate)} sub={`${t.converted} of ${t.prospectsReached} prospects reached`} />
