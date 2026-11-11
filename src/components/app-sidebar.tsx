@@ -523,35 +523,10 @@ export function AppSidebar({
               <SidebarSeparator />
               <SidebarGroup>
                 <SidebarGroupContent className="px-2 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-                      <Search className="h-3 w-3" /> Search
-                    </span>
-                    <div className="grid grid-cols-2 gap-0.5 rounded-md border border-border p-0.5">
-                      <button
-                        type="button"
-                        onClick={() => update({ ownershipScope: "mine" })}
-                        className={`h-6 whitespace-nowrap rounded px-2 text-[10px] font-medium transition-colors ${
-                          filters.ownershipScope !== "everyone"
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent"
-                        }`}
-                      >
-                        My contacts
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => update({ ownershipScope: "everyone" })}
-                        className={`h-6 whitespace-nowrap rounded px-2 text-[10px] font-medium transition-colors ${
-                          filters.ownershipScope === "everyone"
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-accent"
-                        }`}
-                      >
-                        Everyone
-                      </button>
-                    </div>
-                  </div>
+                  {/* My contacts / Everyone lives in the Network list's control bar (one set of controls). */}
+                  <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                    <Search className="h-3 w-3" /> Search
+                  </span>
 
                   <div className="relative">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
