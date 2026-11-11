@@ -170,4 +170,4 @@
 - [x] Read-only Asana lookups for V.I.C. (workstreams, task search, task details, projects, any read request)
 
 ## My Actions type checkboxes — November 11 request
-- [ ] Add independent Workstreams and Actions checkboxes; preserve priority sorting and verify workstreams-only view
+- [x] Added independent Workstreams and Actions checkboxes; preserved priority sorting and verified workstreams-only and actions-only views signed in; 25 tests passed, build OK
