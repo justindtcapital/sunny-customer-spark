@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BriefRouteImport } from './routes/brief'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CrmRouteImport } from './routes/crm'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as MyActionsRouteImport } from './routes/my-actions'
 import { Route as PartnersRouteImport } from './routes/partners'
@@ -60,6 +61,11 @@ const CampaignsRoute = CampaignsRouteImport.update({
 const CrmRoute = CrmRouteImport.update({
   id: '/crm',
   path: '/crm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsRoute = EventsRouteImport.update({
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
   '/partners': typeof PartnersRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
   '/partners': typeof PartnersRoute
@@ -201,6 +209,7 @@ export interface FileRoutesById {
   '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
+  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
   '/partners': typeof PartnersRoute
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/brief'
     | '/campaigns'
     | '/crm'
+    | '/dashboard'
     | '/events'
     | '/my-actions'
     | '/partners'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/brief'
     | '/campaigns'
     | '/crm'
+    | '/dashboard'
     | '/events'
     | '/my-actions'
     | '/partners'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/brief'
     | '/campaigns'
     | '/crm'
+    | '/dashboard'
     | '/events'
     | '/my-actions'
     | '/partners'
@@ -299,6 +311,7 @@ export interface RootRouteChildren {
   BriefRoute: typeof BriefRoute
   CampaignsRoute: typeof CampaignsRoute
   CrmRoute: typeof CrmRoute
+  DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
   MyActionsRoute: typeof MyActionsRoute
   PartnersRoute: typeof PartnersRoute
@@ -357,6 +370,13 @@ declare module '@tanstack/react-router' {
       path: '/crm'
       fullPath: '/crm'
       preLoaderRoute: typeof CrmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events': {
@@ -493,6 +513,7 @@ const rootRouteChildren: RootRouteChildren = {
   BriefRoute: BriefRoute,
   CampaignsRoute: CampaignsRoute,
   CrmRoute: CrmRoute,
+  DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
   MyActionsRoute: MyActionsRoute,
   PartnersRoute: PartnersRoute,
