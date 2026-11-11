@@ -319,7 +319,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       else general.push(x);
     }
     const OPS = "PortDev Ops";
-    const m = new Map<string, { company: string; ws: Workstream[]; fu: Reminder[] }>();
+    const m = new Map<string, { company: string; kind: CompanyKind; ws: Workstream[]; fu: Reminder[] }>();
     // Keyed by kind too, so a PortCo filed as a Network company never merges with its PortCo group.
     const ensure = (name: string, forced?: CompanyKind) => {
       const isOps = forced === "ops" || !name.trim() || /^(no portco|no company|portdev ops)$/i.test(name.trim());
