@@ -91,6 +91,7 @@ function MyActionsPage() {
   const [kinds, setKinds] = useState<CompanyKind[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [showWs, setShowWs] = useState(true);
+  const [showActions, setShowActions] = useState(true);
   const [listSearch, setListSearch] = useState("");
   const [kindCounts, setKindCounts] = useState<Record<CompanyKind, number>>({ portcos: 0, network: 0, ops: 0 });
   const { workstreams } = useWorkstreams();

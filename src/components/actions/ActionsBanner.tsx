@@ -42,8 +42,8 @@ function Chip({ label, count, on, onClick }: { label: string; count?: number; on
 const RowLabel = ({ children }: { children: React.ReactNode }) =>
   <span className="w-20 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">{children}</span>;
 
-/** PortCo-style chip rows: My Inbox, My Actions kinds, priorities, workstream switch and search. */
-export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, kinds, kindCounts, onKinds, priorities, picked, onPicked, showWs, onShowWs, search, onSearch }: {
+/** PortCo-style chip rows: My Inbox, My Actions kinds, priorities, item-type checkboxes and search. */
+export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, kinds, kindCounts, onKinds, priorities, picked, onPicked, showWs, onShowWs, showActions, onShowActions, search, onSearch }: {
   view: BannerView; onView: (v: BannerView) => void;
   counts: { notes: number; activity: number }; inbox: InboxToggles; onToggleInbox: (k: InboxKind) => void;
   kinds: CompanyKind[]; kindCounts: Record<CompanyKind, number>; onKinds: (k: CompanyKind[]) => void;
