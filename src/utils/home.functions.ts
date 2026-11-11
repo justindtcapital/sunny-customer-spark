@@ -88,8 +88,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
     const directory = [...contacts, ...targets].map((p) => ({ name: p.name || "", email: p.email || "", company: p.company || "" }));
     const editedReminders = dedupeReminders(reminders).map((r) => applyFollowUpEdit(r, edits.get(r.id))).filter((r) => matches(r.owner))
       .map((r) => {
-        // Read-time grouping only: an outside person's company, never written back.
-        if (r.company?.trim()) return r;
+        // Read-time grouping only: the outside person's company, never written back.
         const hit = resolveActionContact(r, directory, (x) => !!teamMemberFor(x));
         return hit ? { ...r, groupCompany: hit.company, contactName: hit.name } : r;
       });

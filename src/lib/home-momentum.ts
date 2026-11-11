@@ -59,8 +59,10 @@ export interface HomeReminder {
   details?: string;
   people?: { name: string; email: string }[];
   tracks?: ("BD" | "GTM")[];
-  /** Read-time only: company of the outside person this follow-up is about, when it has no company tag. */
+  /** Read-time only: company of the outside person this follow-up is about. */
   groupCompany?: string;
+  /** Saved PortCo/Network filing choice; absent means automatic. */
+  filing?: "portco" | "network";
   contactName?: string;
 }
 
