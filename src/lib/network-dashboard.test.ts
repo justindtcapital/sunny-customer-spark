@@ -5,7 +5,7 @@ const NOW = Date.parse("2026-11-11T12:00:00Z");
 const people = (entries: [string, PersonInfo][]) => new Map(entries);
 
 describe("network dashboard", () => {
-  it("credits the contact's owner, by full teammate name", () => {
+  it("resolves teammates by full name", () => {
     expect(creditedOwners("Falloon")).toEqual(["Chris Falloon"]);
     expect(creditedOwners("julia@dt-capital.net")).toEqual(["Julia Beech"]);
     expect(creditedOwners("Falloon, Beech")).toEqual(["Chris Falloon", "Julia Beech"]);
@@ -22,6 +22,15 @@ describe("network dashboard", () => {
     expect(touchesInWindow(touches, 90, NOW)).toHaveLength(3);
   });
 
+  it("an unattributed touch merges into a same-day touch with a teammate; two teammates both count", () => {
+    const touches: Touch[] = [
+      { person: "a@x.com", date: "2026-11-01", source: "Email" },
+      { person: "a@x.com", date: "2026-11-01", source: "Logged", actor: "Chris Hillock" },
+      { person: "a@x.com", date: "2026-11-01", source: "Logged", actor: "julia@dt-capital.net" },
+    ];
+    expect(touchesInWindow(touches, 90, NOW).map((t) => t.actor).sort()).toEqual(["Chris Hillock", "Julia Beech"]);
+  });
+
   it("defaults to the last 90 days", () => {
     const touches: Touch[] = [
       { person: "a@x.com", date: "2026-10-01", source: "Email" },
@@ -30,18 +39,20 @@ describe("network dashboard", () => {
     expect(touchesInWindow(touches, 90, NOW)).toHaveLength(1);
   });
 
-  it("conversion counts prospects reached who moved into the Network after the touch, credited to the owner", () => {
+  it("outreach and conversion credit the teammate who acted, not the contact owner", () => {
     const p = people([
-      ["a@x.com", { prime: "Shane Earley", tier: "Cold", prospect: false }],
-      ["b@x.com", { prime: "Shane Earley", tier: "Prospect", prospect: true }],
+      ["a@x.com", { prime: "Julia Beech", tier: "Cold", prospect: false }],
+      ["b@x.com", { prime: "Julia Beech", tier: "Prospect", prospect: true }],
     ]);
     const touches: Touch[] = [
-      { person: "a@x.com", date: "2026-10-01", source: "Email" },
-      { person: "b@x.com", date: "2026-10-02", source: "Email" },
+      { person: "a@x.com", date: "2026-10-01", source: "Logged", actor: "shane@dt-capital.net" },
+      { person: "b@x.com", date: "2026-10-02", source: "Logged", actor: "Shane Earley" },
     ];
     const movements = [{ ts: "2026-10-05T00:00:00Z", email: "a@x.com", from: "Prospecting", to: "Cold" }];
     const { rows, total } = networkDashboardStats({ people: p, touches, movements, days: 90, now: NOW });
     const shane = rows.find((r) => r.owner === "Shane Earley")!;
+    expect(rows.find((r) => r.owner === "Julia Beech")!.outreach).toBe(0);
+    expect(shane.outreach).toBe(2);
     expect(shane.prospectsReached).toBe(2);
     expect(shane.converted).toBe(1);
     expect(shane.conversionRate).toBe(0.5);

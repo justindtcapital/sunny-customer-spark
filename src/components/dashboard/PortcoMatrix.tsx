@@ -198,7 +198,8 @@ export function PortcoMatrix({
   selectedKey,
   onSelect,
   allowedKeys,
-}: Props & { allowedKeys?: Set<string> | null }) {
+  hideUnscored = false,
+}: Props & { allowedKeys?: Set<string> | null; /** Dashboards hub tile: chart only. */ hideUnscored?: boolean }) {
   const [hover, setHover] = useState<MatrixPoint | null>(null);
   const [zone, setZone] = useState<(typeof ZONES)[number] | null>(null);
   const [buckets, setBuckets] = useState<BucketId[]>(["small", "mid", "large"]);
@@ -489,7 +490,7 @@ export function PortcoMatrix({
           })()}
       </svg>
 
-      {unscored.length > 0 && (
+      {!hideUnscored && unscored.length > 0 && (
         <div className="rounded-lg border border-dashed border-border px-3 py-2">
           <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1.5">
             Not scored yet in Asana ({unscored.filter((p) => !hiddenByInvestor(p)).length})

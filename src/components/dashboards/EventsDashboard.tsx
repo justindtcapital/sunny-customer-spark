@@ -10,6 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { VicChartBuilder } from "@/components/dashboards/VicCharts";
 import { eventChartRecords } from "@/lib/events-dashboard";
+import { PLANNER_STATUSES, type PlannerStatus } from "@/lib/event-planner";
+import { Checkbox } from "@/components/ui/checkbox";
+
+/** Event Planner statuses as the dashboard names them (Potential reads "Planned"). */
+const STATUS_LABEL: Record<PlannerStatus, string> = { Confirmed: "Confirmed", Potential: "Planned", Declined: "Declined" };
 
 export const plannerDashboardQuery = { queryKey: ["home-planner"], queryFn: () => fetchPlannerFn(), staleTime: 5 * 60_000 };
 
@@ -80,7 +85,9 @@ export function EventsDashboard() {
   const [year, setYear] = useState(thisYear);
   const [month, setMonth] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const events = data?.events ?? [];
+  const [statuses, setStatuses] = useState<PlannerStatus[]>(PLANNER_STATUSES);
+  const toggleStatus = (st: PlannerStatus) => setStatuses((cur) => (cur.includes(st) ? cur.filter((x) => x !== st) : [...cur, st]));
+  const events = useMemo(() => (data?.events ?? []).filter((e) => statuses.includes(e.status)), [data?.events, statuses]);
   const rows = useMemo(() => monthlyByType(events, year), [events, year]);
   const scoped = useMemo(() => eventsInScope(events, year, month), [events, year, month]);
   const b = useMemo(() => eventBreakdowns(scoped, data?.attendees ?? []), [scoped, data?.attendees]);
@@ -108,7 +115,15 @@ export function EventsDashboard() {
                 {isLoading ? "Loading…" : `${scoped.length} events · ${month == null ? `all of ${year}` : `${MONTH_LABELS[month]} ${year}`} — click a month to focus the charts below`}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-3" aria-label="Event status">
+                {PLANNER_STATUSES.map((st) => (
+                  <label key={st} className="inline-flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
+                    <Checkbox checked={statuses.includes(st)} onCheckedChange={() => toggleStatus(st)} aria-label={`Show ${STATUS_LABEL[st]} events`} />
+                    {STATUS_LABEL[st]}
+                  </label>
+                ))}
+              </div>
               {month != null && <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setMonth(null)}>Whole year</Button>}
               <Select value={String(year)} onValueChange={(v) => { setYear(Number(v)); setMonth(null); }}>
                 <SelectTrigger className="h-8 w-24 text-xs bg-card"><SelectValue /></SelectTrigger>
