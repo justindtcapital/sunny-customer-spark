@@ -3,6 +3,7 @@ import { Megaphone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { fetchPersonCampaigns } from "@/utils/campaigns.functions";
 import { targetKeyOf } from "@/lib/types";
+import { RESULT_LABEL, type CampaignResult } from "@/lib/campaign-results";
 
 /** Every Campaign Builder campaign this person belongs to. */
 export function PersonCampaigns({ email, name, company }: { email?: string; name?: string; company?: string }) {
@@ -30,8 +31,14 @@ export function PersonCampaigns({ email, name, company }: { email?: string; name
             <span className="text-muted-foreground">{c.purpose}</span>
             <span className="text-muted-foreground">· added {c.added}</span>
             {c.sentDate && <span className="text-muted-foreground">· sent {c.sentDate}</span>}
+            {c.result && (
+              <span className="text-foreground" title={c.resultBy ? `Marked by ${c.resultBy}${c.resultAt ? ` on ${c.resultAt.slice(0, 10)}` : ""}` : undefined}>
+                · <b>{RESULT_LABEL[c.result as CampaignResult] || c.result}</b>
+                {c.resultBy && <span className="text-muted-foreground"> ({c.resultBy})</span>}
+              </span>
+            )}
             <Badge variant="outline" className="ml-auto text-[9px] capitalize">
-              {c.status}
+              {c.status === "done" ? "actioned" : c.status}
             </Badge>
           </div>
         ))}
