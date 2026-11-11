@@ -1,60 +1,61 @@
 # Dashboards: one hub, three dashboards
 
-Built in three steps so we can talk through each before building the next. Step 1 is ready to build now; steps 2 and 3 are outlined with the questions we still need to settle.
+Built in steps. Steps 1 and 2 are ready to build; step 3 still needs a few answers.
 
-## Step 1 — Dashboards hub + PortCo dashboard (build now)
+## Step 1 — Dashboards hub + PortCo dashboard
 
 **Menu and hub page**
 - Left menu "Dashboard" becomes **Dashboards**.
-- Opening it shows three large tiles, each with a small live preview so people know what's inside:
+- Opening it shows three large tiles, each with a small live preview:
   - **PortCo Dashboard** — a mini version of today's logo-circle maturity chart.
-  - **Events Dashboard** — a mini month-by-month event intensity strip.
+  - **Events Dashboard** — a mini version of the monthly stacked event bars.
   - **Network Dashboard** — a mini version of the Network pyramid.
-- Events and Network tiles open simple "coming next" pages until steps 2 and 3 are built.
+- The Network tile opens a simple "coming next" page until step 3 is built.
 
-**PortCo Dashboard** (today's dashboard, unchanged otherwise)
-- Title "PortCo Prioritization" becomes **PortCo Maturity**, with a view dropdown:
+**PortCo Dashboard** (today's dashboard, otherwise unchanged)
+- "PortCo Prioritization" becomes **PortCo Maturity**, with a view dropdown:
   - **Maturity** — today's sales vs go-to-market maturity chart.
-  - **Ownership & Investment** — DTC invested dollars on the bottom axis, DTC ownership % on the side axis.
-- Both views use the same company logo circles, the same filters (action owner, investor, domain, priority) and the same click-to-open company panel.
-- Companies missing investment or ownership in Asana are listed below the chart as "Not plotted" rather than silently dropped.
-- Existing links from the homepage and My Actions (owner + section) keep working.
+  - **Ownership & Investment** — DTC invested dollars across the bottom, DTC ownership % up the side.
+- Both views use the same logo circles, filters (action owner, investor, domain, priority) and click-to-open company panel.
+- Companies missing investment or ownership are listed under the chart as "Not plotted".
+- Existing links from the homepage and My Actions keep working.
 
-## Step 2 — Events Dashboard (to discuss)
+## Step 2 — Events Dashboard
 
-Proposed top section: a 12-month calendar heat strip showing event intensity by month, with a year selector.
+**Top: 12-month stacked bar chart**
+- One bar per month, stacked by event category (Dell-led, pay-to-play, briefings, etc.), with the same categories and colors as the Events page.
+- No month selected = the charts below show the whole year. Click a month to filter them to that month; click again (or "Whole year") to go back.
+- Year selector.
 
-Below it, a grid of small bar charts, each expandable to full size with all rows:
+**Below: grid of small bar charts**, each expandable to full size with all rows:
 - Attendees per event
 - Events per PortCo
 - Events per domain
 - Events per city
-- Events per investor (through the PortCos at each event)
+- Events per type (same categories and colors as the top chart)
 
-Questions for when we get there: which events count (attended only, or also planned/declined); whether "attendees" means DTC guests, total registrants, or both; whether investor means lead investor only.
+Defaults unless you say otherwise: counts every event on the tracker for that month (any status); attendees = people recorded as attending that event.
 
 ## Step 3 — Network Dashboard (to discuss)
 
-- The same pyramid as the Network page, including the same adds/removes (movement) numbers.
-- Outreach volume, conversion from outreach to Network (Prospect to Cold), and promotion rates Cold to Warm and Warm to Hot.
-- Each shown overall and by teammate: Chris Falloon, Julia Beech, Chris Hillock, Shane Earley.
+- Same pyramid and adds/removes numbers as the Network page.
+- Outreach volume, outreach-to-Network conversion (Prospect to Cold), promotion rates Cold to Warm and Warm to Hot.
+- Overall and by teammate: Chris Falloon, Julia Beech, Chris Hillock, Shane Earley.
 
-Questions: what counts as one "outreach" (an email, a campaign send, any logged activity); how a move is credited to a teammate (the contact's owner, or whoever made the change); default time window.
+Questions: what counts as one outreach; how a move is credited to a teammate (contact owner, or whoever made the change); default time window.
 
-## "Build a chart with V.I.C." (Events and Network)
+## "Build a chart with V.I.C." (Events and Network, later)
 
-Feasible and safe if V.I.C. only describes a chart and never writes code:
-- You ask: "events per city for 2026, only AI companies".
-- V.I.C. picks from a fixed set of data (events, attendees, contacts, rating moves, outreach) and returns a chart description: what to count, how to group, filters, bar/line/pie.
-- The app draws it with the same chart style, shows it for review, and you choose **Save to dashboard** or discard.
-- Saved charts are per teammate, can be removed anytime, and always recalculate from live data.
+- You ask in plain words ("events per city in 2026, AI companies only").
+- V.I.C. picks from a fixed set of data and returns a chart description (what to count, grouping, filters, chart type) — it never writes code or changes data.
+- The app draws it for review; you choose **Save to dashboard** or discard. Saved charts recalculate from live data.
 
-Question: should saved charts be private to you, or shared with the whole team?
+Question: saved charts private to you, or shared with the team?
 
 ## Technical details
 
-- Routes: `/dashboards` (hub), `/dashboards/portco` (current dashboard moved, same owner/section search validation), `/dashboards/events`, `/dashboards/network`. `/dashboard` keeps working with a permanent redirect to `/dashboards/portco` carrying its search params; update homepage/My Actions deep links and sidebar.
-- Ownership & Investment view reuses `investment` ($M) and `ownership` (fraction) already parsed in `src/lib/portco-matrix.ts`; add a pure helper to compute axis scales/positions and the not-plotted list, with tests (e.g. 11.6% ownership plots at 0.116, missing values excluded).
-- Hub tile previews reuse existing reads (Asana PortCo data, planner rows, network pyramid) at small size; previews show "unavailable" rather than demo data.
-- Each route gets its own head() title/description.
-- V.I.C. charts (later): a validated chart-spec schema over whitelisted datasets, rendered client-side; saved specs in a new per-teammate Cloud table under RLS. Records the decision in AGENTS.md.
+- Routes: `/dashboards`, `/dashboards/portco` (current dashboard moved, same owner/section search validation), `/dashboards/events`, `/dashboards/network`. `/dashboard` permanently redirects to `/dashboards/portco` with its search params; update sidebar and homepage/My Actions deep links.
+- Ownership view reuses `investment` ($M) and `ownership` (fraction) from `src/lib/portco-matrix.ts`; a pure helper computes positions and the not-plotted list, with tests.
+- Events dashboard reuses the Event Planner rows and category colors (`event-planner`, `event-colors`); pure helpers in a new `src/lib/events-dashboard.ts` for month buckets by category and the five breakdowns filtered by selected month, with tests (e.g. an event in March counts only under March and its category).
+- Previews show "unavailable" rather than demo data. Each route gets its own head().
+- V.I.C. charts: validated chart-spec schema over whitelisted datasets; saved specs in a per-teammate Cloud table under RLS; decision recorded in AGENTS.md. Add these tasks to roadmap.md when building.
