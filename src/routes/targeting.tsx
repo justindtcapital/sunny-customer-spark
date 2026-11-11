@@ -117,6 +117,7 @@ import {
   removeEventLink,
 } from "@/utils/sheets.functions";
 import { promoteTargetsToCrm } from "@/utils/target-crm.functions";
+import { bulkChangeRelationshipLevels } from "@/utils/relationship-levels.functions";
 import {
   TrackActivityDialog,
   type TrackActivityResult,
@@ -1446,6 +1447,29 @@ function TargetingPage() {
     }
   };
 
+  // One-off Prospect → Cold: flips the same Contacts row's status (same ID, history kept).
+  const [movingToNetwork, setMovingToNetwork] = useState(false);
+  const moveToNetworkCold = async (t: TargetLead) => {
+    if (!t.email) { toast.error("This prospect has no email, so they can't be moved."); return; }
+    setMovingToNetwork(true);
+    try {
+      const res = await bulkChangeRelationshipLevels({ data: { contacts: [{ urid: t.urid, name: t.name, email: t.email, temperature: "Prospect" }], change: "promote", operationId: crypto.randomUUID() } });
+      const o = res.outcomes[0];
+      if (o && (o.status === "moved" || o.status === "already_complete")) {
+        toast.success(`${t.name || t.email} is now a Cold Network contact.`);
+        setTargets((prev) => prev.filter((x) => x.id !== t.id));
+        setDetailOpen(false);
+        setActiveTarget(null);
+        await router.invalidate();
+      } else toast.warning(o?.reason || "Couldn't move this prospect into the Network.");
+    } catch (e) {
+      console.error("moveToNetworkCold failed", e);
+      toast.error(e instanceof Error ? e.message : "Couldn't move this prospect into the Network.");
+    } finally {
+      setMovingToNetwork(false);
+    }
+  };
+
   const promoteOneToCrm = async (t: TargetLead) => {
     setPromotingCrm(true);
     setTargets((prev) =>
@@ -2107,12 +2131,25 @@ function TargetingPage() {
                       <PartnerChip company={activeTarget.company || ""} />
                     </div>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={`text-[10px] font-semibold ${stageBadgeClass(activeTarget.stage)}`}
-                  >
-                    {activeTarget.stage}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] font-semibold ${stageBadgeClass(activeTarget.stage)}`}
+                    >
+                      {activeTarget.stage}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={movingToNetwork}
+                      onClick={() => void moveToNetworkCold(activeTarget)}
+                      title="Same record and history; they become a Cold Network contact"
+                    >
+                      {movingToNetwork ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <ArrowUpRight className="h-3 w-3 mr-1" />}
+                      Move to Network · Cold
+                    </Button>
+                  </div>
                 </div>
               </SheetHeader>
 
