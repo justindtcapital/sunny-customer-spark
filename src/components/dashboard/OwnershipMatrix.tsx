@@ -1,13 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { MatrixPoint } from "@/lib/portco-matrix";
-import { ownershipLayout } from "@/lib/portco-ownership";
+import { formatInvestment, formatOwnership, ownershipLayout, type AxisKind } from "@/lib/portco-ownership";
 import { Bubble } from "@/components/dashboard/PortcoMatrix";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const W = 1100;
 const H = 594;
 const PAD = { top: 24, right: 40, bottom: 58, left: 80 };
 const PW = W - PAD.left - PAD.right;
 const PH = H - PAD.top - PAD.bottom;
+/** Keeps the largest logo circles inside the plot at the ends of each axis. */
+const INSET = 30;
 
 /** DTC invested dollars (x) vs DTC ownership % (y), same logo circles as the maturity view. */
 export function OwnershipMatrix({
@@ -24,33 +27,57 @@ export function OwnershipMatrix({
   onSelect: (key: string | null) => void;
   compact?: boolean;
 }) {
-  const layout = useMemo(() => ownershipLayout(points), [points]);
-  const x = (v: number) => PAD.left + (v / layout.maxInvestment) * PW;
-  const y = (v: number) => PAD.top + PH - (v / layout.maxOwnership) * PH;
-  const ticks = [0, 0.25, 0.5, 0.75, 1];
+  const [scale, setScale] = useState<AxisKind>("log");
+  const layout = useMemo(() => ownershipLayout(points, scale), [points, scale]);
+  const xa = layout.investment;
+  const ya = layout.ownership;
+  const x = (v: number) => PAD.left + INSET + xa.unit(v) * (PW - 2 * INSET);
+  const y = (v: number) => PAD.top + PH - INSET - ya.unit(v) * (PH - 2 * INSET);
+  const logNote = scale === "log" ? " · log scale" : "";
   return (
     <div>
+      {!compact && (
+        <div className="flex justify-end mb-2">
+          <ToggleGroup
+            type="single"
+            size="sm"
+            variant="outline"
+            value={scale}
+            onValueChange={(v) => v && setScale(v as AxisKind)}
+            aria-label="Axis scale"
+          >
+            <ToggleGroupItem value="log" className="text-xs px-3">Log scale</ToggleGroupItem>
+            <ToggleGroupItem value="linear" className="text-xs px-3">Linear scale</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      )}
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" onClick={() => onSelect(null)} role="img" aria-label="Ownership and investment chart">
-        {ticks.map((t) => (
-          <g key={t}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y(t * layout.maxOwnership)} y2={y(t * layout.maxOwnership)} stroke="var(--border)" strokeDasharray={t ? "3 4" : undefined} />
-            <line y1={PAD.top} y2={PAD.top + PH} x1={x(t * layout.maxInvestment)} x2={x(t * layout.maxInvestment)} stroke="var(--border)" strokeDasharray={t ? "3 4" : undefined} />
+        <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + PH} y2={PAD.top + PH} stroke="var(--border)" />
+        <line x1={PAD.left} x2={PAD.left} y1={PAD.top} y2={PAD.top + PH} stroke="var(--border)" />
+        {ya.ticks.map((t) => (
+          <g key={`y${t}`}>
+            <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeDasharray="3 4" />
             {!compact && (
-              <>
-                <text x={PAD.left - 10} y={y(t * layout.maxOwnership)} dy="0.35em" textAnchor="end" className="fill-muted-foreground" fontSize={12}>
-                  {(t * layout.maxOwnership * 100).toFixed(1).replace(/\.0$/, "")}%
-                </text>
-                <text x={x(t * layout.maxInvestment)} y={PAD.top + PH + 20} textAnchor="middle" className="fill-muted-foreground" fontSize={12}>
-                  ${(t * layout.maxInvestment).toFixed(1).replace(/\.0$/, "")}M
-                </text>
-              </>
+              <text x={PAD.left - 10} y={y(t)} dy="0.35em" textAnchor="end" className="fill-muted-foreground" fontSize={12}>
+                {formatOwnership(t)}
+              </text>
+            )}
+          </g>
+        ))}
+        {xa.ticks.map((t) => (
+          <g key={`x${t}`}>
+            <line y1={PAD.top} y2={PAD.top + PH} x1={x(t)} x2={x(t)} stroke="var(--border)" strokeDasharray="3 4" />
+            {!compact && (
+              <text x={x(t)} y={PAD.top + PH + 20} textAnchor="middle" className="fill-muted-foreground" fontSize={12}>
+                {formatInvestment(t)}
+              </text>
             )}
           </g>
         ))}
         {!compact && (
           <>
-            <text x={PAD.left + PW / 2} y={H - 10} textAnchor="middle" className="fill-foreground font-medium" fontSize={13}>DTC invested ($M)</text>
-            <text transform={`translate(20 ${PAD.top + PH / 2}) rotate(-90)`} textAnchor="middle" className="fill-foreground font-medium" fontSize={13}>DTC ownership</text>
+            <text x={PAD.left + PW / 2} y={H - 10} textAnchor="middle" className="fill-foreground font-medium" fontSize={13}>DTC invested ($M){logNote}</text>
+            <text transform={`translate(20 ${PAD.top + PH / 2}) rotate(-90)`} textAnchor="middle" className="fill-foreground font-medium" fontSize={13}>DTC ownership{logNote}</text>
           </>
         )}
         {layout.plotted.map((p) => (
