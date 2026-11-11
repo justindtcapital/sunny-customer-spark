@@ -67,3 +67,48 @@ export function resolveActionContact(
   }
   return null;
 }
+
+/** How a follow-up is filed in My Actions: "auto" decides from its tags and the outside person. */
+export type FollowUpFiling = "auto" | "portco" | "network";
+export interface FilingInput {
+  company?: string;
+  filing?: FollowUpFiling;
+  /** Company of the outside person the follow-up is about (read-time lookup). */
+  groupCompany?: string;
+  contactName?: string;
+  person?: string;
+}
+export interface Filing { kind: "portcos" | "network" | "ops"; group: string; portcoTag: string; auto: boolean }
+
+const OPS_TAG = /^(no portco|no company|portdev ops)$/i;
+
+/**
+ * Where a follow-up shows in My Actions. A PortCo follow-up sits under its PortCo; a Network
+ * follow-up sits under the outside person's company and keeps the PortCo as a tag.
+ * Auto: a PortCo-tagged follow-up about someone at a non-PortCo company is Network.
+ * `portcoName` returns the canonical PortCo name for a company, or "" when it isn't one.
+ */
+export function fileFollowUp(r: FilingInput, portcoName: (name: string) => string, isTeammate: (name: string) => boolean): Filing {
+  const tags = (r.company || "").split(/\s*,\s*/).map((t) => t.trim()).filter((t) => t && !OPS_TAG.test(t));
+  const portcoTag = tags.map(portcoName).find(Boolean) || "";
+  const otherTag = tags.find((t) => !portcoName(t)) || "";
+  const personCo = (r.groupCompany || "").trim();
+  const personPortco = personCo ? portcoName(personCo) : "";
+  const personName = (r.contactName || (r.person && !isTeammate(r.person) ? r.person : "") || "").trim();
+  const networkGroup = (personCo && !personPortco ? personCo : "") || otherTag;
+  const asPortco = (auto: boolean): Filing => {
+    const group = portcoTag || personPortco;
+    return group ? { kind: "portcos", group, portcoTag: group, auto } : { kind: "ops", group: "", portcoTag: "", auto };
+  };
+  const asNetwork = (auto: boolean): Filing => {
+    const group = networkGroup || personName || personCo || portcoTag;
+    return group ? { kind: "network", group, portcoTag, auto } : { kind: "ops", group: "", portcoTag, auto };
+  };
+  if (r.filing === "portco") return asPortco(false);
+  if (r.filing === "network") return asNetwork(false);
+  if (portcoTag) return networkGroup ? asNetwork(true) : asPortco(true);
+  if (networkGroup) return asNetwork(true);
+  if (personPortco) return asPortco(true);
+  if (personName) return asNetwork(true);
+  return { kind: "ops", group: "", portcoTag: "", auto: true };
+}
