@@ -168,3 +168,6 @@
 
 ## V.I.C. Asana access — November 11 request
 - [x] Read-only Asana lookups for V.I.C. (workstreams, task search, task details, projects, any read request)
+
+## My Actions type checkboxes — November 11 request
+- [ ] Add independent Workstreams and Actions checkboxes; preserve priority sorting and verify workstreams-only view
