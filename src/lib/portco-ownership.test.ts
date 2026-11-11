@@ -42,6 +42,25 @@ describe("under-$2M column", () => {
   });
 });
 
+describe("under-1% row", () => {
+  const pts = [pt("tiny", 8, 0.003), pt("half", 12, 0.008), pt("one", 6, 0.01), pt("big", 51.5, 0.049)];
+  it("log view moves companies under 1% ownership into the bottom row and starts the axis at 1%", () => {
+    const l = ownershipLayout(pts, "log");
+    expect(l.lowOwnershipBelow).toBe(0.01);
+    expect(l.lowOwnership.map((p) => p.key)).toEqual(["tiny", "half"]);
+    expect(l.ownership.min).toBe(0.01);
+    expect(l.ownership.ticks.map(formatOwnership)).toEqual(["1%", "2%", "5%"]);
+  });
+  it("exactly 1% stays on the axis", () => {
+    expect(ownershipLayout(pts, "log").lowOwnership.some((p) => p.key === "one")).toBe(false);
+  });
+  it("linear view keeps everyone on one axis", () => {
+    const l = ownershipLayout(pts, "linear");
+    expect(l.lowOwnershipBelow).toBeNull();
+    expect(l.lowOwnership).toEqual([]);
+  });
+});
+
 describe("fitAxis", () => {
   it("linear investment stops at $60M for a $51.5M max, not $100M", () => {
     const a = fitAxis([0.2, 10, 51.5], "linear");

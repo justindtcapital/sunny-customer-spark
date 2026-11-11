@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { MatrixPoint } from "@/lib/portco-matrix";
+import { bubbleRadius } from "@/lib/portco-matrix";
 import { formatInvestment, formatOwnership, ownershipLayout, type AxisKind } from "@/lib/portco-ownership";
 import { Bubble } from "@/components/dashboard/PortcoMatrix";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -13,6 +14,28 @@ const PH = H - PAD.top - PAD.bottom;
 const INSET = 30;
 /** Width of the left "Under $2M" column in the log view. */
 const BAND = 90;
+/** Height of the bottom "Under 1%" row in the log view. */
+const LOW_H = 104;
+/** Vertical nudge between crowded companies in that row. */
+const STRIP_DY = 11;
+
+/** Alternates two rows so crowded companies in the bottom row don't stack exactly. */
+function stripOffsets(
+  points: MatrixPoint[],
+  cxOf: (p: MatrixPoint) => number,
+): Map<string, number> {
+  const sorted = [...points].sort((a, b) => cxOf(a) - cxOf(b));
+  const ends = [-Infinity, -Infinity];
+  const out = new Map<string, number>();
+  for (const p of sorted) {
+    const r = bubbleRadius(p.investment);
+    const cx = cxOf(p);
+    const row = cx - r >= ends[0] ? 0 : cx - r >= ends[1] ? 1 : ends[0] <= ends[1] ? 0 : 1;
+    ends[row] = cx + r;
+    out.set(p.key, row === 0 ? -STRIP_DY : STRIP_DY);
+  }
+  return out;
+}
 
 /** DTC invested dollars (x) vs DTC ownership % (y), same logo circles as the maturity view. */
 export function OwnershipMatrix({
@@ -34,11 +57,17 @@ export function OwnershipMatrix({
   const xa = layout.investment;
   const ya = layout.ownership;
   const band = layout.lowBandBelow != null ? BAND : 0;
+  const lowH = layout.lowOwnershipBelow != null ? LOW_H : 0;
   const plotLeft = PAD.left + band;
+  const plotBottom = PAD.top + PH - lowH;
   const x = (v: number) => plotLeft + INSET + xa.unit(v) * (PW - band - 2 * INSET);
   const bandX = PAD.left + BAND / 2;
+  const stripY = PAD.top + PH - lowH / 2;
   const isLow = (p: MatrixPoint) => layout.lowBandBelow != null && (p.investment ?? 0) < layout.lowBandBelow;
-  const y = (v: number) => PAD.top + PH - INSET - ya.unit(v) * (PH - 2 * INSET);
+  const isLowOwn = (p: MatrixPoint) => layout.lowOwnershipBelow != null && (p.ownership ?? 0) < layout.lowOwnershipBelow;
+  const cxOf = (p: MatrixPoint) => (isLow(p) ? bandX : x(p.investment ?? 0));
+  const stripDy = layout.lowOwnership.length ? stripOffsets(layout.lowOwnership, cxOf) : new Map<string, number>();
+  const y = (v: number) => plotBottom - INSET - ya.unit(v) * (PH - lowH - 2 * INSET);
   const logNote = scale === "log" ? " · log scale" : "";
   return (
     <div>
@@ -71,6 +100,17 @@ export function OwnershipMatrix({
             )}
           </>
         )}
+        {lowH > 0 && (
+          <>
+            <rect x={plotLeft} y={plotBottom} width={PW - band} height={lowH} fill="var(--muted)" opacity={0.5} />
+            <line x1={PAD.left} x2={W - PAD.right} y1={plotBottom} y2={plotBottom} stroke="var(--border)" />
+            {!compact && (
+              <text x={PAD.left - 10} y={stripY} dy="0.35em" textAnchor="end" className="fill-muted-foreground" fontSize={11}>
+                Under {formatOwnership(layout.lowOwnershipBelow ?? 0)}
+              </text>
+            )}
+          </>
+        )}
         {ya.ticks.map((t) => (
           <g key={`y${t}`}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeDasharray="3 4" />
@@ -83,7 +123,7 @@ export function OwnershipMatrix({
         ))}
         {xa.ticks.map((t) => (
           <g key={`x${t}`}>
-            <line y1={PAD.top} y2={PAD.top + PH} x1={x(t)} x2={x(t)} stroke="var(--border)" strokeDasharray="3 4" />
+            <line y1={PAD.top} y2={plotBottom} x1={x(t)} x2={x(t)} stroke="var(--border)" strokeDasharray="3 4" />
             {!compact && (
               <text x={x(t)} y={PAD.top + PH + 20} textAnchor="middle" className="fill-muted-foreground" fontSize={12}>
                 {formatInvestment(t)}
@@ -101,8 +141,8 @@ export function OwnershipMatrix({
           <Bubble
             key={p.key}
             p={p}
-            cx={isLow(p) ? bandX : x(p.investment ?? 0)}
-            cy={y(p.ownership ?? 0)}
+            cx={cxOf(p)}
+            cy={isLowOwn(p) ? stripY + (stripDy.get(p.key) ?? 0) : y(p.ownership ?? 0)}
             dim={visible ? !visible(p) : false}
             active={selectedKey === p.key}
             onSelect={() => onSelect(selectedKey === p.key ? null : p.key)}
