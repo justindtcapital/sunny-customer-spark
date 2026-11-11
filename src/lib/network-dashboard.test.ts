@@ -74,11 +74,11 @@ describe("network dashboard", () => {
     expect([julia.warmToHot, julia.warmBase]).toEqual([1, 2]);
   });
 
-  it("campaigns: draft/saved are Open, actioning is Active, done is Closed", () => {
-    expect(["draft", "saved", "actioning", "done"].map(campaignBucket)).toEqual(["Open", "Open", "Active", "Closed"]);
+  it("campaigns: draft/saved are Open, actioning/done are Active, closed is Closed", () => {
+    expect(["draft", "saved", "actioning", "done", "closed"].map(campaignBucket)).toEqual(["Open", "Open", "Active", "Active", "Closed"]);
     const s = campaignStats([
       { status: "actioning", owner: "Chris Hillock", createdBy: "" },
-      { status: "done", owner: "", createdBy: "chrish@dt-capital.net" },
+      { status: "closed", owner: "", createdBy: "chrish@dt-capital.net" },
       { status: "draft", owner: "Chris Falloon", createdBy: "" },
     ]);
     expect(s.totals).toEqual({ Open: 1, Active: 1, Closed: 1 });

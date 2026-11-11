@@ -190,7 +190,7 @@ export function NetworkDashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
         <div className="grid grid-cols-3 xl:grid-cols-1 gap-4">
-          {CAMPAIGN_BUCKETS.map((b) => <Stat key={b} label={`${b} campaigns`} value={dashQ.isLoading ? "…" : String(camp.totals[b])} sub={b === "Open" ? "draft or saved" : b === "Active" ? "actioning" : "done"} />)}
+          {CAMPAIGN_BUCKETS.map((b) => <Stat key={b} label={`${b} campaigns`} value={dashQ.isLoading ? "…" : String(camp.totals[b])} sub={b === "Open" ? "draft or saved" : b === "Active" ? "actioning" : "closed"} />)}
         </div>
         <Card className="border-border"><CardContent className="p-4">
           <h3 className="font-display text-sm font-semibold text-foreground mb-2">Campaigns by owner</h3>

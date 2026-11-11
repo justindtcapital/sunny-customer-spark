@@ -178,3 +178,9 @@
 - [x] Events Dashboard: monthly stacked bars by type (click a month) + five breakdown charts
 - [x] Network Dashboard: pyramid + adds/removes, outreach, conversion, promotions by teammate, campaigns open/active/closed and by owner
 - [x] Build a chart with V.I.C. on Events and Network (shared team charts)
+
+## Campaign manager — list, results, close
+- [x] Campaign list on the left with Add new, type badges/filter, owner initials, closed toggle
+- [x] Results step (attending/interested, follow up, declined, no reply), save later, close campaign registering attendees with dedupe
+- [x] Campaign results shown in each contact's campaign history
+- [ ] Try saving marks and closing a real campaign; not done to avoid changing live campaign data without you
