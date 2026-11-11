@@ -43,6 +43,13 @@
       "when": 1793997896422,
       "tag": "0005_create_morning_briefs",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794433464348,
+      "tag": "0006_create_dashboard_charts",
+      "breakpoints": true
     }
   ]
 }
