@@ -15,7 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Loader2, Megaphone, Merge, Sparkles, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Loader2, Mail, Megaphone, Merge, Sparkles, Trash2, X } from "lucide-react";
 import { BulkAddToCampaignDialog } from "./BulkAddToCampaignDialog";
 import { MergeContactsDialog } from "./MergeContactsDialog";
 import { MAX_MERGE } from "@/lib/contact-merge";
@@ -389,6 +389,19 @@ export function BulkEditBar() {
       <Button size="sm" variant="outline" className="h-8 text-xs" onClick={runEnrich} disabled={anyBusy}>
         {action === "enrich" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
         Enrich w/ Apollo
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 text-xs"
+        disabled={anyBusy || !selectedContacts.some((c) => c.email)}
+        onClick={() => {
+          // Primary address only, so multi-email cells don't break the recipient list.
+          const to = selectedContacts.map((c) => (c.email || "").split(/[,;]/)[0].trim()).filter(Boolean).join(",");
+          window.open(`mailto:${to}`, "_self");
+        }}
+      >
+        <Mail className="h-3.5 w-3.5 mr-1" /> Email
       </Button>
       <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setCampaignOpen(true)} disabled={anyBusy || !count}>
         <Megaphone className="h-3.5 w-3.5 mr-1" /> Add to campaign
