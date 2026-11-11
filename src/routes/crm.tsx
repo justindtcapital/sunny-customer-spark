@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useIsFetching, useQuery } from "@tanstack/react-query";
 import {
   fetchContacts,
   fetchTargets,
@@ -26,7 +26,7 @@ import { ContactList } from "@/components/crm/ContactList";
 import { syncEventExposure } from "@/utils/event-exposure.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Users, Merge } from "lucide-react";
+import { Plus, Upload, Download, ClipboardPaste, ChevronDown, Loader2, Users } from "lucide-react";
 import { DuplicatesDialog } from "@/components/crm/DuplicatesDialog";
 import {
   Dialog,
@@ -48,7 +48,9 @@ import { useFilterOptions } from "@/lib/filter-options-context";
 import { useSelection } from "@/lib/selection-context";
 import { useAuth } from "@/lib/auth-context";
 import { teamProfile } from "@/lib/user-ownership";
-import { NetworkPyramid, contactMatchesPyramid, type PyramidSelection } from "@/components/crm/NetworkPyramid";
+import { NetworkPyramid, PyramidViewSwitch, contactMatchesPyramid, type PyramidSelection, type PyramidView } from "@/components/crm/NetworkPyramid";
+import { createPortal } from "react-dom";
+import { usePageActionsSlot } from "@/lib/page-actions-slot";
 import { BulkUploadDialog } from "@/components/crm/BulkUploadDialog";
 import { SmartPasteDialog } from "@/components/crm/SmartPasteDialog";
 import { canonicalLocations } from "@/lib/location-utils";
@@ -101,7 +103,10 @@ function CrmPage() {
   const contacts = useMemo(() => classifyContacts(allContacts, { portcoNames, partners }), [allContacts, portcoNames, partners]);
   // Type checkboxes drive both the list and the pyramid numbers.
   const [hiddenKinds, setHiddenKinds] = useState<ContactKind[]>([]);
-  const { filters } = useFilters();
+  const { filters, setFilters } = useFilters();
+  const [pyramidView, setPyramidView] = useState<PyramidView>("domain");
+  const pyramidFetching = useIsFetching({ queryKey: ["network-pyramid"] });
+  const actionsSlot = usePageActionsSlot();
   const { email, ready: authReady } = useAuth();
   const profile = useMemo(() => teamProfile(email), [email]);
   const ownershipQuery = useQuery({
@@ -372,87 +377,100 @@ function CrmPage() {
     updateOptions({ sectors, primes, areasOfInterest, allCities: cities, portfolioCompanies });
   }, [contacts, companies, updateOptions]);
 
+  // Import / Export sit in the left menu below Detailed search; inline when the menu is closed.
+  const importExport = (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 flex-1 text-xs">
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Import
+            <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          <DropdownMenuItem onClick={() => setPasteOpen(true)}>
+            <ClipboardPaste className="h-3.5 w-3.5 mr-2" />
+            Paste Contacts
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setBulkUploadOpen(true)}>
+            <Upload className="h-3.5 w-3.5 mr-2" />
+            Upload CSV
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setDuplicatesOpen(true)}>
+            <Users className="h-3.5 w-3.5 mr-2" />
+            Find duplicates
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 flex-1 text-xs">
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            Export
+            <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-44">
+          <DropdownMenuItem onClick={() => handleExport("csv")}>
+            <FileText className="h-3.5 w-3.5 mr-2" />
+            Export as CSV
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleExport("xlsx")}>
+            <FileSpreadsheet className="h-3.5 w-3.5 mr-2" />
+            Export as Excel
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
   return (
     <div className="min-w-0 p-4 sm:p-6 max-w-[1400px] mx-auto">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 mb-4">
+      <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-foreground">Network CRM</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Manage and track your DTC network relationships
           </p>
         </div>
-        <div className="col-span-2 flex min-w-0 flex-wrap items-center gap-2 xl:col-span-1 xl:justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs"
-            onClick={() => setDuplicatesOpen(true)}
-            title="Find and merge duplicate people. To merge your own picks, tick 2–5 people and press Merge."
-          >
-            <Merge className="h-3.5 w-3.5 mr-1.5" />
-            Merge duplicates
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs">
-                <Download className="h-3.5 w-3.5 mr-1.5" />
-                Export
-                <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem onClick={() => handleExport("csv")}>
-                <FileText className="h-3.5 w-3.5 mr-2" />
-                Export as CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("xlsx")}>
-                <FileSpreadsheet className="h-3.5 w-3.5 mr-2" />
-                Export as Excel
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs">
-                <Upload className="h-3.5 w-3.5 mr-1.5" />
-                Import
-                <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setPasteOpen(true)}>
-                <ClipboardPaste className="h-3.5 w-3.5 mr-2" />
-                Paste Contacts
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setBulkUploadOpen(true)}>
-                <Upload className="h-3.5 w-3.5 mr-2" />
-                Upload CSV
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setDuplicatesOpen(true)}>
-                <Users className="h-3.5 w-3.5 mr-2" />
-                Find duplicates
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <Button
-            size="sm"
-            className="text-xs"
-            onClick={() => setAddContactOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Add Contact
-          </Button>
+        <div className="flex items-center gap-2">
+          {pyramidFetching > 0 && <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Loading" />}
+          <PyramidViewSwitch view={pyramidView} onChange={setPyramidView} />
         </div>
       </div>
 
-      <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} visibleTiers={visibleTiers} onToggleTier={onToggleTier} excludeEmails={hiddenEmails} expanded onExpandedChange={() => {}} />
+      {actionsSlot && createPortal(importExport, actionsSlot)}
+
+      <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} visibleTiers={visibleTiers} onToggleTier={onToggleTier} excludeEmails={hiddenEmails} view={pyramidView} expanded onExpandedChange={() => {}} />
       <ContactList
         hiddenKinds={hiddenKinds}
         onToggleKind={onToggleKind}
+        toolbarExtra={
+          <>
+            <div className="mr-2 inline-flex rounded-md border p-0.5" aria-label="Network scope">
+              {(["mine", "everyone"] as const).map((s) => (
+                <Button
+                  key={s}
+                  size="sm"
+                  variant={filters.ownershipScope === s || (s === "mine" && filters.ownershipScope !== "everyone") ? "default" : "ghost"}
+                  aria-pressed={s === "everyone" ? filters.ownershipScope === "everyone" : filters.ownershipScope !== "everyone"}
+                  disabled={s === "mine" && !profile}
+                  className="h-6 px-2 text-[11px]"
+                  onClick={() => setFilters({ ...filters, ownershipScope: s })}
+                >
+                  {s === "mine" ? "My contacts" : "Everyone"}
+                </Button>
+              ))}
+            </div>
+            <Button size="sm" className="mr-2 h-7 text-xs" onClick={() => setAddContactOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Contact
+            </Button>
+            {!actionsSlot && <div className="mr-2 flex gap-1">{importExport}</div>}
+          </>
+        }
         contacts={listContacts}
         filters={filters}
         focusEmail={focusEmail}

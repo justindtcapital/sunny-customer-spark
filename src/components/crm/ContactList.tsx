@@ -32,8 +32,6 @@ interface ContactListProps {
   onToggleKind?: (kind: ContactKind) => void;
   /** Extra controls in the list bar, between the type checkboxes and the layout buttons. */
   toolbarExtra?: ReactNode;
-  /** Controls at the far right of the list bar (e.g. Add Contact). */
-  toolbarEnd?: ReactNode;
 }
 
 export function ContactList({
@@ -46,7 +44,6 @@ export function ContactList({
   hiddenKinds,
   onToggleKind,
   toolbarExtra,
-  toolbarEnd,
 }: ContactListProps) {
   const [view, setView] = useState<"cards" | "table">("table");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -237,7 +234,6 @@ export function ContactList({
           >
             <List className="h-4 w-4" />
           </Button>
-          {toolbarEnd}
         </div>
       </div>
 
