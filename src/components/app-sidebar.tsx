@@ -99,7 +99,7 @@ const navItems = [
   { title: "Partners", url: "/partners", icon: Handshake },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
   { title: "V.I.C.", url: "/vic", icon: VicMark },
-  { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
+  { title: "Dashboards", url: "/dashboards", icon: DashboardIcon },
   { title: "Admin", url: "/activity", icon: ScrollText },
 ];
 

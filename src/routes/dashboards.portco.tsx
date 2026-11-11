@@ -50,7 +50,7 @@ const EMPTY_FIELDS: Record<string, Record<string, string>> = {};
 const EMPTY_NAMES: Record<string, string> = {};
 const EMPTY_EVENTS: Record<string, PortfolioEvent[]> = {};
 
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/dashboards/portco")({
   validateSearch: (search: Record<string, unknown>): { owner?: string; section?: string } => ({
     owner: typeof search.owner === "string" ? search.owner : undefined,
     section: typeof search.section === "string" ? search.section : undefined,
@@ -62,12 +62,12 @@ export const Route = createFileRoute("/dashboard")({
   },
   head: () => ({
     meta: [
-      { title: "Dashboard — VenturePulse" },
-      { name: "description", content: "PortCo prioritization by sales and GTM maturity" },
-      { property: "og:title", content: "Dashboard — VenturePulse" },
+      { title: "PortCo Dashboard — VenturePulse" },
+      { name: "description", content: "PortCo maturity, ownership and investment" },
+      { property: "og:title", content: "PortCo Dashboard — VenturePulse" },
       {
         property: "og:description",
-        content: "PortCo prioritization by sales and GTM maturity",
+        content: "PortCo maturity, ownership and investment",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -224,7 +224,7 @@ function DashboardPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-foreground tracking-tight">
-            Dashboard
+            PortCo Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Where each portfolio company sits on sales and go-to-market maturity, sized by

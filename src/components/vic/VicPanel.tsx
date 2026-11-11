@@ -18,7 +18,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/targeting": "Prospecting",
   "/campaigns": "Campaigns",
   "/my-actions": "My Actions",
-  "/dashboard": "Notes & Activity",
+  "/dashboards": "Dashboards",
   "/activity": "Admin",
 };
 
