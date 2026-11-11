@@ -11,16 +11,19 @@ export const followUpEditSchema = z.object({
   tracks: z.array(z.enum(["BD", "GTM"])).max(2),
   /** Workstream this action belongs to; empty string means it stands alone. */
   workstreamGid: z.string().max(100),
+  /** PortCo or Network filing in My Actions; absent/"auto" decides from tags and the person's company. */
+  filing: z.enum(["auto", "portco", "network"]).optional(),
 });
 export type FollowUpEdit = z.infer<typeof followUpEditSchema>;
 export function followUpValues(r: HomeReminder): FollowUpEdit {
   return { summary: r.summary, details: r.details || "", due: r.due.slice(0, 10), owner: r.owner,
     company: r.company, people: r.people || (r.person ? [{ name: r.person, email: r.email || "" }] : []), tracks: r.tracks || [],
-    workstreamGid: r.workstreamGid || "" };
+    workstreamGid: r.workstreamGid || "", filing: r.filing || "auto" };
 }
 /** The source identity and match keys must survive edits and reassignment. */
 export function applyFollowUpEdit(r: HomeReminder, edit?: FollowUpEdit): HomeReminder {
   if (!edit) return r;
   return { ...r, summary: edit.summary, details: edit.details, due: edit.due, owner: edit.owner, company: edit.company,
-    people: edit.people, tracks: edit.tracks, workstreamGid: edit.workstreamGid || undefined };
+    people: edit.people, tracks: edit.tracks, workstreamGid: edit.workstreamGid || undefined,
+    filing: edit.filing && edit.filing !== "auto" ? edit.filing : undefined };
 }

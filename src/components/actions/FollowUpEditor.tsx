@@ -49,7 +49,8 @@ export function FollowUpEditor({ reminder, onClose, inline = false }: { reminder
   const submit = async () => {
     setBusy(true);
     try {
-      await save({ data: { id: reminder.id, edit: values } });
+      // Filing is changed from the detail pane; keep whatever is saved now.
+      await save({ data: { id: reminder.id, edit: { ...values, filing: reminder.filing || "auto" } } });
       await Promise.all([qc.invalidateQueries({ queryKey: ["my-actions"] }), qc.invalidateQueries({ queryKey: ["home-momentum"] })]);
       toast.success("Action updated"); onClose?.();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Could not save the action"); }
