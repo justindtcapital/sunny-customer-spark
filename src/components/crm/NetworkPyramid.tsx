@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronUp, Loader2, Maximize2, X, Users, Globe2, LayoutGrid, ChartNoAxesCombined, Pencil, Check } from "lucide-react";
+import { Loader2, Maximize2, X, Users, Globe2, LayoutGrid, ChartNoAxesCombined, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -116,7 +116,6 @@ export function NetworkPyramid({
     }));
     return [...net, ...pros];
   }, [contacts, data, mine, profile, owned, embedded]);
-  const sidebarCount = Object.entries(filters).filter(([k, v]) => !["search", "ownershipScope", "dateField"].includes(k) && (Array.isArray(v) ? v.length > 0 : typeof v === "boolean" ? v : typeof v === "string" ? !!v : false)).length;
 
   const counts = useMemo(() => {
     const out = Object.fromEntries(PYRAMID_TIERS.map((t) => [t, 0])) as Record<PyramidTier, number | null>;
@@ -125,7 +124,6 @@ export function NetworkPyramid({
     return out;
   }, [people, data]);
 
-  const networkCount = PYRAMID_TIERS.reduce((total, tier) => tier === "Prospect" ? total : total + (counts[tier] ?? 0), 0);
 
   const kpis = useMemo(() => {
     const emails = new Set(people.map((p) => p.email.toLowerCase()).filter(Boolean));
@@ -162,36 +160,27 @@ export function NetworkPyramid({
   const displayCols = embedded ? changeCols : view === "kpis" ? kpiCols : columns;
 
   return (
-    <section className={cn("network-overview min-w-0", embedded ? "network-overview-embedded" : "mb-6 border-y py-5")} aria-label="Network Pyramid">
-      {!embedded && <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold text-foreground">Network overview</h2>
-            {pyramidQuery.isFetching && <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">{scope === "mine" ? "My contacts" : "Everyone at DTC"} · {networkCount.toLocaleString()} network relationships · {counts.Prospect === null ? "prospects pending" : `${counts.Prospect.toLocaleString()} prospects in pipeline`}{sidebarCount > 0 && ` · ${sidebarCount} sidebar filter${sidebarCount > 1 ? "s" : ""} also narrow the list below`}</p>
+    <section className={cn("network-overview min-w-0", embedded ? "network-overview-embedded" : "mb-4 border-b pb-4")} aria-label="Network Pyramid">
+      {!embedded && <header className="network-view-controls flex min-w-0 flex-wrap items-center justify-end gap-2">
+        {pyramidQuery.isFetching && <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Loading" />}
+        <div className="inline-flex rounded-md border p-1" aria-label="Network view">
+          {(["domain", "geo", "kpis"] as View[]).map(v => {
+            const Icon = v === "domain" ? LayoutGrid : v === "geo" ? Globe2 : ChartNoAxesCombined;
+            return <Button key={v} size="sm" variant={view === v ? "default" : "ghost"} aria-pressed={view === v} className="h-7 gap-1.5 px-2.5" onClick={() => setView(v)}><Icon className="size-3.5" />{v === "kpis" ? "KPIs" : v === "domain" ? "Domain" : "Geo"}</Button>;
+          })}
         </div>
-        <Button size="icon" variant="ghost" className="size-8 shrink-0" onClick={() => setExpanded(false)} title="Collapse" aria-label="Collapse Network overview"><ChevronUp /></Button>
-        <div className="network-view-controls col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-3">
-          <div className="inline-flex rounded-md bg-muted p-1" aria-label="Network view">
-            {(["domain", "geo", "kpis"] as View[]).map(v => {
-              const Icon = v === "domain" ? LayoutGrid : v === "geo" ? Globe2 : ChartNoAxesCombined;
-              return <Button key={v} size="sm" variant="ghost" aria-pressed={view === v} className={cn("h-7 gap-1.5 px-2.5", view === v && "bg-card text-primary hover:bg-card")} onClick={() => setView(v)}><Icon className="size-3.5" />{v === "kpis" ? "KPIs" : v === "domain" ? "Domain" : "Geo"}</Button>;
-            })}
-          </div>
-          <div className="inline-flex rounded-md border p-1" aria-label="Network scope">
-            {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My contacts" : "Everyone"}</Button>)}
-          </div>
+        <div className="inline-flex rounded-md border p-1" aria-label="Network scope">
+          {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My contacts" : "Everyone"}</Button>)}
         </div>
       </header>}
       {data?.error && <p role="alert" className="mt-3 text-xs text-destructive">{data.error}</p>}
-      {view === "kpis" && <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+      {view === "kpis" && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
         <div className="flex items-center gap-1">
           {(Object.keys(WINDOWS) as WindowKey[]).map(w => <Button key={w} size="sm" variant={win === w ? "secondary" : "ghost"} aria-pressed={win === w} className="h-7 px-2" onClick={() => setWin(w)}>{w === "30d" ? "30 days" : w === "6m" ? "6 months" : "12 months"}</Button>)}
         </div>
         <div className="flex items-center gap-1">{editing ? <><Button size="sm" className="h-7" onClick={saveTargets}><Check />Save targets</Button><Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(false)}>Cancel</Button></> : <Button size="sm" variant="outline" className="h-7" disabled={!data} onClick={() => { setDraft({}); setEditing(true); }}><Pencil />Edit targets</Button>}</div>
       </div>}
-      <div className={cn("network-overview-body", !embedded && "mt-5")}>
+      <div className={cn("network-overview-body", !embedded && "mt-3")}>
         <TierChart counts={counts} visible={visibleTiers} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
           if (onToggleTier) { onToggleTier(t); return; }
           if (t === "Prospect") { navigate({ to: "/crm" }); return; }
