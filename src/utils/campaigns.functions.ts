@@ -20,6 +20,8 @@ import {
   listMembers,
   saveCampaign,
   updateMembers,
+  listResults,
+  appendResults,
 } from "./campaigns.server";
 import { callGeminiJSON } from "./gemini.server";
 import { enrichPerson } from "./apollo.server";
@@ -54,6 +56,9 @@ export const fetchPersonCampaigns = createServerFn({ method: "POST" })
         status: r.campaign.status,
         added: r.member.added,
         sentDate: r.member.sentDate,
+        result: r.result?.result || "",
+        resultBy: r.result?.by || "",
+        resultAt: r.result?.at || "",
       }));
     } catch (e) {
       console.error("fetchPersonCampaigns failed", e);
@@ -92,7 +97,7 @@ const campaignInput = z.object({
   channel: z.enum(["email", "linkedin", "both"]).optional(),
   templateSubject: z.string().max(1000).optional(),
   templateBody: z.string().max(20000).optional(),
-  status: z.enum(["draft", "saved", "actioning", "done"]).optional(),
+  status: z.enum(["draft", "saved", "actioning", "done", "closed"]).optional(),
   by: z.string().max(200).optional(),
 });
 
@@ -529,7 +534,8 @@ export const finishCampaign = createServerFn({ method: "POST" })
     z.object({ campaignId: z.string().min(1), by: z.string().optional() }).parse(d),
   )
   .handler(async ({ data }) => {
-    const res = await saveCampaign({ id: data.campaignId, status: "done" }, data.by || "");
+    // Sent = actioning: results stay open until the owner closes the campaign.
+    const res = await saveCampaign({ id: data.campaignId, status: "actioning" }, data.by || "");
     if (res.ok) {
       const members = await listMembers(data.campaignId);
       const sent = members.filter((m) => m.sentDate).length;
@@ -544,4 +550,106 @@ export const finishCampaign = createServerFn({ method: "POST" })
       });
     }
     return res;
+  });
+
+// ── Results (step 6) and closing ─────────────────────────────
+
+const resultEnum = z.enum(["attending", "interested", "follow-up", "declined", "no-reply", ""]);
+
+export const fetchCampaignResults = createServerFn({ method: "POST" })
+  .inputValidator((d: { campaignId: string }) => z.object({ campaignId: z.string().min(1) }).parse(d))
+  .handler(async ({ data }) => {
+    const { latestResults } = await import("@/lib/campaign-results");
+    return [...latestResults(await listResults(data.campaignId)).values()];
+  });
+
+/** Only the owner (or creator) may change results. */
+async function assertOwner(campaignId: string, by: string) {
+  const { canonicalOwnerName } = await import("@/lib/user-ownership");
+  const c = (await listCampaigns()).find((x) => x.id === campaignId);
+  if (!c) throw new Error("Campaign not found.");
+  const me = canonicalOwnerName(by);
+  const ok = (c.owner && canonicalOwnerName(c.owner) === me) || (c.createdBy && canonicalOwnerName(c.createdBy) === me);
+  if (!ok) throw new Error("Only the campaign owner can change results.");
+  return c;
+}
+
+export const saveCampaignResults = createServerFn({ method: "POST" })
+  .inputValidator((d: { campaignId: string; by: string; marks: Array<{ personKey: string; result: string; followUpOwner?: string; followUpDue?: string }> }) =>
+    z
+      .object({
+        campaignId: z.string().min(1),
+        by: z.string().min(1).max(200),
+        marks: z
+          .array(z.object({ personKey: z.string().min(1).max(300), result: resultEnum, followUpOwner: z.string().max(100).optional(), followUpDue: z.string().max(10).optional() }))
+          .max(2000),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    await assertOwner(data.campaignId, data.by);
+    const { latestResults } = await import("@/lib/campaign-results");
+    const { canonicalOwnerName } = await import("@/lib/user-ownership");
+    const current = latestResults(await listResults(data.campaignId));
+    const at = new Date().toISOString();
+    const rows = data.marks
+      .filter((m) => {
+        const prev = current.get(`${data.campaignId}|${m.personKey.toLowerCase()}`);
+        return (prev?.result || "") !== m.result || (prev?.followUpDue || "") !== (m.followUpDue || "") || (prev?.followUpOwner || "") !== (m.followUpOwner || "");
+      })
+      .map((m) => ({ campaignId: data.campaignId, personKey: m.personKey.toLowerCase(), result: m.result as never, followUpOwner: m.followUpOwner || "", followUpDue: m.followUpDue || "", by: canonicalOwnerName(data.by), at }));
+    await appendResults(rows);
+    return { saved: rows.length };
+  });
+
+export const closeCampaign = createServerFn({ method: "POST" })
+  .inputValidator((d: { campaignId: string; by: string; eventName?: string }) =>
+    z.object({ campaignId: z.string().min(1), by: z.string().min(1).max(200), eventName: z.string().max(300).optional() }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { withDeadline } = await import("./request-deadline.server");
+    return withDeadline("closeCampaign", 55_000, async (step) => {
+      step("checking owner");
+      const camp = await assertOwner(data.campaignId, data.by);
+      const { latestResults, attendeesToRegister } = await import("@/lib/campaign-results");
+      const { canonicalOwnerName } = await import("@/lib/user-ownership");
+      step("reading members and results");
+      const [members, results] = await Promise.all([listMembers(data.campaignId), listResults(data.campaignId)]);
+      const latest = latestResults(results);
+      const at = new Date().toISOString();
+      const unmarked = members.filter((m) => !latest.get(`${data.campaignId}|${m.personKey}`)?.result);
+      step("recording no-replies");
+      await appendResults(unmarked.map((m) => ({ campaignId: data.campaignId, personKey: m.personKey, result: "no-reply" as const, followUpOwner: "", followUpDue: "", by: canonicalOwnerName(data.by), at })));
+      const yes = members.filter((m) => latest.get(`${data.campaignId}|${m.personKey}`)?.result === "attending");
+      let registered = 0;
+      let skipped = 0;
+      let eventMissing = false;
+      const evName = (data.eventName || camp.events[0] || "").trim();
+      if (yes.length && evName) {
+        step("registering attendees");
+        const { readPlannerEvents, readAttendees, addAttendees } = await import("./event-planner.server");
+        const ev = (await readPlannerEvents(true)).find((e) => e.name.trim().toLowerCase() === evName.toLowerCase());
+        if (!ev) eventMissing = true;
+        else {
+          const existing = (await readAttendees()).filter((a) => a.eventUrid === ev.urid);
+          const todo = attendeesToRegister(yes.map((m) => ({ name: m.name, email: m.email })), existing);
+          skipped = yes.length - todo.length;
+          const kindOf = new Map(yes.map((m) => [m.name, m.kind]));
+          registered = await addAttendees(
+            todo.map((p) => ({ eventUrid: ev.urid, name: p.name, email: p.email, kind: kindOf.get(p.name) === "network" ? "Network" : "Prospect", status: "Registered", date: at.slice(0, 10) })),
+          );
+        }
+      }
+      step("closing");
+      const res = await saveCampaign({ id: data.campaignId, status: "closed" }, data.by);
+      await logOpsEvent({
+        action: "edit",
+        source: "campaign_builder",
+        status: eventMissing ? "warning" : "ok",
+        summary: `Campaign "${camp.name}" closed: ${yes.length} attending (${registered} registered, ${skipped} already on event), ${unmarked.length} marked no reply`,
+        records: members.length,
+        details: { by: data.by, event: evName, eventMissing },
+      });
+      return { ok: res.ok, attending: yes.length, registered, skipped, noReply: unmarked.length, eventMissing, event: evName };
+    });
   });

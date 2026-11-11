@@ -295,14 +295,16 @@ export async function updateMembers(
 /** Every campaign a person belongs to (by person key or email). */
 export async function campaignsForPerson(
   keys: string[],
-): Promise<Array<{ campaign: CampaignRecord; member: CampaignMember }>> {
+): Promise<Array<{ campaign: CampaignRecord; member: CampaignMember; result?: import("@/lib/campaign-results").ResultRow }>> {
   const want = new Set(keys.map((k) => k.trim().toLowerCase()).filter(Boolean));
   if (!want.size) return [];
-  const [camps, members] = await Promise.all([listCampaigns(), listMembers()]);
+  const { latestResults } = await import("@/lib/campaign-results");
+  const [camps, members, results] = await Promise.all([listCampaigns(), listMembers(), listResults().catch(() => [])]);
+  const latest = latestResults(results);
   const byId = new Map(camps.map((c) => [c.id, c]));
   return members
     .filter((m) => want.has(m.personKey) || (m.email && want.has(m.email.toLowerCase())))
-    .map((m) => ({ campaign: byId.get(m.campaignId)!, member: m }))
+    .map((m) => ({ campaign: byId.get(m.campaignId)!, member: m, result: latest.get(`${m.campaignId}|${m.personKey}`) }))
     .filter((x) => x.campaign);
 }
 
