@@ -35,7 +35,7 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
               </div>
             </div>
           </div>
-          <TemperatureBadge temperature={contact.temperature} portco={contact.portco} />
+          <TemperatureBadge temperature={contact.temperature} portco={contact.portco} prospect={contact.prospect} />
         </div>
 
         <div className="space-y-1.5 text-xs text-muted-foreground">

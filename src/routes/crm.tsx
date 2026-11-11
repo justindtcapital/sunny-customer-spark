@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchContacts,
+  fetchTargets,
   fetchPortfolioCompanies,
   fetchOwnershipIndex,
   logOpsEvent,
@@ -15,7 +16,9 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Textarea } from "@/components/ui/textarea";
 import { ENGAGEMENT_SOURCES, type EngagementSource } from "@/lib/types";
 import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagement-source";
-import type { Contact, PortfolioCompany } from "@/lib/types";
+import type { Contact, PortfolioCompany, TargetLead } from "@/lib/types";
+import type { PyramidTier } from "@/lib/network-pyramid";
+import { DEFAULT_VISIBLE_TIERS, prospectAsContact, tierVisible, toggleTier } from "@/lib/network-tiers";
 import { isPortCoContact, portcoKeys } from "@/lib/portco-contacts";
 
 import { ContactList } from "@/components/crm/ContactList";
@@ -75,20 +78,22 @@ export const Route = createFileRoute("/crm")({
     ],
   }),
   loader: async () => {
-    const [contacts, companies] = await Promise.all([
+    const [contacts, companies, prospects] = await Promise.all([
       fetchContacts(),
       fetchPortfolioCompanies().catch((): PortfolioCompany[] => []),
+      fetchTargets().catch((): TargetLead[] => []),
     ]);
-    return { contacts, companies };
+    return { contacts, companies, prospects };
   },
   component: CrmPage,
 });
 
 
 function CrmPage() {
-  const { contacts: allContacts, companies } = Route.useLoaderData() as {
+  const { contacts: allContacts, companies, prospects } = Route.useLoaderData() as {
     contacts: Contact[];
     companies: PortfolioCompany[];
+    prospects: TargetLead[];
   };
   const { contact: focusEmail } = Route.useSearch();
   // PortCo people stay searchable in Network but are tagged "PortCo" and kept out of the tiers.
@@ -115,12 +120,15 @@ function CrmPage() {
   const router = useRouter();
   const navigate = useNavigate({ from: "/crm" });
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
-  const [pyramidOpen, setPyramidOpen] = useState(false);
+  const [pyramidOpen, setPyramidOpen] = useState(true);
   const [pyramidSel, setPyramidSel] = useState<PyramidSelection | null>(null);
-  const listContacts = useMemo(
-    () => (pyramidSel ? contacts.filter((c) => contactMatchesPyramid(c, pyramidSel)) : contacts),
-    [contacts, pyramidSel],
-  );
+  const [visibleTiers, setVisibleTiers] = useState<PyramidTier[]>(DEFAULT_VISIBLE_TIERS);
+  const prospectContacts = useMemo(() => prospects.map(prospectAsContact), [prospects]);
+  const listContacts = useMemo(() => {
+    const all = [...contacts, ...prospectContacts].filter((c) => tierVisible(c, visibleTiers));
+    return pyramidSel ? all.filter((c) => contactMatchesPyramid(c, pyramidSel)) : all;
+  }, [contacts, prospectContacts, pyramidSel, visibleTiers]);
+  const onToggleTier = (t: PyramidTier) => { setPyramidSel(null); setVisibleTiers((v) => toggleTier(v, t)); };
   const [pasteOpen, setPasteOpen] = useState(false);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [addContactOpen, setAddContactOpen] = useState(false);
@@ -640,7 +648,7 @@ function CrmPage() {
       </div>
 
       {pyramidOpen && (
-        <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} expanded onExpandedChange={setPyramidOpen} />
+        <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} visibleTiers={visibleTiers} onToggleTier={onToggleTier} expanded onExpandedChange={setPyramidOpen} />
       )}
       <ContactList
         portcoVisibilityControl
