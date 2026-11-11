@@ -1247,7 +1247,7 @@ export function AppSidebar({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="status">Status (Hot/Warm/Cold)</SelectItem>
-                      <SelectItem value="contactType">Contact Type (Dell/Customer/VC)</SelectItem>
+                      <SelectItem value="contactType">Type (PortCo/Dell/Partner/Network)</SelectItem>
                       <SelectItem value="location">Location</SelectItem>
                       <SelectItem value="sector">Sector</SelectItem>
                       <SelectItem value="areasOfInterest">Area of Interest</SelectItem>
