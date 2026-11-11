@@ -46,6 +46,8 @@ import { EventPicker, loadEvents } from "@/components/events/EventPicker";
 import { PortcoTagPicker } from "@/components/crm/PortcoTagPicker";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { useAuth } from "@/lib/auth-context";
+import { CampaignList, CampaignTypeBadge } from "@/components/campaigns/CampaignList";
+import { CampaignResults } from "@/components/campaigns/CampaignResults";
 import {
   CAMPAIGN_PURPOSES,
   CAMPAIGN_TEAM,
@@ -152,51 +154,106 @@ function CampaignBuilderPage() {
     await qc.invalidateQueries({ queryKey: ["campaigns"] });
   };
 
+  // Campaign labels already on Network / Prospecting records but not yet builder campaigns.
+  const contactsQ = useQuery({ queryKey: ["campaign-contacts"], queryFn: () => fetchContacts(), staleTime: 60_000 });
+  const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000 });
+  const allCampaigns = campaignsQ.data?.campaigns || [];
+  const legacyLabels = useMemo(() => {
+    const builderNames = new Set(allCampaigns.map((c) => c.name.trim().toLowerCase()));
+    const counts = new Map<string, number>();
+    const add = (v?: string) => {
+      const n = (v || "").trim();
+      if (!n || builderNames.has(n.toLowerCase())) return;
+      counts.set(n, (counts.get(n) || 0) + 1);
+    };
+    (contactsQ.data || []).forEach((c) => add((c as ContactLike).campaign));
+    (targetsQ.data || []).forEach((t) => add((t as TargetLike).campaign));
+    return [...counts.entries()].map(([n, count]) => ({ name: n, count })).sort((x, y) => x.name.localeCompare(y.name));
+  }, [contactsQ.data, targetsQ.data, allCampaigns]);
+
+  const [selection, setSelection] = useState<Selection>({ n: 0 });
+  const selectedKey = selection.legacy ? `legacy:${selection.legacy}` : campaign?.id || selection.id || "";
+  const me = canonicalOwnerName(userEmail || "");
+  const ownsCampaign = (c: CampaignRecord) =>
+    (!!c.owner && canonicalOwnerName(c.owner) === me) || (!!c.createdBy && canonicalOwnerName(c.createdBy) === me);
+  const selectCampaign = (c: CampaignRecord) => {
+    setStaged([]);
+    setSelection((s) => ({ id: c.id, n: s.n + 1 }));
+    // Sent campaigns open straight into Results for the owner; closed ones show final results.
+    if (c.status === "closed" || ((c.status === "actioning" || c.status === "done") && ownsCampaign(c))) {
+      setCampaign(c);
+      setStep("results");
+    } else {
+      setCampaign(null);
+      setStep("start");
+    }
+  };
+  const resetToNew = () => {
+    setCampaign(null);
+    setStaged([]);
+    setSelection((s) => ({ n: s.n + 1 }));
+    setStep("start");
+  };
+
   return (
-    <div className="p-6 max-w-[1200px] mx-auto">
+    <div className="p-6 max-w-[1440px] mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="flex items-center gap-2 text-lg font-bold text-foreground">
           <Megaphone className="h-5 w-5 text-primary" />
           Campaign Manager
           {campaign && <span className="text-muted-foreground font-normal">· {campaign.name}</span>}
+          {campaign && <CampaignTypeBadge purpose={campaign.purpose} />}
         </h1>
         {campaign && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setCampaign(null);
-              setStaged([]);
-              setStep("start");
-            }}
-          >
+          <Button variant="ghost" size="sm" onClick={resetToNew}>
             Start over
           </Button>
         )}
       </div>
 
+      <div className="grid gap-5 md:grid-cols-[300px_minmax(0,1fr)] items-start">
+        <CampaignList
+          campaigns={allCampaigns}
+          legacy={legacyLabels}
+          loading={campaignsQ.isLoading}
+          userEmail={userEmail || ""}
+          selectedKey={selectedKey}
+          onSelect={selectCampaign}
+          onSelectLegacy={(name) => {
+            setCampaign(null);
+            setStaged([]);
+            setSelection((s) => ({ legacy: name, n: s.n + 1 }));
+            setStep("start");
+          }}
+          onNew={resetToNew}
+        />
+        <div className="min-w-0">
       <div className="flex flex-wrap gap-2 mb-5">
         {STEPS.map((s, i) => {
           const active = s.id === step || (step === "decide" && s.id === "confirm");
+          const canJump = s.id === "results" && !!campaign && campaign.status !== "draft" && campaign.status !== "saved";
           return (
-            <div
+            <button
+              type="button"
               key={s.id}
+              disabled={!canJump}
+              onClick={() => canJump && setStep("results")}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
                 active ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border text-muted-foreground"
-              }`}
+              } ${canJump && !active ? "hover:bg-muted/50" : ""}`}
             >
               <span>{i + 1}</span>
               {s.label}
-            </div>
+            </button>
           );
         })}
       </div>
 
       {step === "start" && (
         <StartStep
-          campaigns={campaignsQ.data?.campaigns || []}
-          loading={campaignsQ.isLoading}
+          campaigns={allCampaigns}
           userEmail={userEmail || ""}
+          selection={selection}
           onReady={(c, next, prefill) => {
             setCampaign(c);
             setStaged(prefill || []);
@@ -266,15 +323,28 @@ function CampaignBuilderPage() {
           onStep={setStep}
           onMembersChanged={refreshMembers}
           onDone={() => {
-            setCampaign(null);
-            setStep("start");
+            setCampaign((c) => (c ? { ...c, status: "actioning" } : c));
+            setStep("results");
             void qc.invalidateQueries({ queryKey: ["campaigns"] });
           }}
         />
       )}
+      {step === "results" && campaign && (
+        <CampaignResults
+          campaign={campaign}
+          members={members}
+          loadingMembers={membersQ.isLoading}
+          userEmail={userEmail || ""}
+          onCampaign={setCampaign}
+          onClosed={resetToNew}
+        />
+      )}
+        </div>
+      </div>
     </div>
   );
 }
+
 
 // ── Step 1 ────────────────────────────────────────────────────
 
@@ -323,23 +393,6 @@ function StartStep({
     setPortcos(c?.portcos || []);
     setOwner(c?.owner || "");
   };
-
-  // Campaign labels already on Network / Prospecting records but not yet builder campaigns.
-  const builderNames = useMemo(
-    () => new Set(campaigns.map((c) => c.name.trim().toLowerCase())),
-    [campaigns],
-  );
-  const legacyLabels = useMemo(() => {
-    const counts = new Map<string, number>();
-    const add = (v?: string) => {
-      const n = (v || "").trim();
-      if (!n || builderNames.has(n.toLowerCase())) return;
-      counts.set(n, (counts.get(n) || 0) + 1);
-    };
-    (contactsQ.data || []).forEach((c) => add((c as ContactLike).campaign));
-    (targetsQ.data || []).forEach((t) => add((t as TargetLike).campaign));
-    return [...counts.entries()].map(([n, count]) => ({ name: n, count }));
-  }, [contactsQ.data, targetsQ.data, builderNames]);
 
   const legacyPeople = useMemo(
     () => (legacy ? labelPeople(legacy, contactsQ.data || [], targetsQ.data || []) : null),
