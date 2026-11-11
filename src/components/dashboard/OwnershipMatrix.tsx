@@ -142,9 +142,8 @@ export function OwnershipMatrix({
         {[...layout.plotted]
           .sort((a, b) => {
             // Filtered-out circles sit underneath so they never cover a matching company.
-            const fa = visible && !visible(a) ? 0 : 1;
-            const fb = visible && !visible(b) ? 0 : 1;
-            return fa !== fb && a.key !== selectedKey && b.key !== selectedKey ? fa - fb : paintOrder(a, b, selectedKey);
+            const layer = (p: MatrixPoint) => (p.key === selectedKey ? 2 : visible && !visible(p) ? 0 : 1);
+            return layer(a) - layer(b) || paintOrder(a, b, selectedKey);
           })
           .map((p) => (
           <Bubble
