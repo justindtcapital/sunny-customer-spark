@@ -334,6 +334,8 @@ export interface TargetLead {
   originSource: string;
   /** Why this lead was surfaced (e.g. "Uses Salesforce", "Hiring security engineers"). */
   reasonSurfaced?: string;
+  /** Manual type override on the same Contacts row (PortCo / Dell / Partner / Network). */
+  contactType?: string;
   /** Why this list exists — free text from the Targets "Campaign" column. */
   campaign?: string;
   /** Event this lead came from (Targets "Event" column; set when source = Event). */

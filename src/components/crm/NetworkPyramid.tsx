@@ -17,7 +17,18 @@ import {
 } from "@/lib/network-pyramid";
 
 export interface PyramidSelection { tier: PyramidTier; view: "domain" | "geo" | "tier"; column: string }
-type View = "kpis" | "domain" | "geo";
+export type PyramidView = "kpis" | "domain" | "geo";
+type View = PyramidView;
+
+/** Domain / Geo / KPIs switch; the Network page shows it in its top-right corner. */
+export function PyramidViewSwitch({ view, onChange }: { view: PyramidView; onChange: (v: PyramidView) => void }) {
+  return <div className="inline-flex rounded-md border p-1" aria-label="Network view">
+    {(["domain", "geo", "kpis"] as View[]).map(v => {
+      const Icon = v === "domain" ? LayoutGrid : v === "geo" ? Globe2 : ChartNoAxesCombined;
+      return <Button key={v} size="sm" variant={view === v ? "default" : "ghost"} aria-pressed={view === v} className="h-7 gap-1.5 px-2.5" onClick={() => onChange(v)}><Icon className="size-3.5" />{v === "kpis" ? "KPIs" : v === "domain" ? "Domain" : "Geo"}</Button>;
+    })}
+  </div>;
+}
 
 export function contactMatchesPyramid(c: Contact, sel: PyramidSelection): boolean {
   if ((c.prospect ? "Prospect" : c.temperature) !== sel.tier) return false;
@@ -76,8 +87,10 @@ function TierChart({ counts, active, onTier, visible }: { counts: Record<Pyramid
 
 export function NetworkPyramid({
   contacts, profile, ownedGids, selection, onSelect, expanded, onExpandedChange: setExpanded, embedded = false,
-  visibleTiers, onToggleTier, excludeEmails,
+  visibleTiers, onToggleTier, excludeEmails, view: viewProp,
 }: {
+  /** When set, the page owns the Domain/Geo/KPIs switch and scope controls (no header here). */
+  view?: PyramidView;
   /** People whose type is switched off (PortCo/Dell/Partner): left out of prospect counts and movements. */
   excludeEmails?: Set<string>;
   /** Network page: each tier band is an independent on/off switch for the list. */
@@ -93,7 +106,8 @@ export function NetworkPyramid({
   selection: PyramidSelection | null;
   onSelect: (s: PyramidSelection | null) => void;
 }) {
-  const [view, setView] = useState<View>("domain");
+  const [ownView, setView] = useState<View>("domain");
+  const view = viewProp ?? ownView;
   const navigate = useNavigate();
   // Scope is shared with the sidebar's "My contacts / Everyone" switch so both always agree.
   const { filters, setFilters } = useFilters();
@@ -163,26 +177,21 @@ export function NetworkPyramid({
 
   return (
     <section className={cn("network-overview min-w-0", embedded ? "network-overview-embedded" : "mb-4 border-b pb-4")} aria-label="Network Pyramid">
-      {!embedded && <header className="network-view-controls flex min-w-0 flex-wrap items-center justify-end gap-2">
+      {!embedded && !viewProp && <header className="network-view-controls flex min-w-0 flex-wrap items-center justify-end gap-2">
         {pyramidQuery.isFetching && <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Loading" />}
-        <div className="inline-flex rounded-md border p-1" aria-label="Network view">
-          {(["domain", "geo", "kpis"] as View[]).map(v => {
-            const Icon = v === "domain" ? LayoutGrid : v === "geo" ? Globe2 : ChartNoAxesCombined;
-            return <Button key={v} size="sm" variant={view === v ? "default" : "ghost"} aria-pressed={view === v} className="h-7 gap-1.5 px-2.5" onClick={() => setView(v)}><Icon className="size-3.5" />{v === "kpis" ? "KPIs" : v === "domain" ? "Domain" : "Geo"}</Button>;
-          })}
-        </div>
+        <PyramidViewSwitch view={view} onChange={setView} />
         <div className="inline-flex rounded-md border p-1" aria-label="Network scope">
           {(["mine", "ours"] as const).map(s => <Button key={s} size="sm" variant={scope === s ? "default" : "ghost"} className="h-7 gap-1.5 px-2.5" disabled={s === "mine" && !profile} aria-pressed={scope === s} onClick={() => setScope(s)}><Users className="size-3.5" />{s === "mine" ? "My contacts" : "Everyone"}</Button>)}
         </div>
       </header>}
       {data?.error && <p role="alert" className="mt-3 text-xs text-destructive">{data.error}</p>}
-      {view === "kpis" && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+      {view === "kpis" && <div className={cn("flex flex-wrap items-center justify-between gap-2", viewProp ? "mb-3 border-b pb-3" : "mt-3 border-t pt-3")}>
         <div className="flex items-center gap-1">
           {(Object.keys(WINDOWS) as WindowKey[]).map(w => <Button key={w} size="sm" variant={win === w ? "secondary" : "ghost"} aria-pressed={win === w} className="h-7 px-2" onClick={() => setWin(w)}>{w === "30d" ? "30 days" : w === "6m" ? "6 months" : "12 months"}</Button>)}
         </div>
         <div className="flex items-center gap-1">{editing ? <><Button size="sm" className="h-7" onClick={saveTargets}><Check />Save targets</Button><Button size="sm" variant="ghost" className="h-7" onClick={() => setEditing(false)}>Cancel</Button></> : <Button size="sm" variant="outline" className="h-7" disabled={!data} onClick={() => { setDraft({}); setEditing(true); }}><Pencil />Edit targets</Button>}</div>
       </div>}
-      <div className={cn("network-overview-body", !embedded && "mt-3")}>
+      <div className={cn("network-overview-body", !embedded && !viewProp && "mt-3")}>
         <TierChart counts={counts} visible={visibleTiers} active={selection?.view === "tier" ? selection.tier : null} onTier={(t) => {
           if (onToggleTier) { onToggleTier(t); return; }
           if (t === "Prospect") { navigate({ to: "/crm" }); return; }

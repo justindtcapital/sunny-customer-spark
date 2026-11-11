@@ -90,7 +90,8 @@ export function NetworkPanel({ email }: { email: string }) {
   const { data } = useSuspenseQuery(homeDataQuery(email));
   const navigate = useNavigate();
   const profile = teamProfile(email);
-  const people = data.contacts.filter((c) => !c.portco);
+  // Matches the Network page default: every type (PortCo, Dell, Partner, Network) is counted.
+  const people = data.contacts;
   return <Panel title="My network" icon={<NetworkIcon className="h-4 w-4 text-primary" />} to="/crm" cta="Open Network">
     {data.errors.includes("Network") ? <Unavailable what="Network" /> :
       <NetworkPyramid embedded expanded onExpandedChange={() => {}} contacts={people} profile={profile} selection={null} onSelect={() => void navigate({ to: "/crm" })} />}

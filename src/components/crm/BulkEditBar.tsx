@@ -246,7 +246,8 @@ export function BulkEditBar() {
     retryRef.current = () => { setRun(null); void apply(); };
     setBusy(true);
     const label = FIELDS.find((f) => f.key === field)?.label ?? field;
-    const targets = selectedContacts.filter((c) => c.email);
+    // PortCo people aren't rated, so a bulk Status change skips them.
+    const targets = selectedContacts.filter((c) => c.email && !(field === "status" && c.kind === "PortCo"));
     // "Automatic" clears the manual type so the company decides again.
     const saved = field === "contactType" && v === AUTOMATIC_TYPE ? "" : v;
     setRun({ title: `Setting ${label} → ${v} on ${targets.length} contact${targets.length === 1 ? "" : "s"}`, step: "apply", total: 0, processed: 0 });

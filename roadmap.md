@@ -163,3 +163,5 @@
 - [x] Profile menu: Rating (Council–Cold + Prospect) and Type; Prospect profile gets "Move to Network · Cold"; bulk edit sets Type (incl. Automatic) and bulk promote/demote handles Prospects and skips PortCo
 - [x] 34 tests passed; signed-in checkbox counts verified; type change saved, survived reload and was reverted
 - [ ] Try a real Prospect ↔ Cold move; not run to avoid adding test moves to the KPI history
+- [x] Coherence pass: prospects honor manual type; homepage pyramid counts every type like Network; V.I.C. introductions honor manual PortCo; bulk Status skips PortCo; 210 tests pass
+- [x] Network layout: view switch alone top-right; one control bar under pyramid (types, My contacts/Everyone, Add Contact, layout); Import/Export in left menu; Merge duplicates button removed (Find duplicates kept in Import)

@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import type { Contact, ContactFilters as Filters } from "@/lib/types";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { locationMatches } from "@/lib/location-utils";
@@ -30,6 +30,8 @@ interface ContactListProps {
   /** Network page: PortCo/Dell/Partner checkboxes (the parent filters the list and pyramid). */
   hiddenKinds?: ContactKind[];
   onToggleKind?: (kind: ContactKind) => void;
+  /** Extra controls in the list bar, between the type checkboxes and the layout buttons. */
+  toolbarExtra?: ReactNode;
 }
 
 export function ContactList({
@@ -41,6 +43,7 @@ export function ContactList({
   ownershipLoading,
   hiddenKinds,
   onToggleKind,
+  toolbarExtra,
 }: ContactListProps) {
   const [view, setView] = useState<"cards" | "table">("table");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
@@ -202,11 +205,12 @@ export function ContactList({
           <span className="font-semibold text-foreground">{filtered.length}</span> contacts
           {filters.ownershipScope === "mine" ? " in your book" : ""}
         </p>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-1">
           {onToggleKind && TOGGLE_KINDS.map((k) => <label key={k} className="mr-3 flex cursor-pointer items-center gap-2 text-xs" title={`Show or hide ${k} people in the list and the pyramid`}>
             <Checkbox checked={!hiddenKinds?.includes(k)} onCheckedChange={() => { onToggleKind(k); clearSelection(); }} />
             {k}
           </label>)}
+          {toolbarExtra}
           <Button
             variant={view === "cards" ? "default" : "ghost"}
             size="icon"

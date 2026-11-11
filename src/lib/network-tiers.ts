@@ -25,6 +25,6 @@ export function prospectAsContact(t: TargetLead): Contact {
     phone: t.phone, address: "", prime: t.prime || "", sector: t.sector, areasOfInterest: [], temperature: "Cold",
     prospect: true, prospectKey: targetKeyOf(t), portCoIntros: [], eventsAttended: t.eventsAttended || [],
     eventsInvited: t.eventsInvited || [], interactions: [], location: t.location, linkedinUrl: t.linkedinUrl,
-    dateAdded: t.dateAdded, followUpPending: t.followUp,
+    dateAdded: t.dateAdded, followUpPending: t.followUp, contactType: t.contactType || "",
   };
 }
