@@ -6,3 +6,4 @@
 - Paste imports (Network and Prospecting) parse via src/lib/paste-parse.ts into the shared editable PasteReview table before any save; header rows map columns, separate first/last columns are detected, and every import (paste or CSV) shows the single-name / surname-in-Company warning — prevents last names being saved as companies.
 - Import identity: email, LinkedIn, or name + company is enough; phone verification compares digits only — Sheets strips "+".
 - Network visibility toggles (PortCo, Dell) are read-time filters from pure helpers (src/lib/portco-contacts.ts, src/lib/dell-contacts.ts); they never change ratings or records.
+- Network page shows Prospecting rows as a fifth "Prospect" tier (read-only view via src/lib/network-tiers.ts); pyramid bands are independent on/off list toggles and prospect rows open their Prospecting profile — one page, no second people store.
