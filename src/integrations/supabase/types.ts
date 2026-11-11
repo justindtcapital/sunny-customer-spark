@@ -137,6 +137,39 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_charts: {
+        Row: {
+          created_at: string
+          created_by: string
+          dashboard: string
+          id: string
+          prompt: string
+          spec: Json
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string
+          dashboard: string
+          id?: string
+          prompt?: string
+          spec?: Json
+          title: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          dashboard?: string
+          id?: string
+          prompt?: string
+          spec?: Json
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       morning_briefs: {
         Row: {
           brief: Json
