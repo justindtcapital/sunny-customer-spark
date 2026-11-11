@@ -28,6 +28,7 @@ import {
 } from "@/components/home/WorkspaceIcons";
 import dtcLogo from "@/assets/dtc-logo.jpg";
 import { Link, useLocation } from "@tanstack/react-router";
+import { setPageActionsSlot } from "@/lib/page-actions-slot";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -539,6 +540,8 @@ export function AppSidebar({
                   </div>
 
                   <DetailedToggle open={crmDetailed} onToggle={() => setCrmDetailed((o) => !o)} active={crmActiveCount} />
+                  {/* The Network page portals its Import / Export here. */}
+                  <div ref={setPageActionsSlot} className="flex gap-2 empty:hidden" />
                   {crmDetailed && (<div className="space-y-3">
                   <NetworkSearchPanel />
 
