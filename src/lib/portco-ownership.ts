@@ -1,11 +1,22 @@
 // Ownership & Investment view: pure plotting helpers (DTC $M invested vs ownership fraction).
 import type { MatrixPoint } from "@/lib/portco-matrix";
 
+export type AxisKind = "log" | "linear";
+
+export interface Axis {
+  kind: AxisKind;
+  min: number;
+  max: number;
+  ticks: number[];
+  /** Position of a value along the axis, 0 (min) to 1 (max). */
+  unit: (v: number) => number;
+}
+
 export interface OwnershipLayout {
   plotted: MatrixPoint[];
   notPlotted: MatrixPoint[];
-  maxInvestment: number;
-  maxOwnership: number;
+  investment: Axis;
+  ownership: Axis;
 }
 
 /** "Nice" ceiling for an axis so ticks land on round numbers. */
@@ -16,8 +27,46 @@ export function niceCeil(v: number): number {
   return 10 * p;
 }
 
+const round = (v: number) => Number(v.toPrecision(6));
+
+/**
+ * Axis fitted to the data. Linear starts at 0 and stops one round step past the
+ * largest value; log hugs the smallest and largest values with 1-2-5 ticks, so
+ * crowded small companies spread out and a single large one doesn't squash the rest.
+ */
+export function fitAxis(values: number[], kind: AxisKind): Axis {
+  const vals = values.filter((v) => v > 0 && Number.isFinite(v));
+  const lo = vals.length ? Math.min(...vals) : 1;
+  const hi = vals.length ? Math.max(...vals) : 1;
+  if (kind === "linear") {
+    const step = niceCeil(hi / 8);
+    const max = round(Math.ceil(hi / step - 1e-9) * step);
+    const ticks: number[] = [];
+    for (let t = 0; t <= max + step / 2; t += step) ticks.push(round(t));
+    return { kind, min: 0, max, ticks, unit: (v) => v / max };
+  }
+  // Log: a little headroom either side; widen a degenerate range to one decade.
+  let min = lo / 1.15;
+  let max = hi * 1.15;
+  if (max / min < 10) {
+    const mid = Math.sqrt(min * max);
+    min = mid / Math.sqrt(10);
+    max = mid * Math.sqrt(10);
+  }
+  const ticks: number[] = [];
+  for (let e = Math.floor(Math.log10(min)); e <= Math.ceil(Math.log10(max)); e++) {
+    for (const m of [1, 2, 5]) {
+      const t = round(m * 10 ** e);
+      if (t >= min && t <= max) ticks.push(t);
+    }
+  }
+  const lmin = Math.log(min);
+  const span = Math.log(max) - lmin;
+  return { kind, min, max, ticks, unit: (v) => (Math.log(Math.max(v, min)) - lmin) / span };
+}
+
 /** Companies need both a positive investment and ownership to be placed; the rest are listed. */
-export function ownershipLayout(points: MatrixPoint[]): OwnershipLayout {
+export function ownershipLayout(points: MatrixPoint[], kind: AxisKind = "log"): OwnershipLayout {
   const plotted: MatrixPoint[] = [];
   const notPlotted: MatrixPoint[] = [];
   for (const p of points) {
@@ -27,7 +76,11 @@ export function ownershipLayout(points: MatrixPoint[]): OwnershipLayout {
   return {
     plotted,
     notPlotted,
-    maxInvestment: niceCeil(Math.max(0, ...plotted.map((p) => p.investment ?? 0))),
-    maxOwnership: niceCeil(Math.max(0, ...plotted.map((p) => p.ownership ?? 0))),
+    investment: fitAxis(plotted.map((p) => p.investment ?? 0), kind),
+    ownership: fitAxis(plotted.map((p) => p.ownership ?? 0), kind),
   };
 }
+
+const trim = (v: number) => String(round(v));
+export const formatInvestment = (v: number) => `$${trim(v)}M`;
+export const formatOwnership = (v: number) => `${trim(v * 100)}%`;
