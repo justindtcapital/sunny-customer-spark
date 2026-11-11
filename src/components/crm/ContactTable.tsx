@@ -214,7 +214,7 @@ export function ContactTable({ contacts, onSelect }: ContactTableProps) {
                 </TableCell>
                 <TableCell className="whitespace-nowrap" onClick={() => onSelect(contact)}>
                   <span className="inline-flex items-center gap-1">
-                    <TemperatureBadge temperature={contact.temperature} portco={contact.portco} prospect={contact.prospect} />
+                    <TemperatureBadge temperature={contact.temperature} portco={contact.portco} prospect={contact.prospect} kind={contact.kind} />
                     {contact.ratingLocked && (
                       <Lock
                         className="h-3 w-3 text-muted-foreground"

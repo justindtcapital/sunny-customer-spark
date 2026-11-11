@@ -3,8 +3,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import type { Contact, ContactFilters as Filters } from "@/lib/types";
 import { seniorityOf, departmentOf } from "@/lib/people-classify";
 import { locationMatches } from "@/lib/location-utils";
-import { matchesTemperatureFilter, matchesPortCoVisibility } from "@/lib/portco-contacts";
-import { matchesDellVisibility } from "@/lib/dell-contacts";
+import { matchesTemperatureFilter } from "@/lib/portco-contacts";
+import { TOGGLE_KINDS, type ContactKind } from "@/lib/contact-kind";
 import { isMyContact, type TeamProfile } from "@/lib/user-ownership";
 import { ContactCard } from "./ContactCard";
 import { ContactTable } from "./ContactTable";
@@ -27,7 +27,9 @@ interface ContactListProps {
   ownedGids?: Set<string>;
   /** True while the ownership index is still loading. */
   ownershipLoading?: boolean;
-  portcoVisibilityControl?: boolean;
+  /** Network page: PortCo/Dell/Partner checkboxes (the parent filters the list and pyramid). */
+  hiddenKinds?: ContactKind[];
+  onToggleKind?: (kind: ContactKind) => void;
 }
 
 export function ContactList({
@@ -37,11 +39,10 @@ export function ContactList({
   teamProfile: profile,
   ownedGids,
   ownershipLoading,
-  portcoVisibilityControl = false,
+  hiddenKinds,
+  onToggleKind,
 }: ContactListProps) {
   const [view, setView] = useState<"cards" | "table">("table");
-  const [showPortCo, setShowPortCo] = useState(true);
-  const [showDell, setShowDell] = useState(true);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [localContacts, setLocalContacts] = useState(contacts);
@@ -50,8 +51,6 @@ export function ContactList({
   const filtered = useMemo(() => {
     const owned = ownedGids || new Set<string>();
     const result = localContacts.filter((c) => {
-      if (portcoVisibilityControl && !matchesPortCoVisibility(c, showPortCo)) return false;
-      if (portcoVisibilityControl && !matchesDellVisibility(c, showDell)) return false;
       if (filters.ownershipScope === "mine") {
         if (!profile) return false;
         if (!isMyContact(c, owned, profile)) return false;
@@ -122,7 +121,7 @@ export function ContactList({
       if (bt !== at) return bt - at;
       return (sheetOrder.get(b.id) ?? 0) - (sheetOrder.get(a.id) ?? 0);
     });
-  }, [localContacts, filters, profile, ownedGids, portcoVisibilityControl, showPortCo, showDell]);
+  }, [localContacts, filters, profile, ownedGids]);
 
   useEffect(() => {
     setFilteredContacts(filtered);
@@ -204,14 +203,10 @@ export function ContactList({
           {filters.ownershipScope === "mine" ? " in your book" : ""}
         </p>
         <div className="flex items-center gap-1">
-          {portcoVisibilityControl && <label className="mr-3 flex cursor-pointer items-center gap-2 text-xs">
-            <Checkbox checked={showPortCo} onCheckedChange={(checked) => { setShowPortCo(checked === true); clearSelection(); }} />
-            PortCo
-          </label>}
-          {portcoVisibilityControl && <label className="mr-3 flex cursor-pointer items-center gap-2 text-xs">
-            <Checkbox checked={showDell} onCheckedChange={(checked) => { setShowDell(checked === true); clearSelection(); }} />
-            Dell
-          </label>}
+          {onToggleKind && TOGGLE_KINDS.map((k) => <label key={k} className="mr-3 flex cursor-pointer items-center gap-2 text-xs" title={`Show or hide ${k} people in the list and the pyramid`}>
+            <Checkbox checked={!hiddenKinds?.includes(k)} onCheckedChange={() => { onToggleKind(k); clearSelection(); }} />
+            {k}
+          </label>)}
           <Button
             variant={view === "cards" ? "default" : "ghost"}
             size="icon"

@@ -19,7 +19,8 @@ import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagemen
 import type { Contact, PortfolioCompany, TargetLead } from "@/lib/types";
 import type { PyramidTier } from "@/lib/network-pyramid";
 import { DEFAULT_VISIBLE_TIERS, prospectAsContact, tierVisible, toggleTier } from "@/lib/network-tiers";
-import { isPortCoContact, portcoKeys } from "@/lib/portco-contacts";
+import { classifyContacts, kindShown, toggleKind, type ContactKind } from "@/lib/contact-kind";
+import { usePartners } from "@/lib/use-partners";
 
 import { ContactList } from "@/components/crm/ContactList";
 import { syncEventExposure } from "@/utils/event-exposure.functions";
@@ -94,12 +95,12 @@ function CrmPage() {
     prospects: TargetLead[];
   };
   const { contact: focusEmail } = Route.useSearch();
-  // PortCo people stay searchable in Network but are tagged "PortCo" and kept out of the tiers.
-  const contacts = useMemo(() => {
-    const keys = portcoKeys(companies.map((c) => c.name));
-    return allContacts.map((c) => (isPortCoContact(c, keys) ? { ...c, portco: true } : c));
-  }, [allContacts, companies]);
-  const tierContacts = useMemo(() => contacts.filter((c) => !c.portco), [contacts]);
+  // Each person gets a read-time type (PortCo / Dell / Partner / Network); a manual Contact Type wins.
+  const partners = usePartners();
+  const portcoNames = useMemo(() => companies.map((c) => c.name), [companies]);
+  const contacts = useMemo(() => classifyContacts(allContacts, { portcoNames, partners }), [allContacts, portcoNames, partners]);
+  // Type checkboxes drive both the list and the pyramid numbers.
+  const [hiddenKinds, setHiddenKinds] = useState<ContactKind[]>([]);
   const { filters } = useFilters();
   const { email, ready: authReady } = useAuth();
   const profile = useMemo(() => teamProfile(email), [email]);
@@ -120,11 +121,15 @@ function CrmPage() {
   const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [pyramidSel, setPyramidSel] = useState<PyramidSelection | null>(null);
   const [visibleTiers, setVisibleTiers] = useState<PyramidTier[]>(DEFAULT_VISIBLE_TIERS);
-  const prospectContacts = useMemo(() => prospects.map(prospectAsContact), [prospects]);
+  const prospectContacts = useMemo(() => classifyContacts(prospects.map(prospectAsContact), { portcoNames, partners }), [prospects, portcoNames, partners]);
+  const tierContacts = useMemo(() => contacts.filter((c) => kindShown(c, hiddenKinds)), [contacts, hiddenKinds]);
+  const hiddenEmails = useMemo(() => new Set([...contacts, ...prospectContacts].filter((c) => !kindShown(c, hiddenKinds))
+    .flatMap((c) => (c.email || "").split(/[;,\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean))), [contacts, prospectContacts, hiddenKinds]);
   const listContacts = useMemo(() => {
-    const all = [...contacts, ...prospectContacts].filter((c) => tierVisible(c, visibleTiers));
+    const all = [...tierContacts, ...prospectContacts.filter((c) => kindShown(c, hiddenKinds))].filter((c) => tierVisible(c, visibleTiers));
     return pyramidSel ? all.filter((c) => contactMatchesPyramid(c, pyramidSel)) : all;
-  }, [contacts, prospectContacts, pyramidSel, visibleTiers]);
+  }, [tierContacts, prospectContacts, hiddenKinds, pyramidSel, visibleTiers]);
+  const onToggleKind = (k: ContactKind) => { setPyramidSel(null); setHiddenKinds((h) => toggleKind(h, k)); };
   const onToggleTier = (t: PyramidTier) => { setPyramidSel(null); setVisibleTiers((v) => toggleTier(v, t)); };
   const [pasteOpen, setPasteOpen] = useState(false);
   const [duplicatesOpen, setDuplicatesOpen] = useState(false);
@@ -444,9 +449,10 @@ function CrmPage() {
         </div>
       </div>
 
-      <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} visibleTiers={visibleTiers} onToggleTier={onToggleTier} expanded onExpandedChange={() => {}} />
+      <NetworkPyramid contacts={tierContacts} profile={profile} ownedGids={ownedGids} selection={pyramidSel} onSelect={setPyramidSel} visibleTiers={visibleTiers} onToggleTier={onToggleTier} excludeEmails={hiddenEmails} expanded onExpandedChange={() => {}} />
       <ContactList
-        portcoVisibilityControl
+        hiddenKinds={hiddenKinds}
+        onToggleKind={onToggleKind}
         contacts={listContacts}
         filters={filters}
         focusEmail={focusEmail}
