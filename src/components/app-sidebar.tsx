@@ -99,7 +99,7 @@ const navItems = [
   { title: "Partners", url: "/partners", icon: Handshake },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
   { title: "V.I.C.", url: "/vic", icon: VicMark },
-  { title: "Dashboard", url: "/dashboard", icon: DashboardIcon },
+  { title: "Dashboards", url: "/dashboards", icon: DashboardIcon },
   { title: "Admin", url: "/activity", icon: ScrollText },
 ];
 
@@ -503,7 +503,7 @@ export function AppSidebar({
             <SidebarGroupContent>
               <SidebarMenu>
                 {navItems.map((item) => {
-                  const isActive = currentPath === item.url;
+                  const isActive = currentPath === item.url || currentPath.startsWith(`${item.url}/`);
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild isActive={isActive}>

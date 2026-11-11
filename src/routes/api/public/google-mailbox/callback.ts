@@ -9,7 +9,7 @@ export const Route = createFileRoute("/api/public/google-mailbox/callback")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const origin = url.origin;
-        const back = (q: string) => Response.redirect(`${origin}/dashboard?${q}`, 302);
+        const back = (q: string) => Response.redirect(`${origin}/dashboards/portco?${q}`, 302);
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
         if (url.searchParams.get("error") || !code || !state) {

@@ -100,7 +100,7 @@ function offsetFor(index: number): { dx: number; dy: number } {
   return { dx: Math.cos(a) * r, dy: Math.sin(a) * r };
 }
 
-function Bubble({
+export function Bubble({
   p,
   cx,
   cy,

@@ -1,0 +1,1 @@
+- Dashboards live under /dashboards (hub tiles + portco/events/network leaves; /dashboard redirects to /dashboards/portco). Charts reuse existing read functions and pure helpers (portco-ownership, events-dashboard) and show "unavailable" instead of demo data — counts stay real and testable.
