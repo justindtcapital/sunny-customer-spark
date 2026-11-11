@@ -7,3 +7,4 @@
 - Import identity: email, LinkedIn, or name + company is enough; phone verification compares digits only — Sheets strips "+".
 - Network type toggles (PortCo, Dell, Partner) live on the Network page and filter the list and pyramid together via src/lib/contact-kind.ts; they never change ratings or records.
 - Network page shows Prospecting rows as a fifth "Prospect" tier (read-only view via src/lib/network-tiers.ts); pyramid bands are independent on/off list toggles and prospect rows open their Prospecting profile — one page, no second people store. Prospect ↔ Cold moves (one-off or bulk) go through bulkChangeRelationshipLevels as in-place status flags.
+- Page-specific left-menu actions (Network Import/Export) render through the src/lib/page-actions-slot.ts portal slot below Detailed search, falling back inline when the menu is collapsed — action logic stays in the page.
