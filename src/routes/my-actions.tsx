@@ -31,7 +31,7 @@ import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { actionDueLabel, inActionRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
 import { fileFollowUp, portcoMatchKey, type Filing } from "@/lib/action-grouping";
-import { ACTION_SORTS, abbreviateTitle, companyKindVisible, networkGroupKey, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
+import { ACTION_SORTS, abbreviateTitle, companyKindVisible, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
 
 type FeedToggles = Record<CompanyKind | "workstreams" | "followups", boolean>;
 const KIND_LABEL: Record<CompanyKind, string> = { portcos: "PortCo", network: "Network", ops: "PortDev Ops" };
@@ -194,6 +194,39 @@ function similarFollowUps(r: Reminder, all: Reminder[]): Reminder[] {
 }
 
 type Sel = { kind: "ws" | "fu"; id: string };
+
+/** PortCo / Network switch for one follow-up; saves straight away through the follow-up edit overlay. */
+function FilingControl({ x, filing }: { x: Reminder; filing: Filing }) {
+  const save = useServerFn(editFollowUpFn);
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const current = filing.kind === "network" ? "network" : "portco";
+  const choose = async (to: "portco" | "network") => {
+    if (to === current && !filing.auto) return;
+    setBusy(true);
+    try {
+      await save({ data: { id: x.id, edit: { ...followUpValues(x), filing: to } } });
+      await Promise.all([qc.invalidateQueries({ queryKey: ["my-actions"] }), qc.invalidateQueries({ queryKey: ["home-momentum"] })]);
+      toast.success(to === "network" ? "Filed as a Network follow-up" : "Filed as a PortCo follow-up");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't change where this is filed"); }
+    finally { setBusy(false); }
+  };
+  const where = filing.kind === "network"
+    ? `Filed under ${filing.group}${filing.portcoTag && filing.portcoTag !== filing.group ? ` · tagged ${filing.portcoTag}` : ""}`
+    : filing.kind === "portcos" ? `Filed under ${filing.group}` : "Filed under PortDev Ops";
+  return <div className="flex flex-wrap items-center gap-2 text-xs">
+    <span className="font-semibold uppercase tracking-wider text-muted-foreground">Follow-up type</span>
+    <div role="radiogroup" aria-label="Follow-up type" className="inline-flex rounded-md border border-border p-0.5">
+      {(["portco", "network"] as const).map((k) => (
+        <button key={k} role="radio" aria-checked={current === k} disabled={busy} onClick={() => void choose(k)}
+          className={`rounded px-2.5 py-1 font-medium ${current === k ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          {k === "portco" ? "PortCo" : "Network"}
+        </button>
+      ))}
+    </div>
+    <span className="text-muted-foreground">{where}{filing.auto ? " (automatic)" : ""}</span>
+  </div>;
+}
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
 
 /** Workstream / follow-up bullet: icon in a circle tinted with the company logo's primary color. */
@@ -246,7 +279,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   // PortCo vs Network filing for each follow-up (read-time, or the user's saved choice).
   const filings = useMemo(() => {
     const portcoName = (n: string) => portcoNames.get(portcoMatchKey(n)) || "";
-    return new Map(fuAllRaw(homeData).map((x) => [x.id, fileFollowUp(x, portcoName, (n) => !!teamMemberFor(n))]));
+    return new Map((homeData?.reminders || []).map((x) => [x.id, fileFollowUp(x, portcoName, (n) => !!teamMemberFor(n))]));
   }, [homeData, portcoNames]);
   const filingOf = (x: Reminder): Filing => filings.get(x.id) || { kind: "ops", group: "", portcoTag: "", auto: true };
   const websites = useMemo(() => { const m = new Map(portcoList.map((p) => [portcoMatchKey(p.name), p.website || ""])); return { get: (k: string) => m.get(portcoMatchKey(k)) }; }, [portcoList]);
@@ -585,7 +618,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
               const website = websites.get(g.company) || "";
               const fuCount = g.general.length + [...g.linked.values()].flat().length;
               return (
-                <div key={g.company} className="space-y-1">
+                <div key={`${g.kind}:${g.company}`} className="space-y-1">
                   <button onClick={() => setClosed((c) => { const n = new Set(c); if (n.has(g.company)) n.delete(g.company); else n.add(g.company); return n; })}
                     className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-muted/40">
                     {isClosed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
