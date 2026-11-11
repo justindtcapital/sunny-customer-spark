@@ -26,9 +26,9 @@ export const Route = createFileRoute("/dashboards/")({
   component: DashboardsHub,
 });
 
-function Tile({ to, title, sub, children }: { to: "/dashboards/portco" | "/dashboards/events" | "/dashboards/network"; title: string; sub: string; children: ReactNode }) {
+function Tile({ to, title, sub, children, className = "" }: { to: "/dashboards/portco" | "/dashboards/events" | "/dashboards/network"; title: string; sub: string; children: ReactNode; className?: string }) {
   return (
-    <Link to={to} className="group block">
+    <Link to={to} className={`group block ${className}`}>
       <Card className="border-border h-full transition-shadow group-hover:shadow-md">
         <CardContent className="p-5 flex flex-col h-full">
           <div className="flex items-start justify-between gap-2">
@@ -70,9 +70,9 @@ function DashboardsHub() {
         <p className="text-sm text-muted-foreground mt-1">Pick a dashboard to open it.</p>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <Tile to="/dashboards/portco" title="PortCo Dashboard" sub="Maturity, ownership and investment">
+        <Tile to="/dashboards/portco" title="PortCo Dashboard" sub="Maturity, ownership and investment" className="lg:col-span-2 lg:row-span-2">
           {points.length ? (
-            <div className="w-full max-h-64 overflow-hidden"><PortcoMatrix points={points} investor="" sector="" priority="" selectedKey={null} onSelect={() => {}} hideUnscored /></div>
+            <div className="w-full"><PortcoMatrix points={points} investor="" sector="" priority="" selectedKey={null} onSelect={() => {}} hideUnscored /></div>
           ) : <Unavailable text={asanaLoading ? "Loading…" : "PortCo data unavailable"} />}
         </Tile>
         <Tile to="/dashboards/events" title="Events Dashboard" sub={`Event intensity by month, ${year}`}>
