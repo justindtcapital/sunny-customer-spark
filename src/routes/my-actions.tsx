@@ -107,7 +107,7 @@ function MyActionsPage() {
   };
   // Changing a filter always shows the to-do feed it filters.
   const toActions = () => { if (tab !== "actions") set({ tab: "actions" }); };
-  const toggles: FeedToggles = { portcos: kinds.includes("portcos"), network: kinds.includes("network"), ops: kinds.includes("ops"), workstreams: showWs, followups: true };
+  const toggles: FeedToggles = { portcos: kinds.includes("portcos"), network: kinds.includes("network"), ops: kinds.includes("ops"), workstreams: showWs, followups: showActions };
   const hiddenPriorities = picked.length ? priorities.filter((p) => !picked.includes(p)) : [];
 
   return (

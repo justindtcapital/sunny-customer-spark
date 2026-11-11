@@ -49,6 +49,7 @@ export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, k
   kinds: CompanyKind[]; kindCounts: Record<CompanyKind, number>; onKinds: (k: CompanyKind[]) => void;
   priorities: string[]; picked: string[]; onPicked: (p: string[]) => void;
   showWs: boolean; onShowWs: (v: boolean) => void;
+  showActions: boolean; onShowActions: (v: boolean) => void;
   search: string; onSearch: (s: string) => void;
 }) {
   const pri = (priorities.length ? priorities : FALLBACK_PRIORITIES).slice(0, 4);
