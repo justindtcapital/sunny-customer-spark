@@ -2,30 +2,36 @@
 import { initialsOf } from "./workstream-parse";
 import { canonicalOwnerName } from "./user-ownership";
 
-export const CAMPAIGN_TYPES = ["Event", "Network", "BD"] as const;
+export const CAMPAIGN_TYPES = ["Event", "EventFollowUp", "Network", "BD"] as const;
 export type CampaignType = (typeof CAMPAIGN_TYPES)[number];
 
 /** Display names for the three campaign types. */
 export const CAMPAIGN_TYPE_LABEL: Record<CampaignType, string> = {
-  Event: "Event",
+  Event: "Event outreach",
+  EventFollowUp: "Event follow-up",
   Network: "Network outreach",
   BD: "Business development",
 };
 
 /**
  * Type worked out from the campaign's purpose — no stored field needed.
- * Only three types: demand gen counts as Event; anything else that isn't BD is Network outreach.
+ * Four types: demand gen counts as Event outreach; anything else that isn't event or BD is Network outreach.
  */
 export function campaignTypeOf(purpose: string): CampaignType {
   const p = (purpose || "").toLowerCase();
   if (/business|\bbd\b/.test(p)) return "BD";
+  if (/event/.test(p) && /follow/.test(p)) return "EventFollowUp";
   if (/event|demand/.test(p)) return "Event";
   return "Network";
 }
 
+/** Both event types can mark people Attending and register them on close. */
+export const isEventType = (t: CampaignType) => t === "Event" || t === "EventFollowUp";
+
 /** Default purpose for a type picked in the quick "Add new" row. */
 export const TYPE_DEFAULT_PURPOSE: Record<CampaignType, string> = {
   Event: "Event outreach",
+  EventFollowUp: "Event follow-up",
   Network: "Network outreach",
   BD: "Business development",
 };

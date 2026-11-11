@@ -16,6 +16,7 @@ import { CAMPAIGN_TYPES, CAMPAIGN_TYPE_LABEL, TYPE_DEFAULT_PURPOSE, campaignType
 /** Semantic chart tokens per type (stripe + badge). */
 export const TYPE_STYLE: Record<CampaignType, { stripe: string; badge: string }> = {
   Event: { stripe: "border-l-chart-1", badge: "bg-chart-1/15 text-chart-1 border-chart-1/30" },
+  EventFollowUp: { stripe: "border-l-chart-3", badge: "bg-chart-3/15 text-chart-3 border-chart-3/30" },
   Network: { stripe: "border-l-chart-2", badge: "bg-chart-2/15 text-chart-2 border-chart-2/30" },
   BD: { stripe: "border-l-chart-4", badge: "bg-chart-4/15 text-chart-4 border-chart-4/30" },
 };
