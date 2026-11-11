@@ -14,11 +14,12 @@ interface ContactAvatarProps {
     /** Explicit company domain when known (e.g. Sumble org domain). */
     domain?: string;
   };
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
 }
 
 const sizeClasses = {
+  xs: { wrap: "h-5 w-5", text: "text-[8px]", img: "h-3.5 w-3.5" },
   sm: { wrap: "h-7 w-7", text: "text-[10px]", img: "h-5 w-5" },
   md: { wrap: "h-9 w-9", text: "text-sm", img: "h-6 w-6" },
   lg: { wrap: "h-12 w-12", text: "text-lg", img: "h-8 w-8" },
