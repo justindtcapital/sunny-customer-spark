@@ -251,7 +251,7 @@ export function AppSidebar({
     prime: "Contact Prime",
     title: "Title",
     company: "Company",
-    contactType: "Contact Type",
+    contactType: "Type",
     areasOfInterest: "Area of Interest",
     primaryArea: "Primary Area of Interest",
     source: "Source",
@@ -278,7 +278,7 @@ export function AppSidebar({
           else if (bulkField === "prime") u.prime = value;
           else if (bulkField === "title") u.title = value;
           else if (bulkField === "company") u.company = value;
-          else if (bulkField === "contactType") u.contactType = value;
+          else if (bulkField === "contactType") { u.contactType = value; u.kind = value as Contact["kind"]; u.portco = value === "PortCo"; }
           else if (bulkField === "source") u.source = value as Contact["source"];
           else if (bulkField === "areasOfInterest")
             u.areasOfInterest = value
@@ -1247,7 +1247,7 @@ export function AppSidebar({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="status">Status (Hot/Warm/Cold)</SelectItem>
-                      <SelectItem value="contactType">Contact Type (Dell/Customer/VC)</SelectItem>
+                      <SelectItem value="contactType">Type (PortCo/Dell/Partner/Network)</SelectItem>
                       <SelectItem value="location">Location</SelectItem>
                       <SelectItem value="sector">Sector</SelectItem>
                       <SelectItem value="areasOfInterest">Area of Interest</SelectItem>

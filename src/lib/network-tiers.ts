@@ -13,9 +13,9 @@ export function toggleTier(visible: PyramidTier[], tier: PyramidTier): PyramidTi
   return visible.includes(tier) ? visible.filter((t) => t !== tier) : [...visible, tier];
 }
 
-/** PortCo people sit outside the tiers and follow their own show/hide switch. */
-export function tierVisible(c: Pick<Contact, "temperature" | "prospect" | "portco">, visible: PyramidTier[]): boolean {
-  return !!c.portco || visible.includes(contactTier(c));
+/** Every shown person sits in a tier (PortCo people at their saved rating), so tiers filter everyone alike. */
+export function tierVisible(c: Pick<Contact, "temperature" | "prospect">, visible: PyramidTier[]): boolean {
+  return visible.includes(contactTier(c));
 }
 
 /** Present a prospect-flagged row in the Network list (read-only view; never saved). */

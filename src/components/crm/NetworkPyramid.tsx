@@ -20,7 +20,7 @@ export interface PyramidSelection { tier: PyramidTier; view: "domain" | "geo" | 
 type View = "kpis" | "domain" | "geo";
 
 export function contactMatchesPyramid(c: Contact, sel: PyramidSelection): boolean {
-  if (c.portco || (c.prospect ? "Prospect" : c.temperature) !== sel.tier) return false;
+  if ((c.prospect ? "Prospect" : c.temperature) !== sel.tier) return false;
   if (sel.view === "tier") return true;
   const col = sel.view === "domain" ? primaryDomainFor(c.primaryArea, c.areasOfInterest) : marketFor(c.location);
   return col === sel.column;
@@ -76,8 +76,10 @@ function TierChart({ counts, active, onTier, visible }: { counts: Record<Pyramid
 
 export function NetworkPyramid({
   contacts, profile, ownedGids, selection, onSelect, expanded, onExpandedChange: setExpanded, embedded = false,
-  visibleTiers, onToggleTier,
+  visibleTiers, onToggleTier, excludeEmails,
 }: {
+  /** People whose type is switched off (PortCo/Dell/Partner): left out of prospect counts and movements. */
+  excludeEmails?: Set<string>;
   /** Network page: each tier band is an independent on/off switch for the list. */
   visibleTiers?: PyramidTier[];
   onToggleTier?: (t: PyramidTier) => void;
@@ -111,11 +113,11 @@ export function NetworkPyramid({
     const net = contacts.filter((c) => embedded || !mine || (!!profile && isMyContact(c, owned, profile))).map((c) => ({
       email: c.email, tier: c.temperature as PyramidTier, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), dateAdded: c.dateAdded,
     }));
-    const pros = (data?.prospects || []).filter((p) => !mine || (!!profile && ownerMatches(p.prime, profile))).map((p) => ({
+    const pros = (data?.prospects || []).filter((p) => !excludeEmails?.has((p.email || "").toLowerCase()) && (!mine || (!!profile && ownerMatches(p.prime, profile)))).map((p) => ({
       email: p.email, tier: "Prospect" as PyramidTier, domain: primaryDomainFor("", p.areas), market: marketFor(p.location), dateAdded: p.dateAdded,
     }));
     return [...net, ...pros];
-  }, [contacts, data, mine, profile, owned, embedded]);
+  }, [contacts, data, mine, profile, owned, embedded, excludeEmails]);
 
   const counts = useMemo(() => {
     const out = Object.fromEntries(PYRAMID_TIERS.map((t) => [t, 0])) as Record<PyramidTier, number | null>;
@@ -127,9 +129,9 @@ export function NetworkPyramid({
 
   const kpis = useMemo(() => {
     const emails = new Set(people.map((p) => p.email.toLowerCase()).filter(Boolean));
-    const moves = (data?.movements || []).filter((m) => !mine || emails.has(m.email.toLowerCase()));
+    const moves = (data?.movements || []).filter((m) => !excludeEmails?.has(m.email.toLowerCase()) && (!mine || emails.has(m.email.toLowerCase())));
     return movementKpis(moves, people, WINDOWS[win]);
-  }, [people, data, mine, win]);
+  }, [people, data, mine, win, excludeEmails]);
 
   const columns = view === "domain" ? [...PRIMARY_DOMAINS] : view === "geo" ? [...MARKETS] : [];
   const cellCount = (tier: PyramidTier, col: string) =>

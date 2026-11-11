@@ -1,6 +1,11 @@
 import { PartnerChip } from "@/components/crm/PartnerChip";
 import { TEAM_OWNER_NAMES } from "@/lib/user-ownership";
 import { useState } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { bulkChangeRelationshipLevels } from "@/utils/relationship-levels.functions";
+import { manualKind, tracksRating } from "@/lib/contact-kind";
 import {
   addNote,
   addEvent as addEventToSheet,
@@ -24,7 +29,7 @@ import type {
   Temperature,
   EngagementSource,
 } from "@/lib/types";
-import { ENGAGEMENT_SOURCES, CONTACT_TYPES, RECORD_SOURCES, interactionSource } from "@/lib/types";
+import { ENGAGEMENT_SOURCES, CONTACT_TYPES, RECORD_SOURCES, interactionSource, type ContactType } from "@/lib/types";
 import { formatEngagementSources, mergeEngagementSources } from "@/lib/engagement-source";
 import { inferInterestAreas } from "@/lib/interest-domains";
 import { compareIsoDatesDesc, formatIsoMdY, localTodayIso } from "@/lib/sheet-date";
@@ -90,7 +95,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Clock } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 import { daysSinceLastContact } from "@/lib/activity-score";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useFilterOptions } from "@/lib/filter-options-context";
@@ -120,15 +125,27 @@ interface ContactDetailProps {
 
 const TIERS: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
 
-// Saved relationship rating; only an explicit manual selection changes it.
+// Two separate questions per person: how warm (Council–Cold, or back to Prospect)
+// and who they are (PortCo / Dell / Partner / Network). Only explicit picks save.
 function RatingControl({
   contact,
   onContactUpdate,
+  onMovedOut,
 }: {
   contact: Contact;
   onContactUpdate?: (contact: Contact) => void;
+  onMovedOut?: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const changeLevels = useServerFn(bulkChangeRelationshipLevels);
+  const email = contact.email?.split(";")[0]?.trim() || contact.email;
+  const manual = manualKind(contact.contactType);
+  const rated = tracksRating(contact.kind);
+  const refresh = async () => {
+    try { await router.invalidate(); await queryClient.invalidateQueries({ queryKey: ["network-pyramid"] }); } catch { /* list refresh is best-effort */ }
+  };
 
   const setTier = async (tier: Temperature) => {
     if (!contact.email) {
@@ -143,12 +160,50 @@ function RatingControl({
       if (res.success) {
         onContactUpdate?.({ ...contact, temperature: tier, ratingLocked: true });
         toast.success(`Rating set to ${tier}.`);
+        void queryClient.invalidateQueries({ queryKey: ["network-pyramid"] });
       } else {
         toast.warning("Couldn't find this contact's row to save the rating.");
       }
     } catch (e) {
       console.error("setContactRating failed", e);
       toast.error("Failed to save the rating — see console.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Same in-place status flag as Bulk demote → Prospecting: one record, same ID, history kept.
+  const moveToProspect = async () => {
+    if (!contact.email) { toast.error("This contact has no email, so they can't be moved."); return; }
+    setBusy(true);
+    try {
+      const res = await changeLevels({ data: { contacts: [{ urid: contact.urid, name: contact.name, email: contact.email, temperature: contact.temperature }], change: "prospecting", operationId: crypto.randomUUID() } });
+      const o = res.outcomes[0];
+      if (o && (o.status === "moved" || o.status === "already_complete")) {
+        toast.success(`${contact.name} is now a Prospect. Turn on Prospects in the pyramid to see them.`);
+        onMovedOut?.();
+        await refresh();
+      } else toast.warning(o?.reason || "Couldn't move this person to Prospect.");
+    } catch (e) {
+      console.error("move to prospect failed", e);
+      toast.error(e instanceof Error ? e.message : "Couldn't move this person to Prospect.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setType = async (value: ContactType | "") => {
+    if (!email) { toast.error("This contact has no email, so the type can't be saved."); return; }
+    setBusy(true);
+    try {
+      const res = await mergeContactFields({ data: { email, fields: { contactType: value }, source: "user", urid: contact.urid } });
+      if (!res.success) { toast.warning("Couldn't find this contact's row to save the type."); return; }
+      onContactUpdate?.({ ...contact, contactType: value, ...(value ? { kind: value, portco: value === "PortCo" } : {}) });
+      toast.success(value ? `Type set to ${value}. Their rating is unchanged.` : "Type set to automatic (from their company).");
+      await refresh();
+    } catch (e) {
+      console.error("set contact type failed", e);
+      toast.error("Failed to save the type — see console.");
     } finally {
       setBusy(false);
     }
@@ -161,9 +216,9 @@ function RatingControl({
           type="button"
           disabled={busy}
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-1.5 py-1 hover:bg-accent transition-colors disabled:opacity-50"
-          title="Click to set the rating manually"
+          title="Set this person's rating or type"
         >
-          <TemperatureBadge temperature={contact.temperature} portco={contact.portco} />
+          <TemperatureBadge temperature={contact.temperature} portco={contact.portco} kind={contact.kind} />
           {(() => {
             const days = daysSinceLastContact(contact);
             if (days === null) return null;
@@ -179,14 +234,43 @@ function RatingControl({
           })()}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel className="text-[10px]">Set rating</DropdownMenuLabel>
-        {TIERS.map((t) => (
-          <DropdownMenuItem key={t} onClick={() => setTier(t)}>
-            <TemperatureBadge temperature={t} className="mr-2" showLabel={false} />
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel className="text-[10px]">Rating</DropdownMenuLabel>
+        {rated ? (
+          <>
+            {TIERS.map((t) => (
+              <DropdownMenuItem key={t} onClick={() => setTier(t)}>
+                <TemperatureBadge temperature={t} className="mr-2" showLabel={false} />
+                {t}
+                {contact.temperature === t && <Check className="ml-auto h-3.5 w-3.5" />}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuItem onClick={moveToProspect}>
+              <span className="mr-2 inline-block w-3.5" aria-hidden="true" />
+              Prospect
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <DropdownMenuItem disabled className="text-xs">PortCo people aren't rated</DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-[10px]">Type</DropdownMenuLabel>
+        {CONTACT_TYPES.map((t) => (
+          <DropdownMenuItem key={t} onClick={() => manual !== t && setType(t)}>
             {t}
+            {(manual ? manual === t : contact.kind === t) && (
+              <span className="ml-auto inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                {!manual && "auto"}
+                <Check className="h-3.5 w-3.5 text-foreground" />
+              </span>
+            )}
           </DropdownMenuItem>
         ))}
+        {manual && (
+          <DropdownMenuItem onClick={() => setType("")} className="text-xs text-muted-foreground">
+            Automatic (from their company)
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1015,7 +1099,7 @@ export function ContactDetail({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <RatingControl contact={contact} onContactUpdate={onContactUpdate} />
+                <RatingControl contact={contact} onContactUpdate={onContactUpdate} onMovedOut={() => onOpenChange(false)} />
               </div>
             </div>
           </SheetHeader>
@@ -1179,7 +1263,7 @@ export function ContactDetail({
                     </div>
                     <div>
                       <label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
-                        Contact Type
+                        Type
                       </label>
                       <Select
                         value={editData.contactType || "none"}
@@ -1191,7 +1275,7 @@ export function ContactDetail({
                           <SelectValue placeholder="—" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">—</SelectItem>
+                          <SelectItem value="none">Automatic</SelectItem>
                           {CONTACT_TYPES.map((t) => (
                             <SelectItem key={t} value={t}>
                               {t}

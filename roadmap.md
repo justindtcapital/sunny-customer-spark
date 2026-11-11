@@ -157,3 +157,9 @@
 ## Workstream activity trail and Asana next steps
 - [x] Show a read-only Recent activity list (emails sent, logged actions, linked notes, completed follow-ups) under a workstream's follow-ups in My Actions; six tests pass, verified signed in
 - [x] Remove the Asana "Next steps" field from workstream fields/editor and stop feeding it into Action with V.I.C.
+
+## Network person types and ratings — November 11 request
+- [x] Four types (PortCo/Dell/Partner/Network) with manual override; checkboxes change list and pyramid numbers; PortCo unrated; Dell/Partner badges show type + rating
+- [x] Profile menu: Rating (Council–Cold + Prospect) and Type; Prospect profile gets "Move to Network · Cold"; bulk edit sets Type (incl. Automatic) and bulk promote/demote handles Prospects and skips PortCo
+- [x] 34 tests passed; signed-in checkbox counts verified; type change saved, survived reload and was reverted
+- [ ] Try a real Prospect ↔ Cold move; not run to avoid adding test moves to the KPI history

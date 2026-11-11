@@ -53,13 +53,17 @@ const FIELDS: { key: BulkEditField; label: string }[] = [
   { key: "title", label: "Title" },
   { key: "company", label: "Company" },
   { key: "location", label: "Location" },
-  { key: "contactType", label: "Contact Type" },
+  { key: "contactType", label: "Type" },
   { key: "areasOfInterest", label: "Area of Interest" },
   { key: "primaryArea", label: "Primary Area of Interest" },
   { key: "source", label: "Source" },
 ];
 
 const TEMPERATURES: Temperature[] = ["Council", "Hot", "Warm", "Cold"];
+/** Bulk Type choice that clears the manual pick so each person's company decides again. */
+const AUTOMATIC_TYPE = "Automatic";
+type LevelTier = Temperature | "Prospect";
+const levelTier = (c: Contact): LevelTier => (c.prospect ? "Prospect" : c.temperature);
 const PRIMARY_AREAS = ["Security", "AI & Data", "Logistics", "Other"];
 
 // Selectable Contact Primes for the bulk-edit multi-select.
@@ -87,7 +91,7 @@ export function BulkEditBar() {
   const [progress, setProgress] = useState<string>("");
   const queryClient = useQueryClient();
   const [levelResults, setLevelResults] = useState<{ outcomes: BulkOutcome[]; operationId: string } | null>(null);
-  const [request, setRequest] = useState<{ contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange; operationId: string } | null>(null);
+  const [request, setRequest] = useState<{ contacts: { urid?: string; name: string; email: string; temperature: LevelTier }[]; change: RelationshipChange; operationId: string } | null>(null);
 
   const [run, setRun] = useState<BulkRunState | null>(null);
   const retryRef = useRef<(() => void) | null>(null);
@@ -96,17 +100,24 @@ export function BulkEditBar() {
 
   const count = selectedIds.size;
   const anyBusy = busy || deleting || changingLevel || action !== "";
+  // PortCo people aren't rated, so rating changes skip them.
+  const rateable = selectedContacts.filter((c) => c.kind !== "PortCo");
   const levelPreview = selectedContacts.reduce<Record<string, number>>((summary, contact) => {
     if (!levelChange) return summary;
-    const next = nextRelationshipLevel(contact.temperature, levelChange);
-    const label = next ? `${contact.temperature} → ${next}` : `${contact.temperature} unchanged`;
+    if (contact.kind === "PortCo") { summary["PortCo (not rated) skipped"] = (summary["PortCo (not rated) skipped"] || 0) + 1; return summary; }
+    const tier = levelTier(contact);
+    const next = nextRelationshipLevel(tier, levelChange);
+    const label = next ? `${tier} → ${next}` : `${tier} unchanged`;
     summary[label] = (summary[label] || 0) + 1;
     return summary;
   }, {});
-  const applyLevelChange = async (again?: { contacts: { urid?: string; name: string; email: string; temperature: Temperature }[]; change: RelationshipChange }) => {
+  const applyLevelChange = async (again?: { contacts: { urid?: string; name: string; email: string; temperature: LevelTier }[]; change: RelationshipChange }) => {
     const change = again?.change ?? levelChange;
-    if (!change || (!again && (selectedContacts.length === 0 || selectedContacts.length > 500))) return;
-    const payload = { contacts: again?.contacts ?? selectedContacts.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: c.temperature })), change, operationId: crypto.randomUUID() };
+    if (!change || (!again && (rateable.length === 0 || rateable.length > 500))) {
+      if (change && !again && rateable.length === 0) { toast.error("PortCo people aren't rated, so there's nothing to promote or demote."); setLevelChange(null); }
+      return;
+    }
+    const payload = { contacts: again?.contacts ?? rateable.map(c => ({ urid: c.urid, name: c.name, email: c.email, temperature: levelTier(c) })), change, operationId: crypto.randomUUID() };
     // Blocked attempts write nothing, so retry replays the same selection under a fresh operation id.
     retryRef.current = () => { setRun(null); void applyLevelChange({ contacts: payload.contacts, change: payload.change }); };
     setRequest(payload);
@@ -236,10 +247,12 @@ export function BulkEditBar() {
     setBusy(true);
     const label = FIELDS.find((f) => f.key === field)?.label ?? field;
     const targets = selectedContacts.filter((c) => c.email);
+    // "Automatic" clears the manual type so the company decides again.
+    const saved = field === "contactType" && v === AUTOMATIC_TYPE ? "" : v;
     setRun({ title: `Setting ${label} → ${v} on ${targets.length} contact${targets.length === 1 ? "" : "s"}`, step: "apply", total: 0, processed: 0 });
     try {
       const emails = targets.map((c) => c.email);
-      const res = await bulkUpdateContacts({ data: { emails, field, value: v } });
+      const res = await bulkUpdateContacts({ data: { emails, field, value: saved } });
       setRun(r => r && { ...r, step: "verify" });
       if (onBulkUpdate) {
         const updated = selectedContacts.map((c) => {
@@ -252,7 +265,7 @@ export function BulkEditBar() {
           else if (field === "prime") u.prime = v;
           else if (field === "title") u.title = v;
           else if (field === "company") u.company = v;
-          else if (field === "contactType") u.contactType = v;
+          else if (field === "contactType") { u.contactType = saved; if (saved) { u.kind = saved as Contact["kind"]; u.portco = saved === "PortCo"; } }
           else if (field === "primaryArea") u.primaryArea = v;
           else if (field === "source") u.source = v as Contact["source"];
           else if (field === "areasOfInterest")
@@ -377,7 +390,7 @@ export function BulkEditBar() {
       return (
         <Select value={value} onValueChange={setValue}>
           <SelectTrigger className="h-8 w-36 text-sm"><SelectValue placeholder="Choose type…" /></SelectTrigger>
-          <SelectContent>{CONTACT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+          <SelectContent>{CONTACT_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}<SelectItem value={AUTOMATIC_TYPE}>Automatic (from company)</SelectItem></SelectContent>
         </Select>
       );
     }
