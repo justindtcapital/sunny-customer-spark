@@ -18,6 +18,7 @@ import {
   matrixSectors,
 } from "@/lib/portco-matrix";
 import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
+import { OwnershipMatrix } from "@/components/dashboard/OwnershipMatrix";
 import { MatrixStatsPanel } from "@/components/dashboard/MatrixStatsPanel";
 import { ActivityCharts } from "@/components/dashboard/ActivityCharts";
 import { WorkstreamSummary, CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
@@ -129,6 +130,7 @@ function DashboardPage() {
     }
     return { websiteByPortco: websites, sectorByPortco: sectors };
   }, [companies, asanaFieldsByPortco, portcoNames]);
+  const [view, setView] = useState<"maturity" | "ownership">("maturity");
   const [investor, setInvestor] = useState("");
   const [sector, setSector] = useState("");
   const [priority, setPriority] = useState("");
@@ -227,8 +229,7 @@ function DashboardPage() {
             PortCo Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Where each portfolio company sits on sales and go-to-market maturity, sized by
-            investment. Click a company for its own numbers.
+            Where each portfolio company sits on maturity, or on DTC ownership and investment. Click a company for its own numbers.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -259,9 +260,15 @@ function DashboardPage() {
         <Card className="border-border">
           <CardContent className="p-4">
             <div className="flex items-start justify-between gap-3 mb-2">
-              <h2 className="font-display text-sm font-semibold text-foreground">
-                PortCo Prioritization
-              </h2>
+              <Select value={view} onValueChange={(v) => setView(v as "maturity" | "ownership")}>
+                <SelectTrigger className="h-8 w-auto gap-2 border-none px-1 font-display text-sm font-semibold text-foreground shadow-none" aria-label="Chart view">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="maturity">PortCo Maturity</SelectItem>
+                  <SelectItem value="ownership">PortCo Ownership & Investment</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="flex items-center gap-2 shrink-0">
                 <Select
                   value={owner || "all"}
@@ -345,6 +352,8 @@ function DashboardPage() {
               <p className="text-sm text-muted-foreground py-16 text-center">
                 No portfolio companies came back from Asana.
               </p>
+            ) : view === "ownership" ? (
+              <OwnershipMatrix points={points} visible={inFilter} selectedKey={selectedKey} onSelect={setSelectedKey} />
             ) : (
               <PortcoMatrix
                 points={points}
