@@ -6,7 +6,7 @@ import { nextRelationshipLevel } from "@/lib/relationship-rating";
 export const bulkChangeRelationshipLevels = createServerFn({ method: "POST" })
   .middleware([requireTeamAuth])
   .inputValidator((input) => z.object({
-    contacts: z.array(z.object({ urid: z.string().optional(), name: z.string().optional(), email: z.string(), temperature: z.enum(["Council", "Hot", "Warm", "Cold"]) })).min(1).max(500),
+    contacts: z.array(z.object({ urid: z.string().optional(), name: z.string().optional(), email: z.string(), temperature: z.enum(["Council", "Hot", "Warm", "Cold", "Prospect"]) })).min(1).max(500),
     change: z.enum(["promote", "demote", "prospecting"]),
     operationId: z.string().uuid().optional(),
   }).parse(input))

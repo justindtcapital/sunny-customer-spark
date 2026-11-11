@@ -88,9 +88,9 @@ export type BulkEditField =
   | "primaryArea"
   | "source";
 
-// How a contact is used by DTC — the three prioritized categories.
-export type ContactType = "Dell" | "Customer" | "VC";
-export const CONTACT_TYPES: ContactType[] = ["Dell", "Customer", "VC"];
+// Who a person is — the four primary types. A saved value overrides the automatic guess.
+export type ContactType = "PortCo" | "Dell" | "Partner" | "Network";
+export const CONTACT_TYPES: ContactType[] = ["PortCo", "Dell", "Partner", "Network"];
 
 // A logged outreach email (from the "Email Activity" tab), surfaced on the
 // Event and PortCo detail views.
@@ -210,8 +210,10 @@ export interface Contact {
   /** Single approved primary area (Security / AI & Data / Logistics / Other); blank = derived. */
   primaryArea?: string;
   temperature: Temperature;
-  /** Derived at read time: works at a PortCo, so excluded from the Network tiers. Never saved. */
+  /** Read-time: kind === "PortCo" (PortCo people aren't rated). Never saved. */
   portco?: boolean;
+  /** Read-time type: manual Contact Type, else guessed from company/email. Never saved by the guess. */
+  kind?: ContactType;
   /** Read-time: a Prospecting-flagged row shown in Network as the Prospect tier. Never saved. */
   prospect?: boolean;
   /** Prospecting profile key (opens the prospect profile). */
@@ -225,7 +227,7 @@ export interface Contact {
   lastContact?: string;
   /** Date the contact was added (from the Contacts "Date Added" column). */
   dateAdded?: string;
-  /** How DTC uses this contact: Dell / Customer / VC (manual). */
+  /** Manual type override: PortCo / Dell / Partner / Network (blank = automatic). */
   contactType?: string;
   followUpPending?: boolean;
   location?: string;

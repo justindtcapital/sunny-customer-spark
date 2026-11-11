@@ -7,7 +7,7 @@ import { logNetworkMovements, setContactRating, ensureColumn, fetchSheetTab, upd
 
 const norm = (value: string) => value.trim().toLowerCase();
 const cell = (headers: string[], row: string[], name: string) => row[headers.indexOf(norm(name))] || "";
-export interface RelationshipInput { contacts: { urid?: string; email: string; temperature: Temperature; name?: string; destination?: Temperature | "Prospecting" | null }[]; change: RelationshipChange }
+export interface RelationshipInput { contacts: { urid?: string; email: string; temperature: Temperature | "Prospect"; name?: string; destination?: Temperature | "Prospecting" | null }[]; change: RelationshipChange }
 const rating = (s: string): Temperature => ({ council: "Council", hot: "Hot", warm: "Warm", cold: "Cold" } as Record<string, Temperature>)[norm(s)] || "Cold";
 
 /**
@@ -24,6 +24,7 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
   const rows = await fetchSheetTab(TAB_NAMES.contacts, true), headers = (rows[0] || []).map(norm);
   const seen = new Set<string>();
   const toProspect: { key: string; urid: string; expected: string; base: Omit<BulkOutcome, "status" | "reason">; email: string; name: string }[] = [];
+  const toNetwork: typeof toProspect = [];
 
   for (const selected of input.contacts) {
     const key = selected.urid || norm(selected.email);
@@ -43,7 +44,7 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
     seen.add(resolved);
     const saved = cell(headers, source, "relationship status");
     if (destination === "Prospecting" && isProspectStatus(saved)) { results.set(key, { ...base, status: "already_complete", reason: "Already in Prospecting." }); continue; }
-    const current = rating(saved);
+    const current: Temperature | "Prospect" = isProspectStatus(saved) ? "Prospect" : rating(saved);
     if (!destination) { results.set(key, { ...base, status: "blocked", reason: "Council is already the highest relationship tier." }); continue; }
     if (current !== selected.temperature) {
       const done = current === destination;
@@ -52,13 +53,14 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
     }
     if (!urid) { results.set(key, { ...base, status: "blocked", reason: "Missing stable contact ID; nothing was changed." }); continue; }
     if (destination === "Prospecting") { toProspect.push({ key, urid, expected: saved, base, email: cell(headers, source, "email"), name: cell(headers, source, "name") }); continue; }
+    if (current === "Prospect") { toNetwork.push({ key, urid, expected: saved, base, email: cell(headers, source, "email"), name: cell(headers, source, "name") }); continue; }
     if (limits && (processed >= limits.maxItems || Date.now() - started >= limits.maxMs)) {
       results.set(key, { ...base, status: "pending", retryable: true, reason: "Not started in this slice. Resume finishes the original destination, without replaying completed items." });
       continue;
     }
     processed++;
     try {
-      const ok = await setContactRating(cell(headers, source, "email"), destination, urid, current);
+      const ok = await setContactRating(cell(headers, source, "email"), destination, urid, current as Temperature);
       results.set(key, { ...base, status: ok.success ? "changed" : "blocked", reason: ok.success ? `Saved ${destination}.` : "Contact changed before the write; refresh and review." });
     } catch (e) {
       console.error("[relationship-change] tier change failed", key, e instanceof Error ? e.message : "error");
@@ -95,6 +97,33 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
       await logNetworkMovements(moving.map((m) => ({ email: m.email, name: m.name, from: m.expected || "Cold", to: "Prospecting", reason: "Moved to Prospecting" })));
     } catch (e) {
       console.error("[relationship-change] prospect flag failed", e instanceof Error ? e.message : "error");
+      for (const item of moving) results.set(item.key, { ...item.base, status: "failed", retryable: true, reason: "Save failed; safe to retry (status flags only)." });
+    }
+  }
+
+  if (toNetwork.length) {
+    // Prospect → Cold: flip the same row's status flag back into the Network (same record, same ID).
+    const live = await fetchSheetTab(TAB_NAMES.contacts, true), lh = (live[0] || []).map(norm);
+    const statusCol = lh.indexOf("relationship status");
+    const plan = planStatusFlags(live, toNetwork.map((p) => ({ urid: p.urid, expected: p.expected, to: "Cold" })));
+    const updates: { range: string; value: string }[] = [];
+    const moving: typeof toNetwork = [];
+    plan.forEach((p, i) => {
+      const item = toNetwork[i];
+      if (p.status === "change" && p.row) { updates.push({ range: `${colLetters(statusCol)}${p.row}`, value: "Cold" }); moving.push(item); }
+      else results.set(item.key, { ...item.base, status: p.status === "already" ? "already_complete" : "blocked", reason: p.status === "already" ? "Already in the Network as Cold." : p.status === "changed-elsewhere" ? `Saved status is now ${p.current || "blank"}; reload and review the teammate change.` : "Contact ID is missing or duplicated; nothing was changed." });
+    });
+    try {
+      if (updates.length) await updateSheetCells(TAB_NAMES.contacts, updates);
+      const check = await fetchSheetTab(TAB_NAMES.contacts, true), kh = (check[0] || []).map(norm);
+      for (const item of moving) {
+        const row = check.slice(1).filter((r) => cell(kh, r, "urid") === item.urid);
+        const ok = row.length === 1 && norm(cell(kh, row[0], "relationship status")) === "cold";
+        results.set(item.key, { ...item.base, status: ok ? "moved" : "uncertain", reason: ok ? "Moved into the Network as Cold (same record, same ID)." : "Status could not be confirmed; reload to check." });
+      }
+      if (moving.length) await logNetworkMovements(moving.map((m) => ({ email: m.email, name: m.name, from: "Prospecting", to: "Cold", reason: "Promoted from Prospecting" })));
+    } catch (e) {
+      console.error("[relationship-change] network flag failed", e instanceof Error ? e.message : "error");
       for (const item of moving) results.set(item.key, { ...item.base, status: "failed", retryable: true, reason: "Save failed; safe to retry (status flags only)." });
     }
   }

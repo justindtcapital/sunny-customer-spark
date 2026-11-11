@@ -12,8 +12,9 @@ export function ratingAfterActivity(current: Temperature, _score: number): Tempe
 
 export type RelationshipChange = "promote" | "demote" | "prospecting";
 /** Ladder: Prospecting < Cold < Warm < Hot < Council (Council = extra hot, still Network). */
-export function nextRelationshipLevel(current: Temperature, change: RelationshipChange): Temperature | "Prospecting" | null {
+export function nextRelationshipLevel(current: Temperature | "Prospect", change: RelationshipChange): Temperature | "Prospecting" | null {
   if (change === "prospecting") return "Prospecting";
+  if (current === "Prospect") return change === "promote" ? "Cold" : "Prospecting";
   if (change === "promote") return current === "Cold" ? "Warm" : current === "Warm" ? "Hot" : current === "Hot" ? "Council" : null;
   return current === "Council" ? "Hot" : current === "Hot" ? "Warm" : current === "Warm" ? "Cold" : "Prospecting";
 }
