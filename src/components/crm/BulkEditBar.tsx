@@ -15,7 +15,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowDown, ArrowUp, Check, ChevronDown, Cpu, Loader2, Merge, Sparkles, Tag, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, Loader2, Mail, Megaphone, Merge, Sparkles, Trash2, X } from "lucide-react";
+import { BulkAddToCampaignDialog } from "./BulkAddToCampaignDialog";
 import { MergeContactsDialog } from "./MergeContactsDialog";
 import { MAX_MERGE } from "@/lib/contact-merge";
 import { toast } from "sonner";
@@ -31,8 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { bulkUpdateContacts, bulkDeleteContacts, bulkEnrichContacts, bulkLoadInterests } from "@/utils/sheets.functions";
-import { bulkLoadTechStack } from "@/utils/sumble.functions";
+import { bulkUpdateContacts, bulkDeleteContacts, bulkEnrichContacts } from "@/utils/sheets.functions";
 import { RECORD_SOURCES, CONTACT_TYPES, type BulkEditField, type Temperature, type Contact } from "@/lib/types";
 import { useServerFn } from "@tanstack/react-start";
 import { bulkChangeRelationshipLevels } from "@/utils/relationship-levels.functions";
@@ -82,8 +82,8 @@ export function BulkEditBar() {
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Which mass action is currently running ("" = none). Disables the whole bar.
-  const [action, setAction] = useState<"" | "enrich" | "interests" | "tech">("");
-  const [techConfirmOpen, setTechConfirmOpen] = useState(false);
+  const [action, setAction] = useState<"" | "enrich">("");
+  const [campaignOpen, setCampaignOpen] = useState(false);
   const [mergeUrids, setMergeUrids] = useState<string[] | null>(null);
   const [changingLevel, setChangingLevel] = useState(false);
   const changeLevels = useServerFn(bulkChangeRelationshipLevels);
@@ -174,68 +174,6 @@ export function BulkEditBar() {
       setAction("");
     }
   };
-
-  // Mass interest-area load: infer + persist to the sheet (fill-only).
-  const runInterests = async () => {
-    setAction("interests");
-    try {
-      const contacts = selectedContacts.map((c) => ({
-        email: c.email,
-        urid: c.urid,
-        title: c.title,
-        company: c.company,
-        sector: c.sector,
-      }));
-      const res = await bulkLoadInterests({ data: { contacts } });
-      toast.success(
-        `Loaded interest areas for ${res.updated} contact${res.updated !== 1 ? "s" : ""}` +
-          (res.inferred - res.updated > 0 ? ` (${res.inferred - res.updated} already had areas)` : ""),
-      );
-      await router.invalidate();
-      clearSelection();
-    } catch (e) {
-      console.error("BulkEditBar: bulkLoadInterests failed", e);
-      toast.error(e instanceof Error ? e.message : "Interest areas could not be saved. Review Admin before retrying.");
-    } finally {
-      setAction("");
-    }
-  };
-
-  // Mass tech-stack load (Sumble, credit-costly → confirmed first).
-  const runTechStack = async () => {
-    setTechConfirmOpen(false);
-    setAction("tech");
-    try {
-      const contacts = selectedContacts
-        .filter((c) => c.company)
-        .map((c) => ({ email: c.email, urid: c.urid, company: c.company }));
-      if (contacts.length === 0) {
-        toast.error("None of the selected contacts have a company to look up.");
-        return;
-      }
-      const res = await bulkLoadTechStack({ data: { contacts } });
-      if (res.error) {
-        toast.error(res.error);
-        return;
-      }
-      toast.success(
-        `Tech stack saved for ${res.updated} contact${res.updated !== 1 ? "s" : ""} across ${res.resolved}/${res.companies} companies` +
-          (res.creditsRemaining !== undefined ? ` · ${res.creditsRemaining} Sumble credits left` : ""),
-      );
-      await router.invalidate();
-      clearSelection();
-    } catch (e) {
-      console.error("BulkEditBar: bulkLoadTechStack failed", e);
-      toast.error(e instanceof Error ? e.message : "Tech stack could not be saved. Review Admin before retrying.");
-    } finally {
-      setAction("");
-    }
-  };
-
-  // Unique companies among the selection — shown in the tech-stack cost confirm.
-  const uniqueCompanies = new Set(
-    selectedContacts.map((c) => (c.company || "").trim().toLowerCase()).filter(Boolean),
-  ).size;
 
   const apply = async () => {
     const v = value.trim();
@@ -407,7 +345,7 @@ export function BulkEditBar() {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-card px-3 py-2 shadow-sm">
       <span className="text-xs font-semibold text-foreground">{count} selected</span>
       <Button
         size="sm"
@@ -452,13 +390,21 @@ export function BulkEditBar() {
         {action === "enrich" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
         Enrich w/ Apollo
       </Button>
-      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={runInterests} disabled={anyBusy}>
-        {action === "interests" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Tag className="h-3.5 w-3.5 mr-1" />}
-        Load interests
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 text-xs"
+        disabled={anyBusy || !selectedContacts.some((c) => c.email)}
+        onClick={() => {
+          // Primary address only, so multi-email cells don't break the recipient list.
+          const to = selectedContacts.map((c) => (c.email || "").split(/[,;]/)[0].trim()).filter(Boolean).join(",");
+          window.open(`mailto:${to}`, "_self");
+        }}
+      >
+        <Mail className="h-3.5 w-3.5 mr-1" /> Email
       </Button>
-      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setTechConfirmOpen(true)} disabled={anyBusy}>
-        {action === "tech" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Cpu className="h-3.5 w-3.5 mr-1" />}
-        Load tech stack
+      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setCampaignOpen(true)} disabled={anyBusy || !count}>
+        <Megaphone className="h-3.5 w-3.5 mr-1" /> Add to campaign
       </Button>
 
       <Button
@@ -512,25 +458,7 @@ export function BulkEditBar() {
 
       <BulkRunDialog state={run} onClose={() => setRun(null)} onRetry={() => retryRef.current?.()} />
       {levelResults && <OperationResults {...levelResults} onClose={() => setLevelResults(null)} />}
-      <AlertDialog open={techConfirmOpen} onOpenChange={setTechConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Load tech stack for {count} contact{count !== 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This queries Sumble for {uniqueCompanies} unique compan{uniqueCompanies !== 1 ? "ies" : "y"}{" "}
-              (deduped, so shared employers are priced once) and saves each company's technologies —
-              including PortCo overlap notes — to the contacts' “Tech Stack” column so you can reopen
-              and act on them later. Sumble job lookups consume credits.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); void runTechStack(); }}>
-              Load for {uniqueCompanies} compan{uniqueCompanies !== 1 ? "ies" : "y"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <BulkAddToCampaignDialog open={campaignOpen} onOpenChange={setCampaignOpen} people={selectedContacts} onAdded={clearSelection} />
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>

@@ -27,6 +27,7 @@ import { callGeminiJSON } from "./gemini.server";
 import { enrichPerson } from "./apollo.server";
 import { uploadDriveFile } from "./drive.server";
 import { personKeyOf, type CampaignMember, type CandidatePerson } from "@/lib/campaigns";
+import { statusAfterAddingPeople } from "@/lib/campaign-results";
 import { targetKeyOf } from "@/lib/types";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -162,10 +163,11 @@ export const addCampaignMembers = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }) => {
-    const [existingMembers, contacts, targets] = await Promise.all([
+    const [existingMembers, contacts, targets, campaigns] = await Promise.all([
       listMembers(data.campaignId),
       buildContacts().catch(() => []),
       buildTargets().catch(() => []),
+      listCampaigns().catch(() => []),
     ]);
     const memberKeys = new Set(existingMembers.map((m) => m.personKey));
     const contactKeys = new Map<string, string>();
@@ -237,7 +239,10 @@ export const addCampaignMembers = createServerFn({ method: "POST" })
 
     if (newProspects.length) await appendTargetRows(newProspects);
     await appendMembers(newMembers);
-    await saveCampaign({ id: data.campaignId, status: "saved" }, data.by || "");
+    // Only a draft becomes "saved"; adding people never pulls an actioning campaign back.
+    const status = campaigns.find((c) => c.id === data.campaignId)?.status || "draft";
+    const nextStatus = statusAfterAddingPeople(status);
+    if (nextStatus !== status) await saveCampaign({ id: data.campaignId, status: "saved" }, data.by || "");
     await logOpsEvent({
       action: "import",
       source: "campaign_builder",

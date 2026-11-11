@@ -48,6 +48,7 @@ import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { useAuth } from "@/lib/auth-context";
 import { CampaignList, CampaignTypeBadge } from "@/components/campaigns/CampaignList";
 import { CampaignResults } from "@/components/campaigns/CampaignResults";
+import { clearPreload, readPreload } from "@/lib/campaign-preload";
 import {
   CAMPAIGN_PURPOSES,
   CAMPAIGN_TEAM,
@@ -99,8 +100,9 @@ export const Route = createFileRoute("/campaigns")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>): { event?: string; purpose?: string; campaign?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { event?: string; purpose?: string; campaign?: string; preload?: string } => ({
     campaign: typeof s.campaign === "string" ? s.campaign : undefined,
+    preload: typeof s.preload === "string" ? s.preload : undefined,
     event: typeof s.event === "string" ? s.event : undefined,
     purpose: typeof s.purpose === "string" ? s.purpose : undefined,
   }),
@@ -404,6 +406,13 @@ function StartStep({
   const existing = campaigns.find((c) => c.id === choice) || null;
   // Id of a campaign just created with "Save for later", until the list refresh includes it.
   const [savedId, setSavedId] = useState("");
+  // People picked on the Network page ("Add to campaign" → New); added once this campaign is named and saved.
+  const preloadSearch = Route.useSearch().preload;
+  const [preloaded, setPreloaded] = useState<CandidatePerson[]>([]);
+  const discardPreload = () => {
+    clearPreload();
+    setPreloaded([]);
+  };
   const pick = (id: string) => {
     const next = id || NEW;
     setChoice(next);
@@ -436,6 +445,13 @@ function StartStep({
     else pick(selection.id || NEW);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection.n]);
+  // Runs after the list-driven pick above so its default reason isn't reset.
+  useEffect(() => {
+    if (!preloadSearch) return;
+    const people = readPreload();
+    setPreloaded(people);
+    if (people.length) setPurpose((p) => p || "Network outreach");
+  }, [preloadSearch]);
 
   const nameTaken = campaigns.some(
     (c) => c.id !== existing?.id && c.name.trim().toLowerCase() === name.trim().toLowerCase(),
@@ -564,6 +580,16 @@ function StartStep({
       }
       const pre = [...(attendees?.people || []), ...(legacyPeople || [])];
       const prefill = next === "build" && pre.length ? mergeCandidates([], pre).list : undefined;
+      let added = 0;
+      if (!existing && !savedId && preloaded.length) {
+        const r = await addMembers({
+          data: { campaignId: res.campaign.id, campaignName: res.campaign.name, people: preloaded, event: eventName, portcos, prime: "", by: userEmail },
+        });
+        added = r.added;
+        discardPreload();
+        await qc.invalidateQueries({ queryKey: ["campaign-members", res.campaign.id] });
+        toast.success(`${r.added} ${r.added === 1 ? "person" : "people"} from Network added to ${res.campaign.name}`);
+      }
       if (savedMsg) toast.success(savedMsg);
       if (!existing) {
         // Now it's a saved campaign: keep editing it here instead of creating another.
@@ -571,7 +597,7 @@ function StartStep({
         setChoice(res.campaign.id);
         setLegacy("");
       }
-      onReady({ ...res.campaign, memberCount: existing?.memberCount }, next, prefill);
+      onReady({ ...res.campaign, memberCount: existing?.memberCount ?? (added || undefined) }, next, prefill);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the campaign");
     } finally {
@@ -582,6 +608,21 @@ function StartStep({
   return (
     <div>
       <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+        {preloaded.length > 0 && !existing && (
+          <div className="flex items-start justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+            <div>
+              <p className="font-medium text-foreground">
+                {preloaded.length} {preloaded.length === 1 ? "person" : "people"} from Network ready to add
+              </p>
+              <p className="mt-0.5 text-muted-foreground line-clamp-2">
+                {preloaded.map((p) => p.name).join(", ")}. Name this campaign and save — they're added straight away.
+              </p>
+            </div>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={discardPreload}>
+              Discard
+            </Button>
+          </div>
+        )}
         <div>
           <SectionLabel>Why are you building this campaign?</SectionLabel>
           <div className="flex flex-wrap gap-2">

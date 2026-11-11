@@ -137,7 +137,7 @@ export function ContactTable({ contacts, onSelect }: ContactTableProps) {
               return (
                 <TableHead
                   key={col.key}
-                  className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground whitespace-nowrap"
+                  className="h-8 text-[10px] uppercase tracking-wider font-semibold text-muted-foreground whitespace-nowrap"
                 >
                   <button
                     type="button"
@@ -174,45 +174,45 @@ export function ContactTable({ contacts, onSelect }: ContactTableProps) {
                 className="cursor-pointer"
                 data-state={isSelected ? "selected" : undefined}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     checked={isSelected}
                     onCheckedChange={() => toggleId(contact.id)}
                     aria-label={`Select ${contact.name}`}
                   />
                 </TableCell>
-                <TableCell onClick={() => onSelect(contact)}>
+                <TableCell className="py-1" onClick={() => onSelect(contact)}>
                   <div className="flex items-center gap-2">
-                    <ContactAvatar contact={contact} size="sm" />
+                    <ContactAvatar contact={contact} size="xs" />
                     <span
-                      className="block max-w-[180px] truncate text-sm font-medium text-foreground"
+                      className="block max-w-[180px] truncate text-[11px] font-medium text-foreground"
                       title={contact.name}
                     >
                       {contact.name}
                     </span>
                   </div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground" onClick={() => onSelect(contact)}>
                   <div className="max-w-[170px] truncate" title={contact.title}>{contact.title || "—"}</div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground" onClick={() => onSelect(contact)}>
                   <div className="max-w-[150px] truncate" title={contact.company}>{contact.company || "—"}</div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground" onClick={() => onSelect(contact)}>
                   <div className="max-w-[150px] truncate" title={contact.location || ""}>{contact.location || "—"}</div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground" onClick={() => onSelect(contact)}>
                   <div className="max-w-[130px] truncate" title={contact.sector}>{contact.sector || "—"}</div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground" onClick={() => onSelect(contact)}>
                   <div className="max-w-[170px] truncate" title={contact.areasOfInterest.join(", ")}>
                     {contact.areasOfInterest.join(", ") || "—"}
                   </div>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground" onClick={() => onSelect(contact)}>
                   <div className="max-w-[130px] truncate" title={contact.prime}>{contact.prime || "—"}</div>
                 </TableCell>
-                <TableCell className="whitespace-nowrap" onClick={() => onSelect(contact)}>
+                <TableCell className="whitespace-nowrap py-1" onClick={() => onSelect(contact)}>
                   <span className="inline-flex items-center gap-1">
                     <TemperatureBadge temperature={contact.temperature} portco={contact.portco} prospect={contact.prospect} kind={contact.kind} />
                     {contact.ratingLocked && (
@@ -223,27 +223,27 @@ export function ContactTable({ contacts, onSelect }: ContactTableProps) {
                     )}
                   </span>
                 </TableCell>
-                <TableCell className="whitespace-nowrap" onClick={() => onSelect(contact)}>
+                <TableCell className="whitespace-nowrap py-1" onClick={() => onSelect(contact)}>
                   <EngagementScore contact={contact} />
                 </TableCell>
-                <TableCell onClick={() => onSelect(contact)}>
+                <TableCell className="py-1" onClick={() => onSelect(contact)}>
                   {hasOpenFollowUps && (
                     <div className="flex items-center gap-1 text-red-500">
                       <AlertCircle className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium">Pending</span>
+                      <span className="text-[11px] font-medium">Pending</span>
                     </div>
                   )}
                   {allComplete && (
                     <div className="flex items-center gap-1 text-emerald-600">
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span className="text-xs font-medium">Done</span>
+                      <span className="text-[11px] font-medium">Done</span>
                     </div>
                   )}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground whitespace-nowrap" onClick={() => onSelect(contact)}>
                   {contact.source || "Manual Entry"}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap" onClick={() => onSelect(contact)}>
+                <TableCell className="py-1 text-[11px] text-muted-foreground whitespace-nowrap" onClick={() => onSelect(contact)}>
                   {contact.dateAdded || "—"}
                 </TableCell>
               </TableRow>
