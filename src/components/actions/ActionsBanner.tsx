@@ -42,13 +42,14 @@ function Chip({ label, count, on, onClick }: { label: string; count?: number; on
 const RowLabel = ({ children }: { children: React.ReactNode }) =>
   <span className="w-20 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground">{children}</span>;
 
-/** PortCo-style chip rows: My Inbox, My Actions kinds, priorities, workstream switch and search. */
-export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, kinds, kindCounts, onKinds, priorities, picked, onPicked, showWs, onShowWs, search, onSearch }: {
+/** PortCo-style chip rows: My Inbox, My Actions kinds, priorities, item-type checkboxes and search. */
+export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, kinds, kindCounts, onKinds, priorities, picked, onPicked, showWs, onShowWs, showActions, onShowActions, search, onSearch }: {
   view: BannerView; onView: (v: BannerView) => void;
   counts: { notes: number; activity: number }; inbox: InboxToggles; onToggleInbox: (k: InboxKind) => void;
   kinds: CompanyKind[]; kindCounts: Record<CompanyKind, number>; onKinds: (k: CompanyKind[]) => void;
   priorities: string[]; picked: string[]; onPicked: (p: string[]) => void;
   showWs: boolean; onShowWs: (v: boolean) => void;
+  showActions: boolean; onShowActions: (v: boolean) => void;
   search: string; onSearch: (s: string) => void;
 }) {
   const pri = (priorities.length ? priorities : FALLBACK_PRIORITIES).slice(0, 4);
@@ -75,6 +76,9 @@ export function ActionsFilterBar({ view, onView, counts, inbox, onToggleInbox, k
           className={cn("rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors", priorityTone(p), picked.includes(p) && "ring-2 ring-primary ring-offset-1 ring-offset-background")}>{priorityShort(p)}</button>)}
         <label className="ml-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Checkbox checked={showWs} onCheckedChange={(v) => { onShowWs(v === true); onView("actions"); }} aria-label="Show workstreams" />Show workstreams
+        </label>
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Checkbox checked={showActions} onCheckedChange={(v) => { onShowActions(v === true); onView("actions"); }} aria-label="Show actions" />Show actions
         </label>
         <div className="relative ml-auto w-full sm:w-56">
           <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />

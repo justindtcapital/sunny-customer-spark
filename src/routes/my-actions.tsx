@@ -91,6 +91,7 @@ function MyActionsPage() {
   const [kinds, setKinds] = useState<CompanyKind[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [showWs, setShowWs] = useState(true);
+  const [showActions, setShowActions] = useState(true);
   const [listSearch, setListSearch] = useState("");
   const [kindCounts, setKindCounts] = useState<Record<CompanyKind, number>>({ portcos: 0, network: 0, ops: 0 });
   const { workstreams } = useWorkstreams();
@@ -106,7 +107,7 @@ function MyActionsPage() {
   };
   // Changing a filter always shows the to-do feed it filters.
   const toActions = () => { if (tab !== "actions") set({ tab: "actions" }); };
-  const toggles: FeedToggles = { portcos: kinds.includes("portcos"), network: kinds.includes("network"), ops: kinds.includes("ops"), workstreams: showWs, followups: true };
+  const toggles: FeedToggles = { portcos: kinds.includes("portcos"), network: kinds.includes("network"), ops: kinds.includes("ops"), workstreams: showWs, followups: showActions };
   const hiddenPriorities = picked.length ? priorities.filter((p) => !picked.includes(p)) : [];
 
   return (
@@ -129,7 +130,7 @@ function MyActionsPage() {
         <ActionsFilterBar view={view} onView={onView} counts={counts} inbox={inbox} onToggleInbox={onToggleInbox}
           kinds={kinds} kindCounts={kindCounts} onKinds={setKinds}
           priorities={priorities} picked={picked} onPicked={setPicked}
-          showWs={showWs} onShowWs={setShowWs} search={listSearch} onSearch={setListSearch} />
+          showWs={showWs} onShowWs={setShowWs} showActions={showActions} onShowActions={setShowActions} search={listSearch} onSearch={setListSearch} />
       </div>
 
       {!owner ? <p className="text-sm text-muted-foreground">Pick an action owner to see their inbox.</p> : <div role="tabpanel" id={`actions-${tab}`}>
@@ -340,7 +341,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       })
       .filter((g) => g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0)
       .sort((a, b) => a.company.localeCompare(b.company));
-  }, [wsList, fuList, toggles.workstreams, portcoNames, filings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wsList, fuList, toggles.workstreams, toggles.followups, portcoNames, filings]); // eslint-disable-line react-hooks/exhaustive-deps
   const groups = useMemo(() => allGroups.filter((g) => companyKindVisible(toggles, g.kind)), [allGroups, toggles.portcos, toggles.network, toggles.ops]); // eslint-disable-line react-hooks/exhaustive-deps
   const kindCountKey = allGroups.map((g) => `${g.kind}:${g.ws.length + g.general.length + [...g.linked.values()].flat().length}`).join(",");
   useEffect(() => {
@@ -360,7 +361,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
 
   const firstGroupFu = (g: (typeof groups)[number] | undefined) => g ? [...g.ws.flatMap((w) => g.linked.get(w.gid) || []), ...g.general][0] : undefined;
   const firstSel: Sel | null = flat[0] ? (flat[0].ws ? { kind: "ws", id: flat[0].ws.gid } : { kind: "fu", id: flat[0].fu!.id }) : groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
-  const resolved = sel?.kind === "ws" ? (wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (fuList.some((x) => x.id === sel.id) ? sel : null) : null;
+  const resolved = sel?.kind === "ws" ? (toggles.workstreams && wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (toggles.followups && fuList.some((x) => x.id === sel.id) ? sel : null) : null;
   const cur = resolved || firstSel;
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
   const r = cur?.kind === "fu" ? fuList.find((x) => x.id === cur.id) || null : null;
@@ -368,7 +369,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const wsGroup = ws ? groups.find((g) => g.ws.some((w) => w.gid === ws.gid)) : undefined;
   const wsGroupBase = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
   // Network follow-ups linked to this workstream are filed elsewhere but still listed here.
-  const wsGroupFu = ws ? [...wsGroupBase, ...fuList.filter((x) => !wsGroupBase.includes(x) && (x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "")) === ws.gid)] : [];
+  const wsGroupFu = ws && toggles.followups ? [...wsGroupBase, ...fuList.filter((x) => !wsGroupBase.includes(x) && (x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "")) === ws.gid)] : [];
 
   const mergeRows = mergeSel.map((id) => fuList.find((x) => x.id === id)).filter(Boolean) as Reminder[];
   // Default each merged field to the first selected follow-up.
