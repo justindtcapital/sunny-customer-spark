@@ -24,11 +24,13 @@ import { NotesImports } from "@/components/knowledge/NotesImports";
 import { WorkstreamDetail, statusTone } from "@/components/portfolio/WorkstreamsPanel";
 import { ActionComposer, type ActionContext } from "@/components/actions/ActionComposer";
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
+import { editFollowUpFn } from "@/utils/follow-up-edit.functions";
+import { followUpValues } from "@/lib/follow-up-edit";
 import { CompleteFollowUpForm } from "@/components/actions/CompleteFollowUpForm";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { actionDueLabel, inActionRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
-import { portcoMatchKey } from "@/lib/action-grouping";
+import { fileFollowUp, portcoMatchKey, type Filing } from "@/lib/action-grouping";
 import { ACTION_SORTS, abbreviateTitle, companyKindVisible, networkGroupKey, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
 
 type FeedToggles = Record<CompanyKind | "workstreams" | "followups", boolean>;
@@ -241,6 +243,12 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
   // PortCo names keyed loosely so "Bland" and "Bland AI" are one company.
   const portcoNames = useMemo(() => new Map(portcoList.map((p) => [portcoMatchKey(p.name), p.name])), [portcoList]);
+  // PortCo vs Network filing for each follow-up (read-time, or the user's saved choice).
+  const filings = useMemo(() => {
+    const portcoName = (n: string) => portcoNames.get(portcoMatchKey(n)) || "";
+    return new Map(fuAllRaw(homeData).map((x) => [x.id, fileFollowUp(x, portcoName, (n) => !!teamMemberFor(n))]));
+  }, [homeData, portcoNames]);
+  const filingOf = (x: Reminder): Filing => filings.get(x.id) || { kind: "ops", group: "", portcoTag: "", auto: true };
   const websites = useMemo(() => { const m = new Map(portcoList.map((p) => [portcoMatchKey(p.name), p.website || ""])); return { get: (k: string) => m.get(portcoMatchKey(k)) }; }, [portcoList]);
 
   // Workstreams owned by the selected person.
@@ -272,31 +280,34 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     const general: Reminder[] = [];
     if (toggles.followups) for (const x of fuList) {
       const gid = x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "");
-      const w = gid ? byGid.get(gid) : undefined;
+      // Network follow-ups sit under the person's company even when linked to a PortCo workstream.
+      const w = gid && filingOf(x).kind !== "network" ? byGid.get(gid) : undefined;
       if (w && toggles.workstreams) linked.set(w.gid, [...(linked.get(w.gid) || []), x]);
       else general.push(x);
     }
     const OPS = "PortDev Ops";
     const m = new Map<string, { company: string; ws: Workstream[]; fu: Reminder[] }>();
-    const ensure = (name: string) => {
-      const isOps = !name.trim() || /^(no portco|no company|portdev ops)$/i.test(name.trim());
-      const key = isOps ? "~ops" : portcoMatchKey(name);
-      const g = m.get(key) || { company: isOps ? OPS : portcoNames.get(key) || name.trim(), ws: [] as Workstream[], fu: [] as Reminder[] };
+    // Keyed by kind too, so a PortCo filed as a Network company never merges with its PortCo group.
+    const ensure = (name: string, forced?: CompanyKind) => {
+      const isOps = forced === "ops" || !name.trim() || /^(no portco|no company|portdev ops)$/i.test(name.trim());
+      const mk = portcoMatchKey(name);
+      const kind: CompanyKind = isOps ? "ops" : forced || (portcoNames.has(mk) ? "portcos" : "network");
+      const key = isOps ? "~ops" : `${kind}:${mk}`;
+      const g = m.get(key) || { company: isOps ? OPS : (kind === "portcos" && portcoNames.get(mk)) || name.trim(), kind, ws: [] as Workstream[], fu: [] as Reminder[] };
       m.set(key, g); return g;
     };
     if (toggles.workstreams) for (const w of wsList) ensure(w.company).ws.push(w);
-    // Untagged follow-ups go under the outside person's company (looked up on the server), then their name — never a teammate's.
-    for (const x of general) ensure(x.company?.trim() ? networkGroupKey(x.company, "") : x.groupCompany || (teamMemberFor(x.person) ? "" : x.contactName || x.person)).fu.push(x);
-    return [...m.entries()]
-      .map(([key, { company, ...g }]) => {
-        const kind = key === "~ops" ? "ops" as const : portcoNames.has(key) ? "portcos" as const : "network" as const;
+    // PortCo follow-ups under the PortCo; Network ones under the outside person's company (never a teammate).
+    for (const x of general) { const f = filingOf(x); ensure(f.group, f.kind).fu.push(x); }
+    return [...m.values()]
+      .map(({ company, kind, ...g }) => {
         const gLinked = new Map<string, Reminder[]>();
         for (const w of g.ws) if (linked.has(w.gid)) gLinked.set(w.gid, linked.get(w.gid)!);
         return { company, ws: g.ws, linked: gLinked, general: g.fu, kind };
       })
       .filter((g) => g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0)
       .sort((a, b) => a.company.localeCompare(b.company));
-  }, [wsList, fuList, toggles.workstreams, portcoNames]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wsList, fuList, toggles.workstreams, portcoNames, filings]); // eslint-disable-line react-hooks/exhaustive-deps
   const groups = useMemo(() => allGroups.filter((g) => companyKindVisible(toggles, g.kind)), [allGroups, toggles.portcos, toggles.network, toggles.ops]); // eslint-disable-line react-hooks/exhaustive-deps
   const kindCountKey = allGroups.map((g) => `${g.kind}:${g.ws.length + g.general.length + [...g.linked.values()].flat().length}`).join(",");
   useEffect(() => {
@@ -322,7 +333,9 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const r = cur?.kind === "fu" ? fuList.find((x) => x.id === cur.id) || null : null;
   // Detail pane: follow-ups linked to this workstream first, falling back to the same company.
   const wsGroup = ws ? groups.find((g) => g.ws.some((w) => w.gid === ws.gid)) : undefined;
-  const wsGroupFu = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
+  const wsGroupBase = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
+  // Network follow-ups linked to this workstream are filed elsewhere but still listed here.
+  const wsGroupFu = ws ? [...wsGroupBase, ...fuList.filter((x) => !wsGroupBase.includes(x) && (x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "")) === ws.gid)] : [];
 
   const mergeRows = mergeSel.map((id) => fuList.find((x) => x.id === id)).filter(Boolean) as Reminder[];
   // Default each merged field to the first selected follow-up.
@@ -408,7 +421,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       : x.email ? <Link to="/crm" search={{ contact: x.email } as never}>Open contact <ExternalLink className="ml-1 h-3 w-3" /></Link> : null;
     return <div className="space-y-4">
       <div className="flex items-start gap-3">
-        {x.company && <Logo name={x.company.split(/\s*,\s*/)[0]!} />}
+        {(filingOf(x).group || x.company) && <Logo name={filingOf(x).group || x.company.split(/\s*,\s*/)[0]!} />}
         <div className="min-w-0 flex-1">
           <div className="font-display text-base font-semibold">{x.summary || `Follow up with ${x.person}`}</div>
         </div>
@@ -437,6 +450,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       }} />}
       {!canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
       {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
+      <FilingControl x={x} filing={filingOf(x)} />
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 text-xs sm:grid-cols-4">
         <div><dt className="text-muted-foreground">Source</dt><dd className="font-medium">{x.source}</dd></div>
         <div><dt className="text-muted-foreground">Created</dt><dd className="font-medium tabular-nums">{x.date ? x.date.slice(0, 10) : "—"}</dd></div>
@@ -511,6 +525,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
           <Bullet kind="fu" company={company} website={website} />
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{abbreviateTitle(full, company, 48)}</span>
           {showCompany && <span className="hidden max-w-[90px] truncate text-[11px] text-muted-foreground sm:inline">{company}</span>}
+          {(() => { const f = filingOf(x); return f.kind === "network" && f.portcoTag && portcoMatchKey(f.portcoTag) !== portcoMatchKey(company) ? <span title={`Tagged ${f.portcoTag}`} className="max-w-[80px] shrink-0 truncate rounded border border-primary/30 bg-primary/5 px-1.5 py-px text-[10px] font-medium text-primary">{f.portcoTag}</span> : null; })()}
           {priChip(priority)}
           {(() => { const d = actionDueLabel(x.due, today); return <span title={d.overdue ? "Overdue" : undefined} className={`shrink-0 text-[11px] tabular-nums ${d.overdue ? "font-semibold text-destructive" : "text-muted-foreground"}`}>{d.text}</span>; })()}
         </div>
