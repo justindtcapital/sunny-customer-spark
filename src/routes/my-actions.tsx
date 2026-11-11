@@ -341,7 +341,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       })
       .filter((g) => g.ws.length + g.general.length + [...g.linked.values()].flat().length > 0)
       .sort((a, b) => a.company.localeCompare(b.company));
-  }, [wsList, fuList, toggles.workstreams, portcoNames, filings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [wsList, fuList, toggles.workstreams, toggles.followups, portcoNames, filings]); // eslint-disable-line react-hooks/exhaustive-deps
   const groups = useMemo(() => allGroups.filter((g) => companyKindVisible(toggles, g.kind)), [allGroups, toggles.portcos, toggles.network, toggles.ops]); // eslint-disable-line react-hooks/exhaustive-deps
   const kindCountKey = allGroups.map((g) => `${g.kind}:${g.ws.length + g.general.length + [...g.linked.values()].flat().length}`).join(",");
   useEffect(() => {
