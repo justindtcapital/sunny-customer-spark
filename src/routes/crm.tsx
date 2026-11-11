@@ -382,7 +382,7 @@ function CrmPage() {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 flex-1 text-xs">
+          <Button variant="outline" size="sm" className="h-8 min-w-0 flex-1 px-2 text-xs">
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Import
             <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
@@ -406,7 +406,7 @@ function CrmPage() {
       </DropdownMenu>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 flex-1 text-xs">
+          <Button variant="outline" size="sm" className="h-8 min-w-0 flex-1 px-2 text-xs">
             <Download className="h-3.5 w-3.5 mr-1.5" />
             Export
             <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
