@@ -15,7 +15,6 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BriefRouteImport } from './routes/brief'
 import { Route as CampaignsRouteImport } from './routes/campaigns'
 import { Route as CrmRouteImport } from './routes/crm'
-import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as MyActionsRouteImport } from './routes/my-actions'
 import { Route as PartnersRouteImport } from './routes/partners'
@@ -23,6 +22,7 @@ import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as TargetingRouteImport } from './routes/targeting'
 import { Route as VicRouteImport } from './routes/vic'
 import { Route as ApiVicRouteImport } from './routes/api/vic'
+import { Route as DashboardsPortcoRouteImport } from './routes/dashboards.portco'
 import { Route as VicIndexRouteImport } from './routes/vic.index'
 import { Route as VicThreadIdRouteImport } from './routes/vic.$threadId'
 import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activity-sync'
@@ -62,11 +62,6 @@ const CrmRoute = CrmRouteImport.update({
   path: '/crm',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const EventsRoute = EventsRouteImport.update({
   id: '/events',
   path: '/events',
@@ -100,6 +95,11 @@ const VicRoute = VicRouteImport.update({
 const ApiVicRoute = ApiVicRouteImport.update({
   id: '/api/vic',
   path: '/api/vic',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardsPortcoRoute = DashboardsPortcoRouteImport.update({
+  id: '/dashboards/portco',
+  path: '/dashboards/portco',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VicIndexRoute = VicIndexRouteImport.update({
@@ -153,7 +153,6 @@ export interface FileRoutesByFullPath {
   '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
-  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
   '/partners': typeof PartnersRoute
@@ -161,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/targeting': typeof TargetingRoute
   '/vic': typeof VicRouteWithChildren
   '/api/vic': typeof ApiVicRoute
+  '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
   '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
@@ -177,13 +177,13 @@ export interface FileRoutesByTo {
   '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
-  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
   '/partners': typeof PartnersRoute
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/vic': typeof ApiVicRoute
+  '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
   '/vic': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
@@ -201,7 +201,6 @@ export interface FileRoutesById {
   '/brief': typeof BriefRoute
   '/campaigns': typeof CampaignsRoute
   '/crm': typeof CrmRoute
-  '/dashboard': typeof DashboardRoute
   '/events': typeof EventsRoute
   '/my-actions': typeof MyActionsRoute
   '/partners': typeof PartnersRoute
@@ -209,6 +208,7 @@ export interface FileRoutesById {
   '/targeting': typeof TargetingRoute
   '/vic': typeof VicRouteWithChildren
   '/api/vic': typeof ApiVicRoute
+  '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
   '/vic/': typeof VicIndexRoute
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
@@ -227,7 +227,6 @@ export interface FileRouteTypes {
     | '/brief'
     | '/campaigns'
     | '/crm'
-    | '/dashboard'
     | '/events'
     | '/my-actions'
     | '/partners'
@@ -235,6 +234,7 @@ export interface FileRouteTypes {
     | '/targeting'
     | '/vic'
     | '/api/vic'
+    | '/dashboards/portco'
     | '/vic/$threadId'
     | '/vic/'
     | '/api/cron/activity-sync'
@@ -251,13 +251,13 @@ export interface FileRouteTypes {
     | '/brief'
     | '/campaigns'
     | '/crm'
-    | '/dashboard'
     | '/events'
     | '/my-actions'
     | '/partners'
     | '/portfolio'
     | '/targeting'
     | '/api/vic'
+    | '/dashboards/portco'
     | '/vic/$threadId'
     | '/vic'
     | '/api/cron/activity-sync'
@@ -274,7 +274,6 @@ export interface FileRouteTypes {
     | '/brief'
     | '/campaigns'
     | '/crm'
-    | '/dashboard'
     | '/events'
     | '/my-actions'
     | '/partners'
@@ -282,6 +281,7 @@ export interface FileRouteTypes {
     | '/targeting'
     | '/vic'
     | '/api/vic'
+    | '/dashboards/portco'
     | '/vic/$threadId'
     | '/vic/'
     | '/api/cron/activity-sync'
@@ -299,7 +299,6 @@ export interface RootRouteChildren {
   BriefRoute: typeof BriefRoute
   CampaignsRoute: typeof CampaignsRoute
   CrmRoute: typeof CrmRoute
-  DashboardRoute: typeof DashboardRoute
   EventsRoute: typeof EventsRoute
   MyActionsRoute: typeof MyActionsRoute
   PartnersRoute: typeof PartnersRoute
@@ -307,6 +306,7 @@ export interface RootRouteChildren {
   TargetingRoute: typeof TargetingRoute
   VicRoute: typeof VicRouteWithChildren
   ApiVicRoute: typeof ApiVicRoute
+  DashboardsPortcoRoute: typeof DashboardsPortcoRoute
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
@@ -359,13 +359,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CrmRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/events': {
       id: '/events'
       path: '/events'
@@ -413,6 +406,13 @@ declare module '@tanstack/react-router' {
       path: '/api/vic'
       fullPath: '/api/vic'
       preLoaderRoute: typeof ApiVicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboards/portco': {
+      id: '/dashboards/portco'
+      path: '/dashboards/portco'
+      fullPath: '/dashboards/portco'
+      preLoaderRoute: typeof DashboardsPortcoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vic/': {
@@ -493,7 +493,6 @@ const rootRouteChildren: RootRouteChildren = {
   BriefRoute: BriefRoute,
   CampaignsRoute: CampaignsRoute,
   CrmRoute: CrmRoute,
-  DashboardRoute: DashboardRoute,
   EventsRoute: EventsRoute,
   MyActionsRoute: MyActionsRoute,
   PartnersRoute: PartnersRoute,
@@ -501,6 +500,7 @@ const rootRouteChildren: RootRouteChildren = {
   TargetingRoute: TargetingRoute,
   VicRoute: VicRouteWithChildren,
   ApiVicRoute: ApiVicRoute,
+  DashboardsPortcoRoute: DashboardsPortcoRoute,
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
