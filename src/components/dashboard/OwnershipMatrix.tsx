@@ -11,6 +11,8 @@ const PW = W - PAD.left - PAD.right;
 const PH = H - PAD.top - PAD.bottom;
 /** Keeps the largest logo circles inside the plot at the ends of each axis. */
 const INSET = 30;
+/** Width of the left "Under $2M" column in the log view. */
+const BAND = 90;
 
 /** DTC invested dollars (x) vs DTC ownership % (y), same logo circles as the maturity view. */
 export function OwnershipMatrix({
@@ -31,7 +33,11 @@ export function OwnershipMatrix({
   const layout = useMemo(() => ownershipLayout(points, scale), [points, scale]);
   const xa = layout.investment;
   const ya = layout.ownership;
-  const x = (v: number) => PAD.left + INSET + xa.unit(v) * (PW - 2 * INSET);
+  const band = layout.lowBandBelow != null ? BAND : 0;
+  const plotLeft = PAD.left + band;
+  const x = (v: number) => plotLeft + INSET + xa.unit(v) * (PW - band - 2 * INSET);
+  const bandX = PAD.left + BAND / 2;
+  const isLow = (p: MatrixPoint) => layout.lowBandBelow != null && (p.investment ?? 0) < layout.lowBandBelow;
   const y = (v: number) => PAD.top + PH - INSET - ya.unit(v) * (PH - 2 * INSET);
   const logNote = scale === "log" ? " · log scale" : "";
   return (
@@ -54,6 +60,17 @@ export function OwnershipMatrix({
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" onClick={() => onSelect(null)} role="img" aria-label="Ownership and investment chart">
         <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + PH} y2={PAD.top + PH} stroke="var(--border)" />
         <line x1={PAD.left} x2={PAD.left} y1={PAD.top} y2={PAD.top + PH} stroke="var(--border)" />
+        {band > 0 && (
+          <>
+            <rect x={PAD.left} y={PAD.top} width={BAND} height={PH} fill="var(--muted)" opacity={0.5} />
+            <line x1={plotLeft} x2={plotLeft} y1={PAD.top} y2={PAD.top + PH} stroke="var(--border)" />
+            {!compact && (
+              <text x={bandX} y={PAD.top + PH + 20} textAnchor="middle" className="fill-muted-foreground" fontSize={12}>
+                Under {formatInvestment(layout.lowBandBelow ?? 0)}
+              </text>
+            )}
+          </>
+        )}
         {ya.ticks.map((t) => (
           <g key={`y${t}`}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(t)} y2={y(t)} stroke="var(--border)" strokeDasharray="3 4" />
@@ -84,7 +101,7 @@ export function OwnershipMatrix({
           <Bubble
             key={p.key}
             p={p}
-            cx={x(p.investment ?? 0)}
+            cx={isLow(p) ? bandX : x(p.investment ?? 0)}
             cy={y(p.ownership ?? 0)}
             dim={visible ? !visible(p) : false}
             active={selectedKey === p.key}

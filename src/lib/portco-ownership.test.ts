@@ -23,6 +23,25 @@ describe("ownershipLayout", () => {
   });
 });
 
+describe("under-$2M column", () => {
+  const pts = [pt("tiny", 0.2, 0.003), pt("one", 1, 0.054), pt("two", 2, 0.032), pt("big", 51.5, 0.049)];
+  it("log view moves companies under $2M into the left column and starts the axis at $2M", () => {
+    const l = ownershipLayout(pts, "log");
+    expect(l.lowBandBelow).toBe(2);
+    expect(l.lowBand.map((p) => p.key)).toEqual(["tiny", "one"]);
+    expect(l.investment.min).toBe(2);
+    expect(l.investment.ticks).toEqual([2, 5, 10, 20, 50]);
+  });
+  it("exactly $2M stays on the axis", () => {
+    expect(ownershipLayout(pts, "log").lowBand.some((p) => p.key === "two")).toBe(false);
+  });
+  it("linear view keeps everyone on one axis", () => {
+    const l = ownershipLayout(pts, "linear");
+    expect(l.lowBandBelow).toBeNull();
+    expect(l.lowBand).toEqual([]);
+  });
+});
+
 describe("fitAxis", () => {
   it("linear investment stops at $60M for a $51.5M max, not $100M", () => {
     const a = fitAxis([0.2, 10, 51.5], "linear");

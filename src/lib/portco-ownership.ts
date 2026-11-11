@@ -17,7 +17,13 @@ export interface OwnershipLayout {
   notPlotted: MatrixPoint[];
   investment: Axis;
   ownership: Axis;
+  /** Log view: companies invested under this ($M) sit in a separate left column. */
+  lowBandBelow: number | null;
+  lowBand: MatrixPoint[];
 }
+
+/** Under this many $M, the log view groups companies into the left "Under $2M" column. */
+export const LOW_INVESTMENT_BAND = 2;
 
 /** "Nice" ceiling for an axis so ticks land on round numbers. */
 export function niceCeil(v: number): number {
@@ -34,7 +40,7 @@ const round = (v: number) => Number(v.toPrecision(6));
  * largest value; log hugs the smallest and largest values with 1-2-5 ticks, so
  * crowded small companies spread out and a single large one doesn't squash the rest.
  */
-export function fitAxis(values: number[], kind: AxisKind): Axis {
+export function fitAxis(values: number[], kind: AxisKind, floor?: number): Axis {
   const vals = values.filter((v) => v > 0 && Number.isFinite(v));
   const lo = vals.length ? Math.min(...vals) : 1;
   const hi = vals.length ? Math.max(...vals) : 1;
@@ -46,9 +52,9 @@ export function fitAxis(values: number[], kind: AxisKind): Axis {
     return { kind, min: 0, max, ticks, unit: (v) => v / max };
   }
   // Log: a little headroom either side; widen a degenerate range to one decade.
-  let min = lo / 1.15;
-  let max = hi * 1.15;
-  if (max / min < 10) {
+  let min = floor ?? lo / 1.15;
+  let max = Math.max(hi, min) * 1.15;
+  if (floor == null && max / min < 10) {
     const mid = Math.sqrt(min * max);
     min = mid / Math.sqrt(10);
     max = mid * Math.sqrt(10);
@@ -73,11 +79,20 @@ export function ownershipLayout(points: MatrixPoint[], kind: AxisKind = "log"): 
     if (p.investment != null && p.investment > 0 && p.ownership != null && p.ownership > 0) plotted.push(p);
     else notPlotted.push(p);
   }
+  const inv = (p: MatrixPoint) => p.investment ?? 0;
+  const band =
+    kind === "log" && plotted.some((p) => inv(p) < LOW_INVESTMENT_BAND) && plotted.some((p) => inv(p) >= LOW_INVESTMENT_BAND)
+      ? LOW_INVESTMENT_BAND
+      : null;
+  const lowBand = band == null ? [] : plotted.filter((p) => inv(p) < band);
+  const onAxis = band == null ? plotted : plotted.filter((p) => inv(p) >= band);
   return {
     plotted,
     notPlotted,
-    investment: fitAxis(plotted.map((p) => p.investment ?? 0), kind),
+    investment: fitAxis(onAxis.map(inv), kind, band ?? undefined),
     ownership: fitAxis(plotted.map((p) => p.ownership ?? 0), kind),
+    lowBandBelow: band,
+    lowBand,
   };
 }
 
