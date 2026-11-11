@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import { attendeesToRegister, campaignTypeOf, latestResults, ownerInitials, resultCounts } from "./campaign-results";
 
 describe("campaign results", () => {
-  it("types come from purpose", () => {
-    expect(["Event outreach", "Event follow-up", "PortCo demand gen", "Network development", "Business development", "General outreach"].map(campaignTypeOf))
-      .toEqual(["Event", "Event", "Demand", "Network", "BD", "General"]);
+  it("only three types: Event, Network outreach, Business development", () => {
+    expect(["Event outreach", "Event follow-up", "Network outreach", "Business development"].map(campaignTypeOf))
+      .toEqual(["Event", "Event", "Network", "BD"]);
+  });
+  it("older purposes fold into the three types (demand is an event)", () => {
+    expect(["PortCo demand gen", "Network development", "General outreach", ""].map(campaignTypeOf))
+      .toEqual(["Event", "Network", "Network", "Network"]);
   });
   it("owner initials use full team names", () => {
     expect(ownerInitials("Chris Falloon")).toBe("CF");

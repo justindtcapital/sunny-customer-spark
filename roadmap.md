@@ -1,5 +1,9 @@
 # Roadmap
 
+## Campaign editing and types — Nov 11
+- [x] Step back into any stage of an actioning campaign (edit details, add more people, message/send)
+- [x] Only three types: Event, Network outreach, Business development; LA Trip Outreach switched to Network outreach
+
 ## Completion note controls
 - [x] Add dictation and optional dated future follow-up to Mark complete; reuse existing action saving
 - [x] Nine tests passed; signed-in desktop/mobile controls verified with no overflow or runtime errors; cancelled without completing a real action
