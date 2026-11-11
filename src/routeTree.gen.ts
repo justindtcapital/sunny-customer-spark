@@ -23,6 +23,8 @@ import { Route as PortfolioRouteImport } from './routes/portfolio'
 import { Route as TargetingRouteImport } from './routes/targeting'
 import { Route as VicRouteImport } from './routes/vic'
 import { Route as ApiVicRouteImport } from './routes/api/vic'
+import { Route as DashboardsEventsRouteImport } from './routes/dashboards.events'
+import { Route as DashboardsNetworkRouteImport } from './routes/dashboards.network'
 import { Route as DashboardsPortcoRouteImport } from './routes/dashboards.portco'
 import { Route as VicIndexRouteImport } from './routes/vic.index'
 import { Route as VicThreadIdRouteImport } from './routes/vic.$threadId'
@@ -103,6 +105,16 @@ const ApiVicRoute = ApiVicRouteImport.update({
   path: '/api/vic',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardsEventsRoute = DashboardsEventsRouteImport.update({
+  id: '/dashboards/events',
+  path: '/dashboards/events',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardsNetworkRoute = DashboardsNetworkRouteImport.update({
+  id: '/dashboards/network',
+  path: '/dashboards/network',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardsPortcoRoute = DashboardsPortcoRouteImport.update({
   id: '/dashboards/portco',
   path: '/dashboards/portco',
@@ -167,6 +179,8 @@ export interface FileRoutesByFullPath {
   '/targeting': typeof TargetingRoute
   '/vic': typeof VicRouteWithChildren
   '/api/vic': typeof ApiVicRoute
+  '/dashboards/events': typeof DashboardsEventsRoute
+  '/dashboards/network': typeof DashboardsNetworkRoute
   '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
   '/vic/': typeof VicIndexRoute
@@ -191,6 +205,8 @@ export interface FileRoutesByTo {
   '/portfolio': typeof PortfolioRoute
   '/targeting': typeof TargetingRoute
   '/api/vic': typeof ApiVicRoute
+  '/dashboards/events': typeof DashboardsEventsRoute
+  '/dashboards/network': typeof DashboardsNetworkRoute
   '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
   '/vic': typeof VicIndexRoute
@@ -217,6 +233,8 @@ export interface FileRoutesById {
   '/targeting': typeof TargetingRoute
   '/vic': typeof VicRouteWithChildren
   '/api/vic': typeof ApiVicRoute
+  '/dashboards/events': typeof DashboardsEventsRoute
+  '/dashboards/network': typeof DashboardsNetworkRoute
   '/dashboards/portco': typeof DashboardsPortcoRoute
   '/vic/$threadId': typeof VicThreadIdRoute
   '/vic/': typeof VicIndexRoute
@@ -244,6 +262,8 @@ export interface FileRouteTypes {
     | '/targeting'
     | '/vic'
     | '/api/vic'
+    | '/dashboards/events'
+    | '/dashboards/network'
     | '/dashboards/portco'
     | '/vic/$threadId'
     | '/vic/'
@@ -268,6 +288,8 @@ export interface FileRouteTypes {
     | '/portfolio'
     | '/targeting'
     | '/api/vic'
+    | '/dashboards/events'
+    | '/dashboards/network'
     | '/dashboards/portco'
     | '/vic/$threadId'
     | '/vic'
@@ -293,6 +315,8 @@ export interface FileRouteTypes {
     | '/targeting'
     | '/vic'
     | '/api/vic'
+    | '/dashboards/events'
+    | '/dashboards/network'
     | '/dashboards/portco'
     | '/vic/$threadId'
     | '/vic/'
@@ -319,6 +343,8 @@ export interface RootRouteChildren {
   TargetingRoute: typeof TargetingRoute
   VicRoute: typeof VicRouteWithChildren
   ApiVicRoute: typeof ApiVicRoute
+  DashboardsEventsRoute: typeof DashboardsEventsRoute
+  DashboardsNetworkRoute: typeof DashboardsNetworkRoute
   DashboardsPortcoRoute: typeof DashboardsPortcoRoute
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
@@ -428,6 +454,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiVicRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboards/events': {
+      id: '/dashboards/events'
+      path: '/dashboards/events'
+      fullPath: '/dashboards/events'
+      preLoaderRoute: typeof DashboardsEventsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboards/network': {
+      id: '/dashboards/network'
+      path: '/dashboards/network'
+      fullPath: '/dashboards/network'
+      preLoaderRoute: typeof DashboardsNetworkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboards/portco': {
       id: '/dashboards/portco'
       path: '/dashboards/portco'
@@ -521,6 +561,8 @@ const rootRouteChildren: RootRouteChildren = {
   TargetingRoute: TargetingRoute,
   VicRoute: VicRouteWithChildren,
   ApiVicRoute: ApiVicRoute,
+  DashboardsEventsRoute: DashboardsEventsRoute,
+  DashboardsNetworkRoute: DashboardsNetworkRoute,
   DashboardsPortcoRoute: DashboardsPortcoRoute,
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
