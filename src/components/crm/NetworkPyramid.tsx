@@ -32,7 +32,7 @@ const tierTone: Record<PyramidTier, string> = {
 };
 
 function Dots({ n }: { n: number }) {
-  return <div className="flex h-4 items-center gap-1" aria-hidden="true">
+  return <div className="flex h-3 items-center gap-1" aria-hidden="true">
     {dotBreakdown(n).flatMap(({ size, count }) => Array.from({ length: Math.min(count, 4) }, (_, i) =>
       <span key={`${size}-${i}`} className={cn("shrink-0 rounded-full bg-current opacity-55", size === 50 ? "size-2.5" : size === 10 ? "size-1.5" : size === 5 ? "size-1" : "size-0.5")} />
     )).slice(0, 10)}
@@ -208,7 +208,7 @@ export function NetworkPyramid({
                 const clickable = c > 0 && (!!onToggleTier || tier !== "Prospect");
                 return <Button key={col} variant="ghost" disabled={!clickable} aria-label={`Show ${tier} · ${col}: ${c}`} aria-pressed={!!active} onClick={() => onSelect(active ? null : { tier, view: view as "domain" | "geo", column: col })} title={`Show ${tier} · ${col}`} className={cn("network-cell min-w-0 rounded-sm px-1 text-current disabled:opacity-100", active && "bg-accent ring-1 ring-primary ring-inset")}>
                   <span className="network-mobile-label text-[11px] font-normal text-muted-foreground">{col}</span>
-                  <span className={cn("text-base font-semibold tabular-nums", c ? "text-foreground" : "text-muted-foreground/50")}>{c.toLocaleString()}</span>
+                  <span className={cn("text-sm font-semibold leading-5 tabular-nums", c ? "text-foreground" : "text-muted-foreground/50")}>{c.toLocaleString()}</span>
                   <span className="network-cell-dots"><Dots n={c} /></span>
                 </Button>;
               })}

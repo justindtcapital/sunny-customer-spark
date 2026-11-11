@@ -164,7 +164,7 @@ function CrmPage() {
     setAddBusy(true);
     try {
       // Stamp the signed-in teammate as Relationship Prime so the contact shows
-      // under the default "Mine" ownership filter (not just Everyone).
+      // under the "My contacts" ownership filter.
       const prime = profile?.displayName || email || "";
 
       let role = addForm.title.trim();
