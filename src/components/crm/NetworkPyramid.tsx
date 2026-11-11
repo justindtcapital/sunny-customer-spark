@@ -59,7 +59,7 @@ function MiniPyramid() {
   </svg>;
 }
 
-function TierChart({ counts, active, onTier, visible }: { counts: Record<PyramidTier, number | null>; active: PyramidTier | null; onTier: (t: PyramidTier) => void; visible?: PyramidTier[] }) {
+export function TierChart({ counts, active, onTier, visible }: { counts: Record<PyramidTier, number | null>; active: PyramidTier | null; onTier: (t: PyramidTier) => void; visible?: PyramidTier[] }) {
   return <div className="network-tier-chart" aria-label="Relationship tiers">
     <svg viewBox="0 0 240 250" className="h-full w-full" preserveAspectRatio="xMidYMid meet" role="img"
       aria-label={PYRAMID_TIERS.map(t => `${t === "Prospect" ? "Prospects" : t} ${counts[t] ?? "pending"}`).join(", ")}>
