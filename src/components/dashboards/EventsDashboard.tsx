@@ -87,8 +87,7 @@ export function EventsDashboard() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<PlannerStatus[]>(PLANNER_STATUSES);
   const toggleStatus = (st: PlannerStatus) => setStatuses((cur) => (cur.includes(st) ? cur.filter((x) => x !== st) : [...cur, st]));
-  const allEvents = data?.events ?? [];
-  const events = useMemo(() => allEvents.filter((e) => statuses.includes(e.status)), [allEvents, statuses]);
+  const events = useMemo(() => (data?.events ?? []).filter((e) => statuses.includes(e.status)), [data?.events, statuses]);
   const rows = useMemo(() => monthlyByType(events, year), [events, year]);
   const scoped = useMemo(() => eventsInScope(events, year, month), [events, year, month]);
   const b = useMemo(() => eventBreakdowns(scoped, data?.attendees ?? []), [scoped, data?.attendees]);
