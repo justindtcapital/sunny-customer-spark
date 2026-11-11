@@ -402,9 +402,12 @@ function StartStep({
   const [openPortco, setOpenPortco] = useState("");
 
   const existing = campaigns.find((c) => c.id === choice) || null;
+  // Id of a campaign just created with "Save for later", until the list refresh includes it.
+  const [savedId, setSavedId] = useState("");
   const pick = (id: string) => {
     const next = id || NEW;
     setChoice(next);
+    setSavedId("");
     setLegacy("");
     setAutoName("");
     const c = campaigns.find((x) => x.id === next);
@@ -546,7 +549,7 @@ function StartStep({
     try {
       const res = await save({
         data: {
-          id: existing?.id,
+          id: existing?.id || savedId || undefined,
           name: name.trim(),
           purpose,
           events: eventName ? [eventName] : [],
@@ -562,6 +565,12 @@ function StartStep({
       const pre = [...(attendees?.people || []), ...(legacyPeople || [])];
       const prefill = next === "build" && pre.length ? mergeCandidates([], pre).list : undefined;
       if (savedMsg) toast.success(savedMsg);
+      if (!existing) {
+        // Now it's a saved campaign: keep editing it here instead of creating another.
+        setSavedId(res.campaign.id);
+        setChoice(res.campaign.id);
+        setLegacy("");
+      }
       onReady({ ...res.campaign, memberCount: existing?.memberCount }, next, prefill);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the campaign");
@@ -727,10 +736,19 @@ function StartStep({
                   )}
                 </>
               ) : (
-                <Button disabled={busy || !name.trim() || !purpose || nameTaken} onClick={() => void go("build")}>
-                  {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                  Build the list <ArrowRight className="h-4 w-4 ml-1" />
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    disabled={busy || !name.trim() || !purpose || nameTaken}
+                    onClick={() => void go("start", "Saved. Open it from the campaign list any time.")}
+                  >
+                    Save for later
+                  </Button>
+                  <Button disabled={busy || !name.trim() || !purpose || nameTaken} onClick={() => void go("build")}>
+                    {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                    Build the list <ArrowRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </>
               )}
             </div>
           </>
