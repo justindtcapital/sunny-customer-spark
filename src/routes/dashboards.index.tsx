@@ -68,7 +68,7 @@ function DashboardsHub() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Tile to="/dashboards/portco" title="PortCo Dashboard" sub="Maturity, ownership and investment">
           {points.length ? (
-            <div className="w-full"><PortcoMatrix points={points} investor="" sector="" priority="" selectedKey={null} onSelect={() => {}} /></div>
+            <div className="w-full max-h-64 overflow-hidden"><PortcoMatrix points={points} investor="" sector="" priority="" selectedKey={null} onSelect={() => {}} /></div>
           ) : <Unavailable text={asanaLoading ? "Loading…" : "PortCo data unavailable"} />}
         </Tile>
         <Tile to="/dashboards/events" title="Events Dashboard" sub={`Event intensity by month, ${year}`}>
