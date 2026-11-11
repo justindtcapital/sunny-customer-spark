@@ -3,6 +3,7 @@
 ## Campaign editing and types — Nov 11
 - [x] Step back into any stage of an actioning campaign (edit details, add more people, message/send)
 - [x] Four types: Event outreach, Event follow-up, Network outreach, Business development; LA Trip Outreach switched to Network outreach
+- [x] Save for later on the campaign setup screen (new and existing campaigns), no list-building required
 
 ## Completion note controls
 - [x] Add dictation and optional dated future follow-up to Mark complete; reuse existing action saving
