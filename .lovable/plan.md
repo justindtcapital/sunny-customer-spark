@@ -41,6 +41,7 @@ Defaults unless you say otherwise: counts every event on the tracker for that mo
 - Same pyramid and adds/removes numbers as the Network page.
 - Outreach volume, outreach-to-Network conversion (Prospect to Cold), promotion rates Cold to Warm and Warm to Hot.
 - Overall and by teammate: Chris Falloon, Julia Beech, Chris Hillock, Shane Earley.
+- Campaigns: counts of open, active and closed campaigns, and campaigns by owner.
 
 Questions: what counts as one outreach; how a move is credited to a teammate (contact owner, or whoever made the change); default time window.
 
