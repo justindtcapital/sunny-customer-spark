@@ -111,7 +111,6 @@ export function networkDashboardStats(input: {
   const since = now - input.days * 86_400_000;
   const touches = touchesInWindow(input.touches, input.days, now);
   const owners = (person: string) => creditedOwners(input.people.get(person)?.prime);
-  const bump = (owner: string, fn: (s: OwnerStats) => void) => fn(by.get(owner) ?? by.get(UNASSIGNED)!);
 
   // Moves inside the window, by person.
   const conversions = new Map<string, string>(); // person → earliest conversion day
@@ -131,6 +130,7 @@ export function networkDashboardStats(input: {
   const blank = (owner: string): OwnerStats => ({ owner, outreach: 0, reached: 0, prospectsReached: 0, converted: 0, conversionRate: null, coldBase: 0, coldToWarm: 0, coldToWarmRate: null, warmBase: 0, warmToHot: 0, warmToHotRate: null });
   const by = new Map(DASHBOARD_OWNERS.map((o) => [o, blank(o)]));
   const total = blank("Everyone");
+  const bump = (owner: string, fn: (s: OwnerStats) => void) => fn(by.get(owner) ?? by.get(UNASSIGNED)!);
   const each = (person: string, fn: (s: OwnerStats) => void) => { for (const o of owners(person)) fn(by.get(o)!); fn(total); };
 
   // Outreach and conversion: credit the teammate who acted (each teammate who reached a person).

@@ -72,15 +72,17 @@ export function NetworkDashboard() {
   const touches = useMemo((): Touch[] => {
     const out: Touch[] = [];
     for (const e of dash?.emails || []) out.push({ person: personKey(e.email), date: e.ts, source: "Email" });
-    for (const s of dash?.sends || []) out.push({ person: personKey(s.email), date: s.date, source: "Campaign" });
-    for (const c of contacts) for (const i of c.interactions || []) out.push({ person: contactKey(c), date: i.date, source: "Logged" });
+    // Credit the teammate who acted: the campaign's owner for sends, the activity's owner for logged rows.
+    const campaignRunner = new Map((dash?.campaigns || []).map((c) => [c.id, c.owner || c.createdBy]));
+    for (const s of dash?.sends || []) out.push({ person: personKey(s.email), date: s.date, source: "Campaign", actor: campaignRunner.get(s.campaignId) });
+    for (const c of contacts) for (const i of c.interactions || []) out.push({ person: contactKey(c), date: i.date, source: "Logged", actor: i.owner });
     for (const t of prospects) for (const o of t.outreach || []) out.push({ person: contactKey(t), date: o.date, source: "Prospect outreach" });
     return out;
   }, [dash, contacts, prospects]);
 
   const movements = dash?.movements || [];
   const stats = useMemo(() => networkDashboardStats({ people, touches, movements, days }), [people, touches, movements, days]);
-  const weekly = useMemo(() => weeklyOutreach(touches, people, days), [touches, people, days]);
+  const weekly = useMemo(() => weeklyOutreach(touches, days), [touches, days]);
   const camp = useMemo(() => campaignStats(dash?.campaigns || []), [dash?.campaigns]);
   const shownRows = stats.rows.filter((r) => r.owner !== UNASSIGNED || r.outreach || r.coldBase || r.warmBase);
   const weeklyOwners = DASHBOARD_OWNERS.filter((o) => weekly.some((w) => Number(w[o]) > 0));
@@ -90,7 +92,7 @@ export function NetworkDashboard() {
     const ownerOf = (k: string) => creditedOwners(people.get(k)?.prime);
     const outreach: ChartRecord[] = touchesInWindow(touches, 3650).map((t) => {
       const p = people.get(t.person);
-      return { _date: t.date, month: t.date.slice(0, 7), week: weekStart(t.date), owner: ownerOf(t.person), source: t.source, tier: p?.tier || "", domain: p?.domain || "", market: p?.market || "" };
+      return { _date: t.date, month: t.date.slice(0, 7), week: weekStart(t.date), teammate: t.actor || UNASSIGNED, owner: ownerOf(t.person), source: t.source, tier: p?.tier || "", domain: p?.domain || "", market: p?.market || "" };
     });
     const moves: ChartRecord[] = movements.flatMap((m) => {
       const c = classifyMovement(m); const d = dayOf(m.ts);
@@ -128,7 +130,7 @@ export function NetworkDashboard() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-display text-base font-semibold text-foreground">Outreach and conversion</h2>
-          <p className="text-xs text-muted-foreground">Outreach counts sent emails, campaign sends and logged activity (one per person per day). Credit goes to the contact's owner.</p>
+          <p className="text-xs text-muted-foreground">Outreach counts sent emails, campaign sends and logged activity (one per person per day per teammate) and is credited to the teammate who did it; "Unassigned" means no teammate was recorded. Cold → Warm and Warm → Hot credit the contact's owner.</p>
         </div>
         <div className="flex items-center gap-2">
           {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-label="Loading" />}
