@@ -57,4 +57,9 @@ describe("categories", () => {
     expect(categoryOfSubcategory("Cisco", "Partner Led Events")).toBe("Partner Led Events");
     expect(nextPartnerColor(extras)).not.toBe("teal");
   });
+  it("an added briefing partner keeps the Briefings row from its name alone", () => {
+    expect(categoryOfSubcategory("Vation Briefings")).toBe("Briefings");
+    expect(categoryOfSubcategory("Vation Briefs")).toBe("Briefings");
+    expect(categoryOfSubcategory("ISSA", "Partner Led Events")).toBe("Partner Led Events");
+  });
 });
