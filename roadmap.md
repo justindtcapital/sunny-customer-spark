@@ -212,3 +212,7 @@
 - [x] Briefings use the same partner tooling as Partner-led (Vation is an added partner; DTC Curated Briefings stay DTC-owned)
 - [x] Tagged Vation as primary on the 19 Vation-named briefings (backup tab kept); 4 "Innovation" mis-matches moved to Other Briefings
 - [x] Events dashboard counts added partner categories under their own colour
+
+## Potential row index — Nov 12
+- [x] Potential row lists DTC-led, Partner-led and Briefings categories/partners with their colours and counts
+- [x] "All" picks every category/partner that has potential events; picks narrow only the Potential row

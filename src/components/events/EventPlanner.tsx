@@ -41,6 +41,7 @@ import {
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
   duplicateKey, plannerCategories, effectiveCategory, categoryAfterPartnerChange, partnerOfCategory, isPartnerCategory, isDtcOwned, partnerSubcategoryName, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
+  potentialIndex, availablePotential, matchesPotentialPick,
   type PlannerCategory, type PlannerPartnerCategory,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
@@ -147,6 +148,8 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [anchor, setAnchor] = useState(today());
   const [search, setSearch] = useState("");
   const [subFilter, setSubFilter] = useState<string[]>([]);
+  // Potential row's own category/partner pick (only narrows the Potential row).
+  const [potentialPick, setPotentialPick] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
   const [dtcFilter, setDtcFilter] = useState<string[]>([...DEFAULT_DTC_STATUSES]);
   const [portcos, setPortcos] = useState<string[]>([]);
@@ -339,15 +342,45 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
             </div>
 
             {[...cats.filter((c) => c.name !== "Unassigned"), { name: POTENTIAL_ROW, subcategories: [] }].map((cat) => {
-              const rowEvents = inWindow.filter((e) => placementRow(e, today()) === cat.name);
-              const totals = windowTotals(rowEvents, win);
               const isPotential = cat.name === POTENTIAL_ROW;
+              const placed = inWindow.filter((e) => placementRow(e, today()) === cat.name);
+              const pIndex = isPotential ? potentialIndex(placed, cats) : [];
+              const pAvailable = availablePotential(pIndex);
+              const allPicked = pAvailable.length > 0 && pAvailable.every((n) => potentialPick.includes(n)) && potentialPick.length === pAvailable.length;
+              const rowEvents = isPotential ? placed.filter((e) => matchesPotentialPick(e, potentialPick)) : placed;
+              const totals = windowTotals(rowEvents, win);
               const fixed = new Set(PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((x) => x.name)));
               return (
                 <Row key={cat.name}>
                   <div className={cn("border-b border-border p-2 space-y-1", isPotential && "bg-muted/30")}>
                     <div className="text-xs font-semibold">{ROW_LABELS[cat.name] || cat.name}</div>
-                    {isPotential && <p className="text-[10px] text-muted-foreground leading-tight">Set DTC Status to Considering to move an event up into its row.</p>}
+                    {isPotential && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant={allPicked ? "secondary" : "outline"}
+                          className="h-5 px-2 text-[10px]"
+                          disabled={!pAvailable.length}
+                          title="Select every category and partner that has potential events"
+                          onClick={() => setPotentialPick(allPicked ? [] : pAvailable)}
+                        >
+                          All ({pAvailable.length})
+                        </Button>
+                        {pIndex.map((x, i) => (
+                          <div key={x.name}>
+                            {(i === 0 || pIndex[i - 1].row !== x.row) && (
+                              <div className="pt-1 text-[9px] uppercase tracking-wide text-muted-foreground/80">{x.row === "Unassigned" ? "No category" : ROW_LABELS[x.row] || x.row}</div>
+                            )}
+                            <div className={cn("flex items-center gap-1.5 text-[10px] leading-tight", !x.count && "opacity-40")}>
+                              <ColorCheck color={tileVar(x.name)} checked={potentialPick.includes(x.name)} onChange={(v) => setPotentialPick((p) => (v ? [...p, x.name] : p.filter((n) => n !== x.name)))} />
+                              <button type="button" className="flex-1 truncate text-left text-muted-foreground hover:text-foreground" onClick={() => setPotentialPick((p) => (p.includes(x.name) ? p.filter((n) => n !== x.name) : [...p, x.name]))}>{x.row === "Unassigned" ? "No category" : x.name}</button>
+                              <span className="tabular-nums text-muted-foreground">{x.count}</span>
+                            </div>
+                          </div>
+                        ))}
+                        <p className="pt-1 text-[10px] text-muted-foreground leading-tight">Set DTC Status to Considering to move an event up into its row.</p>
+                      </>
+                    )}
                     {cat.subcategories.map((s) => (
                       <div key={s.name} className="group flex items-center gap-1.5 text-[10px] leading-tight">
                         <ColorCheck color={tileVar(s.name)} checked={subFilter.includes(s.name)} onChange={(v) => toggleSub(s.name, v)} />
@@ -524,7 +557,7 @@ function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
       )}
       style={{
         borderColor: color,
-        background: `color-mix(in oklch, ${color} ${potential ? 6 : 16}%, transparent)`,
+        background: `color-mix(in oklch, ${color} ${potential ? 9 : 16}%, transparent)`,
       }}
       title={`${e.name} · ${e.subcategory} · ${e.status}`}
     >

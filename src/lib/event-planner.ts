@@ -808,3 +808,45 @@ export function planBriefingPartnerTags(events: PlannerEvent[], partner: string,
   }
   return out;
 }
+
+// ── Potential row index ─────────────────────────────────────────
+export interface PotentialIndexEntry {
+  /** Category row the entry belongs to (DTC-led, Partner-led, Briefings, or Unassigned). */
+  row: string;
+  name: string;
+  /** Potential events in view with this category. */
+  count: number;
+}
+
+/**
+ * Left index for the Potential row: the same categories and partners as the three rows above,
+ * in the same order, each with how many potential events it holds. "No category" shows only when used.
+ */
+export function potentialIndex(events: Pick<PlannerEvent, "subcategory">[], cats: PlannerCategory[]): PotentialIndexEntry[] {
+  const counts = new Map<string, number>();
+  for (const e of events) {
+    const k = canonicalSubcategory(e.subcategory).toLowerCase();
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  const out: PotentialIndexEntry[] = [];
+  for (const c of cats) {
+    for (const s of c.subcategories) {
+      const count = counts.get(s.name.toLowerCase()) || 0;
+      if (c.name === "Unassigned" && !count) continue;
+      out.push({ row: c.name, name: s.name, count });
+    }
+  }
+  return out;
+}
+
+/** "All" in the Potential index = every category that actually has potential events (not every category). */
+export function availablePotential(index: PotentialIndexEntry[]): string[] {
+  return index.filter((x) => x.count > 0).map((x) => x.name);
+}
+
+/** Potential-row pick: nothing picked shows everything; otherwise only the picked categories. */
+export function matchesPotentialPick(e: Pick<PlannerEvent, "subcategory">, picked: string[]): boolean {
+  if (!picked.length) return true;
+  const k = canonicalSubcategory(e.subcategory).toLowerCase();
+  return picked.some((p) => p.toLowerCase() === k);
+}
