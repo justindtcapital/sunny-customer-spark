@@ -6,6 +6,7 @@ import { requireTeamAuth } from "./team-auth";
 export const fetchPlannerFn = createServerFn({ method: "GET" }).handler(async () => {
   const { readPlannerEvents, readAttendees, activeHistoryLinks, officialPortcoNames, readPlannerPartners } = await import("./event-planner.server");
   const { canonicalEventPortcos } = await import("@/lib/event-portcos");
+  const { effectiveCategory, plannerCategories } = await import("@/lib/event-planner");
   try {
     const [raw, attendees, historyLinks, officialPortcos, partnerCategories] = await Promise.all([
       readPlannerEvents(), readAttendees(), activeHistoryLinks().catch(() => [] as HistoryLink[]),
@@ -13,7 +14,9 @@ export const fetchPlannerFn = createServerFn({ method: "GET" }).handler(async ()
       readPlannerPartners().catch(() => [] as PlannerPartnerCategory[]),
     ]);
     // Show official PortCo spellings even for rows edited directly in the spreadsheet.
-    const events = raw.map((e) => ({ ...e, portcos: canonicalEventPortcos(e.portcos, officialPortcos).portcos }));
+    // The primary partner owns partner-row categories (retired fixed partner categories read as Other).
+    const cats = plannerCategories(partnerCategories);
+    const events = raw.map((e) => ({ ...e, ...effectiveCategory(e, cats), portcos: canonicalEventPortcos(e.portcos, officialPortcos).portcos }));
     return { events, attendees, historyLinks, officialPortcos: [...officialPortcos].sort((x, y) => x.localeCompare(y)), partnerCategories, error: "" };
   } catch (e) {
     console.error("[event-planner] read failed", e);
