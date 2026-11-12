@@ -31,7 +31,7 @@ export interface PlannerEvent {
   eventContact: string;
   createdBy: string;
   updated: string;
-  /** Raw DTC Status from the tracker: Executed | Accepted | Considering | Potential | Declined. */
+  /** Raw DTC Status from the tracker: Completed | Confirmed | Considering | Potential | Declined. */
   dtcStatus: string;
 }
 
@@ -46,17 +46,41 @@ export interface PlannerAttendee {
   date: string;
 }
 
-export const DTC_STATUSES = ["Executed", "Accepted", "Considering", "Potential", "Declined"] as const;
-export const DEFAULT_DTC_STATUSES = ["Executed", "Accepted", "Considering"] as const;
+export const DTC_STATUSES = ["Completed", "Confirmed", "Considering", "Potential", "Declined"] as const;
+export const DEFAULT_DTC_STATUSES = ["Completed", "Confirmed", "Considering", "Potential"] as const;
+/** Older DTC Status labels still read from the sheet until rewritten. */
+const DTC_STATUS_ALIASES: Record<string, string> = { executed: "Completed", accepted: "Confirmed" };
+
+/** Canonical DTC Status label for a raw value ("" when unknown). */
+export function canonicalDtcStatus(raw: string): string {
+  const s = (raw || "").trim().toLowerCase();
+  return DTC_STATUSES.find((x) => x.toLowerCase() === s) || DTC_STATUS_ALIASES[s] || "";
+}
 
 /** Tracker DTC Status, falling back to the planner status for non-tracker rows. */
 export function dtcStatusOf(e: Pick<PlannerEvent, "dtcStatus" | "status" | "end" | "start">, today = ""): string {
-  const raw = (e.dtcStatus || "").trim().toLowerCase();
-  const hit = DTC_STATUSES.find((s) => s.toLowerCase() === raw);
+  const hit = canonicalDtcStatus(e.dtcStatus || "");
   if (hit) return hit;
   if (e.status === "Declined") return "Declined";
   if (e.status === "Potential") return "Potential";
-  return today && (e.end || e.start) && (e.end || e.start) < today ? "Executed" : "Accepted";
+  return today && (e.end || e.start) && (e.end || e.start) < today ? "Completed" : "Confirmed";
+}
+
+/** Planner status implied by a DTC Status (tiles: solid = confirmed, dashed = still being worked). */
+export function plannerStatusForDtc(dtc: string): PlannerStatus {
+  const s = canonicalDtcStatus(dtc);
+  if (s === "Completed" || s === "Confirmed") return "Confirmed";
+  if (s === "Declined") return "Declined";
+  return "Potential";
+}
+
+export const POTENTIAL_ROW = "Potential";
+
+/** Planner row: Potential (or uncategorized) events sit in the bottom Potential row; moving to Considering lifts them into their category row. */
+export function placementRow(e: Pick<PlannerEvent, "dtcStatus" | "status" | "end" | "start" | "category">, today = ""): string {
+  if (dtcStatusOf(e, today) === "Potential") return POTENTIAL_ROW;
+  if (!e.category || e.category === "Unassigned" || e.category === POTENTIAL_ROW) return POTENTIAL_ROW;
+  return e.category;
 }
 
 /** Tracker rows list one calendar year in order; a month that drops well below the max seen rolls into the next year. */
@@ -75,43 +99,94 @@ export interface PlannerCategory {
   subcategories: PlannerSubcategory[];
 }
 
+export const DTC_LED = "DTC Led Events";
+export const PARTNER_LED = "Partner Led Events";
+export const BRIEFINGS = "Briefings";
+/** Rows that accept extra per-partner categories (Add partner). */
+export const PARTNER_ROWS = [PARTNER_LED, BRIEFINGS] as const;
+
 export const PLANNER_CATEGORIES: PlannerCategory[] = [
+  { name: DTC_LED, subcategories: [{ name: "DTC Event", color: "purple" }] },
   {
-    name: "DTC Led Events",
+    name: PARTNER_LED,
     subcategories: [
-      { name: "DTC Event (No Partnership)", color: "purple" },
-      { name: "DTC Event (with Partner)", color: "plum" },
-    ],
-  },
-  {
-    name: "DTC Partnered Events",
-    subcategories: [
-      { name: "3rd Party Events", color: "lime" },
       { name: "GBI Roundtable", color: "sky" },
+      { name: "CDO Events", color: "lime" },
+      { name: "ISSA", color: "plum" },
       { name: "Other", color: "rose" },
     ],
   },
   {
-    name: "Briefings",
+    name: BRIEFINGS,
     subcategories: [
       { name: "DTC Curated Briefings", color: "blue" },
       { name: "Vation Briefs", color: "amber" },
-      { name: "Virtual Pitches (Sagetap)", color: "orange" },
+      { name: "Other Briefings", color: "orange" },
     ],
   },
   { name: "Unassigned", subcategories: [{ name: "Unassigned", color: "slate" }] },
 ];
 
-export function subcategoryColor(sub: string): string {
-  for (const c of PLANNER_CATEGORIES)
-    for (const s of c.subcategories) if (s.name.toLowerCase() === sub.trim().toLowerCase()) return s.color;
+/** Retired labels → current category, so old rows read correctly before/without the one-time rewrite. */
+export const LEGACY_SUBCATEGORIES: Record<string, string> = {
+  "dtc event (no partnership)": "DTC Event",
+  "dtc event (with partner)": "DTC Event",
+  "dtc customer advisory council": "DTC Event",
+  "3rd party events": "Other",
+  "virtual pitches (sagetap)": "Other Briefings",
+};
+const LEGACY_CATEGORIES: Record<string, string> = { "dtc partnered events": PARTNER_LED };
+
+/** Extra partner category added from the Partners list (Planner Partners tab). */
+export interface PartnerCategory { partner: string; row: string; color: string }
+/** Palette slots for added partners (never reused by the fixed categories). */
+export const EXTRA_COLORS = ["teal", "indigo", "emerald", "gold", "coral", "mint", "fuchsia", "cyan", "brick", "olive"];
+
+/** Category name used for a partner in a row (briefings get a suffix so one partner can be in both rows). */
+export function partnerSubcategoryName(partner: string, row: string): string {
+  return row === BRIEFINGS ? `${partner.trim()} Briefings` : partner.trim();
+}
+
+export function plannerCategories(extras: PartnerCategory[] = []): PlannerCategory[] {
+  return PLANNER_CATEGORIES.map((c) => ({
+    ...c,
+    subcategories: [
+      ...c.subcategories.filter((s) => !s.name.startsWith("Other")),
+      ...extras.filter((x) => x.row === c.name).map((x) => ({ name: partnerSubcategoryName(x.partner, x.row), color: x.color })),
+      ...c.subcategories.filter((s) => s.name.startsWith("Other")),
+    ],
+  }));
+}
+
+/** First palette slot not used by an existing partner category. */
+export function nextPartnerColor(extras: PartnerCategory[]): string {
+  const used = new Set(extras.map((x) => x.color));
+  return EXTRA_COLORS.find((c) => !used.has(c)) || EXTRA_COLORS[extras.length % EXTRA_COLORS.length];
+}
+
+/** Current subcategory name for a stored value (retired labels mapped). */
+export function canonicalSubcategory(sub: string): string {
+  const t = (sub || "").trim();
+  return LEGACY_SUBCATEGORIES[t.toLowerCase()] || t || "Unassigned";
+}
+export function canonicalCategory(cat: string): string {
+  const t = (cat || "").trim();
+  return LEGACY_CATEGORIES[t.toLowerCase()] || t;
+}
+
+export function subcategoryColor(sub: string, cats: PlannerCategory[] = PLANNER_CATEGORIES): string {
+  const k = canonicalSubcategory(sub).toLowerCase();
+  for (const c of cats) for (const s of c.subcategories) if (s.name.toLowerCase() === k) return s.color;
   return "slate";
 }
 
-export function categoryOfSubcategory(sub: string): string {
+/** Row for a subcategory; unknown names (e.g. an added partner) keep the stored row when it is a real one. */
+export function categoryOfSubcategory(sub: string, fallback = ""): string {
+  const k = canonicalSubcategory(sub).toLowerCase();
   for (const c of PLANNER_CATEGORIES)
-    if (c.subcategories.some((s) => s.name.toLowerCase() === sub.trim().toLowerCase())) return c.name;
-  return "Unassigned";
+    if (c.subcategories.some((s) => s.name.toLowerCase() === k)) return c.name;
+  const f = canonicalCategory(fallback);
+  return (PARTNER_ROWS as readonly string[]).includes(f) ? f : "Unassigned";
 }
 
 // ── Sectors (dot colour) ─────────────────────────────────────────
@@ -154,15 +229,14 @@ export function mapTrackerStatus(raw: string): PlannerStatus {
 export function mapTrackerCategory(trackerCategory: string, name: string): string {
   const c = trackerCategory.trim().toLowerCase();
   const n = name.toLowerCase();
-  if (/sagetap/.test(n)) return "Virtual Pitches (Sagetap)";
+  if (/sagetap/.test(n)) return "Other Briefings";
   if (/vation/.test(n)) return "Vation Briefs";
   if (/brief/.test(n)) return "DTC Curated Briefings";
   if (/gbi/.test(n)) return "GBI Roundtable";
-  if (/advisory council|\bcac\b/.test(n)) return "DTC Customer Advisory Council";
+  if (/advisory council|\bcac\b/.test(n)) return "DTC Event";
   if (c === "briefing") return "DTC Curated Briefings";
-  if (c === "dtc lead") return "DTC Event (No Partnership)";
-  if (c === "dinner") return "DTC Event (with Partner)";
-  if (c === "dtc sponsored" || c === "practitioner") return "3rd Party Events";
+  if (c === "dtc lead" || c === "dinner") return "DTC Event";
+  if (c === "dtc sponsored" || c === "practitioner") return "Other";
   if (c === "pay-to-play") return "Other";
   return "Unassigned";
 }
@@ -417,11 +491,10 @@ export interface AsanaLike {
 /** Map an Asana event to a planner subcategory (tile color). */
 export function asanaSubcategory(a: Pick<AsanaLike, "name" | "type" | "lead">): string {
   const lead = (a.lead || "").toLowerCase();
-  if (a.type === "dinner") return lead.includes("partner") ? "DTC Event (with Partner)" : "DTC Event (No Partnership)";
-  if (lead === "dtc") return "DTC Event (No Partnership)";
+  if (a.type === "dinner" || lead === "dtc") return "DTC Event";
   if (a.type === "meeting") return "DTC Curated Briefings";
   const mapped = mapTrackerCategory("", a.name);
-  return mapped !== "Unassigned" ? mapped : "3rd Party Events";
+  return mapped !== "Unassigned" ? mapped : "Other";
 }
 
 /**
