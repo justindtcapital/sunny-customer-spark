@@ -1,15 +1,19 @@
 // Events dashboard: pure aggregation over Event Planner rows (no I/O).
-import { PLANNER_CATEGORIES, canonicalSubcategory, type PlannerAttendee, type PlannerEvent } from "@/lib/event-planner";
+import { PLANNER_CATEGORIES, canonicalSubcategory, plannerCategories, type PlannerAttendee, type PlannerEvent, type PlannerPartnerCategory, type PlannerSubcategory } from "@/lib/event-planner";
 import { canonicalOwnerName } from "@/lib/user-ownership";
 
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** Event types in Events-page order (subcategories carry the tile colors). */
-export const EVENT_TYPES = PLANNER_CATEGORIES.flatMap((c) => c.subcategories);
+export const EVENT_TYPES: PlannerSubcategory[] = PLANNER_CATEGORIES.flatMap((c) => c.subcategories);
+/** Event types including partner categories added on the Events page (e.g. Vation Briefings). */
+export function eventTypesFor(extras: PlannerPartnerCategory[] = []): PlannerSubcategory[] {
+  return plannerCategories(extras).flatMap((c) => c.subcategories);
+}
 
-export function eventType(e: Pick<PlannerEvent, "subcategory">): string {
+export function eventType(e: Pick<PlannerEvent, "subcategory">, types: PlannerSubcategory[] = EVENT_TYPES): string {
   const sub = canonicalSubcategory(e.subcategory || "").toLowerCase();
-  return EVENT_TYPES.find((t) => t.name.toLowerCase() === sub)?.name ?? "Unassigned";
+  return types.find((t) => t.name.toLowerCase() === sub)?.name ?? "Unassigned";
 }
 
 /** 0-11 month of the event's start in the given year, else null. */
@@ -22,16 +26,16 @@ export function eventMonth(e: Pick<PlannerEvent, "start">, year: number): number
 export type MonthRow = { month: string; index: number; total: number } & Record<string, number | string>;
 
 /** One row per month with a count per event type, for the stacked bar chart. */
-export function monthlyByType(events: PlannerEvent[], year: number): MonthRow[] {
+export function monthlyByType(events: PlannerEvent[], year: number, types: PlannerSubcategory[] = EVENT_TYPES): MonthRow[] {
   const rows: MonthRow[] = MONTH_LABELS.map((month, index) => {
     const r: MonthRow = { month, index, total: 0 };
-    for (const t of EVENT_TYPES) r[t.name] = 0;
+    for (const t of types) r[t.name] = 0;
     return r;
   });
   for (const e of events) {
     const m = eventMonth(e, year);
     if (m == null) continue;
-    const t = eventType(e);
+    const t = eventType(e, types);
     rows[m][t] = (rows[m][t] as number) + 1;
     rows[m].total += 1;
   }
@@ -72,7 +76,7 @@ export interface EventBreakdowns {
   perType: Bar[];
 }
 
-export function eventBreakdowns(scoped: PlannerEvent[], attendees: PlannerAttendee[]): EventBreakdowns {
+export function eventBreakdowns(scoped: PlannerEvent[], attendees: PlannerAttendee[], types: PlannerSubcategory[] = EVENT_TYPES): EventBreakdowns {
   const byEvent = new Map<string, Set<string>>();
   for (const a of attendees) {
     const who = (a.email || a.name || "").trim().toLowerCase();
@@ -89,7 +93,7 @@ export function eventBreakdowns(scoped: PlannerEvent[], attendees: PlannerAttend
     perPortco: tally(scoped, (e) => e.portcos),
     perDomain: tally(scoped, (e) => e.sectors),
     perCity: tally(scoped, (e) => [eventCity(e.location)]),
-    perType: tally(scoped, (e) => [eventType(e)]),
+    perType: tally(scoped, (e) => [eventType(e, types)]),
   };
 }
 
@@ -104,7 +108,7 @@ export function eventYears(events: PlannerEvent[], current: number): number[] {
 }
 
 /** Flat rows for charts built with V.I.C. (fields match CHART_DATASETS.events). */
-export function eventChartRecords(events: PlannerEvent[], attendees: PlannerAttendee[]) {
+export function eventChartRecords(events: PlannerEvent[], attendees: PlannerAttendee[], types: PlannerSubcategory[] = EVENT_TYPES) {
   const byEvent = new Map<string, Set<string>>();
   for (const a of attendees) {
     const who = (a.email || a.name || "").trim().toLowerCase();
@@ -116,7 +120,7 @@ export function eventChartRecords(events: PlannerEvent[], attendees: PlannerAtte
     _date: e.start,
     month: e.start.slice(0, 7),
     year: e.start.slice(0, 4),
-    type: eventType(e),
+    type: eventType(e, types),
     category: e.category || "",
     city: eventCity(e.location),
     domain: e.sectors,

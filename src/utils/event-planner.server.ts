@@ -18,6 +18,8 @@ import {
   canonicalSubcategory,
   canonicalDtcStatus,
   nextPartnerColor,
+  planBriefingPartnerTags,
+  BRIEFINGS,
   PARTNER_ROWS,
   type PlannerPartnerCategory,
   duplicateKey,
@@ -716,4 +718,53 @@ export async function renameLegacyEventLabels(apply: boolean): Promise<{ changed
     cache.delete(EVENTS_TAB);
   }
   return { changed: edits.length, byField, backupTab };
+}
+
+// ── One-time: tag a partner as primary on briefings named after it (backed up; changed cells only) ──
+export async function tagBriefingPartner(partner: string, legacySub: string, color: string, apply: boolean, by: string) {
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const events = rows.slice(1).filter((r) => (r[idx["URID"]] || "").trim()).map((r) => fromRow(r, idx));
+  const plan = planBriefingPartnerTags(events, partner, legacySub);
+  let backupTab = "";
+  let written = 0;
+  if (apply && plan.length) {
+    const partners = await readPlannerPartners(true);
+    if (!partners.some((x) => x.row === BRIEFINGS && x.partner.toLowerCase() === partner.toLowerCase())) {
+      await ensureTab(PLANNER_PARTNERS_TAB, PLANNER_PARTNER_HEADERS);
+      const free = !partners.some((x) => x.color === color) ? color : nextPartnerColor(partners);
+      await appendRows(PLANNER_PARTNERS_TAB, [[partner, BRIEFINGS, free, by, new Date().toISOString(), ""]]);
+      cache.delete(PLANNER_PARTNERS_TAB);
+    }
+    backupTab = `Events DB Backup ${new Date().toISOString().slice(0, 16).replace("T", " ")} ${partner} briefings`;
+    await ensureTab(backupTab, rows[0] || EVENT_HEADERS);
+    await writeRange(backupTab, 1, 0, rows.map((r) => (rows[0] || []).map((_, c) => r[c] ?? "")));
+    const fresh = await readTab(EVENTS_TAB, true);
+    const official = await officialPortcoNames();
+    const now = new Date().toISOString();
+    const data: { range: string; values: string[][] }[] = [];
+    for (const edit of plan) {
+      const i = fresh.findIndex((r, n) => n > 0 && (r[idx["URID"]] || "").trim() === edit.urid);
+      const before = events.find((e) => e.urid === edit.urid);
+      if (i < 1 || !before || fromRow(fresh[i], idx).updated !== before.updated) continue; // edited since the read: skip
+      const cur = fromRow(fresh[i], idx);
+      const next = toRow({ ...cur, partners: edit.partners, subcategory: edit.subcategory, category: edit.category, updated: now }, fresh[i][idx["Created"]] || "", official);
+      for (const col of ["Partners", "Subcategory", "Category", "Updated"]) {
+        const c = EVENT_HEADERS.indexOf(col);
+        if (c >= 0 && idx[col] === c && next[c] !== (fresh[i][c] ?? "")) data.push({ range: `${EVENTS_TAB}!${colLetters(c)}${i + 1}`, values: [[next[c]]] });
+      }
+      written++;
+    }
+    const token = await getAccessToken();
+    for (let i = 0; i < data.length; i += 500) {
+      const res = await sheetsFetch(`${base()}/values:batchUpdate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ valueInputOption: "RAW", data: data.slice(i, i + 500) }),
+      });
+      if (!res.ok) throw new Error(`Partner tagging failed [${res.status}]: ${await res.text()}`);
+    }
+    cache.delete(EVENTS_TAB);
+  }
+  return { plan, written, backupTab };
 }

@@ -207,3 +207,8 @@
 - [x] Partner picks (panel, Add event, filter) only from the Partners list
 - [x] Compact pickers and date row; DTC Status and Format as pills
 - [x] Save button beside Delete; unsaved edits save on close or when opening another event
+
+## Briefings partners — Nov 12
+- [x] Briefings use the same partner tooling as Partner-led (Vation is an added partner; DTC Curated Briefings stay DTC-owned)
+- [x] Tagged Vation as primary on the 19 Vation-named briefings (backup tab kept); 4 "Innovation" mis-matches moved to Other Briefings
+- [x] Events dashboard counts added partner categories under their own colour

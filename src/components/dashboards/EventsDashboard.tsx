@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Maximize2 } from "lucide-react";
 import { fetchPlannerFn } from "@/utils/event-planner.functions";
-import { EVENT_TYPES, MONTH_LABELS, eventBreakdowns, eventYears, eventsInScope, monthlyByType, type Bar as BarRow } from "@/lib/events-dashboard";
+import { EVENT_TYPES, eventTypesFor, MONTH_LABELS, eventBreakdowns, eventYears, eventsInScope, monthlyByType, type Bar as BarRow } from "@/lib/events-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,11 +18,11 @@ const STATUS_LABEL: Record<PlannerStatus, string> = { Confirmed: "Confirmed", Po
 
 export const plannerDashboardQuery = { queryKey: ["home-planner"], queryFn: () => fetchPlannerFn(), staleTime: 5 * 60_000 };
 
-const typeColor = (name: string) => `var(--planner-${EVENT_TYPES.find((t) => t.name === name)?.color ?? "slate"})`;
+const typeColor = (name: string, types = EVENT_TYPES) => `var(--planner-${types.find((t) => t.name === name)?.color ?? "slate"})`;
 
 /** 12-month stacked bars by event type; clicking a month selects it. */
-export function MonthlyEventBars({ rows, month, onMonth, compact = false }: {
-  rows: ReturnType<typeof monthlyByType>; month: number | null; onMonth?: (m: number | null) => void; compact?: boolean;
+export function MonthlyEventBars({ rows, month, onMonth, compact = false, types = EVENT_TYPES }: {
+  rows: ReturnType<typeof monthlyByType>; month: number | null; onMonth?: (m: number | null) => void; compact?: boolean; types?: typeof EVENT_TYPES;
 }) {
   return (
     <ResponsiveContainer width="100%" height={compact ? 120 : 260}>
@@ -32,8 +32,8 @@ export function MonthlyEventBars({ rows, month, onMonth, compact = false }: {
         <XAxis dataKey="month" tick={{ fontSize: compact ? 9 : 12, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} tick={{ fontSize: compact ? 9 : 12, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} hide={compact} />
         {!compact && <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", fontSize: 12 }} />}
-        {EVENT_TYPES.map((t) => (
-          <Bar key={t.name} dataKey={t.name} stackId="m" fill={typeColor(t.name)} className={onMonth ? "cursor-pointer" : undefined}>
+        {types.map((t) => (
+          <Bar key={t.name} dataKey={t.name} stackId="m" fill={typeColor(t.name, types)} className={onMonth ? "cursor-pointer" : undefined}>
             {rows.map((r) => <Cell key={r.month} fillOpacity={month == null || month === r.index ? 1 : 0.25} />)}
           </Bar>
         ))}
@@ -88,20 +88,22 @@ export function EventsDashboard() {
   const [statuses, setStatuses] = useState<PlannerStatus[]>(PLANNER_STATUSES);
   const toggleStatus = (st: PlannerStatus) => setStatuses((cur) => (cur.includes(st) ? cur.filter((x) => x !== st) : [...cur, st]));
   const events = useMemo(() => (data?.events ?? []).filter((e) => statuses.includes(e.status)), [data?.events, statuses]);
-  const rows = useMemo(() => monthlyByType(events, year), [events, year]);
+  const types = useMemo(() => eventTypesFor(data?.partnerCategories ?? []), [data?.partnerCategories]);
+  const colorOf = (name: string) => typeColor(name, types);
+  const rows = useMemo(() => monthlyByType(events, year, types), [events, year, types]);
   const scoped = useMemo(() => eventsInScope(events, year, month), [events, year, month]);
-  const b = useMemo(() => eventBreakdowns(scoped, data?.attendees ?? []), [scoped, data?.attendees]);
+  const b = useMemo(() => eventBreakdowns(scoped, data?.attendees ?? [], types), [scoped, data?.attendees, types]);
   const years = useMemo(() => eventYears(events, thisYear), [events, thisYear]);
   const cards: { id: string; title: string; bars: BarRow[]; colorFor?: (l: string) => string }[] = [
     { id: "attendees", title: "Attendees per event", bars: b.attendeesPerEvent },
     { id: "portco", title: "Events per PortCo", bars: b.perPortco },
     { id: "domain", title: "Events per domain", bars: b.perDomain },
     { id: "city", title: "Events per city", bars: b.perCity },
-    { id: "type", title: "Events per type", bars: b.perType, colorFor: typeColor },
+    { id: "type", title: "Events per type", bars: b.perType, colorFor: colorOf },
   ];
   const open = cards.find((c) => c.id === expanded);
-  const chartRecords = useMemo(() => ({ events: eventChartRecords(events, data?.attendees ?? []) }), [events, data?.attendees]);
-  const usedTypes = EVENT_TYPES.filter((t) => rows.some((r) => (r[t.name] as number) > 0));
+  const chartRecords = useMemo(() => ({ events: eventChartRecords(events, data?.attendees ?? [], types) }), [events, data?.attendees, types]);
+  const usedTypes = types.filter((t) => rows.some((r) => (r[t.name] as number) > 0));
 
   if (data?.error) return <p className="text-sm text-muted-foreground">Event data is unavailable right now.</p>;
   return (
@@ -131,11 +133,11 @@ export function EventsDashboard() {
               </Select>
             </div>
           </div>
-          <MonthlyEventBars rows={rows} month={month} onMonth={setMonth} />
+          <MonthlyEventBars rows={rows} month={month} onMonth={setMonth} types={types} />
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
             {usedTypes.map((t) => (
               <span key={t.name} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: typeColor(t.name) }} />{t.name}
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(t.name) }} />{t.name}
               </span>
             ))}
           </div>
@@ -151,7 +153,7 @@ export function EventsDashboard() {
         </DialogContent>
       </Dialog>
       <VicChartBuilder dashboard="events" records={chartRecords} loading={isLoading}
-        colorFor={(s) => (EVENT_TYPES.some((t) => t.name === s) ? typeColor(s) : undefined)} />
+        colorFor={(s) => (types.some((t) => t.name === s) ? colorOf(s) : undefined)} />
     </div>
   );
 }
