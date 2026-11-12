@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { hiddenByTicks, matchesCategoryTicks, rowEventsFor, type PlannerEvent } from "./event-planner";
-import { eventMatchesFilters } from "./event-views";
+import { eventMatchesFilters, type EventFilters } from "./event-views";
 
 const ev = (name: string, subcategory: string) =>
   ({ name, subcategory, owner: "", portcos: [], partners: [], sectors: [], status: "Confirmed", dtcStatus: "Confirmed", start: "2026-03-01", end: "2026-03-01" }) as unknown as PlannerEvent;
@@ -26,7 +26,7 @@ describe("row Show all", () => {
     expect(rowEventsFor(row, ["ISSA"], true).map((e) => e.name)).toEqual(["ISSA Summit", "CDO Magazine Dinner", "Other Mixer"]);
   });
   it("the shared filter uses the same ticks rule", () => {
-    const f = { search: "", subcategories: ["ISSA"], sectors: [], statuses: ["Confirmed", "Completed", "Considering", "Potential", "Declined"], statusView: "Both", portcos: [], partner: "", owner: "", source: "" } as const;
+    const f: EventFilters = { search: "", subcategories: ["ISSA"], sectors: [], statuses: ["Confirmed", "Completed", "Considering", "Potential", "Declined"], statusView: "Both", portcos: [], partner: "", owner: "", source: "" };
     expect(eventMatchesFilters(row[0], { ...f }, "")).toBe(true);
     expect(eventMatchesFilters(row[1], { ...f }, "")).toBe(false);
   });
