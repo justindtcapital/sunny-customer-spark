@@ -536,8 +536,10 @@ function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
 
 // ── Detail pane ────────────────────────────────────────────────
 function EventDetail({
-  event, all, attendees, contacts, onClose, onEdit, onSaved, onDeleted, historyLinks, onOpen, onHistoryChanged,
+  event, all, attendees, contacts, onClose, onSaved, onDeleted, historyLinks, onOpen, onHistoryChanged, officialPortcos, options,
 }: {
+  officialPortcos: string[];
+  options: { partners: string[]; owners: string[] };
   historyLinks: HistoryLink[];
   onOpen: (e: PlannerEvent) => void;
   onHistoryChanged: () => void;
@@ -547,10 +549,8 @@ function EventDetail({
   attendees: PlannerAttendee[];
   contacts: Contact[];
   onClose: () => void;
-  onEdit: (e: PlannerEvent) => void;
   onSaved: (e: PlannerEvent) => void;
 }) {
-  const update = useServerFn(updatePlannerEventFn);
   const addAtt = useServerFn(addPlannerAttendeesFn);
   const del = useServerFn(deletePlannerEventFn);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -604,16 +604,6 @@ function EventDetail({
       setDeleting(false);
     }
   }
-  async function promote() {
-    if (!e) return;
-    try {
-      const next = await update({ data: { urid: e.urid, patch: { status: "Confirmed" }, expectedUpdated: e.updated } });
-      toast.success("Moved to Confirmed");
-      onSaved(next);
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  }
   async function addPerson(c: { name: string; email: string; kind: string }, status: string) {
     if (!e) return;
     await addAtt({ data: { attendees: [{ eventUrid: e.urid, name: c.name, email: c.email, kind: c.kind, status, date: today() }] } });
@@ -631,45 +621,29 @@ function EventDetail({
               <SheetTitle className="pr-6">{e.name}</SheetTitle>
             </SheetHeader>
             <div className="mt-3 space-y-4 text-sm">
-              <div className="flex flex-wrap gap-1.5">
-                <Badge style={{ background: tileVar(e.subcategory) }} className="text-primary-foreground border-0">{e.subcategory}</Badge>
-                <Badge variant={e.status === "Confirmed" ? "default" : "outline"}>{e.status}</Badge>
-                <Badge variant="secondary">{dtcStatusOf(e, today())}</Badge>
-                {e.sectors.map((s) => (
-                  <Badge key={s} variant="secondary" className="gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(--sector-${sectorDotColor(s)})` }} />
-                    {normalizeSector(s)}
-                  </Badge>
-                ))}
-              </div>
               <div className="flex gap-2 items-center">
-                {!asanaOnly && (
-                  <Button size="sm" variant="outline" onClick={() => onEdit(e)}><Pencil className="h-3.5 w-3.5 mr-1" /> Edit</Button>
-                )}
-                {!asanaOnly && e.status !== "Confirmed" && (
-                  <Button size="sm" onClick={promote}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark confirmed</Button>
+                {asanaOnly ? (
+                  <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Changes save as you go.</span>
                 )}
                 {!asanaOnly && (
                   <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:text-destructive" onClick={() => setConfirmDelete(true)}>
                     <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
                   </Button>
                 )}
-                {asanaOnly && <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>}
               </div>
-              <dl className="grid grid-cols-[110px_1fr] gap-y-1.5 text-xs">
-                <Field k="Dates" v={shortDate(e) + (e.start ? ` ${e.start.slice(0, 4)}` : "")} />
-                <Field k="Location" v={e.location} />
-                <Field k="Format" v={e.format} />
-                <Field k="Category" v={`${e.category} › ${e.subcategory}`} />
-                <Field k="Owner" v={splitList(e.owner).map(o => teamMemberFor(o)?.displayName || o).join(", ")} />
-                <Field k="PortCos" v={e.portcos.join(", ")} />
-                <Field k="Partners" v={e.partners.join(", ")} />
-                <Field k="Event contact" v={e.eventContact} />
-                <Field k="Actions needed" v={e.actionsNeeded} />
-                <Field k="Source" v={`${e.source}${e.sourceRef && !/^https?:/.test(e.sourceRef) ? ` · ${e.sourceRef}` : ""}`} />
-                <Field k="Added by" v={teamMemberFor(e.createdBy)?.displayName || teamProfile(e.createdBy)?.displayName || ""} />
-              </dl>
-              {e.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{e.notes}</p>}
+              {asanaOnly ? (
+                <dl className="grid grid-cols-[110px_1fr] gap-y-1.5 text-xs">
+                  <Field k="Dates" v={shortDate(e) + (e.start ? ` ${e.start.slice(0, 4)}` : "")} />
+                  <Field k="Category" v={`${e.category} › ${e.subcategory}`} />
+                  <Field k="Owner" v={splitList(e.owner).map(o => teamMemberFor(o)?.displayName || o).join(", ")} />
+                  <Field k="PortCos" v={e.portcos.join(", ")} />
+                </dl>
+              ) : (
+                <InlineEventEditor key={e.urid} event={e} officialPortcos={officialPortcos} options={options} onSaved={onSaved} />
+              )}
+              {asanaOnly && e.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{e.notes}</p>}
               <div className="flex flex-wrap gap-2">
                 {e.website && <LinkOut href={e.website} label="Event website" />}
                 {e.lumaUrl && <LinkOut href={e.lumaUrl} label="Luma / RSVP" />}
@@ -789,6 +763,190 @@ function EventDetail({
         </AlertDialog>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ── Inline editing in the side panel (each field saves on its own, one save at a time) ──
+function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
+  event: PlannerEvent;
+  officialPortcos: string[];
+  options: { partners: string[]; owners: string[] };
+  onSaved: (e: PlannerEvent) => void;
+}) {
+  const update = useServerFn(updatePlannerEventFn);
+  const updatedRef = useRef(e.updated);
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const [savedKey, setSavedKey] = useState("");
+  const [savingKey, setSavingKey] = useState("");
+  useEffect(() => { updatedRef.current = e.updated; }, [e.updated]);
+
+  function save(key: string, patch: Partial<PlannerEvent>) {
+    chain.current = chain.current.then(async () => {
+      setSavingKey(key);
+      try {
+        const next = await update({ data: { urid: e.urid, patch, expectedUpdated: updatedRef.current } });
+        updatedRef.current = next.updated;
+        onSaved(next);
+        setSavedKey(key);
+        setTimeout(() => setSavedKey((k) => (k === key ? "" : k)), 1500);
+      } catch (err) {
+        toast.error((err as Error).message);
+      } finally {
+        setSavingKey("");
+      }
+    });
+  }
+  const dtc = dtcStatusOf(e, today());
+  const sub = canonicalSubcategory(e.subcategory);
+  const mark = (key: string) =>
+    savingKey === key ? <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" /> : savedKey === key ? <Check className="h-3 w-3 text-primary" /> : null;
+  const Row2 = ({ label, k, children }: { label: string; k: string; children: ReactNode }) => (
+    <>
+      <div className="flex items-center gap-1 pt-1.5 text-[11px] text-muted-foreground">{label} {mark(k)}</div>
+      <div className="min-w-0">{children}</div>
+    </>
+  );
+  const knownSectors = new Set<string>(PLANNER_SECTORS);
+  const sectors = [...new Set(e.sectors.map(normalizeSector))];
+
+  return (
+    <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+      <Row2 label="Name" k="name"><TextCell value={e.name} onCommit={(v) => v.trim() ? save("name", { name: v.trim() }) : toast.error("Event name is required")} /></Row2>
+      <Row2 label="DTC Status" k="status">
+        <Select value={dtc} onValueChange={(v) => {
+          if (v !== "Potential" && v !== "Declined" && rowOfSub(sub) === "Unassigned")
+            return void toast.error("Pick a category first so the event can move into its planner row.");
+          save("status", { dtcStatus: v, status: plannerStatusForDtc(v) });
+        }}>
+          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>{DTC_STATUSES.map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
+        </Select>
+      </Row2>
+      <Row2 label="Category" k="category">
+        <Select value={sub} onValueChange={(v) => save("category", { subcategory: v, category: rowOfSub(v) })}>
+          <SelectTrigger className="h-7 text-xs">
+            <span className="flex min-w-0 items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: tileVar(sub) }} /><SelectValue /></span>
+          </SelectTrigger>
+          <SelectContent>
+            {activeCats.map((c) => c.subcategories.map((s) => (
+              <SelectItem key={s.name} value={s.name} className="text-xs">{c.name === "Unassigned" ? "No category" : `${ROW_LABELS[c.name] || c.name} › ${s.name}`}</SelectItem>
+            )))}
+          </SelectContent>
+        </Select>
+      </Row2>
+      <Row2 label="Start" k="start"><TextCell type="date" value={e.start} onCommit={(v) => save("start", { start: v, end: e.end && e.end >= v ? e.end : v })} /></Row2>
+      <Row2 label="End" k="end"><TextCell type="date" value={e.end} onCommit={(v) => save("end", { end: v })} /></Row2>
+      <Row2 label="Location" k="location"><TextCell value={e.location} onCommit={(v) => save("location", { location: v })} /></Row2>
+      <Row2 label="Format" k="format">
+        <Select value={e.format || "__none"} onValueChange={(v) => save("format", { format: v === "__none" ? "" : v })}>
+          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none" className="text-xs">—</SelectItem>
+            {["in-person", "virtual", "hybrid"].map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </Row2>
+      <Row2 label="Sector" k="sectors">
+        <div className="flex flex-wrap gap-1 pt-1">
+          {[...PLANNER_SECTORS, ...sectors.filter((x) => !knownSectors.has(x))].map((s) => {
+            const on = sectors.includes(s);
+            return (
+              <button key={s} type="button" onClick={() => save("sectors", { sectors: on ? sectors.filter((x) => x !== s) : [...sectors, s] })}
+                className={cn("flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]", on ? "border-foreground/30 bg-muted" : "border-border text-muted-foreground opacity-70")}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(--sector-${sectorDotColor(s)})` }} />{s}
+              </button>
+            );
+          })}
+        </div>
+      </Row2>
+      <Row2 label="Owner" k="owner"><TextCell list="vp-owners-inline" value={e.owner} onCommit={(v) => save("owner", { owner: v })} /></Row2>
+      <Row2 label="PortCos" k="portcos"><PortcoPicker value={e.portcos} official={officialPortcos} onChange={(v) => save("portcos", { portcos: v })} /></Row2>
+      <Row2 label="Partners" k="partners"><TextCell list="vp-partners-inline" placeholder="; separated" value={e.partners.join("; ")} onCommit={(v) => save("partners", { partners: splitList(v) })} /></Row2>
+      <Row2 label="Network count" k="networkCount"><TextCell type="number" value={e.networkCount ? String(e.networkCount) : ""} onCommit={(v) => save("networkCount", { networkCount: Number(v) || 0 })} /></Row2>
+      <Row2 label="Event contact" k="eventContact"><TextCell value={e.eventContact} onCommit={(v) => save("eventContact", { eventContact: v })} /></Row2>
+      <Row2 label="Website" k="website"><TextCell type="url" value={e.website} onCommit={(v) => save("website", { website: v.trim() })} /></Row2>
+      <Row2 label="Luma / RSVP" k="lumaUrl"><TextCell type="url" value={e.lumaUrl} onCommit={(v) => save("lumaUrl", { lumaUrl: v.trim() })} /></Row2>
+      <Row2 label="Actions needed" k="actionsNeeded"><TextCell value={e.actionsNeeded} onCommit={(v) => save("actionsNeeded", { actionsNeeded: v })} /></Row2>
+      <Row2 label="Notes" k="notes"><TextCell multiline value={e.notes} onCommit={(v) => save("notes", { notes: v })} /></Row2>
+      <div className="pt-1.5 text-[11px] text-muted-foreground">Source</div>
+      <div className="pt-1.5 text-[11px] text-muted-foreground break-words">
+        {e.source}{e.sourceRef && !/^https?:/.test(e.sourceRef) ? ` · ${e.sourceRef}` : ""}
+        {e.createdBy ? ` · added by ${teamMemberFor(e.createdBy)?.displayName || teamProfile(e.createdBy)?.displayName || e.createdBy}` : ""}
+      </div>
+      <datalist id="vp-owners-inline">{options.owners.map((o) => <option key={o} value={o} />)}</datalist>
+      <datalist id="vp-partners-inline">{options.partners.map((o) => <option key={o} value={o} />)}</datalist>
+    </div>
+  );
+}
+
+function TextCell({ value, onCommit, type = "text", multiline, list, placeholder }: {
+  value: string; onCommit: (v: string) => void; type?: string; multiline?: boolean; list?: string; placeholder?: string;
+}) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const commit = () => { if (v !== value) onCommit(v); };
+  if (multiline)
+    return <Textarea rows={3} className="min-h-[56px] text-xs" value={v} onChange={(x) => setV(x.target.value)} onBlur={commit} />;
+  return (
+    <Input type={type} list={list} placeholder={placeholder} className="h-7 text-xs" value={v}
+      onChange={(x) => setV(x.target.value)} onBlur={commit}
+      onKeyDown={(x) => { if (x.key === "Enter") (x.target as HTMLInputElement).blur(); if (x.key === "Escape") setV(value); }} />
+  );
+}
+
+// ── Partner categories (break a partner out of "Other" into its own colour) ──
+function AddPartnerButton({ row, existing, onDone }: { row: string; existing: PlannerPartnerCategory[]; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const setFn = useServerFn(setPlannerPartnerFn);
+  const { data: names = [], isLoading } = useQuery({ queryKey: ["partner-names"], queryFn: () => fetchPartnerNamesFn(), enabled: open, staleTime: 60_000 });
+  const taken = new Set(existing.filter((x) => x.row === row).map((x) => x.partner.toLowerCase()));
+  async function add(partner: string) {
+    setBusy(true);
+    try {
+      await setFn({ data: { partner, row } });
+      toast.success(`${partner} added to ${ROW_LABELS[row] || row}`);
+      setOpen(false);
+      onDone();
+    } catch (err) { toast.error((err as Error).message); } finally { setBusy(false); }
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" className="flex items-center gap-1 pt-0.5 text-[10px] text-primary hover:underline" disabled={busy}>
+          <Plus className="h-3 w-3" /> Add partner
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-60 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search Partners…" className="text-xs" />
+          <CommandList>
+            <CommandEmpty>{isLoading ? "Loading partners…" : "No partner with that name"}</CommandEmpty>
+            <CommandGroup>
+              {names.filter((n) => !taken.has(n.toLowerCase())).map((n) => (
+                <CommandItem key={n} value={n} onSelect={() => add(n)} className="text-xs">{n}</CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RemovePartnerButton({ name, row, partners, onDone }: { name: string; row: string; partners: PlannerPartnerCategory[]; onDone: () => void }) {
+  const setFn = useServerFn(setPlannerPartnerFn);
+  const hit = partners.find((p) => p.row === row && (row === "Briefings" ? `${p.partner} Briefings` : p.partner) === name);
+  if (!hit) return null;
+  return (
+    <button type="button" aria-label={`Remove ${name}`} title="Remove this partner category (its events show as Other)"
+      className="ml-auto opacity-0 group-hover:opacity-70 hover:opacity-100"
+      onClick={async () => {
+        if (!window.confirm(`Remove ${name} as its own category? Its events will show under Other.`)) return;
+        try { await setFn({ data: { partner: hit.partner, row, remove: true } }); onDone(); } catch (err) { toast.error((err as Error).message); }
+      }}>
+      <X className="h-3 w-3" />
+    </button>
   );
 }
 
@@ -934,20 +1092,21 @@ function EventForm({
           <L label="Start date"><Input type="date" value={form.start || ""} onChange={(e) => set("start", e.target.value)} /></L>
           <L label="End date"><Input type="date" value={form.end || ""} onChange={(e) => set("end", e.target.value)} /></L>
           <L label="Category">
-            <Select value={form.subcategory || "Unassigned"} onValueChange={(v) => set("subcategory", v)}>
+            <Select value={canonicalSubcategory(form.subcategory || "Unassigned")} onValueChange={(v) => setForm((f) => ({ ...f, subcategory: v, category: rowOfSub(v) }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {PLANNER_CATEGORIES.map((c) => c.subcategories.map((s) => (
-                  <SelectItem key={s.name} value={s.name}>{c.name} › {s.name}</SelectItem>
+                {activeCats.map((c) => c.subcategories.map((s) => (
+                  <SelectItem key={s.name} value={s.name}>{c.name === "Unassigned" ? "No category" : `${ROW_LABELS[c.name] || c.name} › ${s.name}`}</SelectItem>
                 )))}
               </SelectContent>
             </Select>
           </L>
-          <L label="Status">
-            <Select value={form.status || "Potential"} onValueChange={(v) => set("status", v as PlannerEvent["status"])}>
+          <L label="DTC Status">
+            <Select value={form.dtcStatus || dtcStatusOf({ dtcStatus: "", status: form.status || "Potential", start: form.start || "", end: form.end || "" }, today())}
+              onValueChange={(v) => setForm((f) => ({ ...f, dtcStatus: v, status: plannerStatusForDtc(v) }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {["Confirmed", "Potential", "Declined"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {DTC_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </L>
