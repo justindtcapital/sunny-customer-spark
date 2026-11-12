@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { eventReferenceNames } from "@/lib/event-cleanup";
 import { campaignsForEvent, eventPeople } from "@/lib/event-people";
-import { campaignTypeOf, ownerInitials, isClosedStatus } from "@/lib/campaign-results";
+import { ownerInitials, isClosedStatus } from "@/lib/campaign-results";
 import { CampaignTypeBadge, statusLabel } from "@/components/campaigns/CampaignList";
 import { fetchTargets } from "@/utils/sheets.functions";
 import { fetchCampaigns } from "@/utils/campaigns.functions";
@@ -659,12 +659,15 @@ function EventDetail({
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-                  {(["Attended", "Registered", "Invited"] as const).map((st) => {
-                    const n = people.filter((p) => p.status === st).length;
-                    return n ? <span key={st}>{n} {st.toLowerCase()}</span> : null;
-                  }).filter(Boolean).reduce<ReactNode[]>((acc, x, i) => (i ? [...acc, <span key={`sep${i}`}>·</span>, x] : [x]), [])}
-                </div>
+                {people.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {(["Attended", "Registered", "Invited"] as const)
+                      .map((st) => [st, people.filter((p) => p.status === st).length] as const)
+                      .filter(([, n]) => n > 0)
+                      .map(([st, n]) => `${n} ${st.toLowerCase()}`)
+                      .join(" · ")}
+                  </p>
+                )}
                 <div className="space-y-1 max-h-72 overflow-y-auto">
                   {people.map((p) => (
                     <div key={p.key} className="flex items-center justify-between gap-2 text-xs">
@@ -700,7 +703,7 @@ function EventDetail({
                   >
                     <span className="min-w-0 flex items-center gap-1.5">
                       <span className="truncate font-medium">{c.name}</span>
-                      <CampaignTypeBadge purpose={c.purpose || campaignTypeOf(c.purpose)} />
+                      <CampaignTypeBadge purpose={c.purpose} />
                     </span>
                     <span className="flex items-center gap-1.5 shrink-0 text-[10px] text-muted-foreground">
                       {typeof c.memberCount === "number" && <span>{c.memberCount} people</span>}
