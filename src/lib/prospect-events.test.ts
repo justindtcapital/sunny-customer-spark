@@ -24,6 +24,12 @@ describe("prospect events", () => {
     expect(r.eventsAttended).toEqual(["AI4"]);
   });
 
+  it("an Attended link to the legacy Event cell's event shows them only as Attended", () => {
+    const r = resolveProspectEvents([{ eventName: "Vation - London", type: "attended" }], "vation - london");
+    expect(r.eventsAttended).toEqual(["Vation - London"]);
+    expect(r.eventsInvited).toEqual([]);
+  });
+
   it("adding an event keeps existing links and ignores duplicates", () => {
     const start = { eventsAttended: ["RSA 2026"], eventsInvited: ["AI4"] };
     const added = addProspectEvent(start, "Manifest Dinner", "attended");

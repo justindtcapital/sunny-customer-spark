@@ -26,7 +26,8 @@ export const linkTypeOf = (type?: string): EventLinkType =>
  * Resolve the events shown on a prospect profile.
  * - An (event, type) pair shows when any un-removed row exists for it.
  * - The legacy single "Event" cell counts as an Invited link unless a removal
- *   row exists for it (and no active row re-added it).
+ *   row exists for it (and no active row re-added it), or the person already
+ *   has an Attended link to that same event.
  * - Names dedupe case-insensitively; the first spelling seen wins.
  */
 export function resolveProspectEvents(rows: EventLinkRow[], legacyEvent?: string): ProspectEvents {
@@ -40,7 +41,13 @@ export function resolveProspectEvents(rows: EventLinkRow[], legacyEvent?: string
     else if (!active[t].has(keyOf(name))) active[t].set(keyOf(name), name);
   }
   const legacy = (legacyEvent || "").trim();
-  if (legacy && !removed.invited.has(keyOf(legacy)) && !active.invited.has(keyOf(legacy))) {
+  // An Attended link for the same event wins: the legacy cell never shows them as Invited too.
+  if (
+    legacy &&
+    !removed.invited.has(keyOf(legacy)) &&
+    !active.invited.has(keyOf(legacy)) &&
+    !active.attended.has(keyOf(legacy))
+  ) {
     active.invited = new Map([[keyOf(legacy), legacy], ...active.invited]);
   }
   return { eventsAttended: [...active.attended.values()], eventsInvited: [...active.invited.values()] };
