@@ -669,3 +669,51 @@ export async function removePlannerPartner(partner: string, row: string): Promis
   cache.delete(PLANNER_PARTNERS_TAB);
   return readPlannerPartners(true);
 }
+
+// ── One-time label rename (backed up; rewrites only Category/Subcategory/DTC Status cells that change) ──
+export async function renameLegacyEventLabels(apply: boolean): Promise<{ changed: number; byField: Record<string, number>; backupTab: string }> {
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const cols = { Category: idx["Category"], Subcategory: idx["Subcategory"], "DTC Status": idx["DTC Status"] };
+  const edits: { row: number; col: number; before: string; after: string; urid: string }[] = [];
+  const byField: Record<string, number> = {};
+  rows.forEach((r, n) => {
+    const urid = (r[idx["URID"]] || "").trim();
+    if (n === 0 || !urid) return;
+    const sub = canonicalSubcategory(r[cols.Subcategory] || "");
+    const next: Record<string, string> = {
+      Subcategory: sub,
+      Category: categoryOfSubcategory(sub, r[cols.Category] || ""),
+      "DTC Status": canonicalDtcStatus(r[cols["DTC Status"]] || "") || (r[cols["DTC Status"]] || ""),
+    };
+    for (const [field, col] of Object.entries(cols)) {
+      if (col === undefined) continue;
+      const before = r[col] ?? "";
+      if (before.trim() && before !== next[field]) {
+        edits.push({ row: n + 1, col, before, after: next[field], urid });
+        byField[`${field}: ${before} → ${next[field]}`] = (byField[`${field}: ${before} → ${next[field]}`] || 0) + 1;
+      }
+    }
+  });
+  let backupTab = "";
+  if (apply && edits.length) {
+    backupTab = `Events DB Backup ${new Date().toISOString().slice(0, 16).replace("T", " ")} labels`;
+    await ensureTab(backupTab, rows[0] || EVENT_HEADERS);
+    await writeRange(backupTab, 1, 0, rows.map((r) => (rows[0] || []).map((_, c) => r[c] ?? "")));
+    const fresh = await readTab(EVENTS_TAB, true);
+    const data = edits
+      .filter((e) => (fresh[e.row - 1]?.[idx["URID"]] || "").trim() === e.urid && (fresh[e.row - 1]?.[e.col] ?? "") === e.before)
+      .map((e) => ({ range: `${EVENTS_TAB}!${colLetters(e.col)}${e.row}`, values: [[e.after]] }));
+    const token = await getAccessToken();
+    for (let i = 0; i < data.length; i += 500) {
+      const res = await sheetsFetch(`${base()}/values:batchUpdate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ valueInputOption: "RAW", data: data.slice(i, i + 500) }),
+      });
+      if (!res.ok) throw new Error(`Label rename failed [${res.status}]: ${await res.text()}`);
+    }
+    cache.delete(EVENTS_TAB);
+  }
+  return { changed: edits.length, byField, backupTab };
+}
