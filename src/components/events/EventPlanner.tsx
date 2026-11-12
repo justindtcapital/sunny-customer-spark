@@ -40,7 +40,7 @@ import {
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
-  duplicateKey, plannerCategories, effectiveCategory, categoryAfterPartnerChange, partnerOfCategory, isPartnerCategory, partnerSubcategoryName, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
+  duplicateKey, plannerCategories, effectiveCategory, categoryAfterPartnerChange, partnerOfCategory, isPartnerCategory, isDtcOwned, partnerSubcategoryName, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
   type PlannerCategory, type PlannerPartnerCategory,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
@@ -851,7 +851,7 @@ function InlineEventEditor({ saved, draft, officialPortcos, options, onChange, o
   const row = rowOfSub(sub);
   const ownedByPrimary = !!primary && isPartnerCategory(sub) && partnerOfCategory(sub, [primary]) !== "";
   // Primary partner in a partner row with no category of its own yet: offer to add one.
-  const canAddRow = !!primary && (PARTNER_ROWS as readonly string[]).includes(row) && !ownedByPrimary && inList(options.partners, primary);
+  const canAddRow = !!primary && (PARTNER_ROWS as readonly string[]).includes(row) && !isDtcOwned(sub) && !ownedByPrimary && inList(options.partners, primary);
   const setRowFn = useServerFn(setPlannerPartnerFn);
   const [addingRow, setAddingRow] = useState(false);
   async function addPrimaryRow() {
