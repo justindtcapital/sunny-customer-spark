@@ -20,3 +20,20 @@ export function usePageActionsSlot(): HTMLElement | null {
     () => null,
   );
 }
+
+// A second spot in the left menu, under the page links (below Admin), where the
+// Events page places its filters.
+let eventSlot: HTMLElement | null = null;
+const eventSubscribers = new Set<() => void>();
+export function setEventFiltersSlot(el: HTMLElement | null) {
+  if (eventSlot === el) return;
+  eventSlot = el;
+  eventSubscribers.forEach((fn) => fn());
+}
+export function useEventFiltersSlot(): HTMLElement | null {
+  return useSyncExternalStore(
+    (fn) => { eventSubscribers.add(fn); return () => { eventSubscribers.delete(fn); }; },
+    () => eventSlot,
+    () => null,
+  );
+}

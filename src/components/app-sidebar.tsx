@@ -28,7 +28,7 @@ import {
 } from "@/components/home/WorkspaceIcons";
 import dtcLogo from "@/assets/dtc-logo.jpg";
 import { Link, useLocation } from "@tanstack/react-router";
-import { setPageActionsSlot } from "@/lib/page-actions-slot";
+import { setEventFiltersSlot, setPageActionsSlot } from "@/lib/page-actions-slot";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -518,6 +518,11 @@ export function AppSidebar({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          {/* The Events page portals its filters here (under Admin). */}
+          {currentPath === "/events" && !collapsed && (
+            <div ref={setEventFiltersSlot} className="px-2 empty:hidden" />
+          )}
 
           {showCrmFilters && (
             <>
