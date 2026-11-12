@@ -15,6 +15,11 @@ import {
   trackerYearFor,
   splitList,
   categoryOfSubcategory,
+  canonicalSubcategory,
+  canonicalDtcStatus,
+  nextPartnerColor,
+  PARTNER_ROWS,
+  type PlannerPartnerCategory,
   duplicateKey,
   type PlannerAttendee,
   type PlannerEvent,
@@ -131,14 +136,14 @@ function fromRow(r: string[], idx: Record<string, number>): PlannerEvent {
   const status = g("Status") as PlannerStatus;
   return {
     urid: g("URID"), name: g("Name"), start: g("Start"), end: g("End") || g("Start"),
-    location: g("Location"), category: g("Category") || categoryOfSubcategory(g("Subcategory")),
-    subcategory: g("Subcategory") || "Unassigned",
+    location: g("Location"), category: categoryOfSubcategory(g("Subcategory"), g("Category")),
+    subcategory: canonicalSubcategory(g("Subcategory")),
     status: (["Confirmed", "Potential", "Declined"] as const).includes(status) ? status : "Potential",
     sectors: splitList(g("Sectors")), portcos: splitList(g("PortCos")), partners: splitList(g("Partners")),
     owner: canonicalOwnerName(g("Owner")), format: g("Format"), website: g("Website"), lumaUrl: g("Luma URL"),
     source: g("Source"), sourceRef: g("Source Ref"), asanaGid: g("Asana GID"),
     networkCount: Number(g("Network Count")) || 0, notes: g("Notes"), actionsNeeded: g("Actions Needed"),
-    eventContact: g("Event Contact"), createdBy: g("Created By"), updated: g("Updated"), dtcStatus: g("DTC Status"),
+    eventContact: g("Event Contact"), createdBy: g("Created By"), updated: g("Updated"), dtcStatus: canonicalDtcStatus(g("DTC Status")) || g("DTC Status"),
   };
 }
 
@@ -188,7 +193,8 @@ function clean(e: Partial<PlannerEvent>, by: string): PlannerEvent {
   const b = { ...blankEvent(), ...e };
   b.name = b.name.trim();
   b.end = b.end && b.end >= b.start ? b.end : b.start;
-  b.category = categoryOfSubcategory(b.subcategory);
+  b.subcategory = canonicalSubcategory(b.subcategory);
+  b.category = categoryOfSubcategory(b.subcategory, b.category);
   b.sectors = [...new Set(b.sectors.map(normalizeSector).filter(Boolean))];
   b.owner = canonicalOwnerName(b.owner);
   b.createdBy = b.createdBy || by;
@@ -249,7 +255,7 @@ export async function updatePlannerEvent(
   if (expectedUpdated && current.updated && current.updated !== expectedUpdated)
     throw new Error("Someone else just changed this event. Reload and try again.");
   if (patch.status && patch.status !== current.status && patch.dtcStatus === undefined)
-    patch = { ...patch, dtcStatus: patch.status === "Declined" ? "Declined" : patch.status === "Potential" ? "Considering" : "Accepted" };
+    patch = { ...patch, dtcStatus: patch.status === "Declined" ? "Declined" : patch.status === "Potential" ? "Considering" : "Confirmed" };
   const next = clean({ ...current, ...patch, urid }, current.createdBy);
   const created = rows[i][idx["Created"]] || "";
   const newRow = toRow(next, created, await officialPortcoNames());
@@ -619,4 +625,95 @@ export async function cleanupEventPortcoNames(apply: boolean): Promise<{
     unresolved: [...unresolved].map(([name, events]) => ({ name, events })).sort((a, b) => b.events - a.events),
     backupTab,
   };
+}
+
+// ── Planner partner categories ("Planner Partners" tab; one row per partner+row, Removed At retires it) ──
+export const PLANNER_PARTNERS_TAB = "Planner Partners";
+const PLANNER_PARTNER_HEADERS = ["Partner", "Row", "Color", "Added By", "Added", "Removed At"];
+
+async function readPartnerRows(fresh = false) {
+  const tabs = await listTabs();
+  if (!tabs.includes(PLANNER_PARTNERS_TAB)) return [] as Array<PlannerPartnerCategory & { row1: number; removedAt: string }>;
+  const rows = await readTab(PLANNER_PARTNERS_TAB, fresh);
+  return rows.slice(1).map((r, n) => ({
+    partner: (r[0] || "").trim(), row: (r[1] || "").trim(), color: (r[2] || "").trim(), removedAt: (r[5] || "").trim(), row1: n + 2,
+  })).filter((r) => r.partner && (PARTNER_ROWS as readonly string[]).includes(r.row));
+}
+
+export async function readPlannerPartners(fresh = false): Promise<PlannerPartnerCategory[]> {
+  const seen = new Set<string>();
+  return (await readPartnerRows(fresh)).filter((r) => !r.removedAt).filter((r) => {
+    const k = `${r.row}|${r.partner.toLowerCase()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).map(({ partner, row, color }) => ({ partner, row, color }));
+}
+
+export async function addPlannerPartner(partner: string, row: string, by: string): Promise<PlannerPartnerCategory[]> {
+  if (!(PARTNER_ROWS as readonly string[]).includes(row)) throw new Error("Partners can only be added to Partner-led events or Briefings.");
+  const name = partner.trim();
+  const current = await readPlannerPartners(true);
+  if (current.some((x) => x.row === row && x.partner.toLowerCase() === name.toLowerCase())) return current;
+  await ensureTab(PLANNER_PARTNERS_TAB, PLANNER_PARTNER_HEADERS);
+  const color = nextPartnerColor(current);
+  await appendRows(PLANNER_PARTNERS_TAB, [[name, row, color, by, new Date().toISOString(), ""]]);
+  return [...current, { partner: name, row, color }];
+}
+
+export async function removePlannerPartner(partner: string, row: string): Promise<PlannerPartnerCategory[]> {
+  const rows = await readPartnerRows(true);
+  const now = new Date().toISOString();
+  for (const r of rows.filter((x) => !x.removedAt && x.row === row && x.partner.toLowerCase() === partner.trim().toLowerCase()))
+    await writeRange(PLANNER_PARTNERS_TAB, r.row1, 5, [[now]]);
+  cache.delete(PLANNER_PARTNERS_TAB);
+  return readPlannerPartners(true);
+}
+
+// ── One-time label rename (backed up; rewrites only Category/Subcategory/DTC Status cells that change) ──
+export async function renameLegacyEventLabels(apply: boolean): Promise<{ changed: number; byField: Record<string, number>; backupTab: string }> {
+  const rows = await readTab(EVENTS_TAB, true);
+  const idx = headerIndex(rows);
+  const cols = { Category: idx["Category"], Subcategory: idx["Subcategory"], "DTC Status": idx["DTC Status"] };
+  const edits: { row: number; col: number; before: string; after: string; urid: string }[] = [];
+  const byField: Record<string, number> = {};
+  rows.forEach((r, n) => {
+    const urid = (r[idx["URID"]] || "").trim();
+    if (n === 0 || !urid) return;
+    const sub = canonicalSubcategory(r[cols.Subcategory] || "");
+    const next: Record<string, string> = {
+      Subcategory: sub,
+      Category: categoryOfSubcategory(sub, r[cols.Category] || ""),
+      "DTC Status": canonicalDtcStatus(r[cols["DTC Status"]] || "") || (r[cols["DTC Status"]] || ""),
+    };
+    for (const [field, col] of Object.entries(cols)) {
+      if (col === undefined) continue;
+      const before = r[col] ?? "";
+      if (before.trim() && before !== next[field]) {
+        edits.push({ row: n + 1, col, before, after: next[field], urid });
+        byField[`${field}: ${before} → ${next[field]}`] = (byField[`${field}: ${before} → ${next[field]}`] || 0) + 1;
+      }
+    }
+  });
+  let backupTab = "";
+  if (apply && edits.length) {
+    backupTab = `Events DB Backup ${new Date().toISOString().slice(0, 16).replace("T", " ")} labels`;
+    await ensureTab(backupTab, rows[0] || EVENT_HEADERS);
+    await writeRange(backupTab, 1, 0, rows.map((r) => (rows[0] || []).map((_, c) => r[c] ?? "")));
+    const fresh = await readTab(EVENTS_TAB, true);
+    const data = edits
+      .filter((e) => (fresh[e.row - 1]?.[idx["URID"]] || "").trim() === e.urid && (fresh[e.row - 1]?.[e.col] ?? "") === e.before)
+      .map((e) => ({ range: `${EVENTS_TAB}!${colLetters(e.col)}${e.row}`, values: [[e.after]] }));
+    const token = await getAccessToken();
+    for (let i = 0; i < data.length; i += 500) {
+      const res = await sheetsFetch(`${base()}/values:batchUpdate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ valueInputOption: "RAW", data: data.slice(i, i + 500) }),
+      });
+      if (!res.ok) throw new Error(`Label rename failed [${res.status}]: ${await res.text()}`);
+    }
+    cache.delete(EVENTS_TAB);
+  }
+  return { changed: edits.length, byField, backupTab };
 }

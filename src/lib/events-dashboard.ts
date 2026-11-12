@@ -1,5 +1,5 @@
 // Events dashboard: pure aggregation over Event Planner rows (no I/O).
-import { PLANNER_CATEGORIES, type PlannerAttendee, type PlannerEvent } from "@/lib/event-planner";
+import { PLANNER_CATEGORIES, canonicalSubcategory, type PlannerAttendee, type PlannerEvent } from "@/lib/event-planner";
 import { canonicalOwnerName } from "@/lib/user-ownership";
 
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -8,7 +8,7 @@ export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "A
 export const EVENT_TYPES = PLANNER_CATEGORIES.flatMap((c) => c.subcategories);
 
 export function eventType(e: Pick<PlannerEvent, "subcategory">): string {
-  const sub = (e.subcategory || "").trim().toLowerCase();
+  const sub = canonicalSubcategory(e.subcategory || "").toLowerCase();
   return EVENT_TYPES.find((t) => t.name.toLowerCase() === sub)?.name ?? "Unassigned";
 }
 

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, Pencil, CheckCircle2, Search, Check, Trash2, History,
+  ChevronLeft, ChevronRight, Plus, Upload, Link2, RefreshCw, ExternalLink, CheckCircle2, Search, Check, Trash2, History, X, SlidersHorizontal,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -21,6 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { useEventFiltersSlot } from "@/lib/page-actions-slot";
 import { useAuth } from "@/lib/auth-context";
 import { eventReferenceNames } from "@/lib/event-cleanup";
 import { campaignsForEvent, eventPeople } from "@/lib/event-people";
@@ -37,12 +40,13 @@ import {
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
-  duplicateKey,
+  duplicateKey, plannerCategories, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
+  type PlannerCategory, type PlannerPartnerCategory,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
 import {
   fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, deletePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
-  extractEventFromUrlFn, addPlannerAttendeesFn, fetchEventTagsFn,
+  extractEventFromUrlFn, addPlannerAttendeesFn, fetchEventTagsFn, setPlannerPartnerFn, fetchPartnerNamesFn,
 } from "@/utils/event-planner.functions";
 import { EventHistoryDialog, EventHistorySection } from "./EventHistory";
 import { AttendanceReconcileDialog } from "./AttendanceReconcileDialog";
@@ -50,7 +54,10 @@ import type { HistoryLink } from "@/lib/event-history";
 
 const SUBCATS = PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name));
 const today = () => new Date().toISOString().slice(0, 10);
-const tileVar = (sub: string) => `var(--planner-${subcategoryColor(sub)})`;
+// Categories in use (fixed + partners broken out from the Partners list); set by EventPlanner on render.
+let activeCats: PlannerCategory[] = PLANNER_CATEGORIES;
+const tileVar = (sub: string) => `var(--planner-${subcategoryColor(sub, activeCats)})`;
+const rowOfSub = (sub: string) => activeCats.find((c) => c.subcategories.some((s) => s.name === canonicalSubcategory(sub)))?.name || "Unassigned";
 
 /** Read-only planner-shaped view of a live Asana event (Show Asana data overlay). */
 function asanaToPlanner(a: AsanaEvent): PlannerEvent {
@@ -66,6 +73,8 @@ function asanaToPlanner(a: AsanaEvent): PlannerEvent {
     createdBy: "", updated: "", dtcStatus: "",
   };
 }
+
+const ROW_LABELS: Record<string, string> = { "DTC Led Events": "DTC-led events", "Partner Led Events": "Partner-led events", Briefings: "Briefings", Potential: "Potential" };
 
 export const plannerQueryKey = ["event-planner"];
 
@@ -86,6 +95,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
     return (data?.events ?? []).map((e) => ({ ...e, networkCount: Math.max(e.networkCount || 0, n.get(e.urid) || 0) }));
   }, [data]);
   const refresh = () => qc.invalidateQueries({ queryKey: plannerQueryKey });
+  const cats = useMemo(() => plannerCategories(data?.partnerCategories ?? []), [data]);
+  activeCats = cats;
+  const filterSlot = useEventFiltersSlot();
 
   const [showAsana, setShowAsana] = useState(false);
   const { data: asanaOverlay } = useQuery({
@@ -116,7 +128,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [subFilter, setSubFilter] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
   const [dtcFilter, setDtcFilter] = useState<string[]>([...DEFAULT_DTC_STATUSES]);
-  const [portco, setPortco] = useState("");
+  const [portcos, setPortcos] = useState<string[]>([]);
   const [partner, setPartner] = useState("");
   const [owner, setOwner] = useState("");
   const [source, setSource] = useState("");
@@ -150,9 +162,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const filtered = useMemo(() => {
     return allEvents.filter(e => eventMatchesFilters(e, {
       search, subcategories: subFilter, sectors: sectorFilter, statuses: dtcFilter,
-      statusView: "Both", portco, partner, owner, source,
+      statusView: "Both", portcos, partner, owner, source,
     }, today()));
-  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, portco, partner, owner, source]);
+  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, portcos, partner, owner, source]);
 
   const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
@@ -175,65 +187,82 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
     }
   }
 
-  return (
-    <div className="grid grid-cols-[210px_minmax(0,1fr)] gap-5">
-      {/* Filters */}
-      <aside className="space-y-4 text-xs">
-        <div className="relative">
-          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events" className="h-8 pl-7 text-xs" />
-        </div>
+  const toggleSub = (name: string, v: boolean) => setSubFilter((p) => (v ? [...p, name] : p.filter((x) => x !== name)));
+  const filterBlocks = (
+    <>
+      {view !== "planner" && (
         <FilterBlock title="Category">
-          {PLANNER_CATEGORIES.map((c) => (
+          {cats.filter((c) => c.name !== "Unassigned").map((c) => (
             <div key={c.name} className="space-y-1">
               <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{c.name}</div>
               {c.subcategories.map((s) => (
                 <label key={s.name} className="flex items-center gap-2 cursor-pointer">
-                  <ColorCheck
-                    color={tileVar(s.name)}
-                    checked={subFilter.includes(s.name)}
-                    onChange={(v) => setSubFilter((p) => (v ? [...p, s.name] : p.filter((x) => x !== s.name)))}
-                  />
+                  <ColorCheck color={tileVar(s.name)} checked={subFilter.includes(s.name)} onChange={(v) => toggleSub(s.name, v)} />
                   <span className="truncate">{s.name}</span>
                 </label>
               ))}
             </div>
           ))}
         </FilterBlock>
-        <FilterBlock title="DTC Status">
-          {DTC_STATUSES.map((s) => (
-            <label key={s} className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={dtcFilter.includes(s)}
-                onCheckedChange={(v) => setDtcFilter((p) => (v ? [...p, s] : p.filter((x) => x !== s)))}
-              />
-              <span className="flex-1">{s}</span>
-              <span className="text-muted-foreground tabular-nums">{events.filter((e) => dtcStatusOf(e, today()) === s).length}</span>
-            </label>
-          ))}
-        </FilterBlock>
-        <FilterBlock title="Sector">
-          {PLANNER_SECTORS.map((s) => (
-            <label key={s} className="flex items-center gap-2 cursor-pointer">
-              <ColorCheck
-                round
-                color={`var(--sector-${sectorDotColor(s)})`}
-                checked={sectorFilter.includes(s)}
-                onChange={(v) => setSectorFilter((p) => (v ? [...p, s] : p.filter((x) => x !== s)))}
-              />
-              {s}
-            </label>
-          ))}
-        </FilterBlock>
-        <FilterSelect label="PortCo" value={portco} onChange={setPortco} options={options.portcos} />
-        <FilterSelect label="Partner" value={partner} onChange={setPartner} options={options.partners} />
-        <FilterSelect label="Owner" value={owner} onChange={setOwner} options={options.owners} />
-        <FilterSelect label="Source" value={source} onChange={setSource} options={options.sources} />
-      </aside>
+      )}
+      <FilterBlock title="DTC Status">
+        {DTC_STATUSES.map((s) => (
+          <label key={s} className="flex items-center gap-2 cursor-pointer">
+            <Checkbox
+              checked={dtcFilter.includes(s)}
+              onCheckedChange={(v) => setDtcFilter((p) => (v ? [...p, s] : p.filter((x) => x !== s)))}
+            />
+            <span className="flex-1">{s}</span>
+            <span className="text-muted-foreground tabular-nums">{events.filter((e) => dtcStatusOf(e, today()) === s).length}</span>
+          </label>
+        ))}
+      </FilterBlock>
+      <FilterBlock title="Sector">
+        {PLANNER_SECTORS.map((s) => (
+          <label key={s} className="flex items-center gap-2 cursor-pointer">
+            <ColorCheck
+              round
+              color={`var(--sector-${sectorDotColor(s)})`}
+              checked={sectorFilter.includes(s)}
+              onChange={(v) => setSectorFilter((p) => (v ? [...p, s] : p.filter((x) => x !== s)))}
+            />
+            {s}
+          </label>
+        ))}
+      </FilterBlock>
+      <div className="space-y-1">
+        <div className="font-semibold">PortCo</div>
+        <MultiSelect options={options.portcos} value={portcos} onChange={setPortcos} placeholder="All" className="h-7 text-xs" />
+      </div>
+      <FilterSelect label="Partner" value={partner} onChange={setPartner} options={options.partners} />
+      <FilterSelect label="Owner" value={owner} onChange={setOwner} options={options.owners} />
+      <FilterSelect label="Source" value={source} onChange={setSource} options={options.sources} />
+    </>
+  );
+
+  return (
+    <div className="space-y-3">
+      {filterSlot ? createPortal(
+        <div className="mt-2 space-y-3 rounded-md border border-dashed border-primary/40 bg-primary/5 p-2 text-xs">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+            <SlidersHorizontal className="h-3 w-3" /> Event filters
+          </div>
+          {filterBlocks}
+        </div>,
+        filterSlot,
+      ) : (
+        <div className="grid grid-cols-2 gap-4 rounded-md border border-dashed border-border p-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+          {filterBlocks}
+        </div>
+      )}
 
       <div className="min-w-0 space-y-3">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-48">
+            <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events" className="h-7 pl-7 text-xs" />
+          </div>
           {view === "planner" && <><Seg value={zoom} onChange={(v) => setZoom(v as PlannerZoom)} options={["week", "month", "year"]} />
           <div className="flex items-center gap-1">
             <Button size="icon" variant="outline" className="h-7 w-7" onClick={() => setAnchor(stepAnchor(zoom, anchor, -1))} aria-label="Previous">
@@ -246,7 +275,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
           </div>
           <div className="text-sm font-semibold min-w-[150px]">{win.label}</div></>}
           <div className="ml-auto flex flex-wrap gap-1.5">
-            <Button size="sm" className="h-7 text-xs" onClick={() => setEditing({ status: "Potential", subcategory: "Unassigned", source: "Manual" })}>
+            <Button size="sm" className="h-7 text-xs" onClick={() => setEditing({ status: "Potential", dtcStatus: "Potential", subcategory: "Unassigned", source: "Manual" })}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Add event
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setCsvOpen(true)}>
@@ -288,20 +317,28 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
               {zoom === "week" ? "This week" : zoom === "month" ? "This month" : "This year"}
             </div>
 
-            {PLANNER_CATEGORIES.map((cat) => {
-              const rowEvents = inWindow.filter((e) => e.category === cat.name);
-              if (cat.name === "Unassigned" && rowEvents.length === 0) return null;
+            {[...cats.filter((c) => c.name !== "Unassigned"), { name: POTENTIAL_ROW, subcategories: [] }].map((cat) => {
+              const rowEvents = inWindow.filter((e) => placementRow(e, today()) === cat.name);
               const totals = windowTotals(rowEvents, win);
+              const isPotential = cat.name === POTENTIAL_ROW;
+              const fixed = new Set(PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((x) => x.name)));
               return (
                 <Row key={cat.name}>
-                  <div className="border-b border-border p-2 space-y-1">
-                    <div className="text-xs font-semibold">{cat.name}</div>
+                  <div className={cn("border-b border-border p-2 space-y-1", isPotential && "bg-muted/30")}>
+                    <div className="text-xs font-semibold">{ROW_LABELS[cat.name] || cat.name}</div>
+                    {isPotential && <p className="text-[10px] text-muted-foreground leading-tight">Set DTC Status to Considering to move an event up into its row.</p>}
                     {cat.subcategories.map((s) => (
-                      <div key={s.name} className="flex items-center gap-1.5 text-[10px] text-muted-foreground leading-tight">
-                        <span className="h-2 w-2 rounded-sm shrink-0" style={{ background: tileVar(s.name) }} />
-                        {s.name}
+                      <div key={s.name} className="group flex items-center gap-1.5 text-[10px] leading-tight">
+                        <ColorCheck color={tileVar(s.name)} checked={subFilter.includes(s.name)} onChange={(v) => toggleSub(s.name, v)} />
+                        <button type="button" className="truncate text-left text-muted-foreground hover:text-foreground" onClick={() => toggleSub(s.name, !subFilter.includes(s.name))}>{s.name}</button>
+                        {!fixed.has(s.name) && (
+                          <RemovePartnerButton name={s.name} row={cat.name} partners={data?.partnerCategories ?? []} onDone={refresh} />
+                        )}
                       </div>
                     ))}
+                    {(PARTNER_ROWS as readonly string[]).includes(cat.name) && (
+                      <AddPartnerButton row={cat.name} existing={data?.partnerCategories ?? []} onDone={refresh} />
+                    )}
                   </div>
                   {win.columns.map((col) => (
                     <div key={col.key} className="border-b border-l border-border p-1 space-y-1 min-h-[90px]">
@@ -352,8 +389,8 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
           </div>
         )}
         <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="h-3 w-5 rounded border-2" style={{ borderColor: "var(--planner-blue)" }} /> Confirmed</span>
-          <span className="flex items-center gap-1"><span className="h-3 w-5 rounded border-2 border-dashed" style={{ borderColor: "var(--planner-blue)" }} /> Potential</span>
+          <span className="flex items-center gap-1"><span className="h-3 w-5 rounded border-2" style={{ borderColor: "var(--planner-blue)" }} /> Confirmed / Completed</span>
+          <span className="flex items-center gap-1"><span className="h-3 w-5 rounded border-2 border-dashed" style={{ borderColor: "var(--planner-blue)" }} /> Considering / Potential</span>
           <span>Tile color = category · dot = sector</span>
         </div>
         </>}
@@ -367,8 +404,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         onOpen={setSelected}
         onHistoryChanged={refresh}
         contacts={contacts}
+        officialPortcos={data?.officialPortcos ?? []}
+        options={options}
         onClose={() => setSelected(null)}
-        onEdit={(e) => setEditing(e)}
         onSaved={(e) => { setSelected(e); refresh(); }}
         onDeleted={() => { setSelected(null); refresh(); }}
       />
@@ -498,8 +536,10 @@ function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
 
 // ── Detail pane ────────────────────────────────────────────────
 function EventDetail({
-  event, all, attendees, contacts, onClose, onEdit, onSaved, onDeleted, historyLinks, onOpen, onHistoryChanged,
+  event, all, attendees, contacts, onClose, onSaved, onDeleted, historyLinks, onOpen, onHistoryChanged, officialPortcos, options,
 }: {
+  officialPortcos: string[];
+  options: { partners: string[]; owners: string[] };
   historyLinks: HistoryLink[];
   onOpen: (e: PlannerEvent) => void;
   onHistoryChanged: () => void;
@@ -509,10 +549,8 @@ function EventDetail({
   attendees: PlannerAttendee[];
   contacts: Contact[];
   onClose: () => void;
-  onEdit: (e: PlannerEvent) => void;
   onSaved: (e: PlannerEvent) => void;
 }) {
-  const update = useServerFn(updatePlannerEventFn);
   const addAtt = useServerFn(addPlannerAttendeesFn);
   const del = useServerFn(deletePlannerEventFn);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -566,16 +604,6 @@ function EventDetail({
       setDeleting(false);
     }
   }
-  async function promote() {
-    if (!e) return;
-    try {
-      const next = await update({ data: { urid: e.urid, patch: { status: "Confirmed" }, expectedUpdated: e.updated } });
-      toast.success("Moved to Confirmed");
-      onSaved(next);
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  }
   async function addPerson(c: { name: string; email: string; kind: string }, status: string) {
     if (!e) return;
     await addAtt({ data: { attendees: [{ eventUrid: e.urid, name: c.name, email: c.email, kind: c.kind, status, date: today() }] } });
@@ -593,45 +621,29 @@ function EventDetail({
               <SheetTitle className="pr-6">{e.name}</SheetTitle>
             </SheetHeader>
             <div className="mt-3 space-y-4 text-sm">
-              <div className="flex flex-wrap gap-1.5">
-                <Badge style={{ background: tileVar(e.subcategory) }} className="text-primary-foreground border-0">{e.subcategory}</Badge>
-                <Badge variant={e.status === "Confirmed" ? "default" : "outline"}>{e.status}</Badge>
-                <Badge variant="secondary">{dtcStatusOf(e, today())}</Badge>
-                {e.sectors.map((s) => (
-                  <Badge key={s} variant="secondary" className="gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(--sector-${sectorDotColor(s)})` }} />
-                    {normalizeSector(s)}
-                  </Badge>
-                ))}
-              </div>
               <div className="flex gap-2 items-center">
-                {!asanaOnly && (
-                  <Button size="sm" variant="outline" onClick={() => onEdit(e)}><Pencil className="h-3.5 w-3.5 mr-1" /> Edit</Button>
-                )}
-                {!asanaOnly && e.status !== "Confirmed" && (
-                  <Button size="sm" onClick={promote}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark confirmed</Button>
+                {asanaOnly ? (
+                  <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">Changes save as you go.</span>
                 )}
                 {!asanaOnly && (
                   <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:text-destructive" onClick={() => setConfirmDelete(true)}>
                     <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
                   </Button>
                 )}
-                {asanaOnly && <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>}
               </div>
-              <dl className="grid grid-cols-[110px_1fr] gap-y-1.5 text-xs">
-                <Field k="Dates" v={shortDate(e) + (e.start ? ` ${e.start.slice(0, 4)}` : "")} />
-                <Field k="Location" v={e.location} />
-                <Field k="Format" v={e.format} />
-                <Field k="Category" v={`${e.category} › ${e.subcategory}`} />
-                <Field k="Owner" v={splitList(e.owner).map(o => teamMemberFor(o)?.displayName || o).join(", ")} />
-                <Field k="PortCos" v={e.portcos.join(", ")} />
-                <Field k="Partners" v={e.partners.join(", ")} />
-                <Field k="Event contact" v={e.eventContact} />
-                <Field k="Actions needed" v={e.actionsNeeded} />
-                <Field k="Source" v={`${e.source}${e.sourceRef && !/^https?:/.test(e.sourceRef) ? ` · ${e.sourceRef}` : ""}`} />
-                <Field k="Added by" v={teamMemberFor(e.createdBy)?.displayName || teamProfile(e.createdBy)?.displayName || ""} />
-              </dl>
-              {e.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{e.notes}</p>}
+              {asanaOnly ? (
+                <dl className="grid grid-cols-[110px_1fr] gap-y-1.5 text-xs">
+                  <Field k="Dates" v={shortDate(e) + (e.start ? ` ${e.start.slice(0, 4)}` : "")} />
+                  <Field k="Category" v={`${e.category} › ${e.subcategory}`} />
+                  <Field k="Owner" v={splitList(e.owner).map(o => teamMemberFor(o)?.displayName || o).join(", ")} />
+                  <Field k="PortCos" v={e.portcos.join(", ")} />
+                </dl>
+              ) : (
+                <InlineEventEditor key={e.urid} event={e} officialPortcos={officialPortcos} options={options} onSaved={onSaved} />
+              )}
+              {asanaOnly && e.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{e.notes}</p>}
               <div className="flex flex-wrap gap-2">
                 {e.website && <LinkOut href={e.website} label="Event website" />}
                 {e.lumaUrl && <LinkOut href={e.lumaUrl} label="Luma / RSVP" />}
@@ -751,6 +763,193 @@ function EventDetail({
         </AlertDialog>
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ── Inline editing in the side panel (each field saves on its own, one save at a time) ──
+function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
+  event: PlannerEvent;
+  officialPortcos: string[];
+  options: { partners: string[]; owners: string[] };
+  onSaved: (e: PlannerEvent) => void;
+}) {
+  const update = useServerFn(updatePlannerEventFn);
+  const updatedRef = useRef(e.updated);
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const [savedKey, setSavedKey] = useState("");
+  const [savingKey, setSavingKey] = useState("");
+  useEffect(() => { updatedRef.current = e.updated; }, [e.updated]);
+
+  function save(key: string, patch: Partial<PlannerEvent>) {
+    chain.current = chain.current.then(async () => {
+      setSavingKey(key);
+      try {
+        const next = await update({ data: { urid: e.urid, patch, expectedUpdated: updatedRef.current } });
+        updatedRef.current = next.updated;
+        onSaved(next);
+        setSavedKey(key);
+        setTimeout(() => setSavedKey((k) => (k === key ? "" : k)), 1500);
+      } catch (err) {
+        toast.error((err as Error).message);
+      } finally {
+        setSavingKey("");
+      }
+    });
+  }
+  const dtc = dtcStatusOf(e, today());
+  const sub = canonicalSubcategory(e.subcategory);
+  const mark = (key: string) =>
+    savingKey === key ? <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" /> : savedKey === key ? <Check className="h-3 w-3 text-primary" /> : null;
+  const knownSectors = new Set<string>(PLANNER_SECTORS);
+  const sectors = [...new Set(e.sectors.map(normalizeSector))];
+
+  return (
+    <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+      <Row2 label="Name" mark={mark("name")}><TextCell value={e.name} onCommit={(v) => v.trim() ? save("name", { name: v.trim() }) : toast.error("Event name is required")} /></Row2>
+      <Row2 label="DTC Status" mark={mark("status")}>
+        <Select value={dtc} onValueChange={(v) => {
+          if (v !== "Potential" && v !== "Declined" && rowOfSub(sub) === "Unassigned")
+            return void toast.error("Pick a category first so the event can move into its planner row.");
+          save("status", { dtcStatus: v, status: plannerStatusForDtc(v) });
+        }}>
+          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>{DTC_STATUSES.map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
+        </Select>
+      </Row2>
+      <Row2 label="Category" mark={mark("category")}>
+        <Select value={sub} onValueChange={(v) => save("category", { subcategory: v, category: rowOfSub(v) })}>
+          <SelectTrigger className="h-7 text-xs">
+            <span className="flex min-w-0 items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: tileVar(sub) }} /><SelectValue /></span>
+          </SelectTrigger>
+          <SelectContent>
+            {activeCats.map((c) => c.subcategories.map((s) => (
+              <SelectItem key={s.name} value={s.name} className="text-xs">{c.name === "Unassigned" ? "No category" : `${ROW_LABELS[c.name] || c.name} › ${s.name}`}</SelectItem>
+            )))}
+          </SelectContent>
+        </Select>
+      </Row2>
+      <Row2 label="Start" mark={mark("start")}><TextCell type="date" value={e.start} onCommit={(v) => save("start", { start: v, end: e.end && e.end >= v ? e.end : v })} /></Row2>
+      <Row2 label="End" mark={mark("end")}><TextCell type="date" value={e.end} onCommit={(v) => save("end", { end: v })} /></Row2>
+      <Row2 label="Location" mark={mark("location")}><TextCell value={e.location} onCommit={(v) => save("location", { location: v })} /></Row2>
+      <Row2 label="Format" mark={mark("format")}>
+        <Select value={e.format || "__none"} onValueChange={(v) => save("format", { format: v === "__none" ? "" : v })}>
+          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none" className="text-xs">—</SelectItem>
+            {["in-person", "virtual", "hybrid"].map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </Row2>
+      <Row2 label="Sector" mark={mark("sectors")}>
+        <div className="flex flex-wrap gap-1 pt-1">
+          {[...PLANNER_SECTORS, ...sectors.filter((x) => !knownSectors.has(x))].map((s) => {
+            const on = sectors.includes(s);
+            return (
+              <button key={s} type="button" onClick={() => save("sectors", { sectors: on ? sectors.filter((x) => x !== s) : [...sectors, s] })}
+                className={cn("flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]", on ? "border-foreground/30 bg-muted" : "border-border text-muted-foreground opacity-70")}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(--sector-${sectorDotColor(s)})` }} />{s}
+              </button>
+            );
+          })}
+        </div>
+      </Row2>
+      <Row2 label="Owner" mark={mark("owner")}><TextCell list="vp-owners-inline" value={e.owner} onCommit={(v) => save("owner", { owner: v })} /></Row2>
+      <Row2 label="PortCos" mark={mark("portcos")}><PortcoPicker value={e.portcos} official={officialPortcos} onChange={(v) => save("portcos", { portcos: v })} /></Row2>
+      <Row2 label="Partners" mark={mark("partners")}><TextCell list="vp-partners-inline" placeholder="; separated" value={e.partners.join("; ")} onCommit={(v) => save("partners", { partners: splitList(v) })} /></Row2>
+      <Row2 label="Network count" mark={mark("networkCount")}><TextCell type="number" value={e.networkCount ? String(e.networkCount) : ""} onCommit={(v) => save("networkCount", { networkCount: Number(v) || 0 })} /></Row2>
+      <Row2 label="Event contact" mark={mark("eventContact")}><TextCell value={e.eventContact} onCommit={(v) => save("eventContact", { eventContact: v })} /></Row2>
+      <Row2 label="Website" mark={mark("website")}><TextCell type="url" value={e.website} onCommit={(v) => save("website", { website: v.trim() })} /></Row2>
+      <Row2 label="Luma / RSVP" mark={mark("lumaUrl")}><TextCell type="url" value={e.lumaUrl} onCommit={(v) => save("lumaUrl", { lumaUrl: v.trim() })} /></Row2>
+      <Row2 label="Actions needed" mark={mark("actionsNeeded")}><TextCell value={e.actionsNeeded} onCommit={(v) => save("actionsNeeded", { actionsNeeded: v })} /></Row2>
+      <Row2 label="Notes" mark={mark("notes")}><TextCell multiline value={e.notes} onCommit={(v) => save("notes", { notes: v })} /></Row2>
+      <div className="pt-1.5 text-[11px] text-muted-foreground">Source</div>
+      <div className="pt-1.5 text-[11px] text-muted-foreground break-words">
+        {e.source}{e.sourceRef && !/^https?:/.test(e.sourceRef) ? ` · ${e.sourceRef}` : ""}
+        {e.createdBy ? ` · added by ${teamMemberFor(e.createdBy)?.displayName || teamProfile(e.createdBy)?.displayName || e.createdBy}` : ""}
+      </div>
+      <datalist id="vp-owners-inline">{options.owners.map((o) => <option key={o} value={o} />)}</datalist>
+      <datalist id="vp-partners-inline">{options.partners.map((o) => <option key={o} value={o} />)}</datalist>
+    </div>
+  );
+}
+
+function Row2({ label, mark, children }: { label: string; mark: ReactNode; children: ReactNode }) {
+  return (
+    <>
+      <div className="flex items-center gap-1 pt-1.5 text-[11px] text-muted-foreground">{label} {mark}</div>
+      <div className="min-w-0">{children}</div>
+    </>
+  );
+}
+
+function TextCell({ value, onCommit, type = "text", multiline, list, placeholder }: {
+  value: string; onCommit: (v: string) => void; type?: string; multiline?: boolean; list?: string; placeholder?: string;
+}) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const commit = () => { if (v !== value) onCommit(v); };
+  if (multiline)
+    return <Textarea rows={3} className="min-h-[56px] text-xs md:text-xs" value={v} onChange={(x) => setV(x.target.value)} onBlur={commit} />;
+  return (
+    <Input type={type} list={list} placeholder={placeholder} className="h-7 px-2 text-xs md:text-xs" value={v}
+      onChange={(x) => setV(x.target.value)} onBlur={commit}
+      onKeyDown={(x) => { if (x.key === "Enter") (x.target as HTMLInputElement).blur(); if (x.key === "Escape") setV(value); }} />
+  );
+}
+
+// ── Partner categories (break a partner out of "Other" into its own colour) ──
+function AddPartnerButton({ row, existing, onDone }: { row: string; existing: PlannerPartnerCategory[]; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const setFn = useServerFn(setPlannerPartnerFn);
+  const { data: names = [], isLoading } = useQuery({ queryKey: ["partner-names"], queryFn: () => fetchPartnerNamesFn(), enabled: open, staleTime: 60_000 });
+  const taken = new Set(existing.filter((x) => x.row === row).map((x) => x.partner.toLowerCase()));
+  async function add(partner: string) {
+    setBusy(true);
+    try {
+      await setFn({ data: { partner, row } });
+      toast.success(`${partner} added to ${ROW_LABELS[row] || row}`);
+      setOpen(false);
+      onDone();
+    } catch (err) { toast.error((err as Error).message); } finally { setBusy(false); }
+  }
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button type="button" className="flex items-center gap-1 pt-0.5 text-[10px] text-primary hover:underline" disabled={busy}>
+          <Plus className="h-3 w-3" /> Add partner
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-60 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search Partners…" className="text-xs" />
+          <CommandList>
+            <CommandEmpty>{isLoading ? "Loading partners…" : "No partner with that name"}</CommandEmpty>
+            <CommandGroup>
+              {names.filter((n) => !taken.has(n.toLowerCase())).map((n) => (
+                <CommandItem key={n} value={n} onSelect={() => add(n)} className="text-xs">{n}</CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function RemovePartnerButton({ name, row, partners, onDone }: { name: string; row: string; partners: PlannerPartnerCategory[]; onDone: () => void }) {
+  const setFn = useServerFn(setPlannerPartnerFn);
+  const hit = partners.find((p) => p.row === row && (row === "Briefings" ? `${p.partner} Briefings` : p.partner) === name);
+  if (!hit) return null;
+  return (
+    <button type="button" aria-label={`Remove ${name}`} title="Remove this partner category (its events show as Other)"
+      className="ml-auto opacity-0 group-hover:opacity-70 hover:opacity-100"
+      onClick={async () => {
+        if (!window.confirm(`Remove ${name} as its own category? Its events will show under Other.`)) return;
+        try { await setFn({ data: { partner: hit.partner, row, remove: true } }); onDone(); } catch (err) { toast.error((err as Error).message); }
+      }}>
+      <X className="h-3 w-3" />
+    </button>
   );
 }
 
@@ -896,20 +1095,21 @@ function EventForm({
           <L label="Start date"><Input type="date" value={form.start || ""} onChange={(e) => set("start", e.target.value)} /></L>
           <L label="End date"><Input type="date" value={form.end || ""} onChange={(e) => set("end", e.target.value)} /></L>
           <L label="Category">
-            <Select value={form.subcategory || "Unassigned"} onValueChange={(v) => set("subcategory", v)}>
+            <Select value={canonicalSubcategory(form.subcategory || "Unassigned")} onValueChange={(v) => setForm((f) => ({ ...f, subcategory: v, category: rowOfSub(v) }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {PLANNER_CATEGORIES.map((c) => c.subcategories.map((s) => (
-                  <SelectItem key={s.name} value={s.name}>{c.name} › {s.name}</SelectItem>
+                {activeCats.map((c) => c.subcategories.map((s) => (
+                  <SelectItem key={s.name} value={s.name}>{c.name === "Unassigned" ? "No category" : `${ROW_LABELS[c.name] || c.name} › ${s.name}`}</SelectItem>
                 )))}
               </SelectContent>
             </Select>
           </L>
-          <L label="Status">
-            <Select value={form.status || "Potential"} onValueChange={(v) => set("status", v as PlannerEvent["status"])}>
+          <L label="DTC Status">
+            <Select value={form.dtcStatus || dtcStatusOf({ dtcStatus: "", status: form.status || "Potential", start: form.start || "", end: form.end || "" }, today())}
+              onValueChange={(v) => setForm((f) => ({ ...f, dtcStatus: v, status: plannerStatusForDtc(v) }))}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {["Confirmed", "Potential", "Declined"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {DTC_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </L>

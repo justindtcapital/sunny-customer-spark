@@ -195,3 +195,10 @@
 - [x] Results step (attending/interested, follow up, declined, no reply), save later, close campaign registering attendees with dedupe
 - [x] Campaign results shown in each contact's campaign history
 - [ ] Try saving marks and closing a real campaign; not done to avoid changing live campaign data without you
+
+## Event planner rework — Nov 12
+- [x] One left column; filters in left menu under Admin; PortCo multi-select
+- [x] New categories, Add partner from Partners list
+- [x] Statuses Completed/Confirmed/Considering/Potential/Declined + tracker rows renamed (backed up)
+- [x] Potential bottom row; Considering lifts events up
+- [x] Inline editing in event side panel

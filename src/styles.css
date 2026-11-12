@@ -598,6 +598,16 @@
   --planner-amber: oklch(0.74 0.15 75);
   --planner-orange: oklch(0.7 0.16 50);
   --planner-slate: oklch(0.62 0.02 250);
+  --planner-teal: oklch(0.64 0.11 190);
+  --planner-indigo: oklch(0.52 0.17 270);
+  --planner-emerald: oklch(0.62 0.15 160);
+  --planner-gold: oklch(0.78 0.14 95);
+  --planner-coral: oklch(0.7 0.15 35);
+  --planner-mint: oklch(0.8 0.1 165);
+  --planner-fuchsia: oklch(0.62 0.22 340);
+  --planner-cyan: oklch(0.74 0.12 205);
+  --planner-brick: oklch(0.52 0.14 30);
+  --planner-olive: oklch(0.6 0.1 115);
   --sector-cyber: oklch(0.63 0.2 25);
   --sector-data: oklch(0.65 0.16 250);
   --sector-supply: oklch(0.72 0.16 145);

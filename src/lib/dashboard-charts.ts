@@ -22,7 +22,7 @@ export const CHART_DATASETS = {
   events: {
     label: "Events", dashboard: "events",
     description: "One row per event on the Event Tracker (dated by start).",
-    fields: { month: "Start month, YYYY-MM", year: "Start year", type: "Event type (Dell-led, pay-to-play, briefing…)", category: "Event category", city: "City", domain: "Domains/sectors (multi)", portco: "PortCos involved (multi)", partner: "Partners (multi)", status: "DTC status (Executed, Accepted, Considering…)", owner: "Event owner", format: "Format" },
+    fields: { month: "Start month, YYYY-MM", year: "Start year", type: "Event type (Dell-led, pay-to-play, briefing…)", category: "Event category", city: "City", domain: "Domains/sectors (multi)", portco: "PortCos involved (multi)", partner: "Partners (multi)", status: "DTC status (Completed, Confirmed, Considering…)", owner: "Event owner", format: "Format" },
     numbers: { attendees: "Number of recorded attendees" },
     timeFields: ["month", "year"],
   },

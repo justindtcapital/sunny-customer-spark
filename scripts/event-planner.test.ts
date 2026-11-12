@@ -71,7 +71,7 @@ it("tracker January after December rolls to next year", () => {
   expect(trackerYearFor(3, 4, 2026)).toBe(2026);
 });
 it("DTC status reads the tracker flag", () => {
-  expect(dtcStatusOf({ dtcStatus: "executed", status: "Confirmed", start: "", end: "" })).toBe("Executed");
+  expect(dtcStatusOf({ dtcStatus: "executed", status: "Confirmed", start: "", end: "" })).toBe("Completed");
 });
 
 import { asanaMatchScore, planAsanaEnrichment, mergePlannerEvents, type AsanaLike } from "../src/lib/event-planner";
