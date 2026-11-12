@@ -9,7 +9,7 @@ import { PYRAMID_TIERS, type PyramidTier } from "@/lib/network-pyramid";
 import { buildMatrixPoints } from "@/lib/portco-matrix";
 import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
 import { MonthlyEventBars, plannerDashboardQuery } from "@/components/dashboards/EventsDashboard";
-import { EVENT_TYPES, monthlyByType } from "@/lib/events-dashboard";
+import { eventTypesFor, monthlyByType } from "@/lib/events-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const Route = createFileRoute("/dashboards/")({
@@ -53,7 +53,8 @@ function DashboardsHub() {
   const { data: contacts, isLoading: contactsLoading } = useQuery({ queryKey: ["dashboards-contacts"], queryFn: () => fetchContacts(), staleTime: 5 * 60_000 });
   const points = useMemo(() => (asana ? buildMatrixPoints(asana.fieldsByCompanyName ?? {}, asana.namesByCompanyName ?? {}, {}, {}) : []), [asana]);
   const year = new Date().getFullYear();
-  const rows = useMemo(() => monthlyByType(planner?.events ?? [], year), [planner, year]);
+  const types = useMemo(() => eventTypesFor(planner?.partnerCategories ?? []), [planner]);
+  const rows = useMemo(() => monthlyByType(planner?.events ?? [], year, types), [planner, year, types]);
   const { data: targets } = useQuery({ queryKey: ["dashboards-targets"], queryFn: () => fetchTargets().catch(() => []), staleTime: 5 * 60_000 });
   const tierCounts = useMemo(() => {
     const counts = Object.fromEntries(PYRAMID_TIERS.map((t) => [t, 0])) as Record<PyramidTier, number | null>;
@@ -61,7 +62,7 @@ function DashboardsHub() {
     counts.Prospect = targets ? targets.length : null;
     return counts;
   }, [contacts, targets]);
-  const usedTypes = EVENT_TYPES.filter((t) => rows.some((r) => (r[t.name] as number) > 0));
+  const usedTypes = types.filter((t) => rows.some((r) => (r[t.name] as number) > 0));
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-5">
@@ -77,7 +78,7 @@ function DashboardsHub() {
         </Tile>
         <Tile to="/dashboards/events" title="Events Dashboard" sub={`Event intensity by month, ${year}`}>
           {planner && !planner.error ? <div className="w-full">
-            <MonthlyEventBars rows={rows} month={null} compact />
+            <MonthlyEventBars rows={rows} month={null} compact types={types} />
             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
               {usedTypes.map((t) => (
                 <span key={t.name} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
