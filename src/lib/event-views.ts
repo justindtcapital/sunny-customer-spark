@@ -1,4 +1,4 @@
-import { canonicalSubcategory, dtcStatusOf, normalizeSector, type PlannerEvent } from "./event-planner";
+import { dtcStatusOf, matchesCategoryTicks, normalizeSector, type PlannerEvent } from "./event-planner";
 import { teamMemberFor } from "./user-ownership";
 import type { AsanaEvent } from "./types";
 
@@ -11,7 +11,7 @@ export function eventMatchesFilters(e: PlannerEvent, f: EventFilters, today: str
   const status = dtcStatusOf(e, today);
   if (!f.statuses.includes(status)) return false;
   if (f.statusView !== "Both" && e.status !== "Declined" && e.status !== f.statusView) return false;
-  if (f.subcategories.length && !f.subcategories.includes(canonicalSubcategory(e.subcategory))) return false;
+  if (!matchesCategoryTicks(e, f.subcategories)) return false;
   if (f.sectors.length && !e.sectors.map(normalizeSector).some(s => f.sectors.includes(s))) return false;
   if (f.portcos.length && !e.portcos.some((p) => f.portcos.includes(p))) return false;
   if (f.partner && !e.partners.some((p) => p.trim().toLowerCase() === f.partner.trim().toLowerCase())) return false;
