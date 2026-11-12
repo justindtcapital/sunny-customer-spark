@@ -15,6 +15,11 @@ import {
   trackerYearFor,
   splitList,
   categoryOfSubcategory,
+  canonicalSubcategory,
+  canonicalDtcStatus,
+  nextPartnerColor,
+  PARTNER_ROWS,
+  type PartnerCategory,
   duplicateKey,
   type PlannerAttendee,
   type PlannerEvent,
@@ -131,14 +136,14 @@ function fromRow(r: string[], idx: Record<string, number>): PlannerEvent {
   const status = g("Status") as PlannerStatus;
   return {
     urid: g("URID"), name: g("Name"), start: g("Start"), end: g("End") || g("Start"),
-    location: g("Location"), category: g("Category") || categoryOfSubcategory(g("Subcategory")),
-    subcategory: g("Subcategory") || "Unassigned",
+    location: g("Location"), category: categoryOfSubcategory(g("Subcategory"), g("Category")),
+    subcategory: canonicalSubcategory(g("Subcategory")),
     status: (["Confirmed", "Potential", "Declined"] as const).includes(status) ? status : "Potential",
     sectors: splitList(g("Sectors")), portcos: splitList(g("PortCos")), partners: splitList(g("Partners")),
     owner: canonicalOwnerName(g("Owner")), format: g("Format"), website: g("Website"), lumaUrl: g("Luma URL"),
     source: g("Source"), sourceRef: g("Source Ref"), asanaGid: g("Asana GID"),
     networkCount: Number(g("Network Count")) || 0, notes: g("Notes"), actionsNeeded: g("Actions Needed"),
-    eventContact: g("Event Contact"), createdBy: g("Created By"), updated: g("Updated"), dtcStatus: g("DTC Status"),
+    eventContact: g("Event Contact"), createdBy: g("Created By"), updated: g("Updated"), dtcStatus: canonicalDtcStatus(g("DTC Status")) || g("DTC Status"),
   };
 }
 
@@ -188,7 +193,8 @@ function clean(e: Partial<PlannerEvent>, by: string): PlannerEvent {
   const b = { ...blankEvent(), ...e };
   b.name = b.name.trim();
   b.end = b.end && b.end >= b.start ? b.end : b.start;
-  b.category = categoryOfSubcategory(b.subcategory);
+  b.subcategory = canonicalSubcategory(b.subcategory);
+  b.category = categoryOfSubcategory(b.subcategory, b.category);
   b.sectors = [...new Set(b.sectors.map(normalizeSector).filter(Boolean))];
   b.owner = canonicalOwnerName(b.owner);
   b.createdBy = b.createdBy || by;
@@ -249,7 +255,7 @@ export async function updatePlannerEvent(
   if (expectedUpdated && current.updated && current.updated !== expectedUpdated)
     throw new Error("Someone else just changed this event. Reload and try again.");
   if (patch.status && patch.status !== current.status && patch.dtcStatus === undefined)
-    patch = { ...patch, dtcStatus: patch.status === "Declined" ? "Declined" : patch.status === "Potential" ? "Considering" : "Accepted" };
+    patch = { ...patch, dtcStatus: patch.status === "Declined" ? "Declined" : patch.status === "Potential" ? "Considering" : "Confirmed" };
   const next = clean({ ...current, ...patch, urid }, current.createdBy);
   const created = rows[i][idx["Created"]] || "";
   const newRow = toRow(next, created, await officialPortcoNames());
@@ -619,4 +625,47 @@ export async function cleanupEventPortcoNames(apply: boolean): Promise<{
     unresolved: [...unresolved].map(([name, events]) => ({ name, events })).sort((a, b) => b.events - a.events),
     backupTab,
   };
+}
+
+// ── Planner partner categories ("Planner Partners" tab; one row per partner+row, Removed At retires it) ──
+export const PLANNER_PARTNERS_TAB = "Planner Partners";
+const PLANNER_PARTNER_HEADERS = ["Partner", "Row", "Color", "Added By", "Added", "Removed At"];
+
+async function readPartnerRows(fresh = false) {
+  const tabs = await listTabs();
+  if (!tabs.includes(PLANNER_PARTNERS_TAB)) return [] as Array<PartnerCategory & { row1: number; removedAt: string }>;
+  const rows = await readTab(PLANNER_PARTNERS_TAB, fresh);
+  return rows.slice(1).map((r, n) => ({
+    partner: (r[0] || "").trim(), row: (r[1] || "").trim(), color: (r[2] || "").trim(), removedAt: (r[5] || "").trim(), row1: n + 2,
+  })).filter((r) => r.partner && (PARTNER_ROWS as readonly string[]).includes(r.row));
+}
+
+export async function readPlannerPartners(fresh = false): Promise<PartnerCategory[]> {
+  const seen = new Set<string>();
+  return (await readPartnerRows(fresh)).filter((r) => !r.removedAt).filter((r) => {
+    const k = `${r.row}|${r.partner.toLowerCase()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).map(({ partner, row, color }) => ({ partner, row, color }));
+}
+
+export async function addPlannerPartner(partner: string, row: string, by: string): Promise<PartnerCategory[]> {
+  if (!(PARTNER_ROWS as readonly string[]).includes(row)) throw new Error("Partners can only be added to Partner-led events or Briefings.");
+  const name = partner.trim();
+  const current = await readPlannerPartners(true);
+  if (current.some((x) => x.row === row && x.partner.toLowerCase() === name.toLowerCase())) return current;
+  await ensureTab(PLANNER_PARTNERS_TAB, PLANNER_PARTNER_HEADERS);
+  const color = nextPartnerColor(current);
+  await appendRows(PLANNER_PARTNERS_TAB, [[name, row, color, by, new Date().toISOString(), ""]]);
+  return [...current, { partner: name, row, color }];
+}
+
+export async function removePlannerPartner(partner: string, row: string): Promise<PartnerCategory[]> {
+  const rows = await readPartnerRows(true);
+  const now = new Date().toISOString();
+  for (const r of rows.filter((x) => !x.removedAt && x.row === row && x.partner.toLowerCase() === partner.trim().toLowerCase()))
+    await writeRange(PLANNER_PARTNERS_TAB, r.row1, 5, [[now]]);
+  cache.delete(PLANNER_PARTNERS_TAB);
+  return readPlannerPartners(true);
 }
