@@ -1,5 +1,10 @@
 # Roadmap
 
+## Planner selector consistency — Nov 12
+- [x] Remove Potential index shading and zero-count dimming; match the other rows
+- [x] Show right-aligned category counts in DTC-led, Partner-led and Briefings; remove the status instruction
+- [ ] Verify planner presentation and existing event tests
+
 ## Event attendees and strict event picking — Nov 11
 - [x] Event popup shows prospects, people tagged but not in the CRM, and linked campaigns (GBI CIO NYC now shows its 24 invitees)
 - [x] Event pickers offer only Event Tracker events (older names searchable); uploads require an event or "Not event-related"; server rejects unknown event names
