@@ -31,6 +31,8 @@ interface EventPickerProps {
   className?: string;
   /** Label for the explicit "no event" choice. */
   noneLabel?: string;
+  /** Show noneLabel on the button when "no event" was chosen explicitly. */
+  noneChosen?: boolean;
 }
 
 /** Same cache as the Event Planner, so new tracker events show up without a reload. */
@@ -94,7 +96,7 @@ export async function loadEvents(): Promise<AsanaEvent[]> {
   return inflight;
 }
 
-export function EventPicker({ value, onChange, placeholder = "Pick an event…", className, noneLabel = "No event" }: EventPickerProps) {
+export function EventPicker({ value, onChange, placeholder = "Pick an event…", className, noneLabel = "No event", noneChosen = false }: EventPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { data, isLoading } = useQuery({ queryKey: TRACKER_QUERY_KEY, queryFn: () => fetchPlannerFn(), staleTime: 60_000 });
@@ -137,7 +139,7 @@ export function EventPicker({ value, onChange, placeholder = "Pick an event…",
   };
 
   // A stored value that isn't (or is no longer) a tracker event shows as such.
-  const label = current?.name || value;
+  const label = current?.name || value || (noneChosen ? noneLabel : "");
   const legacy = !!value && !current && !isLoading;
 
   return (
@@ -148,7 +150,7 @@ export function EventPicker({ value, onChange, placeholder = "Pick an event…",
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("h-9 w-full justify-between font-normal text-sm", !value && "text-muted-foreground", className)}
+          className={cn("h-9 w-full justify-between font-normal text-sm", !label && "text-muted-foreground", className)}
         >
           <span className="truncate">
             {label || placeholder}

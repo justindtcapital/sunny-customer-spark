@@ -544,10 +544,10 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                         value={eventName}
                         onChange={(n) => { setEventName(n); setEventDecided(true); }}
                         noneLabel="Not event-related"
+                        noneChosen={eventDecided}
                         placeholder="Pick an event or Not event-related"
                         className={!eventDecided ? "border-destructive/60" : undefined}
                       />
-                      {eventDecided && !eventName && <p className="text-[10px] text-muted-foreground mt-1">Not event-related</p>}
                       {!eventDecided && <p className="text-[10px] text-destructive mt-1">Required: pick the event, or Not event-related.</p>}
                     </div>
                     <div>
