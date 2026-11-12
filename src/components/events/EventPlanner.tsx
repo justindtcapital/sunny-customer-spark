@@ -800,19 +800,13 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
   const sub = canonicalSubcategory(e.subcategory);
   const mark = (key: string) =>
     savingKey === key ? <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" /> : savedKey === key ? <Check className="h-3 w-3 text-primary" /> : null;
-  const Row2 = ({ label, k, children }: { label: string; k: string; children: ReactNode }) => (
-    <>
-      <div className="flex items-center gap-1 pt-1.5 text-[11px] text-muted-foreground">{label} {mark(k)}</div>
-      <div className="min-w-0">{children}</div>
-    </>
-  );
   const knownSectors = new Set<string>(PLANNER_SECTORS);
   const sectors = [...new Set(e.sectors.map(normalizeSector))];
 
   return (
     <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
-      <Row2 label="Name" k="name"><TextCell value={e.name} onCommit={(v) => v.trim() ? save("name", { name: v.trim() }) : toast.error("Event name is required")} /></Row2>
-      <Row2 label="DTC Status" k="status">
+      <Row2 label="Name" mark={mark("name")}><TextCell value={e.name} onCommit={(v) => v.trim() ? save("name", { name: v.trim() }) : toast.error("Event name is required")} /></Row2>
+      <Row2 label="DTC Status" mark={mark("status")}>
         <Select value={dtc} onValueChange={(v) => {
           if (v !== "Potential" && v !== "Declined" && rowOfSub(sub) === "Unassigned")
             return void toast.error("Pick a category first so the event can move into its planner row.");
@@ -822,7 +816,7 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
           <SelectContent>{DTC_STATUSES.map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
         </Select>
       </Row2>
-      <Row2 label="Category" k="category">
+      <Row2 label="Category" mark={mark("category")}>
         <Select value={sub} onValueChange={(v) => save("category", { subcategory: v, category: rowOfSub(v) })}>
           <SelectTrigger className="h-7 text-xs">
             <span className="flex min-w-0 items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: tileVar(sub) }} /><SelectValue /></span>
@@ -834,10 +828,10 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
           </SelectContent>
         </Select>
       </Row2>
-      <Row2 label="Start" k="start"><TextCell type="date" value={e.start} onCommit={(v) => save("start", { start: v, end: e.end && e.end >= v ? e.end : v })} /></Row2>
-      <Row2 label="End" k="end"><TextCell type="date" value={e.end} onCommit={(v) => save("end", { end: v })} /></Row2>
-      <Row2 label="Location" k="location"><TextCell value={e.location} onCommit={(v) => save("location", { location: v })} /></Row2>
-      <Row2 label="Format" k="format">
+      <Row2 label="Start" mark={mark("start")}><TextCell type="date" value={e.start} onCommit={(v) => save("start", { start: v, end: e.end && e.end >= v ? e.end : v })} /></Row2>
+      <Row2 label="End" mark={mark("end")}><TextCell type="date" value={e.end} onCommit={(v) => save("end", { end: v })} /></Row2>
+      <Row2 label="Location" mark={mark("location")}><TextCell value={e.location} onCommit={(v) => save("location", { location: v })} /></Row2>
+      <Row2 label="Format" mark={mark("format")}>
         <Select value={e.format || "__none"} onValueChange={(v) => save("format", { format: v === "__none" ? "" : v })}>
           <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -846,7 +840,7 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
           </SelectContent>
         </Select>
       </Row2>
-      <Row2 label="Sector" k="sectors">
+      <Row2 label="Sector" mark={mark("sectors")}>
         <div className="flex flex-wrap gap-1 pt-1">
           {[...PLANNER_SECTORS, ...sectors.filter((x) => !knownSectors.has(x))].map((s) => {
             const on = sectors.includes(s);
@@ -859,15 +853,15 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
           })}
         </div>
       </Row2>
-      <Row2 label="Owner" k="owner"><TextCell list="vp-owners-inline" value={e.owner} onCommit={(v) => save("owner", { owner: v })} /></Row2>
-      <Row2 label="PortCos" k="portcos"><PortcoPicker value={e.portcos} official={officialPortcos} onChange={(v) => save("portcos", { portcos: v })} /></Row2>
-      <Row2 label="Partners" k="partners"><TextCell list="vp-partners-inline" placeholder="; separated" value={e.partners.join("; ")} onCommit={(v) => save("partners", { partners: splitList(v) })} /></Row2>
-      <Row2 label="Network count" k="networkCount"><TextCell type="number" value={e.networkCount ? String(e.networkCount) : ""} onCommit={(v) => save("networkCount", { networkCount: Number(v) || 0 })} /></Row2>
-      <Row2 label="Event contact" k="eventContact"><TextCell value={e.eventContact} onCommit={(v) => save("eventContact", { eventContact: v })} /></Row2>
-      <Row2 label="Website" k="website"><TextCell type="url" value={e.website} onCommit={(v) => save("website", { website: v.trim() })} /></Row2>
-      <Row2 label="Luma / RSVP" k="lumaUrl"><TextCell type="url" value={e.lumaUrl} onCommit={(v) => save("lumaUrl", { lumaUrl: v.trim() })} /></Row2>
-      <Row2 label="Actions needed" k="actionsNeeded"><TextCell value={e.actionsNeeded} onCommit={(v) => save("actionsNeeded", { actionsNeeded: v })} /></Row2>
-      <Row2 label="Notes" k="notes"><TextCell multiline value={e.notes} onCommit={(v) => save("notes", { notes: v })} /></Row2>
+      <Row2 label="Owner" mark={mark("owner")}><TextCell list="vp-owners-inline" value={e.owner} onCommit={(v) => save("owner", { owner: v })} /></Row2>
+      <Row2 label="PortCos" mark={mark("portcos")}><PortcoPicker value={e.portcos} official={officialPortcos} onChange={(v) => save("portcos", { portcos: v })} /></Row2>
+      <Row2 label="Partners" mark={mark("partners")}><TextCell list="vp-partners-inline" placeholder="; separated" value={e.partners.join("; ")} onCommit={(v) => save("partners", { partners: splitList(v) })} /></Row2>
+      <Row2 label="Network count" mark={mark("networkCount")}><TextCell type="number" value={e.networkCount ? String(e.networkCount) : ""} onCommit={(v) => save("networkCount", { networkCount: Number(v) || 0 })} /></Row2>
+      <Row2 label="Event contact" mark={mark("eventContact")}><TextCell value={e.eventContact} onCommit={(v) => save("eventContact", { eventContact: v })} /></Row2>
+      <Row2 label="Website" mark={mark("website")}><TextCell type="url" value={e.website} onCommit={(v) => save("website", { website: v.trim() })} /></Row2>
+      <Row2 label="Luma / RSVP" mark={mark("lumaUrl")}><TextCell type="url" value={e.lumaUrl} onCommit={(v) => save("lumaUrl", { lumaUrl: v.trim() })} /></Row2>
+      <Row2 label="Actions needed" mark={mark("actionsNeeded")}><TextCell value={e.actionsNeeded} onCommit={(v) => save("actionsNeeded", { actionsNeeded: v })} /></Row2>
+      <Row2 label="Notes" mark={mark("notes")}><TextCell multiline value={e.notes} onCommit={(v) => save("notes", { notes: v })} /></Row2>
       <div className="pt-1.5 text-[11px] text-muted-foreground">Source</div>
       <div className="pt-1.5 text-[11px] text-muted-foreground break-words">
         {e.source}{e.sourceRef && !/^https?:/.test(e.sourceRef) ? ` · ${e.sourceRef}` : ""}
@@ -876,6 +870,15 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
       <datalist id="vp-owners-inline">{options.owners.map((o) => <option key={o} value={o} />)}</datalist>
       <datalist id="vp-partners-inline">{options.partners.map((o) => <option key={o} value={o} />)}</datalist>
     </div>
+  );
+}
+
+function Row2({ label, mark, children }: { label: string; mark: ReactNode; children: ReactNode }) {
+  return (
+    <>
+      <div className="flex items-center gap-1 pt-1.5 text-[11px] text-muted-foreground">{label} {mark}</div>
+      <div className="min-w-0">{children}</div>
+    </>
   );
 }
 
