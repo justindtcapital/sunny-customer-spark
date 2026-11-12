@@ -347,7 +347,10 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
 
             {[...cats.filter((c) => c.name !== "Unassigned"), { name: POTENTIAL_ROW, subcategories: [] }].map((cat) => {
               const isPotential = cat.name === POTENTIAL_ROW;
-              const placed = inWindow.filter((e) => placementRow(e, today()) === cat.name);
+              const rowAll = inWindowAll.filter((e) => placementRow(e, today()) === cat.name);
+              const showAll = showAllRows.includes(cat.name);
+              const hidden = hiddenByTicks(rowAll, subFilter);
+              const placed = rowEventsFor(rowAll, subFilter, showAll);
               const pIndex = isPotential ? potentialIndex(placed, cats) : [];
               const pAvailable = availablePotential(pIndex);
               const allPicked = pAvailable.length > 0 && pAvailable.every((n) => potentialPick.includes(n)) && potentialPick.length === pAvailable.length;
