@@ -14,7 +14,7 @@ export function eventMatchesFilters(e: PlannerEvent, f: EventFilters, today: str
   if (f.subcategories.length && !f.subcategories.includes(canonicalSubcategory(e.subcategory))) return false;
   if (f.sectors.length && !e.sectors.map(normalizeSector).some(s => f.sectors.includes(s))) return false;
   if (f.portcos.length && !e.portcos.some((p) => f.portcos.includes(p))) return false;
-  if (f.partner && !e.partners.includes(f.partner)) return false;
+  if (f.partner && !e.partners.some((p) => p.trim().toLowerCase() === f.partner.trim().toLowerCase())) return false;
   const owners = e.owner.split(/[;,|]/).map(s => teamMemberFor(s)?.displayName || s.trim());
   if (f.owner && !owners.includes(f.owner)) return false;
   if (f.source && e.source !== f.source) return false;
