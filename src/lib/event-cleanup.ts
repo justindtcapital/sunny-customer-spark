@@ -89,7 +89,7 @@ export function planEventCleanup(events: PlannerEvent[], companies: CompanySecto
     if (replacements.has(event.urid)) continue;
     const next = { ...(updates.get(event.urid) || event) };
     if (next.subcategory === "Unassigned") {
-      next.subcategory = /\bbrief/i.test(next.name) ? "DTC Curated Briefings" : "3rd Party Events";
+      next.subcategory = /\bbrief/i.test(next.name) ? "DTC Curated Briefings" : "Other";
       next.category = categoryOfSubcategory(next.subcategory);
       updates.set(next.urid, next);
     }
