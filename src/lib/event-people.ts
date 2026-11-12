@@ -9,7 +9,8 @@ export interface PickerEvent {
   aliases: string[];
 }
 
-const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+/** Case/punctuation-insensitive, but years stay so different editions never match. */
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 /** Picker catalog = Event Tracker rows only (no Asana-only or typed names), aliases from merges. */
 export function trackerPickerEvents(events: PlannerEvent[]): PickerEvent[] {
