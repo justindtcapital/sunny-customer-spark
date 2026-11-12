@@ -25,7 +25,7 @@ describe("event planner", () => {
     expect(mapTrackerStatus("Declined")).toBe("Declined");
   });
   it("puts Vation events under Briefings", () => {
-    expect(mapTrackerCategory("Pay-to-play", "Vation - Austin")).toBe("Vation Briefs");
+    expect(mapTrackerCategory("Pay-to-play", "Vation - Austin")).toBe("Vation Briefings");
     expect(categoryOfSubcategory("Vation Briefs")).toBe("Briefings");
   });
   it("prev/next steps by week, month and year", () => {

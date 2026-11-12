@@ -35,7 +35,7 @@ describe("event cleanup", () => {
   });
   it("categorizes CES without changing its Declined decision", () => {
     const p = planEventCleanup([event({ name: "CES", subcategory: "Unassigned", status: "Declined", dtcStatus: "Declined" })], companies);
-    expect(p.updates.get("k")?.subcategory).toBe("3rd Party Events");
+    expect(p.updates.get("k")?.subcategory).toBe("Other");
     expect(p.updates.get("k")?.dtcStatus).toBe("Declined");
   });
   it("remaps attendance while preserving all attendee records and states", () => {
