@@ -1163,7 +1163,11 @@ function EventForm({
           </L>
           <L label="Owner / DTC coverage"><Input list="vp-owners" value={form.owner || ""} onChange={(e) => set("owner", e.target.value)} /></L>
           <L label="PortCos" hint="Pick from the official Portfolio list"><ListPicker noun="PortCo" listName="Portfolio" value={form.portcos || []} official={options.officialPortcos} onChange={(v) => set("portcos", v)} /></L>
-          <L label="Partners" hint="Pick from the Partners list"><ListPicker noun="Partner" listName="Partners" value={form.partners || []} official={options.partners} onChange={(v) => set("partners", v)} /></L>
+          <L label="Partners" hint="Pick from the Partners list"><ListPicker noun="Partner" listName="Partners" value={form.partners || []} official={options.partners} primary onChange={(v) => {
+            set("partners", v);
+            const owned = v[0] && v[0] !== (form.partners || [])[0] ? primaryPartnerCategory(v[0], form.subcategory || "", activeCats) : "";
+            if (owned) { set("subcategory", owned); set("category", rowOfSub(owned)); }
+          }} /></L>
           <L label="Network attendees (count)"><Input type="number" value={form.networkCount || ""} onChange={(e) => set("networkCount", Number(e.target.value) || 0)} /></L>
           <L label="Event contact"><Input value={form.eventContact || ""} onChange={(e) => set("eventContact", e.target.value)} /></L>
           <L label="Luma / RSVP link"><Input value={form.lumaUrl || ""} onChange={(e) => set("lumaUrl", e.target.value)} /></L>
