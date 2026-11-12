@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { hiddenByTicks, matchesCategoryTicks, rowEventsFor, type PlannerEvent } from "./event-planner";
 import { eventMatchesFilters } from "./event-views";
 
-const ev = (name: string, subcategory: string) => ({ name, subcategory }) as unknown as PlannerEvent;
+const ev = (name: string, subcategory: string) =>
+  ({ name, subcategory, owner: "", portcos: [], partners: [], sectors: [], status: "Confirmed", dtcStatus: "Confirmed", start: "2026-03-01", end: "2026-03-01" }) as unknown as PlannerEvent;
 const row = [
   ev("ISSA Summit", "ISSA"),
   ev("CDO Magazine Dinner", "CDO Magazine"),
