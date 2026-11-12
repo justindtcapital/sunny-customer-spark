@@ -41,7 +41,7 @@ import {
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
   duplicateKey, plannerCategories, effectiveCategory, categoryAfterPartnerChange, partnerOfCategory, isPartnerCategory, isDtcOwned, partnerSubcategoryName, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
-  potentialIndex, availablePotential, matchesPotentialPick,
+  potentialIndex, availablePotential, matchesPotentialPick, matchesCategoryTicks, rowEventsFor, hiddenByTicks,
   type PlannerCategory, type PlannerPartnerCategory,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
@@ -150,6 +150,8 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [subFilter, setSubFilter] = useState<string[]>([]);
   // Potential row's own category/partner pick (only narrows the Potential row).
   const [potentialPick, setPotentialPick] = useState<string[]>([]);
+  // Rows whose "Show all" is on: they ignore the category ticks so nothing hides.
+  const [showAllRows, setShowAllRows] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
   const [dtcFilter, setDtcFilter] = useState<string[]>([...DEFAULT_DTC_STATUSES]);
   const [portcos, setPortcos] = useState<string[]>([]);
