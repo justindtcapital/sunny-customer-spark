@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { PartnerCategory, PlannerAttendee, PlannerEvent } from "@/lib/event-planner";
+import type { PlannerPartnerCategory, PlannerAttendee, PlannerEvent } from "@/lib/event-planner";
 import type { HistoryLink } from "@/lib/event-history";
 import { requireTeamAuth } from "./team-auth";
 
@@ -10,14 +10,14 @@ export const fetchPlannerFn = createServerFn({ method: "GET" }).handler(async ()
     const [raw, attendees, historyLinks, officialPortcos, partnerCategories] = await Promise.all([
       readPlannerEvents(), readAttendees(), activeHistoryLinks().catch(() => [] as HistoryLink[]),
       officialPortcoNames().catch(() => [] as string[]),
-      readPlannerPartners().catch(() => [] as PartnerCategory[]),
+      readPlannerPartners().catch(() => [] as PlannerPartnerCategory[]),
     ]);
     // Show official PortCo spellings even for rows edited directly in the spreadsheet.
     const events = raw.map((e) => ({ ...e, portcos: canonicalEventPortcos(e.portcos, officialPortcos).portcos }));
     return { events, attendees, historyLinks, officialPortcos: [...officialPortcos].sort((x, y) => x.localeCompare(y)), partnerCategories, error: "" };
   } catch (e) {
     console.error("[event-planner] read failed", e);
-    return { events: [] as PlannerEvent[], attendees: [] as PlannerAttendee[], historyLinks: [] as HistoryLink[], officialPortcos: [] as string[], partnerCategories: [] as PartnerCategory[], error: (e as Error).message };
+    return { events: [] as PlannerEvent[], attendees: [] as PlannerAttendee[], historyLinks: [] as HistoryLink[], officialPortcos: [] as string[], partnerCategories: [] as PlannerPartnerCategory[], error: (e as Error).message };
   }
 });
 
@@ -310,3 +310,9 @@ export const setPlannerPartnerFn = createServerFn({ method: "POST" })
     const { addPlannerPartner, removePlannerPartner } = await import("./event-planner.server");
     return data.remove ? removePlannerPartner(data.partner, data.row) : addPlannerPartner(data.partner, data.row, context.teamEmail);
   });
+
+/** Partner names from the Partners tab (for breaking a partner out as a planner category). */
+export const fetchPartnerNamesFn = createServerFn({ method: "GET" }).handler(async () => {
+  const { listPartners } = await import("./partners.server");
+  return (await listPartners()).map((p) => p.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
+});

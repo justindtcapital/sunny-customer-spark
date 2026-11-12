@@ -19,7 +19,7 @@ import {
   canonicalDtcStatus,
   nextPartnerColor,
   PARTNER_ROWS,
-  type PartnerCategory,
+  type PlannerPartnerCategory,
   duplicateKey,
   type PlannerAttendee,
   type PlannerEvent,
@@ -633,14 +633,14 @@ const PLANNER_PARTNER_HEADERS = ["Partner", "Row", "Color", "Added By", "Added",
 
 async function readPartnerRows(fresh = false) {
   const tabs = await listTabs();
-  if (!tabs.includes(PLANNER_PARTNERS_TAB)) return [] as Array<PartnerCategory & { row1: number; removedAt: string }>;
+  if (!tabs.includes(PLANNER_PARTNERS_TAB)) return [] as Array<PlannerPartnerCategory & { row1: number; removedAt: string }>;
   const rows = await readTab(PLANNER_PARTNERS_TAB, fresh);
   return rows.slice(1).map((r, n) => ({
     partner: (r[0] || "").trim(), row: (r[1] || "").trim(), color: (r[2] || "").trim(), removedAt: (r[5] || "").trim(), row1: n + 2,
   })).filter((r) => r.partner && (PARTNER_ROWS as readonly string[]).includes(r.row));
 }
 
-export async function readPlannerPartners(fresh = false): Promise<PartnerCategory[]> {
+export async function readPlannerPartners(fresh = false): Promise<PlannerPartnerCategory[]> {
   const seen = new Set<string>();
   return (await readPartnerRows(fresh)).filter((r) => !r.removedAt).filter((r) => {
     const k = `${r.row}|${r.partner.toLowerCase()}`;
@@ -650,7 +650,7 @@ export async function readPlannerPartners(fresh = false): Promise<PartnerCategor
   }).map(({ partner, row, color }) => ({ partner, row, color }));
 }
 
-export async function addPlannerPartner(partner: string, row: string, by: string): Promise<PartnerCategory[]> {
+export async function addPlannerPartner(partner: string, row: string, by: string): Promise<PlannerPartnerCategory[]> {
   if (!(PARTNER_ROWS as readonly string[]).includes(row)) throw new Error("Partners can only be added to Partner-led events or Briefings.");
   const name = partner.trim();
   const current = await readPlannerPartners(true);
@@ -661,7 +661,7 @@ export async function addPlannerPartner(partner: string, row: string, by: string
   return [...current, { partner: name, row, color }];
 }
 
-export async function removePlannerPartner(partner: string, row: string): Promise<PartnerCategory[]> {
+export async function removePlannerPartner(partner: string, row: string): Promise<PlannerPartnerCategory[]> {
   const rows = await readPartnerRows(true);
   const now = new Date().toISOString();
   for (const r of rows.filter((x) => !x.removedAt && x.row === row && x.partner.toLowerCase() === partner.trim().toLowerCase()))

@@ -138,7 +138,7 @@ export const LEGACY_SUBCATEGORIES: Record<string, string> = {
 const LEGACY_CATEGORIES: Record<string, string> = { "dtc partnered events": PARTNER_LED };
 
 /** Extra partner category added from the Partners list (Planner Partners tab). */
-export interface PartnerCategory { partner: string; row: string; color: string }
+export interface PlannerPartnerCategory { partner: string; row: string; color: string }
 /** Palette slots for added partners (never reused by the fixed categories). */
 export const EXTRA_COLORS = ["teal", "indigo", "emerald", "gold", "coral", "mint", "fuchsia", "cyan", "brick", "olive"];
 
@@ -147,7 +147,7 @@ export function partnerSubcategoryName(partner: string, row: string): string {
   return row === BRIEFINGS ? `${partner.trim()} Briefings` : partner.trim();
 }
 
-export function plannerCategories(extras: PartnerCategory[] = []): PlannerCategory[] {
+export function plannerCategories(extras: PlannerPartnerCategory[] = []): PlannerCategory[] {
   return PLANNER_CATEGORIES.map((c) => ({
     ...c,
     subcategories: [
@@ -159,7 +159,7 @@ export function plannerCategories(extras: PartnerCategory[] = []): PlannerCatego
 }
 
 /** First palette slot not used by an existing partner category. */
-export function nextPartnerColor(extras: PartnerCategory[]): string {
+export function nextPartnerColor(extras: PlannerPartnerCategory[]): string {
   const used = new Set(extras.map((x) => x.color));
   return EXTRA_COLORS.find((c) => !used.has(c)) || EXTRA_COLORS[extras.length % EXTRA_COLORS.length];
 }
