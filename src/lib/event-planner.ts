@@ -850,3 +850,20 @@ export function matchesPotentialPick(e: Pick<PlannerEvent, "subcategory">, picke
   const k = canonicalSubcategory(e.subcategory).toLowerCase();
   return picked.some((p) => p.toLowerCase() === k);
 }
+
+// ── Row "Show all" (category ticks are a per-row safety net, not a trap) ─────────
+/** Category ticks in a row's index: nothing ticked means every category shows. */
+export function matchesCategoryTicks(e: Pick<PlannerEvent, "subcategory">, subFilter: string[]): boolean {
+  if (!subFilter.length) return true;
+  return subFilter.includes(canonicalSubcategory(e.subcategory));
+}
+
+/** Events shown in one planner row: the row's events following the index ticks, or everything when that row's "Show all" is on. */
+export function rowEventsFor<T extends Pick<PlannerEvent, "subcategory">>(rowEvents: T[], subFilter: string[], showAll: boolean): T[] {
+  return showAll ? rowEvents : rowEvents.filter((e) => matchesCategoryTicks(e, subFilter));
+}
+
+/** How many events in a row the index ticks are hiding — the count on that row's "Show all" button. */
+export function hiddenByTicks(rowEvents: Pick<PlannerEvent, "subcategory">[], subFilter: string[]): number {
+  return rowEvents.filter((e) => !matchesCategoryTicks(e, subFilter)).length;
+}
