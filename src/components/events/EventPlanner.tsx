@@ -889,9 +889,9 @@ function TextCell({ value, onCommit, type = "text", multiline, list, placeholder
   useEffect(() => setV(value), [value]);
   const commit = () => { if (v !== value) onCommit(v); };
   if (multiline)
-    return <Textarea rows={3} className="min-h-[56px] text-xs" value={v} onChange={(x) => setV(x.target.value)} onBlur={commit} />;
+    return <Textarea rows={3} className="min-h-[56px] text-xs md:text-xs" value={v} onChange={(x) => setV(x.target.value)} onBlur={commit} />;
   return (
-    <Input type={type} list={list} placeholder={placeholder} className="h-7 text-xs" value={v}
+    <Input type={type} list={list} placeholder={placeholder} className="h-7 px-2 text-xs md:text-xs" value={v}
       onChange={(x) => setV(x.target.value)} onBlur={commit}
       onKeyDown={(x) => { if (x.key === "Enter") (x.target as HTMLInputElement).blur(); if (x.key === "Escape") setV(value); }} />
   );
