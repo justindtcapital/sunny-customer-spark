@@ -9,6 +9,9 @@ export const importContactsBatch = createServerFn({ method: "POST" }).middleware
   }).handler(async ({ data,context }) => {
     const { runJournalOperation } = await import("./bulk-journal.server");
     const { importContactRows } = await import("./bulk-import.server");
+    const { canonicalTrackerEventName } = await import("./event-planner.server");
+    // Uploads may only tag people to real Event Tracker events (never typed names).
+    if (data.event?.trim()) data = { ...data, event: await canonicalTrackerEventName(data.event) };
     const result = await runJournalOperation({ kind:"contact-import",page:"/crm",input:data,actor:context,run:async journal => {
       const value = await importContactRows(data,journal);
       return { value,outcomes:value.outcomes };

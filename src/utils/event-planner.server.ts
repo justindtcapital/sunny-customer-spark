@@ -24,6 +24,7 @@ import type { AsanaEvent } from "@/lib/types";
 import { suppliedFieldsMatch } from "@/lib/import-dedupe";
 import type { BulkOutcome } from "@/lib/bulk-operation";
 import { newLinksOnly, type HistoryLink } from "@/lib/event-history";
+import { resolveTrackerEvent, trackerPickerEvents } from "@/lib/event-people";
 
 const DEFAULT_TRACKER_ID = "1awv_VNFHvndOfu4DnyrM4PnMPb65UOms-sJym7AlG0M";
 export const EVENTS_TAB = "Events DB";
@@ -151,6 +152,20 @@ export async function readPlannerEvents(fresh = false): Promise<PlannerEvent[]> 
   const rows = await readTab(EVENTS_TAB, fresh);
   const idx = headerIndex(rows);
   return rows.slice(1).filter((r) => (r[idx["URID"]] || "").trim()).map((r) => fromRow(r, idx));
+}
+
+/**
+ * The Event Tracker name for a picked/typed event (own name or a merged older name).
+ * Unknown names are rejected so people are only ever tagged to real tracker events.
+ * Retries with a fresh read because other Worker instances may hold a stale list.
+ */
+export async function canonicalTrackerEventName(name: string): Promise<string> {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return "";
+  const hit = resolveTrackerEvent(trimmed, trackerPickerEvents(await readPlannerEvents()))
+    || resolveTrackerEvent(trimmed, trackerPickerEvents(await readPlannerEvents(true)));
+  if (!hit) throw new Error(`"${trimmed}" isn't an event in the Event Tracker. Pick an event from the list, or choose "Not event-related".`);
+  return hit.name;
 }
 
 export async function readAttendees(): Promise<PlannerAttendee[]> {
