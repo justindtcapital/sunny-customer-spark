@@ -182,6 +182,8 @@ export function categoryOfSubcategory(sub: string, fallback = ""): string {
   const k = canonicalSubcategory(sub).toLowerCase();
   for (const c of PLANNER_CATEGORIES)
     if (c.subcategories.some((s) => s.name.toLowerCase() === k)) return c.name;
+  // Added partners in the Briefings row are named "<Partner> Briefings", so their row is knowable from the name alone.
+  if (k.endsWith(` ${BRIEFINGS.toLowerCase()}`)) return BRIEFINGS;
   const f = canonicalCategory(fallback);
   return (PARTNER_ROWS as readonly string[]).includes(f) ? f : "Unassigned";
 }
