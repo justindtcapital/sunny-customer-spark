@@ -185,14 +185,16 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
     };
   }, [allEvents, partnerNames]);
 
-  const filtered = useMemo(() => {
+  // Everything except the category ticks: a row's "Show all" reads from here so unticked partners still appear.
+  const filteredNoSub = useMemo(() => {
     return allEvents.filter(e => eventMatchesFilters(e, {
-      search, subcategories: subFilter, sectors: sectorFilter, statuses: dtcFilter,
+      search, subcategories: [], sectors: sectorFilter, statuses: dtcFilter,
       statusView: "Both", portcos, partner, owner, source,
     }, today()));
-  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, portcos, partner, owner, source]);
+  }, [allEvents, search, sectorFilter, dtcFilter, portcos, partner, owner, source]);
+  const filtered = useMemo(() => filteredNoSub.filter(e => matchesCategoryTicks(e, subFilter)), [filteredNoSub, subFilter]);
 
-  const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
+  const inWindowAll = filteredNoSub.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
 
   async function mergeAsana() {
