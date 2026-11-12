@@ -158,7 +158,14 @@ export function EventPicker({ value, onChange, placeholder = "Pick an event…",
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[280px] p-0" align="start">
-        <Command shouldFilter>
+        <Command
+          shouldFilter
+          // Plain "contains every word" matching on name + older names (fuzzy matching surfaced unrelated events).
+          filter={(v, search, keywords) => {
+            const hay = [v, ...(keywords || [])].join(" ").toLowerCase();
+            return search.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w)) ? 1 : 0;
+          }}
+        >
           <CommandInput placeholder="Search Event Tracker events…" value={query} onValueChange={setQuery} />
           <CommandList>
             <CommandEmpty>
