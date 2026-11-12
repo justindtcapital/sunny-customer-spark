@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -40,7 +40,7 @@ import {
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
-  duplicateKey, plannerCategories, primaryPartnerCategory, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
+  duplicateKey, plannerCategories, effectiveCategory, categoryAfterPartnerChange, partnerOfCategory, isPartnerCategory, partnerSubcategoryName, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
   type PlannerCategory, type PlannerPartnerCategory,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
@@ -123,7 +123,25 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
       )
       .map(asanaToPlanner);
   }, [showAsana, asanaOverlay, events]);
-  const allEvents = useMemo(() => [...events, ...asanaExtras], [events, asanaExtras]);
+  // The open event's unsaved edits show on the grid straight away (colour and row), before Save.
+  const [preview, setPreview] = useState<{ urid: string; patch: Partial<PlannerEvent> }>({ urid: "", patch: {} });
+  const allEvents = useMemo(() => {
+    const shown = events.map((e) => {
+      if (e.urid !== preview.urid || !Object.keys(preview.patch).length) return e;
+      const next = { ...e, ...preview.patch };
+      return { ...next, ...effectiveCategory(next, cats) };
+    });
+    return [...shown, ...asanaExtras];
+  }, [events, asanaExtras, preview, cats]);
+  const onDraft = useCallback((urid: string, patch: Partial<PlannerEvent>) => {
+    setPreview((p) => (p.urid === urid && JSON.stringify(p.patch) === JSON.stringify(patch) ? p : { urid, patch }));
+  }, []);
+  // Show a saved event immediately (the sheet re-read follows).
+  function applySaved(e: PlannerEvent): PlannerEvent {
+    const shown = { ...e, ...effectiveCategory(e, cats) };
+    qc.setQueryData(plannerQueryKey, (old: typeof data) => old && { ...old, events: old.events.map((x) => (x.urid === shown.urid ? shown : x)) });
+    return shown;
+  }
 
   const [zoom, setZoom] = useState<PlannerZoom>("year");
   const [anchor, setAnchor] = useState(today());
@@ -410,7 +428,9 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         officialPortcos={data?.officialPortcos ?? []}
         options={options}
         onClose={() => setSelected(null)}
-        onSaved={(e) => { setSelected(e); refresh(); }}
+        onSaved={(e) => { setSelected(applySaved(e)); refresh(); }}
+        onDraft={onDraft}
+        onCategoriesChanged={refresh}
         onDeleted={() => { setSelected(null); refresh(); }}
       />
       <EventForm
@@ -539,8 +559,10 @@ function Tile({ e, zoom, clipStart, clipEnd, onClick }: {
 
 // ── Detail pane ────────────────────────────────────────────────
 function EventDetail({
-  event, all, attendees, contacts, onClose, onSaved, onDeleted, historyLinks, onOpen, onHistoryChanged, officialPortcos, options,
+  event, all, attendees, contacts, onClose, onSaved, onDeleted, historyLinks, onOpen, onHistoryChanged, officialPortcos, options, onDraft, onCategoriesChanged,
 }: {
+  onDraft: (urid: string, patch: Partial<PlannerEvent>) => void;
+  onCategoriesChanged: () => Promise<unknown>;
   officialPortcos: string[];
   options: { partners: string[]; owners: string[] };
   historyLinks: HistoryLink[];
@@ -564,6 +586,7 @@ function EventDetail({
   if ((event?.urid || "") !== draftFor) { setDraftFor(event?.urid || ""); setDraft({}); }
   const patch = event ? changedFields(event, draft) : {};
   const dirty = Object.keys(patch).length > 0;
+  useEffect(() => { onDraft(event?.urid || "", event ? changedFields(event, draft) : {}); }, [event, draft, onDraft]);
   async function saveDraft(): Promise<boolean> {
     if (!event || !dirty) return true;
     const problem = draftProblem(event, patch, rowOfSub, today());
@@ -682,7 +705,7 @@ function EventDetail({
                   <Field k="PortCos" v={e.portcos.join(", ")} />
                 </dl>
               ) : (
-                <InlineEventEditor saved={e} draft={draft} officialPortcos={officialPortcos} options={options} onChange={(p) => setDraft((d) => ({ ...d, ...p }))} />
+                <InlineEventEditor saved={e} draft={draft} officialPortcos={officialPortcos} options={options} onCategoriesChanged={onCategoriesChanged} onChange={(p) => setDraft((d) => ({ ...d, ...p }))} />
               )}
               {asanaOnly && e.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{e.notes}</p>}
               <div className="flex flex-wrap gap-2">
@@ -808,7 +831,8 @@ function EventDetail({
 }
 
 // ── Side panel editing (changes collect in a draft; Save, closing the panel or opening another event saves them) ──
-function InlineEventEditor({ saved, draft, officialPortcos, options, onChange }: {
+function InlineEventEditor({ saved, draft, officialPortcos, options, onChange, onCategoriesChanged }: {
+  onCategoriesChanged: () => Promise<unknown>;
   saved: PlannerEvent;
   draft: Partial<PlannerEvent>;
   officialPortcos: string[];
@@ -823,6 +847,29 @@ function InlineEventEditor({ saved, draft, officialPortcos, options, onChange }:
   const sub = canonicalSubcategory(e.subcategory);
   const knownSectors = new Set<string>(PLANNER_SECTORS);
   const sectors = [...new Set(e.sectors.map(normalizeSector))];
+  const primary = e.partners[0] || "";
+  const row = rowOfSub(sub);
+  const ownedByPrimary = !!primary && isPartnerCategory(sub) && partnerOfCategory(sub, [primary]) !== "";
+  // Primary partner in a partner row with no category of its own yet: offer to add one.
+  const canAddRow = !!primary && (PARTNER_ROWS as readonly string[]).includes(row) && !ownedByPrimary && inList(options.partners, primary);
+  const setRowFn = useServerFn(setPlannerPartnerFn);
+  const [addingRow, setAddingRow] = useState(false);
+  async function addPrimaryRow() {
+    setAddingRow(true);
+    try {
+      await setRowFn({ data: { partner: primary, row } });
+      await onCategoriesChanged();
+      const name = partnerSubcategoryName(primary, row);
+      onChange({ subcategory: name, category: row });
+      toast.success(`${primary} now has its own colour under ${ROW_LABELS[row] || row}`);
+    } catch (err) { toast.error((err as Error).message); } finally { setAddingRow(false); }
+  }
+  function pickCategory(v: string) {
+    // Picking a partner's category makes that partner the primary (owner).
+    const owner = partnerOfCategory(v, options.partners);
+    const partners = owner ? [owner, ...e.partners.filter((x) => x.toLowerCase() !== owner.toLowerCase())] : e.partners;
+    onChange({ subcategory: v, category: rowOfSub(v), partners });
+  }
 
   return (
     <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
@@ -831,7 +878,7 @@ function InlineEventEditor({ saved, draft, officialPortcos, options, onChange }:
         <Pills options={DTC_STATUSES} value={dtc} onChange={(v) => onChange({ dtcStatus: v, status: plannerStatusForDtc(v) })} />
       </Row2>
       <Row2 label="Category" mark={mark("subcategory")}>
-        <Select value={sub} onValueChange={(v) => onChange({ subcategory: v, category: rowOfSub(v) })}>
+        <Select value={sub} onValueChange={pickCategory}>
           <SelectTrigger className="h-7 w-auto max-w-full gap-2 text-xs">
             <span className="flex min-w-0 items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: tileVar(sub) }} /><SelectValue /></span>
           </SelectTrigger>
@@ -841,6 +888,7 @@ function InlineEventEditor({ saved, draft, officialPortcos, options, onChange }:
             )))}
           </SelectContent>
         </Select>
+        {ownedByPrimary && <div className="pt-0.5 text-[10px] text-muted-foreground">Set by primary partner {primary}</div>}
       </Row2>
       <Row2 label="Dates" mark={mark("start", "end")}>
         <div className="flex items-center gap-1.5">
@@ -872,10 +920,12 @@ function InlineEventEditor({ saved, draft, officialPortcos, options, onChange }:
       </Row2>
       <Row2 label="Partners" mark={mark("partners")}>
         <ListPicker noun="Partner" listName="Partners" value={e.partners} official={options.partners} primary
-          onChange={(v) => {
-            const owned = v[0] && v[0] !== e.partners[0] ? primaryPartnerCategory(v[0], e.subcategory, activeCats) : "";
-            onChange(owned ? { partners: v, subcategory: owned, category: rowOfSub(owned) } : { partners: v });
-          }} />
+          onChange={(v) => onChange({ partners: v, ...categoryAfterPartnerChange({ ...e, partners: v }, activeCats) })} />
+        {canAddRow && (
+          <button type="button" disabled={addingRow} onClick={() => void addPrimaryRow()} className="pt-1 text-[10px] text-primary hover:underline">
+            {addingRow ? "Adding…" : `${primary} has no colour yet — give it its own row`}
+          </button>
+        )}
       </Row2>
       <Row2 label="Network count" mark={mark("networkCount")}>
         <DraftInput type="number" className="w-20" value={e.networkCount ? String(e.networkCount) : ""} onChange={(v) => onChange({ networkCount: Number(v) || 0 })} />
@@ -1164,9 +1214,8 @@ function EventForm({
           <L label="Owner / DTC coverage"><Input list="vp-owners" value={form.owner || ""} onChange={(e) => set("owner", e.target.value)} /></L>
           <L label="PortCos" hint="Pick from the official Portfolio list"><ListPicker noun="PortCo" listName="Portfolio" value={form.portcos || []} official={options.officialPortcos} onChange={(v) => set("portcos", v)} /></L>
           <L label="Partners" hint="Pick from the Partners list"><ListPicker noun="Partner" listName="Partners" value={form.partners || []} official={options.partners} primary onChange={(v) => {
-            set("partners", v);
-            const owned = v[0] && v[0] !== (form.partners || [])[0] ? primaryPartnerCategory(v[0], form.subcategory || "", activeCats) : "";
-            if (owned) { set("subcategory", owned); set("category", rowOfSub(owned)); }
+            const next = categoryAfterPartnerChange({ subcategory: form.subcategory || "Unassigned", category: form.category || "", partners: v }, activeCats);
+            setForm((f) => ({ ...f, partners: v, ...next }));
           }} /></L>
           <L label="Network attendees (count)"><Input type="number" value={form.networkCount || ""} onChange={(e) => set("networkCount", Number(e.target.value) || 0)} /></L>
           <L label="Event contact"><Input value={form.eventContact || ""} onChange={(e) => set("eventContact", e.target.value)} /></L>

@@ -4,7 +4,7 @@ import type { PlannerEvent } from "./event-planner";
 
 const ev = (p: Partial<PlannerEvent> = {}): PlannerEvent => ({
   urid: "E1", name: "GBI Impact - CIO NYC", start: "2026-11-10", end: "2026-11-10", location: "", category: "Partner Led Events",
-  subcategory: "GBI Roundtable", status: "Potential", sectors: [], portcos: [], partners: [], owner: "", format: "", website: "",
+  subcategory: "Other", status: "Potential", sectors: [], portcos: [], partners: [], owner: "", format: "", website: "",
   lumaUrl: "", source: "", sourceRef: "", asanaGid: "", networkCount: 0, notes: "", actionsNeeded: "", eventContact: "",
   createdBy: "", updated: "u1", dtcStatus: "Potential", ...p,
 });

@@ -46,14 +46,14 @@ describe("categories", () => {
     expect(canonicalSubcategory("Virtual Pitches (Sagetap)")).toBe("Other Briefings");
     expect(categoryOfSubcategory("Virtual Pitches (Sagetap)")).toBe("Briefings");
   });
-  it("partner-led row lists GBI Roundtable, CDO Events, ISSA and Other", () => {
+  it("partner-led row has only Other until partners are added", () => {
     const row = plannerCategories().find((c) => c.name === "Partner Led Events")!;
-    expect(row.subcategories.map((s) => s.name)).toEqual(["GBI Roundtable", "CDO Events", "ISSA", "Other"]);
+    expect(row.subcategories.map((s) => s.name)).toEqual(["Other"]);
   });
   it("an added partner gets its own colour before Other and keeps its row", () => {
     const extras = [{ partner: "Cisco", row: "Partner Led Events", color: "teal" }];
     const row = plannerCategories(extras).find((c) => c.name === "Partner Led Events")!;
-    expect(row.subcategories.map((s) => s.name)).toEqual(["GBI Roundtable", "CDO Events", "ISSA", "Cisco", "Other"]);
+    expect(row.subcategories.map((s) => s.name)).toEqual(["Cisco", "Other"]);
     expect(categoryOfSubcategory("Cisco", "Partner Led Events")).toBe("Partner Led Events");
     expect(nextPartnerColor(extras)).not.toBe("teal");
   });
