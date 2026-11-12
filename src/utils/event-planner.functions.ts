@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import type { PlannerAttendee, PlannerEvent } from "@/lib/event-planner";
+import type { PartnerCategory, PlannerAttendee, PlannerEvent } from "@/lib/event-planner";
 import type { HistoryLink } from "@/lib/event-history";
 import { requireTeamAuth } from "./team-auth";
 
