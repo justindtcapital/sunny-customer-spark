@@ -216,3 +216,10 @@
 ## Potential row index — Nov 12
 - [x] Potential row lists DTC-led, Partner-led and Briefings categories/partners with their colours and counts
 - [x] "All" picks every category/partner that has potential events; picks narrow only the Potential row
+
+## Show all per row — Nov 12
+- [x] Each planner row's index ends with a "Show all" button that ignores that row's category ticks
+- [x] Button names how many events the ticks are hiding; toggles back off
+- [x] Pure helpers + tests (matchesCategoryTicks, rowEventsFor, hiddenByTicks)
+- [x] Added briefing partners keep the Briefings row when a merge or overlay resolves the row (categoryOfSubcategory)
+- [ ] Click Show all in the live planner as you; not done because no preview session was available this turn
