@@ -23,9 +23,15 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { eventReferenceNames } from "@/lib/event-cleanup";
+import { campaignsForEvent, eventPeople } from "@/lib/event-people";
+import { campaignTypeOf, ownerInitials, isClosedStatus } from "@/lib/campaign-results";
+import { CampaignTypeBadge, statusLabel } from "@/components/campaigns/CampaignList";
+import { fetchTargets } from "@/utils/sheets.functions";
+import { fetchCampaigns } from "@/utils/campaigns.functions";
+import { Link } from "@tanstack/react-router";
 import { teamMemberFor, teamProfile } from "@/lib/user-ownership";
 import { eventMatchesFilters, mergeEventAutofill, type EventView } from "@/lib/event-views";
-import type { AsanaEvent, Contact } from "@/lib/types";
+import type { AsanaEvent, Contact, TargetLead } from "@/lib/types";
 import {
   PLANNER_CATEGORIES, PLANNER_SECTORS, IMPORT_FIELDS, IMPORT_FIELD_LABELS,
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
@@ -36,7 +42,7 @@ import {
 } from "@/lib/event-planner";
 import {
   fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, deletePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
-  extractEventFromUrlFn, addPlannerAttendeesFn,
+  extractEventFromUrlFn, addPlannerAttendeesFn, fetchEventTagsFn,
 } from "@/utils/event-planner.functions";
 import { EventHistoryDialog, EventHistorySection } from "./EventHistory";
 import { AttendanceReconcileDialog } from "./AttendanceReconcileDialog";
@@ -514,25 +520,37 @@ function EventDetail({
   const [q, setQ] = useState("");
   const e = event;
   const asanaOnly = !!e && e.urid.startsWith("asana:");
-  const people = useMemo(() => {
-    if (!e) return [];
-    const keys = new Set(eventReferenceNames(e).map(eventSeriesKey));
-    const rows = attendees.filter((a) => a.eventUrid === e.urid).map((a) => ({ name: a.name, email: a.email, kind: a.kind || "Network", status: a.status || "Attended" }));
-    const seen = new Set(rows.map((r) => (r.email || r.name).toLowerCase()));
-    for (const c of contacts) {
-      const hit = c.eventsAttended.some((x) => keys.has(eventSeriesKey(x))) || c.eventsInvited.some((x) => keys.has(eventSeriesKey(x)));
-      if (!hit) continue;
-      const k = (c.email || c.name).toLowerCase();
-      if (seen.has(k)) continue;
-      seen.add(k);
-      rows.push({ name: c.name, email: c.email, kind: "Network", status: c.eventsAttended.some((x) => keys.has(eventSeriesKey(x))) ? "Attended" : "Invited" });
-    }
-    return rows.sort((a, b) => a.name.localeCompare(b.name));
-  }, [e, attendees, contacts]);
+  // Prospects and campaigns load lazily (shared caches with the rest of the Events page).
+  const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000, enabled: !!e });
+  const campaignsQ = useQuery({ queryKey: ["campaigns"], queryFn: () => fetchCampaigns(), staleTime: 30_000, enabled: !!e });
+  const tagsFn = useServerFn(fetchEventTagsFn);
+  const refNames = e ? eventReferenceNames(e) : [];
+  const tagsQ = useQuery({
+    queryKey: ["event-person-tags", ...refNames],
+    queryFn: () => tagsFn({ data: { names: refNames } }),
+    staleTime: 60_000,
+    enabled: !!e && !asanaOnly,
+  });
+  const prospects = useMemo(() => ((targetsQ.data || []) as TargetLead[]), [targetsQ.data]);
+  const people = useMemo(
+    () => (e ? eventPeople(e, attendees, contacts, prospects, tagsQ.data?.tags || []) : []),
+    [e, attendees, contacts, prospects, tagsQ.data],
+  );
+  const peopleLoading = targetsQ.isLoading || tagsQ.isLoading;
+  const linkedCampaigns = useMemo(
+    () => (e ? campaignsForEvent(e, campaignsQ.data?.campaigns || []) : []),
+    [e, campaignsQ.data],
+  );
   const prior = e ? priorYears(e, all) : [];
-  const matches = q.trim().length >= 2
-    ? contacts.filter((c) => `${c.name} ${c.email} ${c.company}`.toLowerCase().includes(q.toLowerCase())).slice(0, 6)
-    : [];
+  const matches = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (needle.length < 2) return [];
+    const pool = [
+      ...contacts.map((c) => ({ id: c.id, name: c.name, email: c.email, company: c.company, kind: "Network" })),
+      ...prospects.map((t) => ({ id: t.id, name: t.name, email: t.email, company: t.company, kind: "Prospect" })),
+    ];
+    return pool.filter((c) => `${c.name} ${c.email} ${c.company}`.toLowerCase().includes(needle)).slice(0, 8);
+  }, [q, contacts, prospects]);
 
   async function remove() {
     if (!e) return;
@@ -558,9 +576,9 @@ function EventDetail({
       toast.error((err as Error).message);
     }
   }
-  async function addPerson(c: Contact, status: string) {
+  async function addPerson(c: { name: string; email: string; kind: string }, status: string) {
     if (!e) return;
-    await addAtt({ data: { attendees: [{ eventUrid: e.urid, name: c.name, email: c.email, kind: "Network", status, date: today() }] } });
+    await addAtt({ data: { attendees: [{ eventUrid: e.urid, name: c.name, email: c.email, kind: c.kind, status, date: today() }] } });
     setQ("");
     toast.success(`${c.name} added as ${status.toLowerCase()}`);
     onSaved(e);
@@ -625,13 +643,13 @@ function EventDetail({
                 <h3 className="text-xs font-semibold">Attendees & invites ({people.length})</h3>
                 <div className="relative">
                   {!asanaOnly && (
-                  <Input value={q} onChange={(x) => setQ(x.target.value)} placeholder="Add a Network contact…" className="h-7 text-xs" />
+                  <Input value={q} onChange={(x) => setQ(x.target.value)} placeholder="Add a Network contact or prospect…" className="h-7 text-xs" />
                   )}
                   {matches.length > 0 && (
                     <div className="absolute z-10 mt-1 w-full rounded-md border border-border bg-popover shadow">
                       {matches.map((c) => (
                         <div key={c.id} className="flex items-center justify-between px-2 py-1 text-xs hover:bg-muted">
-                          <span className="truncate">{c.name} <span className="text-muted-foreground">{c.company}</span></span>
+                          <span className="truncate">{c.name} <span className="text-muted-foreground">{c.company}</span>{c.kind === "Prospect" && <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px]">Prospect</Badge>}</span>
                           <span className="flex gap-1 shrink-0">
                             <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={() => addPerson(c, "Invited")}>Invited</Button>
                             <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]" onClick={() => addPerson(c, "Attended")}>Attended</Button>
@@ -641,18 +659,60 @@ function EventDetail({
                     </div>
                   )}
                 </div>
-                <div className="space-y-1 max-h-56 overflow-y-auto">
+                <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                  {(["Attended", "Registered", "Invited"] as const).map((st) => {
+                    const n = people.filter((p) => p.status === st).length;
+                    return n ? <span key={st}>{n} {st.toLowerCase()}</span> : null;
+                  }).filter(Boolean).reduce<ReactNode[]>((acc, x, i) => (i ? [...acc, <span key={`sep${i}`}>·</span>, x] : [x]), [])}
+                </div>
+                <div className="space-y-1 max-h-72 overflow-y-auto">
                   {people.map((p) => (
-                    <div key={p.email || p.name} className="flex items-center justify-between text-xs">
-                      <span className="truncate">{p.name}{p.email && <span className="text-muted-foreground"> · {p.email}</span>}</span>
+                    <div key={p.key} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">
+                        {p.name}
+                        {p.company && <span className="text-muted-foreground"> · {p.company}</span>}
+                        {!p.company && p.email && p.email !== p.name && <span className="text-muted-foreground"> · {p.email}</span>}
+                      </span>
                       <span className="flex gap-1 shrink-0">
-                        <Badge variant="outline" className="h-4 px-1 text-[9px]">{p.kind}</Badge>
-                        <Badge variant="secondary" className="h-4 px-1 text-[9px]">{p.status}</Badge>
+                        <Badge variant="outline" className={cn("h-4 px-1 text-[9px]", p.kind === "Not in CRM" && "text-muted-foreground border-dashed")}>{p.kind}</Badge>
+                        <Badge variant={p.status === "Attended" ? "default" : "secondary"} className="h-4 px-1 text-[9px]">{p.status}</Badge>
                       </span>
                     </div>
                   ))}
-                  {people.length === 0 && <p className="text-xs text-muted-foreground">No attendees yet.</p>}
+                  {people.length === 0 && (
+                    <p className="text-xs text-muted-foreground">{peopleLoading ? "Loading attendees…" : "No attendees or invites yet."}</p>
+                  )}
                 </div>
+              </section>
+
+              <section className="space-y-1.5">
+                <h3 className="text-xs font-semibold">Campaigns ({linkedCampaigns.length})</h3>
+                {campaignsQ.isLoading && <p className="text-xs text-muted-foreground">Loading campaigns…</p>}
+                {!campaignsQ.isLoading && linkedCampaigns.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No campaigns are tied to this event.</p>
+                )}
+                {linkedCampaigns.map((c) => (
+                  <Link
+                    key={c.id}
+                    to="/campaigns"
+                    search={{ campaign: c.id }}
+                    className={cn("flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1.5 text-xs hover:bg-muted/50", isClosedStatus(c.status) && "opacity-70")}
+                  >
+                    <span className="min-w-0 flex items-center gap-1.5">
+                      <span className="truncate font-medium">{c.name}</span>
+                      <CampaignTypeBadge purpose={c.purpose || campaignTypeOf(c.purpose)} />
+                    </span>
+                    <span className="flex items-center gap-1.5 shrink-0 text-[10px] text-muted-foreground">
+                      {typeof c.memberCount === "number" && <span>{c.memberCount} people</span>}
+                      <Badge variant="secondary" className="h-4 px-1 text-[9px] capitalize">{statusLabel(c.status)}</Badge>
+                      {c.owner && (
+                        <span title={c.owner} className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[8px] font-semibold text-primary">
+                          {ownerInitials(c.owner)}
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                ))}
               </section>
 
               <EventHistorySection event={e} links={historyLinks} all={all} attendees={attendees} onChanged={onHistoryChanged} onOpen={onOpen} />
