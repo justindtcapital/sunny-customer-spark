@@ -17,7 +17,7 @@ describe("events dashboard", () => {
     const rows = monthlyByType(events, 2026);
     expect(rows[2].total).toBe(2);
     expect(rows[2]["Other"]).toBe(1);
-    expect(rows[2]["Vation Briefs"]).toBe(1);
+    expect(rows[2]["Vation Briefings"]).toBe(1);
     expect(rows[6].Unassigned).toBe(1);
     expect(rows.reduce((n, r) => n + r.total, 0)).toBe(3);
   });
