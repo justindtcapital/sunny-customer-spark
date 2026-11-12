@@ -400,6 +400,19 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
                     {(PARTNER_ROWS as readonly string[]).includes(cat.name) && (
                       <AddPartnerButton row={cat.name} existing={data?.partnerCategories ?? []} onDone={refresh} />
                     )}
+                    <Button
+                      size="sm"
+                      variant={showAll ? "secondary" : "outline"}
+                      className="h-5 px-2 text-[10px]"
+                      title={showAll
+                        ? "Showing every event in this row — click to follow the category ticks again"
+                        : hidden
+                          ? `Show all ${hidden} ${hidden === 1 ? "event" : "events"} the category ticks are hiding`
+                          : "Every event in this row is already showing"}
+                      onClick={() => setShowAllRows((p) => (p.includes(cat.name) ? p.filter((n) => n !== cat.name) : [...p, cat.name]))}
+                    >
+                      {showAll ? "Showing all" : "Show all"}{!showAll && hidden > 0 ? ` (${hidden})` : ""}
+                    </Button>
                   </div>
                   {win.columns.map((col) => (
                     <div key={col.key} className="border-b border-l border-border p-1 space-y-1 min-h-[90px]">
