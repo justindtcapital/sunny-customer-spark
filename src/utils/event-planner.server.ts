@@ -429,7 +429,7 @@ export async function enrichFromAsana(
     .map((e) => {
       const u = plan.updates.get(e.urid);
       if (!u) return e;
-      return { ...u, category: categoryOfSubcategory(u.subcategory), updated: now };
+      return { ...u, category: categoryOfSubcategory(u.subcategory, e.category), updated: now };
     });
   // Keep any blank/non-event rows that were interleaved, then pad so removed
   // rows are cleared rather than left as stale duplicates.

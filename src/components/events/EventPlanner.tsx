@@ -41,7 +41,7 @@ import {
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
   duplicateKey, plannerCategories, effectiveCategory, categoryAfterPartnerChange, partnerOfCategory, isPartnerCategory, isDtcOwned, partnerSubcategoryName, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
-  potentialIndex, availablePotential, matchesPotentialPick,
+  potentialIndex, availablePotential, matchesPotentialPick, matchesCategoryTicks, rowEventsFor, hiddenByTicks,
   type PlannerCategory, type PlannerPartnerCategory,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
@@ -150,6 +150,8 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [subFilter, setSubFilter] = useState<string[]>([]);
   // Potential row's own category/partner pick (only narrows the Potential row).
   const [potentialPick, setPotentialPick] = useState<string[]>([]);
+  // Rows whose "Show all" is on: they ignore the category ticks so nothing hides.
+  const [showAllRows, setShowAllRows] = useState<string[]>([]);
   const [sectorFilter, setSectorFilter] = useState<string[]>([]);
   const [dtcFilter, setDtcFilter] = useState<string[]>([...DEFAULT_DTC_STATUSES]);
   const [portcos, setPortcos] = useState<string[]>([]);
@@ -183,14 +185,16 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
     };
   }, [allEvents, partnerNames]);
 
-  const filtered = useMemo(() => {
+  // Everything except the category ticks: a row's "Show all" reads from here so unticked partners still appear.
+  const filteredNoSub = useMemo(() => {
     return allEvents.filter(e => eventMatchesFilters(e, {
-      search, subcategories: subFilter, sectors: sectorFilter, statuses: dtcFilter,
+      search, subcategories: [], sectors: sectorFilter, statuses: dtcFilter,
       statusView: "Both", portcos, partner, owner, source,
     }, today()));
-  }, [allEvents, search, subFilter, sectorFilter, dtcFilter, portcos, partner, owner, source]);
+  }, [allEvents, search, sectorFilter, dtcFilter, portcos, partner, owner, source]);
+  const filtered = useMemo(() => filteredNoSub.filter(e => matchesCategoryTicks(e, subFilter)), [filteredNoSub, subFilter]);
 
-  const inWindow = filtered.filter((e) => overlaps(e, win.start, win.end));
+  const inWindowAll = filteredNoSub.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
 
   async function mergeAsana() {
@@ -343,7 +347,10 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
 
             {[...cats.filter((c) => c.name !== "Unassigned"), { name: POTENTIAL_ROW, subcategories: [] }].map((cat) => {
               const isPotential = cat.name === POTENTIAL_ROW;
-              const placed = inWindow.filter((e) => placementRow(e, today()) === cat.name);
+              const rowAll = inWindowAll.filter((e) => placementRow(e, today()) === cat.name);
+              const showAll = showAllRows.includes(cat.name);
+              const hidden = hiddenByTicks(rowAll, subFilter);
+              const placed = rowEventsFor(rowAll, subFilter, showAll);
               const pIndex = isPotential ? potentialIndex(placed, cats) : [];
               const pAvailable = availablePotential(pIndex);
               const allPicked = pAvailable.length > 0 && pAvailable.every((n) => potentialPick.includes(n)) && potentialPick.length === pAvailable.length;
@@ -393,6 +400,19 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
                     {(PARTNER_ROWS as readonly string[]).includes(cat.name) && (
                       <AddPartnerButton row={cat.name} existing={data?.partnerCategories ?? []} onDone={refresh} />
                     )}
+                    <Button
+                      size="sm"
+                      variant={showAll ? "secondary" : "outline"}
+                      className="h-5 px-2 text-[10px]"
+                      title={showAll
+                        ? "Showing every event in this row — click to follow the category ticks again"
+                        : hidden
+                          ? `Show all ${hidden} ${hidden === 1 ? "event" : "events"} the category ticks are hiding`
+                          : "Every event in this row is already showing"}
+                      onClick={() => setShowAllRows((p) => (p.includes(cat.name) ? p.filter((n) => n !== cat.name) : [...p, cat.name]))}
+                    >
+                      {showAll ? "Showing all" : "Show all"}{!showAll && hidden > 0 ? ` (${hidden})` : ""}
+                    </Button>
                   </div>
                   {win.columns.map((col) => (
                     <div key={col.key} className="border-b border-l border-border p-1 space-y-1 min-h-[90px]">

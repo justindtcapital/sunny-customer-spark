@@ -126,6 +126,6 @@ export function buildManualMerge(events: PlannerEvent[], keeperUrid: string, pic
     if (from) (next as Record<string, unknown>)[f] = from[f];
   }
   if (next.end < next.start) next.end = next.start;
-  next.category = categoryOfSubcategory(next.subcategory);
+  next.category = categoryOfSubcategory(next.subcategory, next.category);
   return next;
 }
