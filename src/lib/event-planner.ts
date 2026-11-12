@@ -700,3 +700,22 @@ export function parsePlannerCsv(text: string): string[][] {
   if (cell || row.length) { row.push(cell); rows.push(row); }
   return rows.filter((r) => r.some((c) => c.trim()));
 }
+
+/** Fixed categories owned by a Partners-page partner under a different name. */
+const PARTNER_CATEGORY_ALIASES: Record<string, string> = { "gbi impact": "GBI Roundtable", vation: "Vation Briefs" };
+
+/**
+ * Category owned by an event's primary partner (first Partners tag), or "" when that
+ * partner has no category of its own. Keeps the event's current row when the partner
+ * has a category there (e.g. "AWS Briefings" for a briefing), else any row.
+ */
+export function primaryPartnerCategory(partner: string, currentSub: string, cats: PlannerCategory[]): string {
+  const p = (partner || "").trim();
+  if (!p) return "";
+  const all = cats.flatMap((c) => c.subcategories.map((s) => ({ row: c.name, name: s.name })));
+  const cur = canonicalSubcategory(currentSub).toLowerCase();
+  const curRow = all.find((s) => s.name.toLowerCase() === cur)?.row || "";
+  const wanted = [PARTNER_CATEGORY_ALIASES[p.toLowerCase()], p, partnerSubcategoryName(p, BRIEFINGS)].filter(Boolean).map((x) => x!.toLowerCase());
+  const hits = all.filter((s) => wanted.includes(s.name.toLowerCase()));
+  return (hits.find((s) => s.row === curRow) || hits[0])?.name || "";
+}
