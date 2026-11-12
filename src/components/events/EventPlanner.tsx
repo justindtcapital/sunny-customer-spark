@@ -74,6 +74,8 @@ function asanaToPlanner(a: AsanaEvent): PlannerEvent {
   };
 }
 
+const ROW_LABELS: Record<string, string> = { "DTC Led Events": "DTC-led events", "Partner Led Events": "Partner-led events", Briefings: "Briefings", Potential: "Potential" };
+
 export const plannerQueryKey = ["event-planner"];
 
 export function EventPlanner({ contacts, view = "planner", openEventName, renderView }: {
@@ -323,7 +325,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
               return (
                 <Row key={cat.name}>
                   <div className={cn("border-b border-border p-2 space-y-1", isPotential && "bg-muted/30")}>
-                    <div className="text-xs font-semibold">{isPotential ? "Potential" : cat.name.replace(" Events", "-led events").replace("DTC Led-led", "DTC-led").replace("Partner Led-led", "Partner-led")}</div>
+                    <div className="text-xs font-semibold">{ROW_LABELS[cat.name] || cat.name}</div>
                     {isPotential && <p className="text-[10px] text-muted-foreground leading-tight">Set DTC Status to Considering to move an event up into its row.</p>}
                     {cat.subcategories.map((s) => (
                       <div key={s.name} className="group flex items-center gap-1.5 text-[10px] leading-tight">
