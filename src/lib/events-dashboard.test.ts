@@ -17,7 +17,7 @@ describe("events dashboard", () => {
     const rows = monthlyByType(events, 2026);
     expect(rows[2].total).toBe(2);
     expect(rows[2]["Other"]).toBe(1);
-    expect(rows[2]["Vation Briefings"]).toBe(1);
+    expect(rows[2].Unassigned).toBe(1); // Vation Briefings only exists once Vation is added as a partner
     expect(rows[6].Unassigned).toBe(1);
     expect(rows.reduce((n, r) => n + r.total, 0)).toBe(3);
   });
@@ -31,5 +31,15 @@ describe("events dashboard", () => {
   });
   it("groups virtual locations", () => {
     expect(eventCity("Zoom")).toBe("Virtual");
+  });
+});
+
+describe("partner categories on the dashboard", () => {
+  it("counts an added partner briefing under its own type", async () => {
+    const { eventTypesFor } = await import("./events-dashboard");
+    const types = eventTypesFor([{ partner: "Vation", row: "Briefings", color: "amber" }]);
+    const rows = monthlyByType(events, 2026, types);
+    expect(rows[2]["Vation Briefings"]).toBe(1);
+    expect(types.find((t) => t.name === "Vation Briefings")?.color).toBe("amber");
   });
 });

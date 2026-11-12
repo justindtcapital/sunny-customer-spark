@@ -133,7 +133,7 @@ export function EventsDashboard() {
               </Select>
             </div>
           </div>
-          <MonthlyEventBars rows={rows} month={month} onMonth={setMonth} />
+          <MonthlyEventBars rows={rows} month={month} onMonth={setMonth} types={types} />
           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
             {usedTypes.map((t) => (
               <span key={t.name} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
