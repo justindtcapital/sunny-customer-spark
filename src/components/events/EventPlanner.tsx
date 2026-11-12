@@ -359,7 +359,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
               const fixed = new Set(PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((x) => x.name)));
               return (
                 <Row key={cat.name}>
-                  <div className={cn("border-b border-border p-2 space-y-1", isPotential && "bg-muted/30")}>
+                  <div className="border-b border-border p-2 space-y-1">
                     <div className="text-xs font-semibold">{ROW_LABELS[cat.name] || cat.name}</div>
                     {isPotential && (
                       <>
@@ -378,23 +378,23 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
                             {(i === 0 || pIndex[i - 1].row !== x.row) && (
                               <div className="pt-1 text-[9px] uppercase tracking-wide text-muted-foreground/80">{x.row === "Unassigned" ? "No category" : ROW_LABELS[x.row] || x.row}</div>
                             )}
-                            <div className={cn("flex items-center gap-1.5 text-[10px] leading-tight", !x.count && "opacity-40")}>
+                            <div className="flex items-center gap-1.5 text-[10px] leading-tight">
                               <ColorCheck color={tileVar(x.name)} checked={potentialPick.includes(x.name)} onChange={(v) => setPotentialPick((p) => (v ? [...p, x.name] : p.filter((n) => n !== x.name)))} />
                               <button type="button" className="flex-1 truncate text-left text-muted-foreground hover:text-foreground" onClick={() => setPotentialPick((p) => (p.includes(x.name) ? p.filter((n) => n !== x.name) : [...p, x.name]))}>{x.row === "Unassigned" ? "No category" : x.name}</button>
                               <span className="tabular-nums text-muted-foreground">{x.count}</span>
                             </div>
                           </div>
                         ))}
-                        <p className="pt-1 text-[10px] text-muted-foreground leading-tight">Set DTC Status to Considering to move an event up into its row.</p>
                       </>
                     )}
                     {cat.subcategories.map((s) => (
                       <div key={s.name} className="group flex items-center gap-1.5 text-[10px] leading-tight">
                         <ColorCheck color={tileVar(s.name)} checked={subFilter.includes(s.name)} onChange={(v) => toggleSub(s.name, v)} />
-                        <button type="button" className="truncate text-left text-muted-foreground hover:text-foreground" onClick={() => toggleSub(s.name, !subFilter.includes(s.name))}>{s.name}</button>
+                        <button type="button" className="flex-1 min-w-0 truncate text-left text-muted-foreground hover:text-foreground" onClick={() => toggleSub(s.name, !subFilter.includes(s.name))}>{s.name}</button>
                         {!fixed.has(s.name) && (
                           <RemovePartnerButton name={s.name} row={cat.name} partners={data?.partnerCategories ?? []} onDone={refresh} />
                         )}
+                        <span className="tabular-nums text-muted-foreground">{placed.filter((e) => canonicalSubcategory(e.subcategory) === s.name).length}</span>
                       </div>
                     ))}
                     {(PARTNER_ROWS as readonly string[]).includes(cat.name) && (
