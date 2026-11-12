@@ -16,17 +16,18 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   count: number;
   /** Adds the event as a link on the selected prospects (existing links kept). */
-  onSave: (event: string) => Promise<void>;
+  onSave: (event: string, type: "attended" | "invited") => Promise<void>;
 }
 
 export function TagToEventDialog({ open, onOpenChange, count, onSave }: Props) {
   const [event, setEvent] = useState("");
+  const [type, setType] = useState<"attended" | "invited">("attended");
   const [saving, setSaving] = useState(false);
   const save = async () => {
     if (!event.trim()) return;
     setSaving(true);
     try {
-      await onSave(event.trim());
+      await onSave(event.trim(), type);
       setEvent("");
       onOpenChange(false);
     } finally {
@@ -44,6 +45,22 @@ export function TagToEventDialog({ open, onOpenChange, count, onSave }: Props) {
           </DialogDescription>
         </DialogHeader>
         <EventPicker value={event} onChange={setEvent} placeholder="Pick an event" />
+        <div className="flex gap-1.5" role="radiogroup" aria-label="Tag as">
+          {(["attended", "invited"] as const).map((t) => (
+            <Button
+              key={t}
+              type="button"
+              size="sm"
+              role="radio"
+              aria-checked={type === t}
+              variant={type === t ? "default" : "outline"}
+              className="h-7 text-xs"
+              onClick={() => setType(t)}
+            >
+              {t === "attended" ? "Attended" : "Invited"}
+            </Button>
+          ))}
+        </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel

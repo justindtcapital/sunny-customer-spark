@@ -31,7 +31,7 @@ import type { AsanaEvent } from "@/lib/types";
 import { suppliedFieldsMatch } from "@/lib/import-dedupe";
 import type { BulkOutcome } from "@/lib/bulk-operation";
 import { newLinksOnly, type HistoryLink } from "@/lib/event-history";
-import { resolveTrackerEvent, trackerPickerEvents } from "@/lib/event-people";
+import { planAttendeeWrites, resolveTrackerEvent, trackerPickerEvents } from "@/lib/event-people";
 
 const DEFAULT_TRACKER_ID = "1awv_VNFHvndOfu4DnyrM4PnMPb65UOms-sJym7AlG0M";
 export const EVENTS_TAB = "Events DB";
@@ -275,23 +275,17 @@ export async function updatePlannerEvent(
 
 export async function addAttendees(rows: PlannerAttendee[]): Promise<number> {
   await ensureTab(ATTENDEES_TAB, ATTENDEE_HEADERS);
-  // Same event + same email, or same normalised full name, is one attendee (campaign sign-ups vs later uploads).
-  const n = (s: string) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
-  const have = new Set<string>();
-  for (const a of await readAttendees()) {
-    if (n(a.email)) have.add(`${a.eventUrid}|e:${n(a.email)}`);
-    if (n(a.name)) have.add(`${a.eventUrid}|n:${n(a.name)}`);
-  }
-  const out = rows.filter((a) => {
-    const ek = n(a.email) ? `${a.eventUrid}|e:${n(a.email)}` : "";
-    const nk = n(a.name) ? `${a.eventUrid}|n:${n(a.name)}` : "";
-    if ((ek && have.has(ek)) || (nk && have.has(nk))) return false;
-    if (ek) have.add(ek);
-    if (nk) have.add(nk);
-    return true;
-  });
-  await appendRows(ATTENDEES_TAB, out.map((a) => [a.eventUrid, a.name, a.email, a.kind, a.status, a.date]));
-  return out.length;
+  // Fresh read so sequential uploads see each other; one person per event (email or full name).
+  // A stronger status (e.g. Attended over an earlier Invited) upgrades the existing row in place.
+  const raw = await readTab(ATTENDEES_TAB, true);
+  const existing = raw.slice(1).map((r, index) => ({
+    index, eventUrid: r[0] || "", name: r[1] || "", email: r[2] || "", status: r[4] || "",
+  })).filter((a) => a.eventUrid);
+  const { append, upgrades } = planAttendeeWrites(existing, rows);
+  for (const u of upgrades) await writeRange(ATTENDEES_TAB, u.index + 2, 4, [[u.status]]);
+  if (upgrades.length) cache.delete(ATTENDEES_TAB);
+  await appendRows(ATTENDEES_TAB, append.map((a) => [a.eventUrid, a.name, a.email, a.kind, a.status, a.date]));
+  return append.length + upgrades.length;
 }
 
 function trackerDate(raw: string, monthHint: string, year: number, maxMonth: number) {

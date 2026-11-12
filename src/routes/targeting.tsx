@@ -1556,17 +1556,22 @@ function TargetingPage() {
 
   // Add one event link to many prospects without replacing their existing links;
   // the legacy Event cell is only filled where it was blank.
-  const linkEventToTargets = async (chosen: TargetLead[], event: string) => {
+  // Attended is added even when the person was only invited (an attendee list upgrades invitees).
+  const linkEventToTargets = async (chosen: TargetLead[], event: string, type: EventLinkType = "invited") => {
     const linkable = chosen.filter((t) => t.urid || t.email);
-    const fresh = linkable.filter((t) => !hasProspectEvent({ ...t, ...eventsOf(t) }, event));
+    const already = (t: TargetLead) =>
+      type === "attended"
+        ? eventsOf(t).eventsAttended.some((e) => e.trim().toLowerCase() === event.trim().toLowerCase())
+        : hasProspectEvent({ ...t, ...eventsOf(t) }, event);
+    const fresh = linkable.filter((t) => !already(t));
     const ids = new Set(fresh.map((t) => t.id));
     const apply = (t: TargetLead): TargetLead =>
-      ids.has(t.id) ? { ...t, ...addProspectEvent(eventsOf(t), event, "invited"), event: t.event || event } : t;
+      ids.has(t.id) ? { ...t, ...addProspectEvent(eventsOf(t), event, type), event: t.event || event } : t;
     setTargets((prev) => prev.map(apply));
     setActiveTarget((prev) => (prev ? apply(prev) : prev));
     const res = fresh.length
       ? await linkProspectEvents({
-          data: { items: fresh.map((t) => ({ urid: t.urid, email: t.email, eventName: event, type: "invited" as const })) },
+          data: { items: fresh.map((t) => ({ urid: t.urid, email: t.email, eventName: event, type })) },
         })
       : { attendanceWritten: 0, catalogWritten: 0, skipped: 0 };
     const blanks = fresh.filter((t) => !(t.event || "").trim());
@@ -1582,11 +1587,11 @@ function TargetingPage() {
   };
 
   // Bulk event tagging: adds the event to each selected prospect's links.
-  const tagSelectedToEvent = async (event: string) => {
+  const tagSelectedToEvent = async (event: string, type: EventLinkType) => {
     const chosen = selectedTargets;
     if (chosen.length === 0) return;
     try {
-      const r = await linkEventToTargets(chosen, event);
+      const r = await linkEventToTargets(chosen, event, type);
       clearSelection();
       const extra = [
         r.already ? `${r.already} already linked` : "",

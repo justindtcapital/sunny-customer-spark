@@ -4617,6 +4617,8 @@ export async function ensureEventAttendanceBatch(
   if (items.some((i) => i.urid)) await ensureColumn(TAB_NAMES.events, "Contact URID");
 
   const existingAttendance = new Set<string>();
+  // Pairs that already have an Attended link: an Attended write upgrades an Invited-only pair.
+  const existingAttended = new Set<string>();
   // Fresh read: Worker instances hold stale caches, and sequential adds must see
   // each other's rows to avoid duplicate links.
   const evRows = await fetchSheetTab(TAB_NAMES.events, true).catch(() => [] as string[][]);
@@ -4626,14 +4628,18 @@ export async function ensureEventAttendanceBatch(
     const nameIdx = hdr.indexOf("event name") >= 0 ? hdr.indexOf("event name") : 1;
     const uridIdx = hdr.indexOf("contact urid");
     const removedIdx = hdr.indexOf("removed at");
+    const typeIdx = hdr.indexOf("type");
     for (const r of evRows.slice(1)) {
       // Unlinked rows don't block re-adding the same event later.
       if (removedIdx >= 0 && (r[removedIdx] || "").trim()) continue;
       const em = (r[emailIdx] || "").trim().toLowerCase();
       const nm = (r[nameIdx] || "").trim().toLowerCase();
       const cu = uridIdx >= 0 ? (r[uridIdx] || "").trim().toLowerCase() : "";
+      const attended = typeIdx < 0 || (r[typeIdx] || "attended").trim().toLowerCase() !== "invited";
       if (em && nm) existingAttendance.add(`${em}|${nm}`);
       if (cu && nm) existingAttendance.add(`urid:${cu}|${nm}`);
+      if (attended && em && nm) existingAttended.add(`${em}|${nm}`);
+      if (attended && cu && nm) existingAttended.add(`urid:${cu}|${nm}`);
     }
   }
 
@@ -4682,12 +4688,17 @@ export async function ensureEventAttendanceBatch(
       existingCatalog.add(nameKey);
     }
 
-    if (existingAttendance.has(pairKey) || (uridPairKey && existingAttendance.has(uridPairKey))) {
+    const seen = linkType === "attended" ? existingAttended : existingAttendance;
+    if (seen.has(pairKey) || (uridPairKey && seen.has(uridPairKey))) {
       skipped++;
       continue;
     }
     existingAttendance.add(pairKey);
     if (uridPairKey) existingAttendance.add(uridPairKey);
+    if (linkType === "attended") {
+      existingAttended.add(pairKey);
+      if (uridPairKey) existingAttended.add(uridPairKey);
+    }
     attendancePending.push({
       email,
       eventName,

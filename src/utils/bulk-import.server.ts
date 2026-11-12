@@ -122,11 +122,18 @@ export async function importTargetRows(rawInput: TargetImportInput, journal: Jou
   journal.step("saving unique prospects");
   await appendTargetRows(accepted);
   const verified = await savedPeople();
+  const eventLinks: { email: string; urid: string }[] = [];
   for (const r of accepted) {
     const name=`${r.firstName} ${r.lastName}`.trim();
     const matches=peopleCandidates({name,email:r.email,company:r.company,linkedin:r.linkedin},verified).filter(p=>p.where==="Prospecting");
     const expected={name,email:r.email,company:r.company,role:r.role,phone:r.phone,location:r.location,sector:r.sector,stage:r.stage,source:r.source,researchPurpose:r.researchPurpose,reasonSurfaced:r.reasonSurfaced,campaign:r.campaign,event:r.event,portcoTags:r.portcoTags,prime:r.prime};
     if(matches.length!==1 || !suppliedFieldsMatch(expected,matches[0].fields)) throw new Error("Prospect persistence could not be verified; do not replay the append.");
+    eventLinks.push({ email:r.email || "", urid:matches[0].urid || "" });
+  }
+  // "Tag as attendees of event": the Event cell alone reads as Invited, so record explicit Attended links.
+  if (input.event && eventLinks.length) {
+    journal.step("saving event attendance");
+    await ensureEventAttendanceBatch(eventLinks.map(l => ({ email:l.email, urid:l.urid, eventName:input.event || "", type:"attended", allowUridOnly:true, ensureCatalog:false })));
   }
   for (const o of outcomes) if (o.status === "changed") o.reason = "Prospect saved.";
   await journal.checkpoint(outcomes);

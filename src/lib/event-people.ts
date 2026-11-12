@@ -150,3 +150,43 @@ export function campaignsForEvent<C extends { events: string[] }>(event: Planner
   const names = new Set(eventReferenceNames(event).map(norm));
   return campaigns.filter((c) => (c.events || []).some((n) => names.has(norm(n))));
 }
+
+/** Existing tracker attendee row with its 0-based data-row index (header excluded). */
+export interface IndexedAttendee { index: number; eventUrid: string; name: string; email: string; status: string }
+export interface AttendeeInput { eventUrid: string; name: string; email: string; status: string }
+
+/**
+ * Plan tracker attendee writes. Same event + same email, or same normalised full name,
+ * is one person. New people are appended; an existing row is upgraded in place only when
+ * the incoming status is stronger (Attended > Registered > Invited), so an upload of the
+ * people who attended moves earlier invitees to Attended and never downgrades anyone.
+ */
+export function planAttendeeWrites<T extends AttendeeInput>(
+  existing: IndexedAttendee[],
+  incoming: T[],
+): { append: T[]; upgrades: Array<{ index: number; status: string }> } {
+  const n = (s: string) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const byKey = new Map<string, { index: number; status: string }>();
+  const keys = (a: { eventUrid: string; email: string; name: string }) =>
+    [n(a.email) ? `${a.eventUrid}|e:${n(a.email)}` : "", n(a.name) ? `${a.eventUrid}|n:${n(a.name)}` : ""].filter(Boolean);
+  const appended = new Set<string>();
+  for (const a of existing) {
+    const slot = { index: a.index, status: a.status || "Attended" };
+    for (const k of keys(a)) if (!byKey.has(k)) byKey.set(k, slot);
+  }
+  const append: T[] = [];
+  const upgrades = new Map<number, string>();
+  for (const a of incoming) {
+    const ks = keys(a);
+    if (!ks.length || ks.some((k) => appended.has(k))) continue;
+    const hit = ks.map((k) => byKey.get(k)).find(Boolean);
+    if (!hit) {
+      append.push(a);
+      ks.forEach((k) => appended.add(k));
+      continue;
+    }
+    const status = a.status || "Attended";
+    if (rank(status) > rank(upgrades.get(hit.index) || hit.status)) upgrades.set(hit.index, status);
+  }
+  return { append, upgrades: [...upgrades].map(([index, status]) => ({ index, status })) };
+}
