@@ -7,9 +7,12 @@ import { fetchContacts, fetchTargets } from "@/utils/sheets.functions";
 import { TierChart } from "@/components/crm/NetworkPyramid";
 import { PYRAMID_TIERS, type PyramidTier } from "@/lib/network-pyramid";
 import { buildMatrixPoints } from "@/lib/portco-matrix";
-import { PortcoMatrix } from "@/components/dashboard/PortcoMatrix";
-import { MonthlyEventBars, plannerDashboardQuery } from "@/components/dashboards/EventsDashboard";
-import { eventTypesFor, monthlyByType } from "@/lib/events-dashboard";
+import { OwnershipMatrix } from "@/components/dashboard/OwnershipMatrix";
+import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
+import { portCoKey } from "@/lib/portco-canonical";
+import { matchSheetToAsanaKeys } from "@/lib/portco-names";
+import { MonthlyEventBars, BroadLegend, plannerDashboardQuery } from "@/components/dashboards/EventsDashboard";
+import { monthlyByBroad } from "@/lib/events-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const Route = createFileRoute("/dashboards/")({
@@ -51,10 +54,20 @@ function DashboardsHub() {
   const { data: asana, isLoading: asanaLoading } = useQuery({ queryKey: ["asana-portco-data"], queryFn: () => fetchAsanaPortcoData(), staleTime: 60_000 });
   const { data: planner, isLoading: plannerLoading } = useQuery(plannerDashboardQuery);
   const { data: contacts, isLoading: contactsLoading } = useQuery({ queryKey: ["dashboards-contacts"], queryFn: () => fetchContacts(), staleTime: 5 * 60_000 });
-  const points = useMemo(() => (asana ? buildMatrixPoints(asana.fieldsByCompanyName ?? {}, asana.namesByCompanyName ?? {}, {}, {}) : []), [asana]);
+  const { data: companies } = useQuery({ queryKey: ["dashboards-companies"], queryFn: () => fetchPortfolioCompanies().catch(() => []), staleTime: 5 * 60_000 });
+  const points = useMemo(() => {
+    if (!asana) return [];
+    const fields = asana.fieldsByCompanyName ?? {};
+    const names = asana.namesByCompanyName ?? {};
+    // Same website matching as the PortCo page, so the tile shows real logos.
+    const list = (companies ?? []).filter((p) => (p.name || "").trim());
+    const toAsana = matchSheetToAsanaKeys(list.map((p) => p.name), Object.keys(fields), (k) => names[k] || k);
+    const websites: Record<string, string> = {};
+    for (const p of list) for (const k of [portCoKey(p.name || ""), toAsana.get(p.name) || ""]) if (k && p.website && !websites[k]) websites[k] = p.website;
+    return buildMatrixPoints(fields, names, websites, {});
+  }, [asana, companies]);
   const year = new Date().getFullYear();
-  const types = useMemo(() => eventTypesFor(planner?.partnerCategories ?? []), [planner]);
-  const rows = useMemo(() => monthlyByType(planner?.events ?? [], year, types), [planner, year, types]);
+  const rows = useMemo(() => monthlyByBroad(planner?.events ?? [], year, new Date().toISOString().slice(0, 10)), [planner, year]);
   const { data: targets } = useQuery({ queryKey: ["dashboards-targets"], queryFn: () => fetchTargets().catch(() => []), staleTime: 5 * 60_000 });
   const tierCounts = useMemo(() => {
     const counts = Object.fromEntries(PYRAMID_TIERS.map((t) => [t, 0])) as Record<PyramidTier, number | null>;
@@ -62,7 +75,6 @@ function DashboardsHub() {
     counts.Prospect = targets ? targets.length : null;
     return counts;
   }, [contacts, targets]);
-  const usedTypes = types.filter((t) => rows.some((r) => (r[t.name] as number) > 0));
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-5">
@@ -71,21 +83,15 @@ function DashboardsHub() {
         <p className="text-sm text-muted-foreground mt-1">Pick a dashboard to open it.</p>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <Tile to="/dashboards/portco" title="PortCo Dashboard" sub="Maturity, ownership and investment" className="lg:col-span-2 lg:row-span-2">
+        <Tile to="/dashboards/portco" title="PortCo Dashboard" sub="Ownership and investment" className="lg:col-span-2 lg:row-span-2">
           {points.length ? (
-            <div className="w-full"><PortcoMatrix points={points} investor="" sector="" priority="" selectedKey={null} onSelect={() => {}} hideUnscored /></div>
+            <div className="w-full"><OwnershipMatrix points={points.filter((p) => p.investment != null && p.ownership != null)} selectedKey={null} onSelect={() => {}} compact /></div>
           ) : <Unavailable text={asanaLoading ? "Loading…" : "PortCo data unavailable"} />}
         </Tile>
         <Tile to="/dashboards/events" title="Events Dashboard" sub={`Event intensity by month, ${year}`}>
           {planner && !planner.error ? <div className="w-full">
-            <MonthlyEventBars rows={rows} month={null} compact types={types} />
-            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-              {usedTypes.map((t) => (
-                <span key={t.name} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <span className="h-2 w-2 rounded-sm" style={{ background: `var(--planner-${t.color})` }} />{t.name}
-                </span>
-              ))}
-            </div>
+            <MonthlyEventBars rows={rows} month={null} compact />
+            <BroadLegend rows={rows} small />
           </div>
             : <Unavailable text={plannerLoading ? "Loading…" : "Event data unavailable"} />}
         </Tile>
