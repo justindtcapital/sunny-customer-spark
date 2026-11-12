@@ -202,3 +202,8 @@
 - [x] Statuses Completed/Confirmed/Considering/Potential/Declined + tracker rows renamed (backed up)
 - [x] Potential bottom row; Considering lifts events up
 - [x] Inline editing in event side panel
+
+## Event panel cleanup — Nov 12
+- [x] Partner picks (panel, Add event, filter) only from the Partners list
+- [x] Compact pickers and date row; DTC Status and Format as pills
+- [x] Save button beside Delete; unsaved edits save on close or when opening another event
