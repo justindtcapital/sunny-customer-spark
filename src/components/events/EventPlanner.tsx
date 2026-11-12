@@ -40,7 +40,7 @@ import {
   plannerWindow, stepAnchor, overlaps, columnFor, windowTotals, priorYears, subcategoryColor,
   sectorDotColor, normalizeSector, guessImportMapping, parsePlannerCsv, splitList, parseEventDate, dominantYear,
   mapTrackerStatus, eventSeriesKey, DTC_STATUSES, DEFAULT_DTC_STATUSES, dtcStatusOf, asanaSubcategory, categoryOfSubcategory,
-  duplicateKey, plannerCategories, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
+  duplicateKey, plannerCategories, primaryPartnerCategory, placementRow, plannerStatusForDtc, canonicalSubcategory, PARTNER_ROWS, POTENTIAL_ROW,
   type PlannerCategory, type PlannerPartnerCategory,
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
@@ -871,7 +871,11 @@ function InlineEventEditor({ saved, draft, officialPortcos, options, onChange }:
         <ListPicker noun="PortCo" listName="Portfolio" value={e.portcos} official={officialPortcos} onChange={(v) => onChange({ portcos: v })} />
       </Row2>
       <Row2 label="Partners" mark={mark("partners")}>
-        <ListPicker noun="Partner" listName="Partners" value={e.partners} official={options.partners} onChange={(v) => onChange({ partners: v })} />
+        <ListPicker noun="Partner" listName="Partners" value={e.partners} official={options.partners} primary
+          onChange={(v) => {
+            const owned = v[0] && v[0] !== e.partners[0] ? primaryPartnerCategory(v[0], e.subcategory, activeCats) : "";
+            onChange(owned ? { partners: v, subcategory: owned, category: rowOfSub(owned) } : { partners: v });
+          }} />
       </Row2>
       <Row2 label="Network count" mark={mark("networkCount")}>
         <DraftInput type="number" className="w-20" value={e.networkCount ? String(e.networkCount) : ""} onChange={(v) => onChange({ networkCount: Number(v) || 0 })} />
@@ -1004,19 +1008,25 @@ function LinkOut({ href, label }: { href: string; label: string }) {
 }
 
 /** Tags come only from a fixed official list (Portfolio or Partners); legacy unmatched tags show flagged until removed. */
-function ListPicker({ value, official, onChange, noun, listName }: {
+function ListPicker({ value, official, onChange, noun, listName, primary }: {
   value: string[]; official: string[]; onChange: (v: string[]) => void; noun: string; listName: string;
+  /** First tag is the owner (primary); others can be promoted. */
+  primary?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const has = (n: string) => inList(value, n);
   const toggle = (n: string) => onChange(has(n) ? value.filter((v) => v.toLowerCase() !== n.toLowerCase()) : [...value, n]);
   return (
     <div className="flex flex-wrap items-center gap-1 pt-0.5">
-      {value.map((v) => {
+      {value.map((v, i) => {
         const unofficial = official.length > 0 && !inList(official, v);
+        const isPrimary = primary && i === 0;
         return (
-          <Badge key={v} variant={unofficial ? "outline" : "secondary"} className={cn("gap-1 text-[11px] font-normal", unofficial && "border-destructive text-destructive")}
-            title={unofficial ? `Not in the ${listName} list — remove it or pick the official name` : undefined}>
+          <Badge key={v} variant={unofficial ? "outline" : "secondary"} className={cn("gap-1 text-[11px] font-normal", unofficial && "border-destructive text-destructive", isPrimary && "ring-1 ring-primary")}
+            title={unofficial ? `Not in the ${listName} list — remove it or pick the official name` : isPrimary ? "Primary partner — owns this event" : undefined}>
+            {primary && (isPrimary
+              ? <span className="text-[9px] font-semibold uppercase text-primary">Primary</span>
+              : <button type="button" className="text-[9px] uppercase opacity-60 hover:opacity-100" title="Make primary partner" onClick={() => onChange([v, ...value.filter((x) => x !== v)])}>☆</button>)}
             {v}
             <button type="button" aria-label={`Remove ${v}`} className="opacity-60 hover:opacity-100" onClick={() => toggle(v)}>×</button>
           </Badge>
@@ -1153,7 +1163,11 @@ function EventForm({
           </L>
           <L label="Owner / DTC coverage"><Input list="vp-owners" value={form.owner || ""} onChange={(e) => set("owner", e.target.value)} /></L>
           <L label="PortCos" hint="Pick from the official Portfolio list"><ListPicker noun="PortCo" listName="Portfolio" value={form.portcos || []} official={options.officialPortcos} onChange={(v) => set("portcos", v)} /></L>
-          <L label="Partners" hint="Pick from the Partners list"><ListPicker noun="Partner" listName="Partners" value={form.partners || []} official={options.partners} onChange={(v) => set("partners", v)} /></L>
+          <L label="Partners" hint="Pick from the Partners list"><ListPicker noun="Partner" listName="Partners" value={form.partners || []} official={options.partners} primary onChange={(v) => {
+            set("partners", v);
+            const owned = v[0] && v[0] !== (form.partners || [])[0] ? primaryPartnerCategory(v[0], form.subcategory || "", activeCats) : "";
+            if (owned) { set("subcategory", owned); set("category", rowOfSub(owned)); }
+          }} /></L>
           <L label="Network attendees (count)"><Input type="number" value={form.networkCount || ""} onChange={(e) => set("networkCount", Number(e.target.value) || 0)} /></L>
           <L label="Event contact"><Input value={form.eventContact || ""} onChange={(e) => set("eventContact", e.target.value)} /></L>
           <L label="Luma / RSVP link"><Input value={form.lumaUrl || ""} onChange={(e) => set("lumaUrl", e.target.value)} /></L>
