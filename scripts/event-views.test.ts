@@ -4,17 +4,17 @@ import { DEFAULT_DTC_STATUSES, DTC_STATUSES, dtcStatusOf, type PlannerEvent } fr
 import { teamMemberFor } from "../src/lib/user-ownership";
 
 const event: PlannerEvent = { urid: "tracker-1", name: "CES", start: "2026-01-06", end: "2026-01-08", location: "Las Vegas", category: "DTC Partnered Events", subcategory: "3rd Party Events", status: "Declined", dtcStatus: "Declined", sectors: ["Cyber"], portcos: ["Halcyon"], partners: ["Dell"], owner: "julia.beech@dell.com", createdBy: "julia.beech@dell.com", format: "in-person", website: "", lumaUrl: "", source: "Tracker", sourceRef: "", asanaGid: "", networkCount: 12, notes: "", actionsNeeded: "", eventContact: "", updated: "" };
-const filters: EventFilters = { search: "", subcategories: [], sectors: [], statuses: [], statusView: "Both", portco: "", partner: "", owner: "", source: "" };
+const filters: EventFilters = { search: "", subcategories: [], sectors: [], statuses: [], statusView: "Both", portcos: [], partner: "", owner: "", source: "" };
 describe("shared event view rules", () => {
   it("orders participation statuses from executed to declined", () => {
-    expect(DTC_STATUSES).toEqual(["Executed", "Accepted", "Considering", "Potential", "Declined"]);
+    expect(DTC_STATUSES).toEqual(["Completed", "Confirmed", "Considering", "Potential", "Declined"]);
   });
   it("defaults to executed, accepted and considering only", () => {
-    expect(DEFAULT_DTC_STATUSES).toEqual(["Executed", "Accepted", "Considering"]);
+    expect(DEFAULT_DTC_STATUSES).toEqual(["Completed", "Confirmed", "Considering", "Potential"]);
     const f = { ...filters, statuses: [...DEFAULT_DTC_STATUSES] };
     for (const dtcStatus of DTC_STATUSES) {
       expect(eventMatchesFilters({ ...event, dtcStatus }, f, "2026-10-19"))
-        .toBe(["Executed", "Accepted", "Considering"].includes(dtcStatus));
+        .toBe(dtcStatus !== "Declined");
     }
   });
   it("keeps awareness-only potential distinct from actively considering", () => {
@@ -24,15 +24,15 @@ describe("shared event view rules", () => {
     expect(eventMatchesFilters({ ...event, dtcStatus: "Potential", status: "Potential" }, { ...filters, statuses: ["Potential"] }, "2026-10-19")).toBe(true);
   });
   it("shows no events when all participation statuses are unchecked", () => {
-    expect(eventMatchesFilters({ ...event, dtcStatus: "Accepted", status: "Confirmed" }, filters, "2026-10-19")).toBe(false);
+    expect(eventMatchesFilters({ ...event, dtcStatus: "Confirmed", status: "Confirmed" }, filters, "2026-10-19")).toBe(false);
   });
   it("selects Declined solely through DTC Status", () => {
     expect(eventMatchesFilters(event, filters, "2026-10-19")).toBe(false);
     expect(eventMatchesFilters(event, { ...filters, statuses: ["Declined"] }, "2026-10-19")).toBe(true);
-    expect(eventMatchesFilters(event, { ...filters, statuses: ["Accepted"] }, "2026-10-19")).toBe(false);
+    expect(eventMatchesFilters(event, { ...filters, statuses: ["Confirmed"] }, "2026-10-19")).toBe(false);
   });
   it("combines category, sector, company, partner and canonical owner filters", () => {
-    const f = { ...filters, statuses: ["Declined"], subcategories: ["3rd Party Events"], sectors: ["Cyber"], portco: "Halcyon", partner: "Dell", owner: "Julia Beech" };
+    const f = { ...filters, statuses: ["Declined"], subcategories: ["Other"], sectors: ["Cyber"], portcos: ["Halcyon"], partner: "Dell", owner: "Julia Beech" };
     expect(eventMatchesFilters(event, f, "2026-10-19")).toBe(true);
     expect(eventMatchesFilters(event, { ...f, sectors: ["Data/AI"] }, "2026-10-19")).toBe(false);
   });
