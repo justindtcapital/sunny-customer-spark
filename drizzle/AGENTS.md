@@ -1,0 +1,1 @@
+- Shared team tables (admin_requests, dashboard_charts) gate reads/updates on public.is_team_member(), a confirmed-email roster check; keep its email list in step with TEAM_MEMBER_EMAILS so a non-team sign-in never sees team data.
