@@ -50,6 +50,13 @@
       "when": 1794433464348,
       "tag": "0006_create_dashboard_charts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794511220382,
+      "tag": "0007_team_only_shared_tables",
+      "breakpoints": true
     }
   ]
 }

@@ -326,6 +326,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_team_member: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
