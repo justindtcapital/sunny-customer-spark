@@ -109,12 +109,8 @@ export const PLANNER_CATEGORIES: PlannerCategory[] = [
   { name: DTC_LED, subcategories: [{ name: "DTC Event", color: "purple" }] },
   {
     name: PARTNER_LED,
-    subcategories: [
-      { name: "GBI Roundtable", color: "sky" },
-      { name: "CDO Events", color: "lime" },
-      { name: "ISSA", color: "plum" },
-      { name: "Other", color: "rose" },
-    ],
+    // Only "Other" is fixed; every other partner-led category is a Partners-page partner added with "Add partner".
+    subcategories: [{ name: "Other", color: "rose" }],
   },
   {
     name: BRIEFINGS,
@@ -232,7 +228,7 @@ export function mapTrackerCategory(trackerCategory: string, name: string): strin
   if (/sagetap/.test(n)) return "Other Briefings";
   if (/vation/.test(n)) return "Vation Briefs";
   if (/brief/.test(n)) return "DTC Curated Briefings";
-  if (/gbi/.test(n)) return "GBI Roundtable";
+  if (/gbi/.test(n)) return "Other";
   if (/advisory council|\bcac\b/.test(n)) return "DTC Event";
   if (c === "briefing") return "DTC Curated Briefings";
   if (c === "dtc lead" || c === "dinner") return "DTC Event";
@@ -702,7 +698,27 @@ export function parsePlannerCsv(text: string): string[][] {
 }
 
 /** Fixed categories owned by a Partners-page partner under a different name. */
-const PARTNER_CATEGORY_ALIASES: Record<string, string> = { "gbi impact": "GBI Roundtable", vation: "Vation Briefs" };
+const PARTNER_CATEGORY_ALIASES: Record<string, string> = { vation: "Vation Briefs" };
+/** Catch-all category of each partner row. */
+export const ROW_FALLBACK: Record<string, string> = { [PARTNER_LED]: "Other", [BRIEFINGS]: "Other Briefings" };
+
+const FIXED_NAMES = new Set(PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name.toLowerCase())));
+const ALIAS_NAMES = new Set(Object.values(PARTNER_CATEGORY_ALIASES).map((x) => x.toLowerCase()));
+/** True for a category that belongs to one partner (added partner rows and aliased fixed ones like Vation Briefs). */
+export function isPartnerCategory(sub: string): boolean {
+  const k = canonicalSubcategory(sub).toLowerCase();
+  return !FIXED_NAMES.has(k) || ALIAS_NAMES.has(k);
+}
+
+function rowIn(sub: string, cats: PlannerCategory[]): string {
+  const k = canonicalSubcategory(sub).toLowerCase();
+  return cats.find((c) => c.subcategories.some((s) => s.name.toLowerCase() === k))?.name || "";
+}
+function partnerCandidates(partner: string): string[] {
+  const p = (partner || "").trim();
+  if (!p) return [];
+  return [PARTNER_CATEGORY_ALIASES[p.toLowerCase()], p, partnerSubcategoryName(p, BRIEFINGS)].filter(Boolean).map((x) => x!.toLowerCase());
+}
 
 /**
  * Category owned by an event's primary partner (first Partners tag), or "" when that
@@ -710,12 +726,49 @@ const PARTNER_CATEGORY_ALIASES: Record<string, string> = { "gbi impact": "GBI Ro
  * has a category there (e.g. "AWS Briefings" for a briefing), else any row.
  */
 export function primaryPartnerCategory(partner: string, currentSub: string, cats: PlannerCategory[]): string {
-  const p = (partner || "").trim();
-  if (!p) return "";
+  const wanted = partnerCandidates(partner);
+  if (!wanted.length) return "";
   const all = cats.flatMap((c) => c.subcategories.map((s) => ({ row: c.name, name: s.name })));
-  const cur = canonicalSubcategory(currentSub).toLowerCase();
-  const curRow = all.find((s) => s.name.toLowerCase() === cur)?.row || "";
-  const wanted = [PARTNER_CATEGORY_ALIASES[p.toLowerCase()], p, partnerSubcategoryName(p, BRIEFINGS)].filter(Boolean).map((x) => x!.toLowerCase());
+  const curRow = rowIn(currentSub, cats);
   const hits = all.filter((s) => wanted.includes(s.name.toLowerCase()));
   return (hits.find((s) => s.row === curRow) || hits[0])?.name || "";
+}
+
+type CatFields = Pick<PlannerEvent, "subcategory" | "category" | "partners">;
+
+/**
+ * Category an event shows. In the partner rows the primary partner owns the event: its own
+ * category wins; when it has none (or the stored category is retired or another partner's),
+ * the row's catch-all is used. Events with no partner keep their stored category.
+ */
+export function effectiveCategory(e: CatFields, cats: PlannerCategory[]): { subcategory: string; category: string } {
+  const sub = canonicalSubcategory(e.subcategory);
+  const known = rowIn(sub, cats);
+  const row = known || canonicalCategory(e.category);
+  if (!(PARTNER_ROWS as readonly string[]).includes(row)) return { subcategory: sub, category: known || e.category };
+  const primary = (e.partners[0] || "").trim();
+  const wanted = partnerCandidates(primary);
+  const own = cats.find((c) => c.name === row)?.subcategories.find((s) => wanted.includes(s.name.toLowerCase()));
+  if (own) return { subcategory: own.name, category: row };
+  if (known && (!primary || !isPartnerCategory(sub))) return { subcategory: sub, category: row };
+  return { subcategory: ROW_FALLBACK[row], category: row };
+}
+
+/**
+ * Category after the Partners tags change in an editor. A primary partner with its own category
+ * pulls an uncategorised or partner-row event into it; DTC-led events never move.
+ */
+export function categoryAfterPartnerChange(e: CatFields, cats: PlannerCategory[]): { subcategory: string; category: string } {
+  const row = rowIn(e.subcategory, cats) || canonicalCategory(e.category);
+  const movable = !row || row === "Unassigned" || (PARTNER_ROWS as readonly string[]).includes(row);
+  const owned = movable ? primaryPartnerCategory(e.partners[0] || "", e.subcategory, cats) : "";
+  if (owned) return { subcategory: owned, category: rowIn(owned, cats) };
+  return effectiveCategory(e, cats);
+}
+
+/** Partner that owns a partner category (for making it primary when the category is picked), or "". */
+export function partnerOfCategory(sub: string, partnerNames: string[]): string {
+  const k = canonicalSubcategory(sub).toLowerCase();
+  if (!isPartnerCategory(k)) return "";
+  return partnerNames.find((p) => partnerCandidates(p).includes(k)) || "";
 }
