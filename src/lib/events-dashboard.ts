@@ -132,3 +132,47 @@ export function eventChartRecords(events: PlannerEvent[], attendees: PlannerAtte
     attendees: byEvent.get(e.urid)?.size ?? 0,
   }));
 }
+
+// ── Broad view: three categories × firm/pipeline status ─────────────
+import { BRIEFINGS as _BRIEFINGS, DTC_LED as _DTC_LED, PARTNER_LED as _PARTNER_LED, dtcStatusOf as _dtcStatusOf } from "@/lib/event-planner";
+
+/** The three dashboard categories (plus a grey bucket for anything uncategorised). */
+export const BROAD_CATEGORIES = [
+  { key: _DTC_LED, label: "DTC-led", color: "purple" },
+  { key: _PARTNER_LED, label: "Partner-led", color: "rose" },
+  { key: _BRIEFINGS, label: "Briefings", color: "blue" },
+  { key: "Unassigned", label: "Uncategorised", color: "slate" },
+] as const;
+
+/** Dashboard status choices; Considering and Potential are pipeline (drawn faded). */
+export const DASHBOARD_STATUSES = ["Completed", "Confirmed", "Considering", "Potential"] as const;
+export const PIPELINE_STATUSES: readonly string[] = ["Considering", "Potential"];
+
+export function broadCategory(e: Pick<PlannerEvent, "category">): string {
+  return BROAD_CATEGORIES.find((c) => c.key === e.category)?.label ?? "Uncategorised";
+}
+
+export const pipelineKey = (label: string) => `${label} (pipeline)`;
+
+/** One row per month: firm count per broad category plus a separate pipeline count. */
+export function monthlyByBroad(events: PlannerEvent[], year: number, today = ""): MonthRow[] {
+  const rows: MonthRow[] = MONTH_LABELS.map((month, index) => {
+    const r: MonthRow = { month, index, total: 0 };
+    for (const c of BROAD_CATEGORIES) { r[c.label] = 0; r[pipelineKey(c.label)] = 0; }
+    return r;
+  });
+  for (const e of events) {
+    const m = eventMonth(e, year);
+    if (m == null) continue;
+    const label = broadCategory(e);
+    const k = PIPELINE_STATUSES.includes(_dtcStatusOf(e, today)) ? pipelineKey(label) : label;
+    rows[m][k] = (rows[m][k] as number) + 1;
+    rows[m].total += 1;
+  }
+  return rows;
+}
+
+/** Events per partner: the primary (first) partner tag, else "No partner". */
+export function eventsPerPartner(events: PlannerEvent[]): Bar[] {
+  return tally(events, (e) => [e.partners?.[0]?.trim() || "No partner"]);
+}

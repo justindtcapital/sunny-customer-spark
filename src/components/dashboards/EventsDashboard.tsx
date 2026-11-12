@@ -3,27 +3,31 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Maximize2 } from "lucide-react";
 import { fetchPlannerFn } from "@/utils/event-planner.functions";
-import { EVENT_TYPES, eventTypesFor, MONTH_LABELS, eventBreakdowns, eventYears, eventsInScope, monthlyByType, type Bar as BarRow } from "@/lib/events-dashboard";
+import { EVENT_TYPES, eventTypesFor, MONTH_LABELS, eventBreakdowns, eventYears, eventsInScope, monthlyByBroad, BROAD_CATEGORIES, DASHBOARD_STATUSES, pipelineKey, broadCategory, eventsPerPartner, type MonthRow, type Bar as BarRow } from "@/lib/events-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { VicChartBuilder } from "@/components/dashboards/VicCharts";
 import { eventChartRecords } from "@/lib/events-dashboard";
-import { PLANNER_STATUSES, type PlannerStatus } from "@/lib/event-planner";
+import { dtcStatusOf } from "@/lib/event-planner";
 import { Checkbox } from "@/components/ui/checkbox";
 
-/** Event Planner statuses as the dashboard names them (Potential reads "Planned"). */
-const STATUS_LABEL: Record<PlannerStatus, string> = { Confirmed: "Confirmed", Potential: "Planned", Declined: "Declined" };
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const broadColor = (label: string) => `var(--planner-${BROAD_CATEGORIES.find((c) => c.label === label)?.color ?? "slate"})`;
 
 export const plannerDashboardQuery = { queryKey: ["home-planner"], queryFn: () => fetchPlannerFn(), staleTime: 5 * 60_000 };
 
 const typeColor = (name: string, types = EVENT_TYPES) => `var(--planner-${types.find((t) => t.name === name)?.color ?? "slate"})`;
 
-/** 12-month stacked bars by event type; clicking a month selects it. */
-export function MonthlyEventBars({ rows, month, onMonth, compact = false, types = EVENT_TYPES }: {
-  rows: ReturnType<typeof monthlyByType>; month: number | null; onMonth?: (m: number | null) => void; compact?: boolean; types?: typeof EVENT_TYPES;
+/** 12-month stacked bars by broad category; pipeline (Considering/Potential) segments are faded and dashed. */
+export function MonthlyEventBars({ rows, month, onMonth, compact = false }: {
+  rows: MonthRow[]; month: number | null; onMonth?: (m: number | null) => void; compact?: boolean;
 }) {
+  const series = BROAD_CATEGORIES.flatMap((c) => [
+    { key: c.label, color: broadColor(c.label), pipeline: false },
+    { key: pipelineKey(c.label), color: broadColor(c.label), pipeline: true },
+  ]).filter((s) => rows.some((r) => (r[s.key] as number) > 0));
   return (
     <ResponsiveContainer width="100%" height={compact ? 120 : 260}>
       <BarChart data={rows} margin={{ top: 8, right: 8, left: compact ? -30 : -10, bottom: 0 }}
@@ -32,13 +36,38 @@ export function MonthlyEventBars({ rows, month, onMonth, compact = false, types 
         <XAxis dataKey="month" tick={{ fontSize: compact ? 9 : 12, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} tick={{ fontSize: compact ? 9 : 12, fill: "var(--muted-foreground)" }} tickLine={false} axisLine={false} hide={compact} />
         {!compact && <Tooltip cursor={{ fill: "var(--muted)" }} contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", fontSize: 12 }} />}
-        {types.map((t) => (
-          <Bar key={t.name} dataKey={t.name} stackId="m" fill={typeColor(t.name, types)} className={onMonth ? "cursor-pointer" : undefined}>
-            {rows.map((r) => <Cell key={r.month} fillOpacity={month == null || month === r.index ? 1 : 0.25} />)}
+        {series.map((t) => (
+          <Bar key={t.key} dataKey={t.key} stackId="m" fill={t.color} stroke={t.pipeline ? t.color : undefined}
+            strokeDasharray={t.pipeline ? "3 2" : undefined} strokeWidth={t.pipeline ? 1 : 0} className={onMonth ? "cursor-pointer" : undefined}>
+            {rows.map((r) => {
+              const base = t.pipeline ? 0.3 : 1;
+              return <Cell key={r.month} fillOpacity={month == null || month === r.index ? base : base * 0.25} />;
+            })}
           </Bar>
         ))}
       </BarChart>
     </ResponsiveContainer>
+  );
+}
+
+/** Legend for the broad chart: one swatch per category, plus a faded swatch for pipeline. */
+export function BroadLegend({ rows, small = false }: { rows: MonthRow[]; small?: boolean }) {
+  const used = BROAD_CATEGORIES.filter((c) => rows.some((r) => (r[c.label] as number) + (r[pipelineKey(c.label)] as number) > 0));
+  const hasPipeline = rows.some((r) => BROAD_CATEGORIES.some((c) => (r[pipelineKey(c.label)] as number) > 0));
+  const txt = small ? "text-[10px]" : "text-[11px]";
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+      {used.map((c) => (
+        <span key={c.label} className={`inline-flex items-center gap-1.5 ${txt} text-muted-foreground`}>
+          <span className="h-2.5 w-2.5 rounded-sm" style={{ background: broadColor(c.label) }} />{c.label}
+        </span>
+      ))}
+      {hasPipeline && (
+        <span className={`inline-flex items-center gap-1.5 ${txt} text-muted-foreground`}>
+          <span className="h-2.5 w-2.5 rounded-sm border border-dashed border-muted-foreground bg-muted" />Considering / Potential (faded)
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -59,6 +88,12 @@ function BreakdownCard({ title, bars, colorFor, onExpand, limit = 8 }: {
       </CardContent>
     </Card>
   );
+}
+
+function tallyBroad(events: { category: string }[]): BarRow[] {
+  const m = new Map<string, number>();
+  for (const e of events) { const l = broadCategory(e); m.set(l, (m.get(l) ?? 0) + 1); }
+  return BROAD_CATEGORIES.filter((c) => m.has(c.label)).map((c) => ({ label: c.label, value: m.get(c.label)! }));
 }
 
 function BarList({ bars, colorFor }: { bars: BarRow[]; colorFor?: (label: string) => string }) {
@@ -85,12 +120,12 @@ export function EventsDashboard() {
   const [year, setYear] = useState(thisYear);
   const [month, setMonth] = useState<number | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [statuses, setStatuses] = useState<PlannerStatus[]>(PLANNER_STATUSES);
-  const toggleStatus = (st: PlannerStatus) => setStatuses((cur) => (cur.includes(st) ? cur.filter((x) => x !== st) : [...cur, st]));
-  const events = useMemo(() => (data?.events ?? []).filter((e) => statuses.includes(e.status)), [data?.events, statuses]);
+  const [statuses, setStatuses] = useState<string[]>([...DASHBOARD_STATUSES]);
+  const toggleStatus = (st: string) => setStatuses((cur) => (cur.includes(st) ? cur.filter((x) => x !== st) : [...cur, st]));
+  const events = useMemo(() => { const t = todayIso(); return (data?.events ?? []).filter((e) => statuses.includes(dtcStatusOf(e, t))); }, [data?.events, statuses]);
   const types = useMemo(() => eventTypesFor(data?.partnerCategories ?? []), [data?.partnerCategories]);
   const colorOf = (name: string) => typeColor(name, types);
-  const rows = useMemo(() => monthlyByType(events, year, types), [events, year, types]);
+  const rows = useMemo(() => monthlyByBroad(events, year, todayIso()), [events, year]);
   const scoped = useMemo(() => eventsInScope(events, year, month), [events, year, month]);
   const b = useMemo(() => eventBreakdowns(scoped, data?.attendees ?? [], types), [scoped, data?.attendees, types]);
   const years = useMemo(() => eventYears(events, thisYear), [events, thisYear]);
@@ -99,11 +134,12 @@ export function EventsDashboard() {
     { id: "portco", title: "Events per PortCo", bars: b.perPortco },
     { id: "domain", title: "Events per domain", bars: b.perDomain },
     { id: "city", title: "Events per city", bars: b.perCity },
+    { id: "category", title: "Events per category", bars: tallyBroad(scoped), colorFor: broadColor },
+    { id: "partner", title: "Events per partner", bars: eventsPerPartner(scoped) },
     { id: "type", title: "Events per type", bars: b.perType, colorFor: colorOf },
   ];
   const open = cards.find((c) => c.id === expanded);
   const chartRecords = useMemo(() => ({ events: eventChartRecords(events, data?.attendees ?? [], types) }), [events, data?.attendees, types]);
-  const usedTypes = types.filter((t) => rows.some((r) => (r[t.name] as number) > 0));
 
   if (data?.error) return <p className="text-sm text-muted-foreground">Event data is unavailable right now.</p>;
   return (
@@ -119,10 +155,10 @@ export function EventsDashboard() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-3" aria-label="Event status">
-                {PLANNER_STATUSES.map((st) => (
+                {DASHBOARD_STATUSES.map((st) => (
                   <label key={st} className="inline-flex items-center gap-1.5 text-xs text-foreground cursor-pointer">
-                    <Checkbox checked={statuses.includes(st)} onCheckedChange={() => toggleStatus(st)} aria-label={`Show ${STATUS_LABEL[st]} events`} />
-                    {STATUS_LABEL[st]}
+                    <Checkbox checked={statuses.includes(st)} onCheckedChange={() => toggleStatus(st)} aria-label={`Show ${st} events`} />
+                    {st}
                   </label>
                 ))}
               </div>
@@ -133,14 +169,8 @@ export function EventsDashboard() {
               </Select>
             </div>
           </div>
-          <MonthlyEventBars rows={rows} month={month} onMonth={setMonth} types={types} />
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-            {usedTypes.map((t) => (
-              <span key={t.name} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: colorOf(t.name) }} />{t.name}
-              </span>
-            ))}
-          </div>
+          <MonthlyEventBars rows={rows} month={month} onMonth={setMonth} />
+          <BroadLegend rows={rows} />
         </CardContent>
       </Card>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

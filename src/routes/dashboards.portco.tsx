@@ -130,7 +130,7 @@ function DashboardPage() {
     }
     return { websiteByPortco: websites, sectorByPortco: sectors };
   }, [companies, asanaFieldsByPortco, portcoNames]);
-  const [view, setView] = useState<"maturity" | "ownership">("maturity");
+  const [view, setView] = useState<"maturity" | "ownership">("ownership");
   const [investor, setInvestor] = useState("");
   const [sector, setSector] = useState("");
   const [priority, setPriority] = useState("");
@@ -229,7 +229,7 @@ function DashboardPage() {
             PortCo Dashboard
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Where each portfolio company sits on maturity, or on DTC ownership and investment. Click a company for its own numbers.
+            Where each portfolio company sits on DTC ownership and investment, or on maturity. Click a company for its own numbers.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
