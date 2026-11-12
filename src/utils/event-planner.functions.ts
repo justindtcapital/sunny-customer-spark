@@ -285,3 +285,15 @@ export const applyAttendanceReconcileFn = createServerFn({ method: "POST" })
       return { added: rows.length ? await addAttendees(rows) : 0 };
     });
   });
+
+/** Read-only: live person-event tags for one event's canonical + merged names (incl. people not in the CRM). */
+export const fetchEventTagsFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .inputValidator((d: { names: string[] }) => {
+    if (!Array.isArray(d?.names) || !d.names.length || d.names.length > 20) throw new Error("Pick an event");
+    return { names: d.names.map((n) => String(n)).filter(Boolean) };
+  })
+  .handler(async ({ data }) => {
+    const { readEventTagRows } = await import("./sheets.server");
+    return { tags: await readEventTagRows(data.names) };
+  });

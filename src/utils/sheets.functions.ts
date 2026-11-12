@@ -322,6 +322,8 @@ export const addEvent = createServerFn({ method: "POST" })
       return { success: false as const, error: "Missing email or event name" };
     }
     const type = (data.type || "attended").toLowerCase() === "invited" ? "invited" : "attended";
+    const { canonicalTrackerEventName } = await import("./event-planner.server");
+    data = { ...data, eventName: await canonicalTrackerEventName(data.eventName) };
     const res = await ensureEventAttendanceBatch([
       {
         email,
@@ -383,6 +385,11 @@ export const linkProspectEvents = createServerFn({ method: "POST" })
         catalogType: "meeting",
       }));
     if (!items.length) return { attendanceWritten: 0, catalogWritten: 0, skipped: 0 };
+    // People are only ever linked to real Event Tracker events (canonical names).
+    const { canonicalTrackerEventName } = await import("./event-planner.server");
+    const canonical = new Map<string, string>();
+    for (const n of new Set(items.map((i) => i.eventName))) canonical.set(n, await canonicalTrackerEventName(n));
+    for (const i of items) i.eventName = canonical.get(i.eventName) || i.eventName;
     const res = await ensureEventAttendanceBatch(items);
     await logOpsEventServer({
       action: "sync",
@@ -614,6 +621,9 @@ export const importTargets = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { runJournalOperation } = await import("./bulk-journal.server");
     const { importTargetRows } = await import("./bulk-import.server");
+    const { canonicalTrackerEventName } = await import("./event-planner.server");
+    // Uploads may only tag people to real Event Tracker events (never typed names).
+    if (data.event?.trim()) data = { ...data, event: await canonicalTrackerEventName(data.event) };
     const result = await runJournalOperation({ kind:"target-import",page:"/targeting",input:data,actor:context,run:async journal => {
       const value=await importTargetRows(data,journal);
       return { value,outcomes:value.outcomes };

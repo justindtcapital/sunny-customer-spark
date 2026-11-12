@@ -291,6 +291,8 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const [fileName, setFileName] = useState("");
   const [mapping, setMapping] = useState<Mapping>(emptyMapping());
   const [eventName, setEventName] = useState("");
+  // Uploads must say which tracker event they belong to, or that they aren't event-related.
+  const [eventDecided, setEventDecided] = useState(false);
   const [portcoNames, setPortcoNames] = useState<string[]>([]);
   // How the tagged contacts came to engage the selected portcos — written to the
   // "PortCos Introduced" tab's Engagement Source column (defaults to a direct intro).
@@ -396,6 +398,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setFileName("");
     setMapping(emptyMapping());
     setEventName("");
+    setEventDecided(false);
     setPortcoNames([]);
     setPortcoSources(["direct introduction"]);
     setSource("");
@@ -442,6 +445,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
       const receipt = outcomes.length ? receiptFromOutcomes(outcomes, "Imported")
         : { doneLabel: "Imported", done: [{ label: `${result.added} new contacts` }], skipped: [{ label: `${result.duplicates} already in contacts` }], problems: result.review ? [{ label: `${result.review} need review in Admin` }] : [] };
       const eventUrid = eventName.trim() ? await plannerUridFor(eventName).catch(() => "") : "";
+      if (eventName.trim() && !eventUrid) receipt.problems.push({ label: `Couldn't find ${eventName.trim()} in the Event Tracker`, reason: "attendees not added — use Match tagged attendees on Events" });
       if (eventUrid) {
         const n = await addPlannerAttendeesFn({ data: { attendees: prepared.map(p => ({ eventUrid, name: p.name, email: p.email, kind: prospecting ? "Prospect" : "Network", status: "Attended", date: "" })) } })
           .then(r => r.added).catch(() => -1);
@@ -536,7 +540,15 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                       <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
                         Tag as attendees of event
                       </Label>
-                      <EventPicker value={eventName} onChange={setEventName} placeholder="Pick an Asana event…" />
+                      <EventPicker
+                        value={eventName}
+                        onChange={(n) => { setEventName(n); setEventDecided(true); }}
+                        noneLabel="Not event-related"
+                        noneChosen={eventDecided}
+                        placeholder="Pick an event or Not event-related"
+                        className={!eventDecided ? "border-destructive/60" : undefined}
+                      />
+                      {!eventDecided && <p className="text-[10px] text-destructive mt-1">Required: pick the event, or Not event-related.</p>}
                     </div>
                     <div>
                       <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
@@ -734,7 +746,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={rows.length === 0 || busy} onClick={submit}>
+          <Button disabled={rows.length === 0 || busy || !eventDecided} onClick={submit} title={!eventDecided ? "Pick the event, or Not event-related" : undefined}>
             {busy
               ? enrichOnImport ? "Enriching & importing…" : "Importing…"
               : `Import ${rows.length || ""} contact${rows.length === 1 ? "" : "s"}`}

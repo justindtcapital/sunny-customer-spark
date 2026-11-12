@@ -1,5 +1,10 @@
 # Roadmap
 
+## Event attendees and strict event picking — Nov 11
+- [x] Event popup shows prospects, people tagged but not in the CRM, and linked campaigns (GBI CIO NYC now shows its 24 invitees)
+- [x] Event pickers offer only Event Tracker events (older names searchable); uploads require an event or "Not event-related"; server rejects unknown event names
+- [x] "Match tagged attendees" now includes prospects
+
 ## Campaign editing and types — Nov 11
 - [x] Step back into any stage of an actioning campaign (edit details, add more people, message/send)
 - [x] Four types: Event outreach, Event follow-up, Network outreach, Business development; LA Trip Outreach switched to Network outreach
