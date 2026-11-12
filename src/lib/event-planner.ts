@@ -114,9 +114,9 @@ export const PLANNER_CATEGORIES: PlannerCategory[] = [
   },
   {
     name: BRIEFINGS,
+    // DTC Curated Briefings are DTC-led; every partner briefing category (e.g. Vation) is added with "Add partner".
     subcategories: [
       { name: "DTC Curated Briefings", color: "blue" },
-      { name: "Vation Briefs", color: "amber" },
       { name: "Other Briefings", color: "orange" },
     ],
   },
@@ -130,6 +130,7 @@ export const LEGACY_SUBCATEGORIES: Record<string, string> = {
   "dtc customer advisory council": "DTC Event",
   "3rd party events": "Other",
   "virtual pitches (sagetap)": "Other Briefings",
+  "vation briefs": "Vation Briefings",
 };
 const LEGACY_CATEGORIES: Record<string, string> = { "dtc partnered events": PARTNER_LED };
 
@@ -226,7 +227,7 @@ export function mapTrackerCategory(trackerCategory: string, name: string): strin
   const c = trackerCategory.trim().toLowerCase();
   const n = name.toLowerCase();
   if (/sagetap/.test(n)) return "Other Briefings";
-  if (/vation/.test(n)) return "Vation Briefs";
+  if (/\bvation\b/.test(n)) return "Vation Briefings";
   if (/brief/.test(n)) return "DTC Curated Briefings";
   if (/gbi/.test(n)) return "Other";
   if (/advisory council|\bcac\b/.test(n)) return "DTC Event";
@@ -697,17 +698,18 @@ export function parsePlannerCsv(text: string): string[][] {
   return rows.filter((r) => r.some((c) => c.trim()));
 }
 
-/** Fixed categories owned by a Partners-page partner under a different name. */
-const PARTNER_CATEGORY_ALIASES: Record<string, string> = { vation: "Vation Briefs" };
 /** Catch-all category of each partner row. */
 export const ROW_FALLBACK: Record<string, string> = { [PARTNER_LED]: "Other", [BRIEFINGS]: "Other Briefings" };
+/** Categories DTC leads itself: partner tags there are participants and never move the event. */
+const DTC_OWNED = new Set(["dtc event", "dtc curated briefings"]);
+export function isDtcOwned(sub: string): boolean {
+  return DTC_OWNED.has(canonicalSubcategory(sub).toLowerCase());
+}
 
 const FIXED_NAMES = new Set(PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name.toLowerCase())));
-const ALIAS_NAMES = new Set(Object.values(PARTNER_CATEGORY_ALIASES).map((x) => x.toLowerCase()));
-/** True for a category that belongs to one partner (added partner rows and aliased fixed ones like Vation Briefs). */
+/** True for a category that belongs to one partner (added with "Add partner"). */
 export function isPartnerCategory(sub: string): boolean {
-  const k = canonicalSubcategory(sub).toLowerCase();
-  return !FIXED_NAMES.has(k) || ALIAS_NAMES.has(k);
+  return !FIXED_NAMES.has(canonicalSubcategory(sub).toLowerCase());
 }
 
 function rowIn(sub: string, cats: PlannerCategory[]): string {
@@ -717,7 +719,7 @@ function rowIn(sub: string, cats: PlannerCategory[]): string {
 function partnerCandidates(partner: string): string[] {
   const p = (partner || "").trim();
   if (!p) return [];
-  return [PARTNER_CATEGORY_ALIASES[p.toLowerCase()], p, partnerSubcategoryName(p, BRIEFINGS)].filter(Boolean).map((x) => x!.toLowerCase());
+  return [p, partnerSubcategoryName(p, BRIEFINGS)].map((x) => x.toLowerCase());
 }
 
 /**
@@ -745,7 +747,7 @@ export function effectiveCategory(e: CatFields, cats: PlannerCategory[]): { subc
   const sub = canonicalSubcategory(e.subcategory);
   const known = rowIn(sub, cats);
   const row = known || canonicalCategory(e.category);
-  if (!(PARTNER_ROWS as readonly string[]).includes(row)) return { subcategory: sub, category: known || e.category };
+  if (!(PARTNER_ROWS as readonly string[]).includes(row) || isDtcOwned(sub)) return { subcategory: sub, category: known || e.category };
   const primary = (e.partners[0] || "").trim();
   const wanted = partnerCandidates(primary);
   const own = cats.find((c) => c.name === row)?.subcategories.find((s) => wanted.includes(s.name.toLowerCase()));
@@ -756,11 +758,12 @@ export function effectiveCategory(e: CatFields, cats: PlannerCategory[]): { subc
 
 /**
  * Category after the Partners tags change in an editor. A primary partner with its own category
- * pulls an uncategorised or partner-row event into it; DTC-led events never move.
+ * pulls an uncategorised or partner-row event into it; DTC-owned categories (DTC Event,
+ * DTC Curated Briefings) never move.
  */
 export function categoryAfterPartnerChange(e: CatFields, cats: PlannerCategory[]): { subcategory: string; category: string } {
   const row = rowIn(e.subcategory, cats) || canonicalCategory(e.category);
-  const movable = !row || row === "Unassigned" || (PARTNER_ROWS as readonly string[]).includes(row);
+  const movable = !isDtcOwned(e.subcategory) && (!row || row === "Unassigned" || (PARTNER_ROWS as readonly string[]).includes(row));
   const owned = movable ? primaryPartnerCategory(e.partners[0] || "", e.subcategory, cats) : "";
   if (owned) return { subcategory: owned, category: rowIn(owned, cats) };
   return effectiveCategory(e, cats);
@@ -771,4 +774,37 @@ export function partnerOfCategory(sub: string, partnerNames: string[]): string {
   const k = canonicalSubcategory(sub).toLowerCase();
   if (!isPartnerCategory(k)) return "";
   return partnerNames.find((p) => partnerCandidates(p).includes(k)) || "";
+}
+
+/** Name contains the partner as a whole word ("Vation - Austin" yes, "Innovation Summit" no). */
+export function nameMentionsPartner(name: string, partner: string): boolean {
+  const p = partner.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return !!p && new RegExp(`(^|[^a-z0-9])${p}([^a-z0-9]|$)`, "i").test(name || "");
+}
+
+export interface PartnerTagEdit { urid: string; name: string; partners: string[]; subcategory: string; category: string }
+
+/**
+ * One-time briefing clean-up: events named after the partner get it as primary partner and its
+ * briefing category; events filed under that category only because of a name match elsewhere
+ * (e.g. "Innovation") fall back to Other Briefings. DTC-led events are never touched.
+ */
+export function planBriefingPartnerTags(events: PlannerEvent[], partner: string, legacySub: string): PartnerTagEdit[] {
+  const own = partnerSubcategoryName(partner, BRIEFINGS);
+  const mine = new Set([own.toLowerCase(), legacySub.toLowerCase()]);
+  const out: PartnerTagEdit[] = [];
+  for (const e of events) {
+    const sub = (e.subcategory || "").trim();
+    if (isDtcOwned(sub) || canonicalCategory(e.category) === DTC_LED) continue;
+    const named = nameMentionsPartner(e.name, partner);
+    const filed = mine.has(sub.toLowerCase()) || mine.has(canonicalSubcategory(sub).toLowerCase());
+    const tagged = e.partners.some((x) => x.toLowerCase() === partner.toLowerCase());
+    if (named && (filed || canonicalCategory(e.category) === BRIEFINGS)) {
+      const partners = [partner, ...e.partners.filter((x) => x.toLowerCase() !== partner.toLowerCase())];
+      if (partners.join("|") !== e.partners.join("|") || sub !== own) out.push({ urid: e.urid, name: e.name, partners, subcategory: own, category: BRIEFINGS });
+    } else if (filed && !tagged) {
+      out.push({ urid: e.urid, name: e.name, partners: e.partners, subcategory: ROW_FALLBACK[BRIEFINGS], category: BRIEFINGS });
+    }
+  }
+  return out;
 }
