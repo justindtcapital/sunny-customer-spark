@@ -51,6 +51,7 @@ import {
 import { EventHistoryDialog, EventHistorySection } from "./EventHistory";
 import { AttendanceReconcileDialog } from "./AttendanceReconcileDialog";
 import type { HistoryLink } from "@/lib/event-history";
+import { changedFields, draftProblem, inList } from "@/lib/event-draft";
 
 const SUBCATS = PLANNER_CATEGORIES.flatMap((c) => c.subcategories.map((s) => s.name));
 const today = () => new Date().toISOString().slice(0, 10);
@@ -98,6 +99,8 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const cats = useMemo(() => plannerCategories(data?.partnerCategories ?? []), [data]);
   activeCats = cats;
   const filterSlot = useEventFiltersSlot();
+  // Partner choices come only from the Partners page list.
+  const { data: partnerNames = [] } = useQuery({ queryKey: ["partner-names"], queryFn: () => fetchPartnerNamesFn(), staleTime: 60_000 });
 
   const [showAsana, setShowAsana] = useState(false);
   const { data: asanaOverlay } = useQuery({
@@ -153,11 +156,11 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
     const u = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b));
     return {
       portcos: u(events.flatMap((e) => e.portcos)),
-      partners: u(events.flatMap((e) => e.partners)),
+      partners: partnerNames,
       owners: u(events.flatMap((e) => splitList(e.owner).map(o => teamMemberFor(o)?.displayName || o))),
       sources: u(allEvents.map((e) => e.source)),
     };
-  }, [allEvents]);
+  }, [allEvents, partnerNames]);
 
   const filtered = useMemo(() => {
     return allEvents.filter(e => eventMatchesFilters(e, {
@@ -553,6 +556,34 @@ function EventDetail({
 }) {
   const addAtt = useServerFn(addPlannerAttendeesFn);
   const del = useServerFn(deletePlannerEventFn);
+  const update = useServerFn(updatePlannerEventFn);
+  // Edits stay in a draft until Save, or until the panel closes / another event opens.
+  const [draft, setDraft] = useState<Partial<PlannerEvent>>({});
+  const [draftFor, setDraftFor] = useState("");
+  const [saving, setSaving] = useState(false);
+  if ((event?.urid || "") !== draftFor) { setDraftFor(event?.urid || ""); setDraft({}); }
+  const patch = event ? changedFields(event, draft) : {};
+  const dirty = Object.keys(patch).length > 0;
+  async function saveDraft(): Promise<boolean> {
+    if (!event || !dirty) return true;
+    const problem = draftProblem(event, patch, rowOfSub, today());
+    if (problem) { toast.error(problem); return false; }
+    setSaving(true);
+    try {
+      const next = await update({ data: { urid: event.urid, patch, expectedUpdated: event.updated } });
+      setDraft({});
+      onSaved(next);
+      toast.success("Event saved");
+      return true;
+    } catch (err) {
+      toast.error((err as Error).message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function closePanel() { if (!saving && (await saveDraft())) onClose(); }
+  async function openOther(x: PlannerEvent) { if (!saving && (await saveDraft())) onOpen(x); }
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [q, setQ] = useState("");
@@ -613,7 +644,7 @@ function EventDetail({
   }
 
   return (
-    <Sheet open={!!e} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={!!e} onOpenChange={(o) => { if (!o) void closePanel(); }}>
       <SheetContent className="w-[480px] sm:max-w-[480px] overflow-y-auto">
         {e && (
           <>
@@ -625,12 +656,22 @@ function EventDetail({
                 {asanaOnly ? (
                   <Badge variant="outline" className="text-xs">Live from Asana — not yet in the tracker</Badge>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground">Changes save as you go.</span>
+                  <span className={cn("text-[10px]", dirty ? "text-primary" : "text-muted-foreground")}>
+                    {saving ? "Saving…" : dirty ? "Unsaved changes — saved when you close" : "No unsaved changes"}
+                  </span>
                 )}
                 {!asanaOnly && (
-                  <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:text-destructive" onClick={() => setConfirmDelete(true)}>
-                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                  </Button>
+                  <div className="ml-auto flex items-center gap-1">
+                    {dirty && (
+                      <Button size="sm" variant="ghost" className="h-7 text-muted-foreground" disabled={saving} onClick={() => setDraft({})}>Undo</Button>
+                    )}
+                    <Button size="sm" className="h-7" disabled={!dirty || saving} onClick={() => void saveDraft()}>
+                      <Check className="h-3.5 w-3.5 mr-1" /> {saving ? "Saving…" : "Save"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 text-muted-foreground hover:text-destructive" disabled={saving} onClick={() => setConfirmDelete(true)}>
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
+                    </Button>
+                  </div>
                 )}
               </div>
               {asanaOnly ? (
@@ -641,7 +682,7 @@ function EventDetail({
                   <Field k="PortCos" v={e.portcos.join(", ")} />
                 </dl>
               ) : (
-                <InlineEventEditor key={e.urid} event={e} officialPortcos={officialPortcos} options={options} onSaved={onSaved} />
+                <InlineEventEditor saved={e} draft={draft} officialPortcos={officialPortcos} options={options} onChange={(p) => setDraft((d) => ({ ...d, ...p }))} />
               )}
               {asanaOnly && e.notes && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{e.notes}</p>}
               <div className="flex flex-wrap gap-2">
@@ -730,7 +771,7 @@ function EventDetail({
                 ))}
               </section>
 
-              <EventHistorySection event={e} links={historyLinks} all={all} attendees={attendees} onChanged={onHistoryChanged} onOpen={onOpen} />
+              <EventHistorySection event={e} links={historyLinks} all={all} attendees={attendees} onChanged={onHistoryChanged} onOpen={(x) => void openOther(x)} />
 
               <section className="space-y-1">
                 <h3 className="text-xs font-semibold">Prior years</h3>
@@ -766,59 +807,32 @@ function EventDetail({
   );
 }
 
-// ── Inline editing in the side panel (each field saves on its own, one save at a time) ──
-function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
-  event: PlannerEvent;
+// ── Side panel editing (changes collect in a draft; Save, closing the panel or opening another event saves them) ──
+function InlineEventEditor({ saved, draft, officialPortcos, options, onChange }: {
+  saved: PlannerEvent;
+  draft: Partial<PlannerEvent>;
   officialPortcos: string[];
   options: { partners: string[]; owners: string[] };
-  onSaved: (e: PlannerEvent) => void;
+  onChange: (patch: Partial<PlannerEvent>) => void;
 }) {
-  const update = useServerFn(updatePlannerEventFn);
-  const updatedRef = useRef(e.updated);
-  const chain = useRef<Promise<unknown>>(Promise.resolve());
-  const [savedKey, setSavedKey] = useState("");
-  const [savingKey, setSavingKey] = useState("");
-  useEffect(() => { updatedRef.current = e.updated; }, [e.updated]);
-
-  function save(key: string, patch: Partial<PlannerEvent>) {
-    chain.current = chain.current.then(async () => {
-      setSavingKey(key);
-      try {
-        const next = await update({ data: { urid: e.urid, patch, expectedUpdated: updatedRef.current } });
-        updatedRef.current = next.updated;
-        onSaved(next);
-        setSavedKey(key);
-        setTimeout(() => setSavedKey((k) => (k === key ? "" : k)), 1500);
-      } catch (err) {
-        toast.error((err as Error).message);
-      } finally {
-        setSavingKey("");
-      }
-    });
-  }
+  const e: PlannerEvent = { ...saved, ...draft };
+  const changed = changedFields(saved, draft);
+  const mark = (...keys: (keyof PlannerEvent)[]) =>
+    keys.some((k) => k in changed) ? <span className="h-1.5 w-1.5 rounded-full bg-primary" title="Unsaved change" /> : null;
   const dtc = dtcStatusOf(e, today());
   const sub = canonicalSubcategory(e.subcategory);
-  const mark = (key: string) =>
-    savingKey === key ? <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" /> : savedKey === key ? <Check className="h-3 w-3 text-primary" /> : null;
   const knownSectors = new Set<string>(PLANNER_SECTORS);
   const sectors = [...new Set(e.sectors.map(normalizeSector))];
 
   return (
     <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
-      <Row2 label="Name" mark={mark("name")}><TextCell value={e.name} onCommit={(v) => v.trim() ? save("name", { name: v.trim() }) : toast.error("Event name is required")} /></Row2>
-      <Row2 label="DTC Status" mark={mark("status")}>
-        <Select value={dtc} onValueChange={(v) => {
-          if (v !== "Potential" && v !== "Declined" && rowOfSub(sub) === "Unassigned")
-            return void toast.error("Pick a category first so the event can move into its planner row.");
-          save("status", { dtcStatus: v, status: plannerStatusForDtc(v) });
-        }}>
-          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>{DTC_STATUSES.map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}</SelectContent>
-        </Select>
+      <Row2 label="Name" mark={mark("name")}><DraftInput value={e.name} onChange={(v) => onChange({ name: v })} /></Row2>
+      <Row2 label="DTC Status" mark={mark("dtcStatus")}>
+        <Pills options={DTC_STATUSES} value={dtc} onChange={(v) => onChange({ dtcStatus: v, status: plannerStatusForDtc(v) })} />
       </Row2>
-      <Row2 label="Category" mark={mark("category")}>
-        <Select value={sub} onValueChange={(v) => save("category", { subcategory: v, category: rowOfSub(v) })}>
-          <SelectTrigger className="h-7 text-xs">
+      <Row2 label="Category" mark={mark("subcategory")}>
+        <Select value={sub} onValueChange={(v) => onChange({ subcategory: v, category: rowOfSub(v) })}>
+          <SelectTrigger className="h-7 w-auto max-w-full gap-2 text-xs">
             <span className="flex min-w-0 items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: tileVar(sub) }} /><SelectValue /></span>
           </SelectTrigger>
           <SelectContent>
@@ -828,24 +842,23 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
           </SelectContent>
         </Select>
       </Row2>
-      <Row2 label="Start" mark={mark("start")}><TextCell type="date" value={e.start} onCommit={(v) => save("start", { start: v, end: e.end && e.end >= v ? e.end : v })} /></Row2>
-      <Row2 label="End" mark={mark("end")}><TextCell type="date" value={e.end} onCommit={(v) => save("end", { end: v })} /></Row2>
-      <Row2 label="Location" mark={mark("location")}><TextCell value={e.location} onCommit={(v) => save("location", { location: v })} /></Row2>
+      <Row2 label="Dates" mark={mark("start", "end")}>
+        <div className="flex items-center gap-1.5">
+          <DraftInput type="date" className="w-[132px]" value={e.start} onChange={(v) => onChange({ start: v, end: e.end && e.end >= v ? e.end : v })} />
+          <span className="text-muted-foreground">to</span>
+          <DraftInput type="date" className="w-[132px]" value={e.end} onChange={(v) => onChange({ end: v })} />
+        </div>
+      </Row2>
+      <Row2 label="Location" mark={mark("location")}><DraftInput value={e.location} onChange={(v) => onChange({ location: v })} /></Row2>
       <Row2 label="Format" mark={mark("format")}>
-        <Select value={e.format || "__none"} onValueChange={(v) => save("format", { format: v === "__none" ? "" : v })}>
-          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none" className="text-xs">—</SelectItem>
-            {["in-person", "virtual", "hybrid"].map((s) => <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <Pills options={["in-person", "virtual", "hybrid"]} value={e.format} allowNone onChange={(v) => onChange({ format: v })} />
       </Row2>
       <Row2 label="Sector" mark={mark("sectors")}>
         <div className="flex flex-wrap gap-1 pt-1">
           {[...PLANNER_SECTORS, ...sectors.filter((x) => !knownSectors.has(x))].map((s) => {
             const on = sectors.includes(s);
             return (
-              <button key={s} type="button" onClick={() => save("sectors", { sectors: on ? sectors.filter((x) => x !== s) : [...sectors, s] })}
+              <button key={s} type="button" onClick={() => onChange({ sectors: on ? sectors.filter((x) => x !== s) : [...sectors, s] })}
                 className={cn("flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]", on ? "border-foreground/30 bg-muted" : "border-border text-muted-foreground opacity-70")}>
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(--sector-${sectorDotColor(s)})` }} />{s}
               </button>
@@ -853,22 +866,27 @@ function InlineEventEditor({ event: e, officialPortcos, options, onSaved }: {
           })}
         </div>
       </Row2>
-      <Row2 label="Owner" mark={mark("owner")}><TextCell list="vp-owners-inline" value={e.owner} onCommit={(v) => save("owner", { owner: v })} /></Row2>
-      <Row2 label="PortCos" mark={mark("portcos")}><PortcoPicker value={e.portcos} official={officialPortcos} onChange={(v) => save("portcos", { portcos: v })} /></Row2>
-      <Row2 label="Partners" mark={mark("partners")}><TextCell list="vp-partners-inline" placeholder="; separated" value={e.partners.join("; ")} onCommit={(v) => save("partners", { partners: splitList(v) })} /></Row2>
-      <Row2 label="Network count" mark={mark("networkCount")}><TextCell type="number" value={e.networkCount ? String(e.networkCount) : ""} onCommit={(v) => save("networkCount", { networkCount: Number(v) || 0 })} /></Row2>
-      <Row2 label="Event contact" mark={mark("eventContact")}><TextCell value={e.eventContact} onCommit={(v) => save("eventContact", { eventContact: v })} /></Row2>
-      <Row2 label="Website" mark={mark("website")}><TextCell type="url" value={e.website} onCommit={(v) => save("website", { website: v.trim() })} /></Row2>
-      <Row2 label="Luma / RSVP" mark={mark("lumaUrl")}><TextCell type="url" value={e.lumaUrl} onCommit={(v) => save("lumaUrl", { lumaUrl: v.trim() })} /></Row2>
-      <Row2 label="Actions needed" mark={mark("actionsNeeded")}><TextCell value={e.actionsNeeded} onCommit={(v) => save("actionsNeeded", { actionsNeeded: v })} /></Row2>
-      <Row2 label="Notes" mark={mark("notes")}><TextCell multiline value={e.notes} onCommit={(v) => save("notes", { notes: v })} /></Row2>
+      <Row2 label="Owner" mark={mark("owner")}><DraftInput list="vp-owners-inline" className="max-w-[240px]" value={e.owner} onChange={(v) => onChange({ owner: v })} /></Row2>
+      <Row2 label="PortCos" mark={mark("portcos")}>
+        <ListPicker noun="PortCo" listName="Portfolio" value={e.portcos} official={officialPortcos} onChange={(v) => onChange({ portcos: v })} />
+      </Row2>
+      <Row2 label="Partners" mark={mark("partners")}>
+        <ListPicker noun="Partner" listName="Partners" value={e.partners} official={options.partners} onChange={(v) => onChange({ partners: v })} />
+      </Row2>
+      <Row2 label="Network count" mark={mark("networkCount")}>
+        <DraftInput type="number" className="w-20" value={e.networkCount ? String(e.networkCount) : ""} onChange={(v) => onChange({ networkCount: Number(v) || 0 })} />
+      </Row2>
+      <Row2 label="Event contact" mark={mark("eventContact")}><DraftInput value={e.eventContact} onChange={(v) => onChange({ eventContact: v })} /></Row2>
+      <Row2 label="Website" mark={mark("website")}><DraftInput type="url" value={e.website} onChange={(v) => onChange({ website: v.trim() })} /></Row2>
+      <Row2 label="Luma / RSVP" mark={mark("lumaUrl")}><DraftInput type="url" value={e.lumaUrl} onChange={(v) => onChange({ lumaUrl: v.trim() })} /></Row2>
+      <Row2 label="Actions needed" mark={mark("actionsNeeded")}><DraftInput value={e.actionsNeeded} onChange={(v) => onChange({ actionsNeeded: v })} /></Row2>
+      <Row2 label="Notes" mark={mark("notes")}><DraftInput multiline value={e.notes} onChange={(v) => onChange({ notes: v })} /></Row2>
       <div className="pt-1.5 text-[11px] text-muted-foreground">Source</div>
       <div className="pt-1.5 text-[11px] text-muted-foreground break-words">
         {e.source}{e.sourceRef && !/^https?:/.test(e.sourceRef) ? ` · ${e.sourceRef}` : ""}
         {e.createdBy ? ` · added by ${teamMemberFor(e.createdBy)?.displayName || teamProfile(e.createdBy)?.displayName || e.createdBy}` : ""}
       </div>
       <datalist id="vp-owners-inline">{options.owners.map((o) => <option key={o} value={o} />)}</datalist>
-      <datalist id="vp-partners-inline">{options.partners.map((o) => <option key={o} value={o} />)}</datalist>
     </div>
   );
 }
@@ -882,18 +900,33 @@ function Row2({ label, mark, children }: { label: string; mark: ReactNode; child
   );
 }
 
-function TextCell({ value, onCommit, type = "text", multiline, list, placeholder }: {
-  value: string; onCommit: (v: string) => void; type?: string; multiline?: boolean; list?: string; placeholder?: string;
+function DraftInput({ value, onChange, type = "text", multiline, list, placeholder, className }: {
+  value: string; onChange: (v: string) => void; type?: string; multiline?: boolean; list?: string; placeholder?: string; className?: string;
 }) {
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
-  const commit = () => { if (v !== value) onCommit(v); };
   if (multiline)
-    return <Textarea rows={3} className="min-h-[56px] text-xs md:text-xs" value={v} onChange={(x) => setV(x.target.value)} onBlur={commit} />;
+    return <Textarea rows={3} className={cn("min-h-[56px] text-xs md:text-xs", className)} value={value} onChange={(x) => onChange(x.target.value)} />;
   return (
-    <Input type={type} list={list} placeholder={placeholder} className="h-7 px-2 text-xs md:text-xs" value={v}
-      onChange={(x) => setV(x.target.value)} onBlur={commit}
-      onKeyDown={(x) => { if (x.key === "Enter") (x.target as HTMLInputElement).blur(); if (x.key === "Escape") setV(value); }} />
+    <Input type={type} list={list} placeholder={placeholder} className={cn("h-7 px-2 text-xs md:text-xs", className)} value={value}
+      onChange={(x) => onChange(x.target.value)} />
+  );
+}
+
+/** Pick exactly one value from a short fixed list (click the chosen pill again to clear when allowNone). */
+function Pills({ options, value, onChange, allowNone }: { options: readonly string[]; value: string; onChange: (v: string) => void; allowNone?: boolean }) {
+  return (
+    <div role="radiogroup" className="flex flex-wrap gap-1 pt-0.5">
+      {options.map((o) => {
+        const on = value.toLowerCase() === o.toLowerCase();
+        return (
+          <button key={o} type="button" role="radio" aria-checked={on}
+            onClick={() => onChange(on ? (allowNone ? "" : o) : o)}
+            className={cn("rounded-full border px-2 py-0.5 text-[10px] transition-colors",
+              on ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:bg-muted")}>
+            {o}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -970,39 +1003,36 @@ function LinkOut({ href, label }: { href: string; label: string }) {
   );
 }
 
-/** PortCo tags come only from the official Portfolio list; legacy unmatched tags show flagged until removed. */
-function PortcoPicker({ value, official, onChange }: { value: string[]; official: string[]; onChange: (v: string[]) => void }) {
+/** Tags come only from a fixed official list (Portfolio or Partners); legacy unmatched tags show flagged until removed. */
+function ListPicker({ value, official, onChange, noun, listName }: {
+  value: string[]; official: string[]; onChange: (v: string[]) => void; noun: string; listName: string;
+}) {
   const [open, setOpen] = useState(false);
-  const lower = new Set(official.map((o) => o.toLowerCase()));
-  const has = (n: string) => value.some((v) => v.toLowerCase() === n.toLowerCase());
+  const has = (n: string) => inList(value, n);
   const toggle = (n: string) => onChange(has(n) ? value.filter((v) => v.toLowerCase() !== n.toLowerCase()) : [...value, n]);
   return (
-    <div className="space-y-1.5">
-      {value.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {value.map((v) => {
-            const unofficial = official.length > 0 && !lower.has(v.toLowerCase());
-            return (
-              <Badge key={v} variant={unofficial ? "outline" : "secondary"} className={cn("gap-1 text-[11px]", unofficial && "border-destructive text-destructive")}
-                title={unofficial ? "Not in the Portfolio list — remove it or pick the official company" : undefined}>
-                {v}
-                <button type="button" aria-label={`Remove ${v}`} className="opacity-60 hover:opacity-100" onClick={() => toggle(v)}>×</button>
-              </Badge>
-            );
-          })}
-        </div>
-      )}
+    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+      {value.map((v) => {
+        const unofficial = official.length > 0 && !inList(official, v);
+        return (
+          <Badge key={v} variant={unofficial ? "outline" : "secondary"} className={cn("gap-1 text-[11px] font-normal", unofficial && "border-destructive text-destructive")}
+            title={unofficial ? `Not in the ${listName} list — remove it or pick the official name` : undefined}>
+            {v}
+            <button type="button" aria-label={`Remove ${v}`} className="opacity-60 hover:opacity-100" onClick={() => toggle(v)}>×</button>
+          </Badge>
+        );
+      })}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button type="button" variant="outline" size="sm" className="w-full justify-start text-xs font-normal text-muted-foreground">
-            {official.length ? "Add PortCo…" : "Portfolio list unavailable"}
+          <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px] font-normal text-muted-foreground" disabled={!official.length}>
+            <Plus className="h-3 w-3 mr-0.5" />{official.length ? `Add ${noun}` : `${listName} list unavailable`}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-0" align="start">
+        <PopoverContent className="w-60 p-0" align="start">
           <Command>
-            <CommandInput placeholder="Search PortCos…" className="text-xs" />
+            <CommandInput placeholder={`Search ${listName}…`} className="text-xs" />
             <CommandList>
-              <CommandEmpty>No PortCo with that name</CommandEmpty>
+              <CommandEmpty>No {noun} with that name</CommandEmpty>
               <CommandGroup>
                 {official.map((o) => (
                   <CommandItem key={o} value={o} onSelect={() => toggle(o)} className="text-xs">
@@ -1105,13 +1135,8 @@ function EventForm({
             </Select>
           </L>
           <L label="DTC Status">
-            <Select value={form.dtcStatus || dtcStatusOf({ dtcStatus: "", status: form.status || "Potential", start: form.start || "", end: form.end || "" }, today())}
-              onValueChange={(v) => setForm((f) => ({ ...f, dtcStatus: v, status: plannerStatusForDtc(v) }))}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {DTC_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Pills options={DTC_STATUSES} value={form.dtcStatus || dtcStatusOf({ dtcStatus: "", status: form.status || "Potential", start: form.start || "", end: form.end || "" }, today())}
+              onChange={(v) => setForm((f) => ({ ...f, dtcStatus: v, status: plannerStatusForDtc(v) }))} />
           </L>
           <L label="Location"><Input value={form.location || ""} onChange={(e) => set("location", e.target.value)} /></L>
           <L label="Format">
@@ -1127,8 +1152,8 @@ function EventForm({
             <Input value={list("sectors")} onChange={(e) => set("sectors", splitList(e.target.value))} />
           </L>
           <L label="Owner / DTC coverage"><Input list="vp-owners" value={form.owner || ""} onChange={(e) => set("owner", e.target.value)} /></L>
-          <L label="PortCos" hint="Pick from the official Portfolio list"><PortcoPicker value={form.portcos || []} official={options.officialPortcos} onChange={(v) => set("portcos", v)} /></L>
-          <L label="Partners (; separated)"><Input list="vp-partners" value={list("partners")} onChange={(e) => set("partners", splitList(e.target.value))} /></L>
+          <L label="PortCos" hint="Pick from the official Portfolio list"><ListPicker noun="PortCo" listName="Portfolio" value={form.portcos || []} official={options.officialPortcos} onChange={(v) => set("portcos", v)} /></L>
+          <L label="Partners" hint="Pick from the Partners list"><ListPicker noun="Partner" listName="Partners" value={form.partners || []} official={options.partners} onChange={(v) => set("partners", v)} /></L>
           <L label="Network attendees (count)"><Input type="number" value={form.networkCount || ""} onChange={(e) => set("networkCount", Number(e.target.value) || 0)} /></L>
           <L label="Event contact"><Input value={form.eventContact || ""} onChange={(e) => set("eventContact", e.target.value)} /></L>
           <L label="Luma / RSVP link"><Input value={form.lumaUrl || ""} onChange={(e) => set("lumaUrl", e.target.value)} /></L>
@@ -1136,7 +1161,6 @@ function EventForm({
           <L label="Notes" full><Textarea rows={3} value={form.notes || ""} onChange={(e) => set("notes", e.target.value)} /></L>
         </div>
         <datalist id="vp-owners">{options.owners.map((o) => <option key={o} value={o} />)}</datalist>
-        <datalist id="vp-partners">{options.partners.map((o) => <option key={o} value={o} />)}</datalist>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={save} disabled={saving || filling}>{saving ? "Saving…" : form.urid ? "Save changes" : "Add event"}</Button>
