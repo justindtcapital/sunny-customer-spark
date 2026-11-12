@@ -4982,17 +4982,36 @@ export async function buildPortcoExposures(): Promise<Map<string, PortCoExposure
 
 /** Raw contact event tags ("Events" tab) joined to contact names, for attendee reconciliation. */
 export async function readContactEventTags(): Promise<Array<{ email: string; name: string; eventName: string; date: string; kind: string; added: string }>> {
-  const contacts = await buildContacts();
-  const byUrid = new Map(contacts.filter((c) => c.urid).map((c) => [String(c.urid).toLowerCase(), c]));
-  const byEmail = new Map<string, Contact>();
-  for (const c of contacts) for (const e of (c.email || "").split(/[;,]/)) if (e.trim()) byEmail.set(e.trim().toLowerCase(), c);
+  // Network and Prospecting people share the CRM "Events" tab; resolve both so
+  // prospects' attendance can join the event lists too (kind tells them apart).
+  const [contacts, targets] = await Promise.all([buildContacts(), buildTargets().catch(() => [] as TargetLead[])]);
+  type Person = { email: string; name: string; added: string; kind: string };
+  const byUrid = new Map<string, Person>();
+  const byEmail = new Map<string, Person>();
+  const index = (urid: string | undefined, email: string, p: Person) => {
+    if (urid) byUrid.set(String(urid).toLowerCase(), p);
+    for (const e of (email || "").split(/[;,]/)) if (e.trim() && !byEmail.has(e.trim().toLowerCase())) byEmail.set(e.trim().toLowerCase(), p);
+  };
+  for (const c of contacts) index(c.urid, c.email, { email: c.email, name: c.name, added: String((c as { dateAdded?: string }).dateAdded || ""), kind: "Network" });
+  for (const t of targets) index(t.urid, t.email, { email: t.email, name: t.name, added: t.dateAdded || "", kind: "Prospect" });
   const rows = mapRows<Record<string, string>>(await fetchSheetTab(TAB_NAMES.events, true).catch(() => [] as string[][]), EVENT_COLS);
   return rows
     .filter((r) => !r.removedAt && (r.type || "attended").toLowerCase() === "attended" && (r.eventName || "").trim())
     .map((r) => {
       const c = byUrid.get((r.curid || "").toLowerCase()) || byEmail.get((r.email || "").toLowerCase());
       const email = (c?.email || r.email || "").split(/[;,]/)[0].trim();
-      return { email, name: c?.name || email, eventName: r.eventName.trim(), date: r.date || "", kind: "Network", added: String((c as { dateAdded?: string } | undefined)?.dateAdded || "") };
+      return { email, name: c?.name || email, eventName: r.eventName.trim(), date: r.date || "", kind: c?.kind || "Network", added: c?.added || "" };
     })
     .filter((t) => t.email || t.name);
+}
+
+/** Live (not removed) person-event tag rows naming any of `names` (case/punctuation-insensitive). */
+export async function readEventTagRows(names: string[]): Promise<Array<{ email: string; curid: string; eventName: string; type: string }>> {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const wanted = new Set(names.map(norm).filter(Boolean));
+  if (!wanted.size) return [];
+  const rows = mapRows<Record<string, string>>(await fetchSheetTab(TAB_NAMES.events).catch(() => [] as string[][]), EVENT_COLS);
+  return rows
+    .filter((r) => !r.removedAt && wanted.has(norm(r.eventName || "")))
+    .map((r) => ({ email: (r.email || "").trim(), curid: (r.curid || "").trim(), eventName: (r.eventName || "").trim(), type: (r.type || "attended").toLowerCase() }));
 }
