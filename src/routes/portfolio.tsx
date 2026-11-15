@@ -708,8 +708,8 @@ function PortfolioPage() {
         </div>
       </div>
 
-      {/* Count + multi-select bulk actions */}
-      <div className="flex items-center justify-between gap-2 mb-3">
+      {/* Count + multi-select bulk actions (companies view only) */}
+      <div className={cn("flex items-center justify-between gap-2 mb-3", view !== "list" && "hidden")}>
         <div className="flex items-center gap-2">
           <Checkbox
             checked={allSelected ? true : someSelected ? "indeterminate" : false}
