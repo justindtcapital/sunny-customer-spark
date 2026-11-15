@@ -69,48 +69,10 @@ export const updatePlannerEventFn = createServerFn({ method: "POST" })
     });
   });
 
-export const syncAsanaPlannerFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { by: string }) => d)
-  .handler(async ({ data }) => {
-    const { withDeadline } = await import("./request-deadline.server");
-    const { syncAsanaEvents } = await import("./event-planner.server");
-    const { fetchAllAsanaEvents } = await import("./asana.server");
-    return withDeadline("syncAsanaPlanner", 55_000, async (step) => {
-      step("reading Asana");
-      const asana = await fetchAllAsanaEvents();
-      step("adding new Asana events");
-      return syncAsanaEvents(asana, data.by || "");
-    });
-  });
 
-/** Live Asana events for the "Show Asana data" overlay toggle (read-only). */
-export const fetchAsanaOverlayFn = createServerFn({ method: "GET" }).handler(async () => {
-  const { fetchAllAsanaEvents } = await import("./asana.server");
-  const { officialPortcoNames } = await import("./event-planner.server");
-  const { canonicalEventPortcos } = await import("@/lib/event-portcos");
-  try {
-    const [events, official] = await Promise.all([fetchAllAsanaEvents(), officialPortcoNames().catch(() => [] as string[])]);
-    return { events: events.map((a) => ({ ...a, portcos: canonicalEventPortcos(a.portcos || [], official).portcos })), error: "" };
-  } catch (e) {
-    console.error("[event-planner] Asana overlay failed", e);
-    return { events: [], error: (e as Error).message };
-  }
-});
 
-/** One-time: enrich planner rows from Asana and merge same-date duplicates. */
-export const enrichFromAsanaFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { by: string }) => d)
-  .handler(async ({ data }) => {
-    const { withDeadline } = await import("./request-deadline.server");
-    const { enrichFromAsana } = await import("./event-planner.server");
-    const { fetchAllAsanaEvents } = await import("./asana.server");
-    return withDeadline("enrichFromAsana", 55_000, async (step) => {
-      step("reading Asana");
-      const asana = await fetchAllAsanaEvents();
-      step("enriching and merging events");
-      return enrichFromAsana(asana, data.by || "");
-    });
-  });
+
+
 
 export const extractEventFromUrlFn = createServerFn({ method: "POST" })
   .inputValidator((d: { url: string }) => {

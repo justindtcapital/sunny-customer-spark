@@ -61,8 +61,6 @@ let activeCats: PlannerCategory[] = PLANNER_CATEGORIES;
 const tileVar = (sub: string) => `var(--planner-${subcategoryColor(sub, activeCats)})`;
 const rowOfSub = (sub: string) => activeCats.find((c) => c.subcategories.some((s) => s.name === canonicalSubcategory(sub)))?.name || "Unassigned";
 
-/** Read-only planner-shaped view of a live Asana event (Show Asana data overlay). */
-
 const ROW_LABELS: Record<string, string> = { "DTC Led Events": "DTC-led events", "Partner Led Events": "Partner-led events", Briefings: "Briefings", Potential: "Potential" };
 
 export const plannerQueryKey = ["event-planner"];
@@ -392,7 +390,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
         </div>
         {isLoading && <p className="text-xs text-muted-foreground">Loading events…</p>}
         {!isLoading && events.length === 0 && (
-          <p className="text-xs text-muted-foreground">No events yet — add one, import a CSV or turn on Show Asana data.</p>
+          <p className="text-xs text-muted-foreground">No events yet — add one or import a CSV.</p>
         )}
         {undated.length > 0 && (
           <div className="rounded-lg border border-dashed border-border p-3">
