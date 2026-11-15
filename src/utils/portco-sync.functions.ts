@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
-import { fetchPortcoFields, fetchPortfolioEvents } from "./asana.server";
+import { fetchPortfolioEvents } from "./asana.server";
+import { fetchPortcoProfileFields as fetchPortcoFields } from "./portco-store.server";
 import { runSyncEventExposure } from "./event-exposure.functions";
 import { matchOrganization, isSumbleConfigured } from "./sumble.server";
 import { fillBlankPortfolioFields, logOpsEvent } from "./sheets.server";

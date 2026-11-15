@@ -97,7 +97,7 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
       if (!sameValue(draft[key]!, m.value))
         changes.push({ gid: m.gid, type: m.type, original: m.value, value: draft[key]! });
     }
-    // Stakeholders are stored back to Asana as a comma-separated name list.
+    // Stakeholders are stored as a comma-separated name list.
     const sm = w.editable?.["dellStakeholders" as EditKey];
     const stakeholderNames = stakeholders.map((s) => s.name).join(", ");
     if (sm && stakeholderNames !== String(w.dellStakeholders || "") && !sameValue(stakeholderNames, sm.value))
@@ -115,7 +115,7 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
       return;
     }
     patchWorkstreamCache(res.workstream);
-    toast.success("Saved to Asana");
+    toast.success("Saved");
     setDraft({});
     setEditingTitle(false);
     onSaved(res.workstream);
@@ -139,7 +139,7 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
                 />
               ) : (
                 <p className="text-[11px] italic text-muted-foreground/70">
-                  {m ? `${String(w[key] || "Not set")} (read-only)` : "Not in Asana"}
+                  {m ? `${String(w[key] || "Not set")} (read-only)` : "Not set"}
                 </p>
               )}
             </div>
@@ -154,7 +154,7 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
       )}
       <label className="flex items-center gap-1.5 text-[11px]">
         <Checkbox checked={completed} onCheckedChange={(c) => setCompleted(c === true)} />
-        Mark subtask complete in Asana
+        Mark workstream complete
       </label>
       <Button size="sm" variant="outline" disabled={saving} onClick={() => setEditingTitle((v) => !v)} aria-expanded={editingTitle}><Pencil className="h-3.5 w-3.5" />Edit title</Button>
       {(!inline || Object.keys(draft).length > 0 || title.trim() !== (w.name || w.rawName) || completed !== w.completed || stakeholders.map((s) => s.name).join(", ") !== String(w.dellStakeholders || "")) && <div className="flex justify-end gap-2">
@@ -162,7 +162,7 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
           Cancel
         </Button>
         <Button size="sm" className="h-7 text-xs" onClick={onSave} disabled={saving || !title.trim()}>
-          {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save{inline ? " changes to Asana" : ""}
+          {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save{inline ? " changes" : ""}
         </Button>
       </div>}
     </div>
@@ -328,7 +328,7 @@ export function WorkstreamGroups({
   }, [workstreams]);
 
   if (workstreams.length === 0)
-    return <p className="text-xs text-muted-foreground py-4">No workstreams in Asana yet.</p>;
+    return <p className="text-xs text-muted-foreground py-4">No workstreams yet.</p>;
 
   return (
     <div className="space-y-3">

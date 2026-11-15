@@ -67,6 +67,7 @@ async function findCoworkEmail(today: string) {
 async function gather(today: string) {
   const sheets = await import("./sheets.server");
   const asana = await import("./asana.server");
+  const store = await import("./portco-store.server");
   const camp = await import("./campaigns.server");
   const planner = await import("./event-planner.server");
   const knowledge = await import("./knowledge.server");
@@ -74,9 +75,9 @@ async function gather(today: string) {
   const warnings: string[] = [];
   const read = async <T,>(label: string, fn: () => Promise<T>, fb: T) => { try { return await fn(); } catch (e) { console.error(`[brief] ${label}`, e); warnings.push(`${label} unavailable`); return fb; } };
   const [contacts, targets, companies] = await Promise.all([read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCos", () => sheets.buildPortfolioCompanies(), [])]);
-  const [workstreams, campaigns, members] = await Promise.all([read("Workstreams", asana.fetchPortcoWorkstreams, []), read("Campaigns", camp.listCampaigns, []), read("Campaign members", () => camp.listMembers(), [])]);
+  const [workstreams, campaigns, members] = await Promise.all([read("Workstreams", () => store.readWorkstreams(), []), read("Campaigns", camp.listCampaigns, []), read("Campaign members", () => camp.listMembers(), [])]);
   const [events, attendees, records, activities] = await Promise.all([read("Events", () => planner.readPlannerEvents(), []), read("Attendees", planner.readAttendees, []), read("Notes", () => knowledge.listKnowledgeRecords(), []), read("Note steps", knowledge.listHarvestedActivities, [])]);
-  const portcoFields = await read("PortCo investment details", asana.fetchPortcoFields, new Map<string, { name: string; fields: Record<string, string> }>());
+  const portcoFields = await read("PortCo investment details", store.fetchPortcoProfileFields, new Map<string, { name: string; fields: Record<string, string> }>());
   const home = await read("Actions", () => fetchHomeMomentum({ data: { email: BRIEF_OWNER, scope: "mine" } }), null);
   void today;
   return { contacts, targets, companies, workstreams, campaigns, members, events, attendees, records, activities, reminders: home?.reminders || [], portcoFields, warnings };
@@ -100,7 +101,7 @@ function assemble(text: string, today: string, f: Facts) {
   const companyByDomain = new Map<string, string>();
   for (const p of people) { const d = normalizeDomain(p.email); if (d && p.company && !isSharedEmailDomain(d) && !companyByDomain.has(d)) companyByDomain.set(d, p.company); }
   const csvCompany = new Map(cowork.contacts.filter((c) => c.company).map((c) => [norm(c.name), c.company]));
-  const invFor = (name: string) => { const co = f.companies.find((c) => c.name === name)!; return investmentStrip({ ...(f.portcoFields.get(name.trim().toLowerCase())?.fields || {}), ...(co.asanaFields || {}) }, co.profileOverrides); };
+  const invFor = (name: string) => { const co = f.companies.find((c) => c.name === name)!; return investmentStrip({ ...(f.portcoFields.get(name.trim().toLowerCase())?.fields || {}), ...(co.asanaFields || {}) }); };
   const meetings: BriefMeeting[] = cowork.meetings.map((m) => {
     const blob = `${m.title} ${m.text}`;
     const orgs = [...knownOrgs].filter((o) => o.length >= 4);
@@ -179,7 +180,7 @@ function assemble(text: string, today: string, f: Facts) {
     return { time: m.time, title: m.title, tags: m.tags, platform: m.platform, duration: m.duration, cowork: stripScheduling(m.text), summary: "", portcos, mentionedPortcos, company, people: ppl, actions, related, notes, events, worthChecking: [], prep: [] };
   });
   const todayNames = new Set(meetings.flatMap((m) => m.people.map((p) => norm(p.name))));
-  const nm = new Set(f.companies.filter((c) => priorityBadge(investmentStrip(f.portcoFields.get(c.name.trim().toLowerCase())?.fields || c.asanaFields, c.profileOverrides).priority) === "NM").map((c) => norm(c.name)));
+  const nm = new Set(f.companies.filter((c) => priorityBadge(investmentStrip(f.portcoFields.get(c.name.trim().toLowerCase())?.fields || c.asanaFields).priority) === "NM").map((c) => norm(c.name)));
   const quiet = anticipatedFollowUps({
     today, nmCompanies: nm,
     workstreams: f.workstreams.filter((w) => !w.completed).map((w) => ({ gid: w.gid, company: w.company, name: w.name, lastActivity: w.lastActivity, status: workstreamBarStatus(w), priority: w.workstreamPriority, active: activeWorkstream(w), url: w.url })),

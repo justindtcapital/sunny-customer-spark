@@ -96,3 +96,48 @@ export function matchDellTargets(raw: string, dell: DellPerson[]): DellMatch[] {
     return { name, status: "new" };
   });
 }
+
+/** Owner-confirmed pairings of Asana task names to Venture Pulse PortCo names. */
+export const ASANA_NAME_PAIRS: Record<string, string> = {
+  Domino: "Domino Data Lab", Lightbits: "Lightbits Labs", "Quantum Source": "Quantum Source Labs",
+  Series: "Series Entertainment", VAST: "VAST Data", Bland: "Bland AI", "SiMa.ai": "SiMa",
+  Limitless: "Limitless AI Labs", "Terra Security": "Terra",
+};
+/** Asana-only companies the owner confirmed as new PortCos. */
+export const NEW_PORTCOS = ["Intelligent Machines", "Mint Security", "Nox Security"] as const;
+/** Asana's internal "PortDev Ops" task holds team workstreams, filed under My Actions' PortDev Ops group. */
+export const PORTDEV_OPS = "PortDev Ops";
+
+export type CompanyResolution = { kind: "portco"; name: string } | { kind: "ops"; name: string } | { kind: "missing"; name: string };
+
+/** Which Venture Pulse company an Asana PortCo task belongs to. */
+export function resolveAsanaCompany(asanaName: string, vpNames: readonly string[]): CompanyResolution {
+  const n = clean(asanaName);
+  if (key(n) === key(PORTDEV_OPS)) return { kind: "ops", name: PORTDEV_OPS };
+  const want = ASANA_NAME_PAIRS[n] ?? n;
+  const hit = vpNames.find((v) => key(v) === key(want));
+  return hit ? { kind: "portco", name: hit } : { kind: "missing", name: want };
+}
+
+/**
+ * Resolve one stakeholder name to a Dell contact, allowing short forms the owner approved:
+ * "Ward W" (first name + surname initial), "Dunfee" (surname only), "Lokesh" (first name only).
+ * Links only when exactly one Dell contact fits; anything else becomes a new Dell contact.
+ */
+export function resolveDellStakeholder(raw: string, dell: DellPerson[]): DellMatch {
+  const name = clean(raw).replace(/\.$/, "");
+  const parts = key(name).split(" ");
+  const split = (p: DellPerson) => key(p.name).split(" ");
+  const fits = (p: DellPerson) => {
+    const n = split(p);
+    if (key(p.name) === key(name)) return true;
+    if (parts.length === 2 && parts[1]!.length === 1) return n[0] === parts[0] && (n[n.length - 1] || "").startsWith(parts[1]!);
+    if (parts.length === 1) return n[0] === parts[0] || n[n.length - 1] === parts[0];
+    return false;
+  };
+  const exact = dell.filter((p) => key(p.name) === key(name));
+  const hits = exact.length ? exact : dell.filter(fits);
+  if (hits.length === 1) return { name, status: "linked", urid: hits[0]!.urid };
+  if (hits.length > 1) return { name, status: "ambiguous", candidates: hits.map((h) => h.urid) };
+  return { name, status: "new" };
+}

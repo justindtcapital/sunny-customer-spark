@@ -7,7 +7,7 @@ import {
   bulkDeletePortfolioCompanies,
 } from "@/utils/sheets.functions";
 import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functions";
-import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
+import { syncPortcoFromWeb } from "@/utils/portco-sync.functions";
 import { fetchPortcoEventIndexFn } from "@/utils/event-planner.functions";
 import { mergeCompanyEvents } from "@/lib/event-portcos";
 import type { PortfolioCompany, Contact, PortfolioDomain, EmailActivityRecord } from "@/lib/types";
@@ -18,11 +18,13 @@ import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { cleanPriority } from "@/lib/portco-matrix";
-import { applyProfileOverrides, isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
+import { isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
+import { PortcoTableView } from "@/components/portfolio/PortcoTableView";
+import { WorkstreamsTableView } from "@/components/portfolio/WorkstreamsTableView";
 import { compareCompanyNames } from "@/lib/portco-fields";
 import { AddPortfolioCompanyDialog } from "@/components/portfolio/AddPortfolioCompanyDialog";
 import { ContactDetail } from "@/components/crm/ContactDetail";
@@ -39,7 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building2, Users, Plus, Trash2, RefreshCw, Globe, Loader2, X, Search } from "lucide-react";
+import { Building2, Users, Plus, Trash2, Globe, Loader2, X, Search } from "lucide-react";
 import { usePortfolioFilters } from "@/lib/portfolio-filter-context";
 import { useFilterOptions } from "@/lib/filter-options-context";
 import { companyDomainMap, isSharedEmailDomain, normalizeDomain, suggestDomainMatches } from "@/lib/company-domains";
@@ -104,7 +106,8 @@ export const Route = createFileRoute("/portfolio")({
         [];
       return {
         ...c,
-        asanaFields: applyProfileOverrides(asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined, c.profileOverrides),
+        // Profile values live in Venture Pulse ("PortCo Profiles"); legacy overrides were folded in at import.
+        asanaFields: asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined,
         // Event list entries (official names) first; Asana-only events fill gaps without repeats.
         events: mergeCompanyEvents([...c.events, ...(trackerEvents[c.name.trim().replace(/\s+/g, " ").toLowerCase()] || [])], asanaEvents),
       };
@@ -288,13 +291,13 @@ function PortfolioPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [asanaSyncing, setAsanaSyncing] = useState(false);
   const [webSyncing, setWebSyncing] = useState(false);
   const { filters } = usePortfolioFilters();
   const [chipDomain, setChipDomain] = useState<string>("all");
   const [chipPriority, setChipPriority] = useState<string>("all");
   const [listSearch, setListSearch] = useState("");
   const [showExits, setShowExits] = useState(false);
+  const [view, setView] = useState<"list" | "table" | "workstreams">("list");
   const paneRef = useRef<HTMLDivElement>(null);
   const autoPicked = useRef(false);
   const { workstreams } = useWorkstreams();
@@ -457,7 +460,7 @@ function PortfolioPage() {
   );
   const allSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
-  const busy = deleting || asanaSyncing || webSyncing;
+  const busy = deleting || webSyncing;
 
   const toggleId = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -507,57 +510,6 @@ function PortfolioPage() {
     } finally {
       setDeleting(false);
       setConfirmDeleteOpen(false);
-    }
-  };
-
-  const bulkAsanaSync = async () => {
-    const chosen = selectedCompanies;
-    if (chosen.length === 0) return;
-    setAsanaSyncing(true);
-    let ok = 0;
-    let failed = 0;
-    try {
-      for (const company of chosen) {
-        try {
-          const res = await syncPortcoFromAsana({ data: { companyName: company.name } });
-          if (!res.ok) {
-            failed += 1;
-            continue;
-          }
-          ok += 1;
-          const profileWebsite =
-            Object.entries(res.asanaFields).find(([k]) => /website|^url$|web\s*site/i.test(k))?.[1] ||
-            "";
-          const profileLinkedin =
-            Object.entries(res.asanaFields).find(([k]) => /linkedin/i.test(k))?.[1] || "";
-          const profileLocation =
-            Object.entries(res.asanaFields).find(([k]) =>
-              /^hq$|headquarter|location|city|geograph/i.test(k),
-            )?.[1] || "";
-          const profileDescription =
-            Object.entries(res.asanaFields).find(([k]) =>
-              /summary|description|about|overview/i.test(k),
-            )?.[1] || "";
-          patchCompanyLocal({
-            ...company,
-            asanaFields:
-              Object.keys(res.asanaFields).length > 0 ? res.asanaFields : company.asanaFields,
-            events: res.events,
-            website: company.website || profileWebsite || company.website,
-            linkedinUrl: company.linkedinUrl || profileLinkedin || company.linkedinUrl,
-            location: company.location || profileLocation || company.location,
-            description: company.description || profileDescription || company.description,
-          });
-        } catch {
-          failed += 1;
-        }
-      }
-      const parts = [`${ok} synced`];
-      if (failed) parts.push(`${failed} failed`);
-      (failed ? toast.warning : toast.success)(`Asana sync · ${parts.join(" · ")}`);
-      if (ok > 0) void router.invalidate();
-    } finally {
-      setAsanaSyncing(false);
     }
   };
 
@@ -738,6 +690,14 @@ function PortfolioPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border border-border p-0.5 text-xs" role="tablist" aria-label="Portfolio view">
+            {([["list", "Companies"], ["table", "Table"], ["workstreams", "Workstreams"]] as const).map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)}
+                className={cn("rounded px-2.5 py-1 transition-colors", view === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
           <Button size="sm" className="h-8 text-xs" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add company
@@ -767,20 +727,6 @@ function PortfolioPage() {
         </div>
         {selectedIds.size > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className={actionBtnClass}
-              onClick={() => void bulkAsanaSync()}
-              disabled={busy}
-            >
-              {asanaSyncing ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3 mr-1" />
-              )}
-              {asanaSyncing ? "Syncing Asana…" : "Asana Sync"}
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -824,7 +770,19 @@ function PortfolioPage() {
         )}
       </div>
 
-      {showContactsBySector ? (
+      {view === "table" ? (
+        <PortcoTableView
+          companies={filtered}
+          onOpenCompany={(c) => { setSelectedCompany(c); setView("list"); }}
+          onProfileSaved={(c, field, value) => {
+            const fields: Record<string, string> = { ...(c.asanaFields || {}) };
+            if (field !== "Owner") { if (value) fields[field] = value; else delete fields[field]; }
+            patchCompanyLocal({ ...c, asanaFields: fields });
+          }}
+        />
+      ) : view === "workstreams" ? (
+        <WorkstreamsTableView companyNames={companies.map((c) => c.name)} />
+      ) : showContactsBySector ? (
         <div className="space-y-8">
           {sectorGroups.map(({ sector, companies: comps, people }) => (
             <section key={sector}>

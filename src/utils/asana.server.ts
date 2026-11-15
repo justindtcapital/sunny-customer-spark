@@ -16,14 +16,7 @@ import { isNameOnlyAttendeeEmail } from "@/lib/email-address";
 import { fetchAliasActivities, getActivityAliases, getInternalConfig } from "./gmail.server";
 import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
 import { parseWorkstreamName, type Workstream } from "@/lib/workstream-parse";
-import {
-  buildCustomFieldsPayload,
-  workstreamNameChange,
-  sameValue,
-  type AsanaFieldType,
-  type FieldChange,
-  type WorkstreamFieldMeta,
-} from "@/lib/asana-field-payload";
+import { type AsanaFieldType, type WorkstreamFieldMeta } from "@/lib/asana-field-payload";
 
 const ASANA_BASE = "https://app.asana.com/api/1.0";
 const CACHE_TTL_MS = 60 * 1000; // 1 minute — Asana edits should show up quickly
@@ -792,81 +785,8 @@ function mapSubtask(sub: AsanaTask, company: string): Workstream {
   };
 }
 
-async function asanaWrite<T = unknown>(path: string, method: "PUT" | "POST", body: unknown): Promise<T> {
-  const token = process.env.ASANA_ACCESS_TOKEN;
-  if (!token) throw new Error("ASANA_ACCESS_TOKEN is not configured");
-  const res = await fetch(`${ASANA_BASE}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  }).catch((e) => {
-    throw asanaNetworkError(e);
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    let msg = text.slice(0, 300);
-    try {
-      const j = JSON.parse(text) as { errors?: { message?: string }[] };
-      if (j.errors?.length) msg = j.errors.map((e) => e.message).filter(Boolean).join("; ");
-    } catch {
-      /* keep raw */
-    }
-    console.error(`[asana] write failed [${res.status}]: ${text}`);
-    throw new Error(`Asana rejected the change (${res.status}): ${msg}`);
-  }
-  return (await res.json()) as T;
-}
-
-/** Re-read, check for conflicts, write only changed fields, return the fresh workstream. */
-export async function updateWorkstream(input: {
-  gid: string;
-  changes: FieldChange[];
-  title?: { original: string; value: string };
-  completed?: boolean;
-  created_at?: string | null;
-  completed_at?: string | null;
-}): Promise<Workstream> {
-  const before: { data: AsanaTask & { parent?: { name?: string } | null } } = await asanaFetch(
-    `/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS},parent.name`,
-  );
-  const current = new Map(((before.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
-  const name = input.title ? workstreamNameChange(before.data.name || "", input.title.original, input.title.value) : undefined;
-  let catalog: Map<string, WorkstreamFieldMeta & { projectGid: string }> | null = null;
-  for (const c of input.changes) {
-    let m = current.get(c.gid);
-    if (!m) {
-      // Field not on the task yet — attach it via its owning project, then write.
-      catalog = catalog || (await fetchWorkstreamFieldCatalog());
-      const cat = catalog.get(c.gid);
-      if (!cat) throw new Error("A field no longer exists on this Asana task — refresh and try again.");
-      if (!sameValue(cat.value, c.original)) {
-        throw new Error(`"${cat.name}" already has a value in Asana — refresh and try again.`);
-      }
-      await asanaWrite(`/tasks/${input.gid}/addProject`, "POST", { data: { project: cat.projectGid } });
-      const re: { data: AsanaTask } = await asanaFetch(`/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS}`);
-      const fresh = new Map(((re.data.custom_fields || []) as RichField[]).map((f) => [f.gid, fieldMeta(f)]));
-      m = fresh.get(c.gid) || cat;
-    }
-    if (!m.editable) throw new Error(`"${m.name}" can't be edited.`);
-    if (current.has(c.gid) && !sameValue(m.value, c.original)) {
-      throw new Error(`"${m.name}" was changed in Asana since you opened it — refresh and try again.`);
-    }
-    if (m.type === "enum" || m.type === "multi_enum") {
-      const ids = Array.isArray(c.value) ? c.value : c.value ? [c.value] : [];
-      for (const id of ids) {
-        if (!m.options?.some((o) => o.gid === id)) throw new Error(`Invalid choice for "${m.name}".`);
-      }
-    }
-  }
-  const data: Record<string, unknown> = {};
-  if (name !== undefined) data.name = name;
-  if (input.changes.length) data.custom_fields = buildCustomFieldsPayload(input.changes);
-  if (typeof input.completed === "boolean") data.completed = input.completed;
-  if (Object.keys(data).length) await asanaWrite(`/tasks/${input.gid}`, "PUT", { data });
-  clearAsanaCache();
-  const after: { data: AsanaTask } = await asanaFetch(`/tasks/${input.gid}?opt_fields=${SUBTASK_FIELDS}`);
-  return mapSubtask(after.data, (before.data.parent?.name || "").trim());
-}
+// Asana is read-only from here on: workstream creates and edits are saved in Venture Pulse
+// (src/utils/portco-store.server.ts). These reads remain only for the parallel check.
 
 async function mapWithConcurrency<T, R>(
   items: T[],
@@ -971,22 +891,4 @@ export async function fetchPortcoWorkstreams(): Promise<Workstream[]> {
   }
   setCached(cacheKey, flat);
   return flat;
-}
-
-/** Create a new workstream subtask ("<GTM|BD> -> name") under a PortCo's parent task. */
-export async function createWorkstream(input: { company: string; segment: "GTM" | "BD"; name: string }): Promise<Workstream> {
-  const projectGid = process.env.ASANA_PORTCO_PROJECT_GID;
-  if (!projectGid) throw new Error("Asana PortCo project is not configured");
-  const name = input.name.trim();
-  if (!name) throw new Error("Workstream name is required");
-  const parents = await fetchProjectTasks(projectGid);
-  const want = input.company.trim().toLowerCase();
-  const parent = parents.find((p) => (p.name || "").trim().toLowerCase() === want);
-  if (!parent) throw new Error(`No Asana task found for "${input.company}"`);
-  const created: { data: AsanaTask } = await asanaWrite(`/tasks/${parent.gid}/subtasks`, "POST", {
-    data: { name: `${input.segment} -> ${name}` },
-  });
-  clearAsanaCache();
-  const after: { data: AsanaTask } = await asanaFetch(`/tasks/${created.data.gid}?opt_fields=${SUBTASK_FIELDS}`);
-  return mapSubtask(after.data, (parent.name || "").trim());
 }

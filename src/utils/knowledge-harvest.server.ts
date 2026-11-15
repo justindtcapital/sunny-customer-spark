@@ -8,7 +8,7 @@
 
 import { searchGmailRaw, type GmailMessage } from "./gmail.server";
 import { fetchSheetTab } from "./sheets.server";
-import { fetchPortcoWorkstreams } from "./asana.server";
+import { readWorkstreams as fetchPortcoWorkstreams } from "./portco-store.server";
 import { getInternalConfig } from "./gmail.server";
 import { isInternalEmail, isNoiseEmail } from "@/lib/email-noise";
 import {

@@ -1,11 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import {
-  fetchPortcoFields,
-  fetchPortfolioEvents,
-  fetchAllAsanaEvents,
-  fetchPortcoWorkstreams,
-} from "./asana.server";
+import { fetchPortfolioEvents, fetchAllAsanaEvents } from "./asana.server";
+import { fetchPortcoProfileFields, readWorkstreams } from "./portco-store.server";
+import { requireTeamAuth } from "./team-auth";
 import type { Workstream } from "@/lib/workstream-parse";
 import { buildActivities } from "./sheets.server";
 import { loadAttributionCorrections } from "./activity-attribution.server";
@@ -27,7 +24,7 @@ export const fetchAsanaPortcoData = createServerFn({ method: "GET" }).handler(
   async (): Promise<AsanaPortcoData> => {
     try {
       const [fieldsMap, eventsMap] = await Promise.all([
-        fetchPortcoFields(),
+        fetchPortcoProfileFields(),
         fetchPortfolioEvents(),
       ]);
 
@@ -82,7 +79,7 @@ export const fetchAsanaActivities = createServerFn({ method: "GET" }).handler(
 export const fetchPortcoWorkstreamsFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<Workstream[]> => {
     try {
-      return await fetchPortcoWorkstreams();
+      return await readWorkstreams();
     } catch (err) {
       console.error("[asana] fetchPortcoWorkstreamsFn failed:", err);
       return [];
@@ -100,36 +97,43 @@ export const refreshAsanaCacheFn = createServerFn({ method: "POST" }).handler(as
 
 const fieldValue = z.union([z.string().max(5000), z.array(z.string().max(64)).max(100)]);
 
-// Creates a new workstream subtask ("<GTM|BD> -> name") under a PortCo's Asana task.
+const editorName = async (email: string) => (await import("@/lib/user-ownership")).teamMemberFor(email)?.displayName || email;
+
+// Creates a workstream in Venture Pulse (never in Asana) under a PortCo or PortDev Ops.
 export const createWorkstreamFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
   .inputValidator((data) =>
     z
       .object({
         company: z.string().min(1).max(200),
         segment: z.enum(["GTM", "BD"]),
         name: z.string().min(1).max(200),
+        owner: z.string().max(120).optional(),
       })
       .parse(data),
   )
-  .handler(async ({ data }): Promise<{ ok: true; workstream: Workstream } | { ok: false; error: string }> => {
+  .handler(async ({ data, context }): Promise<{ ok: true; workstream: Workstream } | { ok: false; error: string }> => {
     try {
-      const { createWorkstream } = await import("./asana.server");
-      return { ok: true, workstream: await createWorkstream(data) };
+      const { createWorkstream } = await import("./portco-store.server");
+      const by = await editorName(context.teamEmail);
+      // New workstreams belong to whoever creates them unless an owner is chosen.
+      return { ok: true, workstream: await createWorkstream({ ...data, owner: data.owner || by }, by) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   });
 
-// Writes workstream edits back to the Asana subtask (only changed fields).
+// Saves workstream edits in Venture Pulse (only changed fields, conflict-checked, logged).
 export const updateWorkstreamFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
   .inputValidator((data) =>
     z
       .object({
-        gid: z.string().regex(/^\d+$/),
+        gid: z.string().min(1).max(80),
         changes: z
           .array(
             z.object({
-              gid: z.string().regex(/^\d+$/),
+              gid: z.string().min(1).max(80),
               type: z.enum(["text", "number", "enum", "multi_enum", "date", "other"]),
               original: fieldValue,
               value: fieldValue,
@@ -138,13 +142,15 @@ export const updateWorkstreamFn = createServerFn({ method: "POST" })
           .max(40),
         completed: z.boolean().optional(),
         title: z.object({ original: z.string().max(500), value: z.string().trim().min(1).max(200) }).optional(),
+        owner: z.object({ original: z.string().max(120), value: z.string().max(120) }).optional(),
+        notes: z.object({ original: z.string().max(20000), value: z.string().max(20000) }).optional(),
       })
       .parse(data),
   )
-  .handler(async ({ data }): Promise<{ ok: true; workstream: Workstream } | { ok: false; error: string }> => {
+  .handler(async ({ data, context }): Promise<{ ok: true; workstream: Workstream } | { ok: false; error: string }> => {
     try {
-      const { updateWorkstream } = await import("./asana.server");
-      return { ok: true, workstream: await updateWorkstream(data) };
+      const { updateWorkstream } = await import("./portco-store.server");
+      return { ok: true, workstream: await updateWorkstream(data, await editorName(context.teamEmail)) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }

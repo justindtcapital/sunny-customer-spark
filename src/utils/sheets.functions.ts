@@ -160,12 +160,13 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
       /** Dismissed domain suggestions. */
       dismissedDomains?: string[];
       linkedinUrl?: string;
-      profileOverrides?: Record<string, string>;
+      /** Profile edits (saved to "PortCo Profiles"), each with the value the editor started from. */
+      profileChanges?: { field: string; original: string; value: string }[];
       /** Create the sheet row when no matching row is found (Asana-only portcos). */
       upsertNew?: boolean;
     }) => {
       if (!data.name?.trim()) throw new Error("Company name is required");
-      if (data.profileOverrides && (typeof data.profileOverrides !== "object" || Object.keys(data.profileOverrides).length > 20 || Object.values(data.profileOverrides).some((v) => typeof v !== "string" || v.length > 200)))
+      if (data.profileChanges && (!Array.isArray(data.profileChanges) || data.profileChanges.length > 20 || data.profileChanges.some((c) => typeof c?.field !== "string" || c.field.length > 80 || typeof c.original !== "string" || typeof c.value !== "string" || c.original.length > 200 || c.value.length > 200)))
         throw new Error("Invalid profile fields");
       if (data.linkedinUrl !== undefined && !isLinkedInCompanyUrl(data.linkedinUrl))
         throw new Error("LinkedIn URL must be a linkedin.com/company/… page");
@@ -178,7 +179,13 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
   )
   .middleware([requireTeamAuth])
   .handler(async ({ data, context }) => {
-    const res = await updatePortfolioCompanyServer(data);
+    const { profileChanges, ...rest } = data;
+    const res = await updatePortfolioCompanyServer(rest);
+    if (profileChanges?.length && res.updated) {
+      const { saveProfileFields } = await import("./portco-store.server");
+      const { teamMemberFor } = await import("@/lib/user-ownership");
+      await saveProfileFields({ urid: res.urid || data.urid, company: data.name, changes: profileChanges }, teamMemberFor(context.teamEmail)?.displayName || context.teamEmail);
+    }
     if (data.domainAliases && res.updated) {
       const who = context.teamEmail || "teammate";
       await logOpsEventServer({

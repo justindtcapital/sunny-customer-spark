@@ -263,7 +263,8 @@ async function loadAllTrackActivities(
   portfolioNames?: string[],
   source: ActivitySyncSource = "all",
 ): Promise<AsanaActivity[]> {
-  const wantAsana = source === "all" || source === "asana";
+  // Asana BD/GTM is retired: its history stays in the BD/GTM tabs, Notes and the "Asana Archive" tab.
+  const wantAsana = false as boolean;
   const wantGmail = source === "all" || source === "gmail";
   // Gmail-only sync does not hit Asana — twins are dropped via Notes sheet keys.
   // When both feeds are requested, a down Asana/Gmail must not fail the other.
