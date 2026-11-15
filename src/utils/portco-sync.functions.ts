@@ -156,7 +156,3 @@ export const syncPortcoFromAsana = createServerFn({ method: "POST" })
       return { ...empty, ok: false, error: message };
     }
   });
-
-      return { ...empty, ok: false, error: message };
-    }
-  });
