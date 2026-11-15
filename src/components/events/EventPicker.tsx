@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { AsanaEvent } from "@/lib/types";
-import { fetchAsanaEvents } from "@/utils/asana.functions";
 import { fetchAppEvents } from "@/utils/sheets.functions";
 import { fetchPlannerFn } from "@/utils/event-planner.functions";
 import { aliasHit, pickerKeywords, resolveTrackerEvent, trackerPickerEvents, type PickerEvent } from "@/lib/event-people";
@@ -77,7 +76,7 @@ export async function loadEvents(): Promise<AsanaEvent[]> {
   if (cachedEvents) return cachedEvents;
   if (inflight) return inflight;
   inflight = Promise.all([
-    fetchAsanaEvents().catch((): AsanaEvent[] => []),
+    Promise.resolve([] as AsanaEvent[]),
     fetchAppEvents().catch((): AsanaEvent[] => []),
     fetchPlannerFn().then((r) => r.events).catch(() => []),
   ])

@@ -1,5 +1,5 @@
 import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
-import { fetchAllAsanaEvents } from "./asana.server";
+import { fetchTrackerEvents } from "./tracker-events.server";
 import {
   buildContacts,
   buildAppEvents,
@@ -60,13 +60,13 @@ export const fetchPortcoExposures = createServerFn({ method: "GET" }).handler(
 export const runSyncEventExposure = createServerOnlyFn(async (): Promise<SyncExposureResult> => {
   try {
     const [asanaEvents, appEvents, contacts] = await Promise.all([
-      fetchAllAsanaEvents().catch(() => [] as AsanaEvent[]),
+      fetchTrackerEvents().catch(() => [] as AsanaEvent[]),
       buildAppEvents().catch(() => [] as AsanaEvent[]),
       buildContacts(),
     ]);
 
     const events = [
-      ...asanaEvents.map((e) => ({ e, src: "Asana" })),
+      ...asanaEvents.map((e) => ({ e, src: "Tracker" })),
       ...appEvents.map((e) => ({ e, src: "App" })),
     ].filter(({ e }) => e.status === "completed" && e.portcos.length > 0);
 

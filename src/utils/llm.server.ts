@@ -831,8 +831,8 @@ async function executeTool(
       };
     }
     case "query_events": {
-      const { fetchAllAsanaEvents } = await import("./asana.server");
-      const all = await fetchAllAsanaEvents().catch(() => []);
+      const { fetchTrackerEvents } = await import("./tracker-events.server");
+      const all = await fetchTrackerEvents().catch(() => []);
       const lc = (v: JsonValue | undefined) => (str(v) || "").toLowerCase();
       const from = str(input.start_date), to = str(input.end_date);
       const st = lc(input.status), pc = lc(input.portco), ld = lc(input.lead), q = lc(input.search);
