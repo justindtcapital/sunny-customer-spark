@@ -68,16 +68,20 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
     void sendMessage({ text: t.trim(), metadata: skillId ? { skillId } : undefined });
     setText("");
   };
-  // A question typed on the homepage tile is handed over once, then cleared.
+  // A question typed on the homepage tile or Update V.I.C. is handed over once, then cleared.
+  // Sent on the next tick (cancelled if the chat unmounts first) so a dev double-mount can't swallow it.
   const handedOff = useRef(false);
   useEffect(() => {
-    if (handedOff.current) return;
-    handedOff.current = true;
+    if (handedOff.current || initial.length) return;
     const key = `vic-pending:${threadId}`;
-    const pending = sessionStorage.getItem(key);
-    if (!pending) return;
-    sessionStorage.removeItem(key);
-    console.log("VIC-HANDOFF", initial.length, status); if (initial.length === 0) send(pending);
+    const timer = setTimeout(() => {
+      const pending = sessionStorage.getItem(key);
+      if (!pending || handedOff.current) return;
+      handedOff.current = true;
+      sessionStorage.removeItem(key);
+      send(pending);
+    }, 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
