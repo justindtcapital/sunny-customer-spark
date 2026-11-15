@@ -46,7 +46,7 @@ import {
   type PlannerEvent, type PlannerZoom, type PlannerAttendee, type ImportField,
 } from "@/lib/event-planner";
 import {
-  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, deletePlannerEventFn, enrichFromAsanaFn, fetchAsanaOverlayFn,
+  fetchPlannerFn, addPlannerEventsFn, updatePlannerEventFn, deletePlannerEventFn,
   extractEventFromUrlFn, addPlannerAttendeesFn, fetchEventTagsFn, setPlannerPartnerFn, fetchPartnerNamesFn,
 } from "@/utils/event-planner.functions";
 import { EventHistoryDialog, EventHistorySection } from "./EventHistory";
@@ -62,19 +62,6 @@ const tileVar = (sub: string) => `var(--planner-${subcategoryColor(sub, activeCa
 const rowOfSub = (sub: string) => activeCats.find((c) => c.subcategories.some((s) => s.name === canonicalSubcategory(sub)))?.name || "Unassigned";
 
 /** Read-only planner-shaped view of a live Asana event (Show Asana data overlay). */
-function asanaToPlanner(a: AsanaEvent): PlannerEvent {
-  const sub = asanaSubcategory(a);
-  return {
-    urid: `asana:${a.gid}`, name: a.name, start: a.date, end: a.date, location: "",
-    category: categoryOfSubcategory(sub), subcategory: sub,
-    status: a.status === "completed" ? "Confirmed" : "Potential",
-    sectors: a.sectors || [], portcos: a.portcos || [], partners: [], owner: a.owner || "",
-    format: a.format || "", website: "", lumaUrl: "", source: "Asana (live)",
-    sourceRef: `https://app.asana.com/0/0/${a.gid}`, asanaGid: a.gid,
-    networkCount: a.attendeeCount || 0, notes: "", actionsNeeded: "", eventContact: "",
-    createdBy: "", updated: "", dtcStatus: "",
-  };
-}
 
 const ROW_LABELS: Record<string, string> = { "DTC Led Events": "DTC-led events", "Partner Led Events": "Partner-led events", Briefings: "Briefings", Potential: "Potential" };
 
@@ -103,27 +90,6 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   // Partner choices come only from the Partners page list.
   const { data: partnerNames = [] } = useQuery({ queryKey: ["partner-names"], queryFn: () => fetchPartnerNamesFn(), staleTime: 60_000 });
 
-  const [showAsana, setShowAsana] = useState(false);
-  const { data: asanaOverlay } = useQuery({
-    queryKey: ["asana-overlay"],
-    queryFn: () => fetchAsanaOverlayFn(),
-    enabled: showAsana,
-    staleTime: 60_000,
-  });
-  // Live Asana overlay: only events not already in the tracker (by gid or name+date).
-  const asanaExtras = useMemo(() => {
-    if (!showAsana || !asanaOverlay?.events) return [] as PlannerEvent[];
-    const gids = new Set(events.map((e) => e.asanaGid).filter(Boolean));
-    const keys = new Set(events.map(duplicateKey));
-    return asanaOverlay.events
-      .filter(
-        (a) =>
-          a.gid && !a.gid.startsWith("app-") && a.date &&
-          !gids.has(a.gid) && !events.some(e => e.sourceRef.includes(`/0/0/${a.gid}`)) &&
-          !keys.has(duplicateKey({ name: a.name, start: a.date })),
-      )
-      .map(asanaToPlanner);
-  }, [showAsana, asanaOverlay, events]);
   // The open event's unsaved edits show on the grid straight away (colour and row), before Save.
   const [preview, setPreview] = useState<{ urid: string; patch: Partial<PlannerEvent> }>({ urid: "", patch: {} });
   const allEvents = useMemo(() => {
@@ -132,8 +98,8 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
       const next = { ...e, ...preview.patch };
       return { ...next, ...effectiveCategory(next, cats) };
     });
-    return [...shown, ...asanaExtras];
-  }, [events, asanaExtras, preview, cats]);
+    return shown;
+  }, [events, preview, cats]);
   const onDraft = useCallback((urid: string, patch: Partial<PlannerEvent>) => {
     setPreview((p) => (p.urid === urid && JSON.stringify(p.patch) === JSON.stringify(patch) ? p : { urid, patch }));
   }, []);
@@ -164,8 +130,6 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const [linkOpen, setLinkOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [attendOpen, setAttendOpen] = useState(false);
-  const enrichFn = useServerFn(enrichFromAsanaFn);
-  const [merging, setMerging] = useState(false);
 
   useEffect(() => {
     if (!openEventName) return;
@@ -197,23 +161,7 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
   const inWindowAll = filteredNoSub.filter((e) => overlaps(e, win.start, win.end));
   const undated = filtered.filter((e) => !e.start);
 
-  async function mergeAsana() {
-    if (!window.confirm("One-time merge: fill empty event fields from Asana and combine same-date duplicates in the tracker. Continue?"))
-      return;
-    setMerging(true);
-    try {
-      const r = await enrichFn({ data: { by: email || "" } });
-      toast.success(
-        `Enriched ${r.enriched} event${r.enriched === 1 ? "" : "s"}, merged ${r.merged} duplicate${r.merged === 1 ? "" : "s"}` +
-          (r.unmatchedAsana ? ` · ${r.unmatchedAsana} Asana-only left` : ""),
-      );
-      refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setMerging(false);
-    }
-  }
+
 
   const toggleSub = (name: string, v: boolean) => setSubFilter((p) => (v ? [...p, name] : p.filter((x) => x !== name)));
   const filterBlocks = (
@@ -317,12 +265,6 @@ export function EventPlanner({ contacts, view = "planner", openEventName, render
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAttendOpen(true)}>
               Match tagged attendees
-            </Button>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-              <Checkbox checked={showAsana} onCheckedChange={(v) => setShowAsana(!!v)} /> Show Asana data
-            </label>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={mergeAsana} disabled={merging}>
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1", merging && "animate-spin")} /> Merge Asana data
             </Button>
           </div>
         </div>
