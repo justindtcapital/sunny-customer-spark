@@ -4,7 +4,7 @@
 - Scope pending Sheets work to the originating request and run review saves under withDeadline named steps; Workers kill stranded/idle waits as "hung".
 - Wrap request-context access and exported server helpers in createServerOnlyFn when reachable through client-imported function modules; filename suffixes alone do not prevent server imports entering the browser graph.
 
-- Workstream bars separate status/priority from program fields. PortCo profiles/workstreams live in Sheets via portco-store.server (schema: portco-fields-schema); edits re-read, refuse conflicts, write changed cells, log changes, never write Asana. Imported rows keep Asana gids.
+- Workstream bars separate status/priority from program fields. PortCo profiles/workstreams live in Sheets via portco-store.server (schema: portco-fields-schema); edits re-read, refuse conflicts, write changed cells, log changes, never write Asana. Imported rows keep Asana gids
 
 - Campaign membership lives in the "Campaign Members" sheet tab, one append-only row per (campaign, person); adding existing Network/Prospecting people never edits their records — so people can join many campaigns without data loss.
 - External notes preserve origins. Knowledge tabs (records, activities, workstream links, suggested contacts) check fresh, uncached rows before appending and collapse repeated IDs on read (completion wins for activities); Granola Drive copies are reused by appProperties.granola — Worker instances hold stale caches, so this prevents repeated imports and reminders.
