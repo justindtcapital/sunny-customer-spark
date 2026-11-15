@@ -4,7 +4,7 @@
  */
 import type { FieldChange, WorkstreamFieldMeta } from "./asana-field-payload";
 import { LEAD_INVESTORS } from "./portco-import";
-import { teamMemberFor, TEAM_ROSTER } from "./user-ownership";
+import { teamMemberFor, CORE_TEAM } from "./user-ownership";
 
 export type PortcoFieldType = "enum" | "multi_enum" | "number" | "date" | "text";
 export interface PortcoFieldDef { name: string; type: PortcoFieldType; options?: readonly string[] }
@@ -46,7 +46,7 @@ export const WORKSTREAM_FIELD_DEFS: readonly PortcoFieldDef[] = [
 ];
 
 /** Owner choices: the Venture Pulse team only, by full name. */
-export const OWNER_OPTIONS: readonly string[] = TEAM_ROSTER.map((m) => m.displayName);
+export const OWNER_OPTIONS: readonly string[] = CORE_TEAM.map((m) => m.name);
 
 const clean = (s: string) => (s || "").replace(/\s+/g, " ").trim();
 const splitMulti = (s: string) => clean(s).split(/\s*,\s*/).filter(Boolean);
@@ -95,9 +95,12 @@ export function storedValueFor(def: PortcoFieldDef, value: string | string[]): s
 export function storedOwner(raw: string): string {
   if (!clean(raw)) return "";
   const m = teamMemberFor(raw);
-  if (!m) throw new Error(`"${clean(raw)}" isn't on the Venture Pulse team.`);
+  if (!m || !OWNER_OPTIONS.includes(m.displayName)) throw new Error(`"${clean(raw)}" isn't on the Venture Pulse team.`);
   return m.displayName;
 }
+
+/** Order- and spacing-insensitive form used for conflict checks. */
+const comparable = (v: string | string[]) => (Array.isArray(v) ? v : splitMulti(v)).map((x) => clean(x).toLowerCase()).filter(Boolean).sort().join("|");
 
 export interface CellChange { field: string; original: string | string[]; value: string | string[] }
 
@@ -115,8 +118,7 @@ export function planRowEdit(
     const def = c.field === "Owner" ? null : defs.find((d) => d.name === c.field);
     if (c.field !== "Owner" && !def) throw new Error(`"${c.field}" can't be edited.`);
     const before = clean(current[c.field] || "");
-    const original = def ? storedValueFor({ ...def, options: undefined, type: def.type === "multi_enum" || def.type === "enum" ? "text" : def.type }, c.original) : clean(String(c.original));
-    if (before !== original) throw new Error(`"${c.field}" was changed by someone else since you opened it — refresh and try again.`);
+    if (comparable(before) !== comparable(c.original)) throw new Error(`"${c.field}" was changed by someone else since you opened it — refresh and try again.`);
     const after = def ? storedValueFor(def, c.value) : storedOwner(String(c.value));
     if (after !== before) out.push({ field: c.field, before, after });
   }
