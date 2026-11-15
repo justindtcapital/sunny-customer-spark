@@ -1,6 +1,6 @@
 import { dtcStatusOf, matchesCategoryTicks, normalizeSector, type PlannerEvent } from "./event-planner";
 import { teamMemberFor } from "./user-ownership";
-import type { AsanaEvent } from "./types";
+import type { AsanaEvent, PortfolioEvent } from "./types";
 
 export type EventView = "planner" | "list" | "calendar" | "analytics";
 export interface EventFilters {
@@ -41,4 +41,37 @@ export function mergeEventAutofill(current: Partial<PlannerEvent>, extracted: Pa
   if (extracted.sectors?.length) next.sectors = extracted.sectors;
   if (!current.urid) { next.source = "Link"; next.sourceRef = extracted.sourceRef; }
   return next;
+}
+
+/** Tracker statuses that count as "we're doing / did this" for legacy event consumers. */
+const LIVE_DTC = new Set(["Completed", "Confirmed"]);
+
+/**
+ * Tracker row → the legacy event shape the homepage, PortCo pages, exposure sync and V.I.C. read.
+ * Keeps the old Asana ID as the identity when present so existing links and dedupe keys still match.
+ * Returns null for Potential/Considering/Declined rows (they were never in the Asana project).
+ */
+export function trackerEventAsLegacy(e: PlannerEvent, today: string): AsanaEvent | null {
+  if (!e.name || !e.start || !LIVE_DTC.has(dtcStatusOf(e, today))) return null;
+  const format = e.format === "in-person" || e.format === "virtual" || e.format === "hybrid" ? e.format : undefined;
+  return {
+    gid: e.asanaGid || e.urid, name: e.name, date: e.start, portcos: e.portcos, sectors: e.sectors,
+    owner: e.owner, lead: e.subcategory, format, attendeeCount: e.networkCount || undefined,
+    status: (e.end || e.start) < today ? "completed" : "planned",
+    role: e.category === "DTC Led Events" ? "hosted" : undefined,
+    type: e.category === "Briefings" ? "meeting" : /dinner/i.test(e.name) ? "dinner" : "conference",
+  };
+}
+
+/** Legacy events exploded per PortCo (lower-cased name key), for PortCo pages. */
+export function portfolioEventsByCompany(events: AsanaEvent[]): Map<string, PortfolioEvent[]> {
+  const out = new Map<string, PortfolioEvent[]>();
+  for (const e of events) for (const pc of e.portcos) {
+    const key = pc.trim().toLowerCase();
+    if (!key) continue;
+    const list = out.get(key) || [];
+    list.push({ id: `asana-${e.gid}-${key}`, date: e.date, name: e.name, type: e.type, status: e.status, eventRole: e.role });
+    out.set(key, list);
+  }
+  return out;
 }
