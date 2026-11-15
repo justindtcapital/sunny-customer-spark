@@ -8,7 +8,7 @@ import { Conversation, ConversationContent, ConversationEmptyState, Conversation
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
-import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, LogActionReview, RelationshipReview } from "./VicReviewCards";
+import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, LogActionReview, RelationshipReview, WorkstreamReview } from "./VicReviewCards";
 import { useAuth } from "@/lib/auth-context";
 import { VicMark } from "./VicMark";
 import { VicSkillPicker } from "./VicSkillPicker";
@@ -109,6 +109,7 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
                     if (out?.status === "awaiting_review" && name === "proposeFollowUp") return <FollowUpReview key={i} p={out as never} me={me} />;
                     if (out?.status === "awaiting_review" && name === "proposeCompleteFollowUps") return <CompleteFollowUpsReview key={i} p={out as never} />;
                     if (out?.status === "awaiting_review" && name === "proposeLogAction") return <LogActionReview key={i} p={out as never} me={me} threadId={threadId} />;
+                    if (out?.status === "awaiting_review" && name === "proposeWorkstreamUpdate") return <WorkstreamReview key={i} p={out as never} />;
                     if (out?.status === "awaiting_review" && name === "proposeEventAttendees") return <AttendeesReview key={i} p={out as never} />;
                     return (
                       <Tool key={i} defaultOpen={false}>
