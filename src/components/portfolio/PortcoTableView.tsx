@@ -114,7 +114,7 @@ export function PortcoTableView({ companies, onOpenCompany, onProfileSaved }: {
               <tr key={c.id} className="border-b border-border last:border-0 hover:bg-accent/20">
                 <td className="sticky left-0 z-10 min-w-[180px] border-r border-border bg-card px-2 py-1">
                   <button type="button" onClick={() => onOpenCompany(c)} className="flex items-center gap-2 text-left text-xs font-medium text-foreground hover:text-primary">
-                    <PortcoLogo company={c} size="sm" />
+                    <PortcoLogo name={c.name} website={c.website} size="sm" />
                     <span className="truncate">{c.name}</span>
                   </button>
                 </td>
