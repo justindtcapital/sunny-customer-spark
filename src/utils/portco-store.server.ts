@@ -84,8 +84,15 @@ export async function readProfiles(fresh = false): Promise<PortcoProfile[]> {
 
 /** Same shape the Asana field map had: lowercased company name → kept profile values. */
 export async function fetchPortcoProfileFields(): Promise<Map<string, { name: string; fields: Record<string, string> }>> {
+  const { buildPortfolioCompanies } = await import("./sheets.server");
+  const [profiles, companies] = await Promise.all([readProfiles(), buildPortfolioCompanies().catch(() => [])]);
+  // A renamed PortCo keeps its profile: the URID wins over the name stored on the profile row.
+  const nameByUrid = new Map(companies.filter((c) => c.urid).map((c) => [c.urid!, c.name]));
   const out = new Map<string, { name: string; fields: Record<string, string> }>();
-  for (const p of await readProfiles()) out.set(p.company.toLowerCase(), { name: p.company, fields: p.fields });
+  for (const p of profiles) {
+    const name = (p.urid && nameByUrid.get(p.urid)) || p.company;
+    out.set(name.trim().toLowerCase(), { name, fields: p.fields });
+  }
   return out;
 }
 
