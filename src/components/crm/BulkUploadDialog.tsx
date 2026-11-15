@@ -354,7 +354,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     }
     const col = (r: string[], idx: number) => (idx >= 0 && idx < r.length ? (r[idx] || "").trim() : "");
     // A shared value fills a field only when no CSV column is mapped to it.
-    const cell = (r: string[], idx: number) => col(r, idx) || (idx === NO_COLUMN ? "" : "");
+    const cell = col;
     const fill = (k: SharedKey) => (mapping[k] === NO_COLUMN ? (shared[k] || "").trim() : "");
     const all: ParsedRow[] = grid.slice(1).map((r) => ({
       name: cell(r, mapping.name) || [cell(r, mapping.firstName), cell(r, mapping.lastName)].filter(Boolean).join(" "),
