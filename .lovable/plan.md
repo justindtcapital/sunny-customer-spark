@@ -19,7 +19,7 @@ Events are parked for later. This covers PortCo profiles, workstreams, and the B
   - no match is offered as "add as new Dell contact"
   - an unclear match is left for you to choose
   The workstream stores the links, so a Dell person's page can show which workstreams they're on.
-- **Next Steps merge into My Actions.** Each Asana next step becomes a follow-up on that workstream, owned by the workstream owner, with no date unless the text has one. It then shows in My Actions and the follow-ups that already exist there. Where Venture Pulse already has the same step, it isn't added again.
+- **Next Steps are not migrated.** The dated Asana next steps are dropped, and next steps are managed in Venture Pulse from now on.
 - **Owner, completed, due date and notes:** Venture Pulse wins wherever both have a value. Asana only fills gaps. Owners must be on the team.
 
 **Dropped and not copied:** Portfolio Company(ies) (on both companies and workstreams), Completed ST Campaigns, Channel / Integrator Partner (Venture Pulse already has partners), Lead Investor on workstreams, and every field not named above:
@@ -31,7 +31,7 @@ Events are parked for later. This covers PortCo profiles, workstreams, and the B
 - DTC - GTM Assist Activity
 - Sales Maturity on workstreams
 
-They stay visible in Asana and in a backup snapshot.
+They're hidden, not lost. Their values are kept in a hidden archive, so you can bring any of them back as a column later with the column chooser. They're also saved in the backup snapshot.
 
 ## 2. Moving the data in (done by me, as administrator, not a button in the app)
 1. **Backup.** Take a full snapshot of the Asana PortCo project, its workstreams and the BD/GTM projects, saved as backup tabs.
@@ -41,7 +41,6 @@ They stay visible in Asana and in a backup snapshot.
    - owners not on the team
    - investor names that need cleaning
    - Dell Target matches
-   - Next Steps that will become follow-ups
 3. **You approve.** Then it writes. The import can be run again without creating duplicates, because each row keeps its Asana ID.
 
 ## 3. BD/GTM activity history (read-only archive)
@@ -54,7 +53,8 @@ They stay visible in Asana and in a backup snapshot.
   - one row per company, with every kept field as a column
   - pick-list cells show a dropdown (fixed lists, including Lead Investor and owner)
   - click a cell to edit, saved when you leave it, with undo
-  - show or hide columns, sort and filter
+  - **Column chooser:** pick which columns to show, from the kept fields plus any archived dropped field. You can add a field back if it turns out to be needed, or hide fields to keep the table small. Your choice is remembered.
+  - sort and filter
 - **Workstreams table:** the same grid, one row per workstream. Filter by company, GTM/BD, owner and status, and add a workstream inline.
 - **Company page:** the existing edit dialog and workstream editors stay. They now save to Venture Pulse.
 - Every change is logged (who, when, before and after).
@@ -81,5 +81,5 @@ They stay visible in Asana and in a backup snapshot.
   - "Asana Archive" for the BD/GTM activities
 - **Read path.** A new `portco-profile.server.ts` returns the same `asanaFields`-shaped map, renamed `profileFields`, so `portfolio.tsx`, `ownership-valuation`, `signal-feed`, `morning-brief`, `MatrixStatsPanel` and `buildMatrixPoints` change minimally. `Profile Overrides` are folded in at import time, then retired.
 - **Workstreams.** The `Workstream` type is kept. `createWorkstream`/`updateWorkstream` are re-implemented against the sheet, keeping the re-read, conflict-check and changed-fields-only behaviour. The `Company -> BD/GTM -> Name` parsing is used only for the import.
-- **Pure, tested helpers.** `planPortcoImport` (Venture Pulse-wins merge, investor normalisation, owner roster check, dropped fields), `matchDellTargets` (unique Dell contact or review), and `nextStepsToFollowUps` (deduped against existing follow-ups).
+- **Pure, tested helpers.** `planPortcoImport` (Venture Pulse-wins merge, investor normalisation, owner roster check, dropped fields), `matchDellTargets` (unique Dell contact or review). Dropped fields are kept in a JSON "Archived Fields" column per row; the column chooser exposes them, stored per teammate.
 - **Cut-off.** Delete `fetchPortcoFields`, `fetchPortcoWorkstreams`, `fetchWorkstreamFieldCatalog`, the workstream Asana writes, `fetchActivities` from the sync, `vic-asana.*`, the Asana health check and the related AGENTS.md rules. Keep the event-related Asana code for Part B.
