@@ -113,24 +113,17 @@ export interface Workstream {
 /** Ordered program-view fields per segment: [label, key on Workstream]. */
 export const PROGRAM_FIELDS: Record<WorkstreamSegment, Array<[string, keyof Workstream]>> = {
   BD: [
-    ["Status", "status"],
-    ["Momentum", "momentum"],
-    ["Channel", "channel"],
-    ["Targets", "targets"],
+    ["Dell targets", "targets"],
     ["Stakeholders", "dellStakeholders"],
     ["Sell-in status", "sellInStatus"],
-    ["Traction", "traction"],
+    ["Sell With Dell maturity", "maturity"],
   ],
   GTM: [
-    ["Strategy work status", "status"],
     ["SageTap status", "sageTapStatus"],
-    ["Last pitch reviewed", "lastPitchReviewed"],
-    ["GTM maturity", "gtmMaturity"],
-    ["Sales maturity", "salesMaturity"],
+    ["Sell With Dell maturity", "gtmMaturity"],
     ["GTM category", "category"],
   ],
   Other: [
-    ["Status", "status"],
     ["Category", "category"],
   ],
 };
@@ -139,8 +132,8 @@ export const PROGRAM_FIELDS: Record<WorkstreamSegment, Array<[string, keyof Work
 export function summaryChips(w: Workstream): string[] {
   const vals =
     w.segment === "GTM"
-      ? [w.sageTapStatus, w.gtmMaturity, w.salesMaturity]
-      : [w.status, w.momentum, w.targets || w.dellTargets];
+      ? [w.sageTapStatus, w.gtmMaturity, w.category]
+      : [w.sellInStatus, w.maturity, w.targets || w.dellTargets];
   return vals.map((v) => (v || "").trim()).filter(Boolean);
 }
 

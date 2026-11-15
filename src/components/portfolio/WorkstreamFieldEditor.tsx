@@ -12,7 +12,7 @@ import {
 
 const NONE = "__none__";
 
-/** One input per Asana field type; values stay in Asana's native shape. */
+/** One input per field type (text, number, date, single or multiple choice). */
 export function WorkstreamFieldEditor({
   meta,
   value,
@@ -56,7 +56,7 @@ export function WorkstreamFieldEditor({
           </label>
         ))}
         {(meta.options || []).length === 0 && (
-          <span className="text-[11px] italic text-muted-foreground">No choices set up in Asana</span>
+          <span className="text-[11px] italic text-muted-foreground">No choices set up</span>
         )}
       </div>
     );

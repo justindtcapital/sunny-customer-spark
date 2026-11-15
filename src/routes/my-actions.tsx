@@ -660,7 +660,7 @@ function NewWorkstreamForm({ companies, onDone }: { companies: string[]; onDone:
     const res = await create({ data: { company, segment, name: name.trim() } }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
     setBusy(false);
     if (!res.ok) { toast.error(res.error); return; }
-    toast.success(`Created "${res.workstream.rawName}" in Asana`);
+    toast.success(`Created "${res.workstream.name}"`);
     onDone(res.workstream.gid);
   };
   return (
@@ -675,7 +675,7 @@ function NewWorkstreamForm({ companies, onDone }: { companies: string[]; onDone:
         ))}
       </div>
       <Input className="h-8 min-w-[220px] flex-1 text-xs" placeholder="Workstream name" value={name} onChange={(e) => setName(e.target.value)} />
-      <Button size="sm" className="h-8" disabled={busy || !company || !name.trim()} onClick={submit}>Create in Asana</Button>
+      <Button size="sm" className="h-8" disabled={busy || !company || !name.trim()} onClick={submit}>Create workstream</Button>
       <Button size="sm" variant="ghost" className="h-8" disabled={busy} onClick={() => onDone()}>Cancel</Button>
     </CardContent></Card>
   );
