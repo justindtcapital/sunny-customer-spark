@@ -41,7 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building2, Users, Plus, Trash2, Globe, Loader2, X, Search } from "lucide-react";
+import { Building2, Users, Plus, Trash2, Globe, Pencil, ArrowLeft, Loader2, X, Search } from "lucide-react";
 import { usePortfolioFilters } from "@/lib/portfolio-filter-context";
 import { useFilterOptions } from "@/lib/filter-options-context";
 import { companyDomainMap, isSharedEmailDomain, normalizeDomain, suggestDomainMatches } from "@/lib/company-domains";
@@ -690,14 +690,17 @@ function PortfolioPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-md border border-border p-0.5 text-xs" role="tablist" aria-label="Portfolio view">
-            {([["list", "Companies"], ["table", "Table"], ["workstreams", "Workstreams"]] as const).map(([k, label]) => (
-              <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)}
-                className={cn("rounded px-2.5 py-1 transition-colors", view === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-                {label}
-              </button>
-            ))}
-          </div>
+          {view === "list" ? (
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setView("table")}>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              Edit portfolio
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setView("list")}>
+              <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
+              Back to companies
+            </Button>
+          )}
           <Button size="sm" className="h-8 text-xs" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add company
@@ -770,6 +773,16 @@ function PortfolioPage() {
         )}
       </div>
 
+      {view !== "list" && (
+        <div className="mb-3 flex items-center gap-1 border-b border-border" role="tablist" aria-label="Edit portfolio">
+          {([["table", "Edit PortCos"], ["workstreams", "Edit workstreams"]] as const).map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)}
+              className={cn("-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors", view === k ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {view === "table" ? (
         <PortcoTableView
           companies={filtered}
