@@ -8,6 +8,7 @@ import { createVicThread } from "@/lib/vic-client";
 import { VicMark } from "@/components/vic/VicMark";
 import { getVicSkill, type VicSkillId } from "@/lib/vic-skills";
 import { VicWorkspaceControls, VicWorkspaceProvider } from "@/components/vic/VicWorkspaceControls";
+import { QuickUpdateButton } from "@/components/vic/QuickUpdateDialog";
 
 export const Route = createFileRoute("/vic")({
   validateSearch: (s: Record<string, unknown>): { skill?: VicSkillId } => ({ skill: getVicSkill(s.skill)?.id }),
@@ -65,6 +66,7 @@ function VicLayout() {
           <span className="font-semibold">V.I.C.</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="px-3 pt-3"><QuickUpdateButton onStarted={() => void load()} /></div>
         <nav aria-label="V.I.C. chats" className="p-2 space-y-0.5">
           <div className="flex items-center justify-between gap-2 px-2 py-1.5">
             <h2 className="text-sm font-semibold">Recent chats</h2>
