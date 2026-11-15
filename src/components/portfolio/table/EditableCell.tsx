@@ -1,27 +1,32 @@
 // One spreadsheet-style cell: click to edit, saved when you leave it (Enter saves, Esc cancels).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 export type CellKind = "enum" | "multi_enum" | "number" | "date" | "text" | "readonly";
 const NONE = "__none__";
 
-export function EditableCell({ kind, value, options = [], onSave, className }: {
+export function EditableCell({ kind, value, options = [], onSave, className, render, toDraft = (v) => v, fromDraft = (d) => d.trim() }: {
   kind: CellKind;
   value: string;
   options?: readonly string[];
   onSave?: (next: string | string[]) => Promise<boolean>;
   className?: string;
+  /** Custom display (formatted number, colored pill); unset values always show as an empty cell. */
+  render?: (value: string) => ReactNode;
+  /** Typed fields: stored value → editable text, and back (e.g. ownership edited as a percent). */
+  toDraft?: (value: string) => string;
+  fromDraft?: (draft: string) => string;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
+  const [draft, setDraft] = useState(kind === "multi_enum" ? value : toDraft(value));
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+  useEffect(() => { if (!editing) setDraft(kind === "multi_enum" ? value : toDraft(value)); }, [value, editing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
 
   const commit = async (next: string | string[]) => {
@@ -34,19 +39,19 @@ export function EditableCell({ kind, value, options = [], onSave, className }: {
   };
 
   const display = (
-    <span className={cn("block truncate", !value && "text-muted-foreground/50")}>{value || "—"}</span>
+    <span className="block min-h-4 truncate">{value ? (render ? render(value) : value) : "\u00a0"}</span>
   );
   if (kind === "readonly" || !onSave) return <div className={cn("px-2 py-1.5 text-xs", className)} title={value}>{display}</div>;
-  if (saving) return <div className={cn("flex items-center gap-1 px-2 py-1.5 text-xs text-muted-foreground", className)}><Loader2 className="h-3 w-3 animate-spin" />{value || "Saving"}</div>;
+  if (saving) return <div className={cn("flex items-center gap-1 px-2 py-1.5 text-xs text-muted-foreground", className)}><Loader2 className="h-3 w-3 animate-spin" />Saving</div>;
 
   if (kind === "enum") {
     return (
-      <Select value={value && options.includes(value) ? value : value ? value : NONE} onValueChange={(v) => void commit(v === NONE ? "" : v)}>
-        <SelectTrigger className={cn("h-8 rounded-none border-0 bg-transparent px-2 text-xs shadow-none hover:bg-accent/40 focus:ring-1", className)} title={value}>
-          <SelectValue placeholder="—" />
+      <Select value={value || NONE} onValueChange={(v) => void commit(v === NONE ? "" : v)}>
+        <SelectTrigger className={cn("h-8 rounded-none border-0 bg-transparent px-2 text-xs shadow-none hover:bg-accent/40 focus:ring-1 [&>svg]:opacity-0 hover:[&>svg]:opacity-50", className)} title={value}>
+          <span className="min-w-0 flex-1 text-left">{display}</span>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={NONE} className="text-xs italic">Not set</SelectItem>
+          <SelectItem value={NONE} className="text-xs italic text-muted-foreground">Clear</SelectItem>
           {value && !options.includes(value) && <SelectItem value={value} className="text-xs">{value}</SelectItem>}
           {options.map((o) => <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>)}
         </SelectContent>
@@ -90,10 +95,10 @@ export function EditableCell({ kind, value, options = [], onSave, className }: {
       className={cn("h-8 rounded-none px-2 text-xs", className)}
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => void commit(draft)}
+      onBlur={() => void commit(fromDraft(draft))}
       onKeyDown={(e) => {
-        if (e.key === "Enter") void commit(draft);
-        if (e.key === "Escape") { setDraft(value); setEditing(false); }
+        if (e.key === "Enter") void commit(fromDraft(draft));
+        if (e.key === "Escape") { setDraft(toDraft(value)); setEditing(false); }
       }}
     />
   );

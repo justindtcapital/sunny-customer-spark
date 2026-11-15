@@ -18,7 +18,7 @@ import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { cleanPriority } from "@/lib/portco-matrix";
-import { isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
+import { isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, PRIORITY_TONE } from "@/lib/portco-list-view";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
@@ -996,8 +996,3 @@ function MiniStat({ n, label }: { n: number; label: string }) {
   );
 }
 
-const PRIORITY_TONE: Record<PriorityChip, string> = {
-  NM: "border-success/40 bg-success/15 text-success",
-  NU: "border-warning/40 bg-warning/15 text-warning",
-  BB: "border-destructive/40 bg-destructive/15 text-destructive",
-};
