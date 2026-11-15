@@ -1,5 +1,5 @@
 import { VicMark } from "@/components/vic/VicMark";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Users,
   Target,
@@ -124,10 +124,18 @@ export function AppSidebar({
   portfolioFilters,
   onPortfolioFiltersChange,
 }: AppSidebarProps) {
-  const { state } = useSidebar();
-  const collapsed = state === "collapsed";
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  // The phone menu always shows full labels, even if the desktop rail is collapsed.
+  const collapsed = !isMobile && state === "collapsed";
   const location = useLocation();
   const currentPath = location.pathname;
+  // Close the phone menu whenever the page changes (tapping a link, back button).
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [currentPath, setOpenMobile]);
+  const closeMobileMenu = () => {
+    if (isMobile) setOpenMobile(false);
+  };
   const { selectedContacts, selectedIds, clearSelection, onBulkUpdate, setRelationshipChange } = useSelection();
   const {
     selectedTargets,
@@ -487,14 +495,27 @@ export function AppSidebar({
       <Sidebar collapsible="icon">
         <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
           <div className="flex items-center gap-2">
-            <img src={dtcLogo} alt="Dell Technologies Capital" className="h-6 w-6 rounded" />
-            {!collapsed && (
-              <div>
-                <h1 className="text-sm font-bold tracking-tight text-foreground">VenturePulse</h1>
-                <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-                  DTC Network Intelligence
-                </p>
-              </div>
+            <Link to="/" onClick={closeMobileMenu} className="flex min-w-0 flex-1 items-center gap-2">
+              <img src={dtcLogo} alt="Dell Technologies Capital" className="h-6 w-6 rounded" />
+              {!collapsed && (
+                <div className="min-w-0">
+                  <h1 className="text-sm font-bold tracking-tight text-foreground">VenturePulse</h1>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+                    DTC Network Intelligence
+                  </p>
+                </div>
+              )}
+            </Link>
+            {isMobile && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0 [&_svg]:size-5"
+                onClick={() => setOpenMobile(false)}
+                aria-label="Close menu"
+              >
+                <X />
+              </Button>
             )}
           </div>
         </SidebarHeader>
@@ -506,8 +527,8 @@ export function AppSidebar({
                   const isActive = currentPath === item.url || currentPath.startsWith(`${item.url}/`);
                   return (
                     <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link to={item.url} className="group">
+                      <SidebarMenuButton asChild isActive={isActive} className="max-md:h-11 max-md:text-base">
+                        <Link to={item.url} className="group" onClick={closeMobileMenu}>
                           <item.icon className="h-4 w-4" />
                           {!collapsed && <span>{item.title}</span>}
                         </Link>
