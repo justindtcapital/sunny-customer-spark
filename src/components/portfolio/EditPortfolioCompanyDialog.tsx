@@ -115,10 +115,9 @@ export function EditPortfolioCompanyDialog({
         description: description.trim(),
         domainAliases: parseDomainList(aliases),
         linkedinUrl: normalizeLinkedinUrl(linkedin),
-        profileOverrides: Object.fromEntries(
-          PROFILE_FIELDS.map((f) => [f.key, (profile[f.key] || "").trim()])
-            .filter(([k, v]) => v !== fieldValue(company.asanaFields, k as string).trim() || (company.profileOverrides && k in company.profileOverrides)),
-        ) as Record<string, string>,
+        // Only changed profile values are sent, with the value they started from (conflict check).
+        profileChanges: PROFILE_FIELDS.map((f) => ({ field: f.key as string, original: fieldValue(company.asanaFields, f.key).trim(), value: (profile[f.key] || "").trim() }))
+          .filter((c) => c.value !== c.original),
         // Companies that live only in Asana (no sheet row yet) get one created
         // on save so they become editable like every other portfolio company.
         upsertNew: company.id.startsWith("asana-pc-"),
@@ -141,10 +140,9 @@ export function EditPortfolioCompanyDialog({
         location: payload.location,
         description: payload.description,
         linkedinUrl: payload.linkedinUrl,
-        profileOverrides: { ...(company.profileOverrides || {}), ...payload.profileOverrides },
         asanaFields: (() => {
           const out: Record<string, string> = { ...(company.asanaFields || {}) };
-          for (const [k, v] of Object.entries(payload.profileOverrides)) {
+          for (const { field: k, value: v } of payload.profileChanges) {
             for (const ok of Object.keys(out)) if (ok.toLowerCase() === k.toLowerCase()) delete out[ok];
             if (v) out[k] = v;
           }
