@@ -8,6 +8,9 @@ import { createVicFollowUpFn } from "@/utils/vic.functions";
 import { completeHomeNoteFollowUp } from "@/utils/home.functions";
 import { completeActionFn } from "@/utils/actions.functions";
 import { addPlannerAttendeesFn } from "@/utils/event-planner.functions";
+import { updateWorkstreamFn } from "@/utils/asana.functions";
+import { WORKSTREAM_FIELD_DEFS } from "@/lib/portco-fields-schema";
+import { workstreamEditPlan } from "@/lib/vic-workstream-update";
 
 type Temp = "Council" | "Hot" | "Warm" | "Cold";
 interface RelProposal {
@@ -192,6 +195,51 @@ export function AttendeesReview({ p }: { p: { eventUrid: string; eventName: stri
         </li>))}
       </ul>
       {picked.size > 0 && <ApproveRow a={a} run={run} label={`Add ${picked.size}`} />}
+    </Card>
+  );
+}
+
+const STATUS_OPTS = WORKSTREAM_FIELD_DEFS.find((d) => d.name === "Workstream Status")?.options || [];
+const PRIORITY_OPTS = WORKSTREAM_FIELD_DEFS.find((d) => d.name === "Workstream Priority")?.options || [];
+
+interface WsProposal {
+  gid: string; company: string; track: string; name: string;
+  current: { status: string; priority: string; notes: string; completed: boolean };
+  proposed: { status: string; priority: string; note: string; completed: boolean };
+}
+/** Review card for a workstream update. Saves to Venture Pulse only after Approve. */
+export function WorkstreamReview({ p }: { p: WsProposal }) {
+  const save = useServerFn(updateWorkstreamFn);
+  const [status, setStatus] = useState(p.proposed.status || p.current.status);
+  const [priority, setPriority] = useState(p.proposed.priority || p.current.priority);
+  const [note, setNote] = useState(p.proposed.note);
+  const [completed, setCompleted] = useState(p.proposed.completed);
+  const a = useApprove();
+  const done = a.state === "done";
+  const run = async () => {
+    const edit = workstreamEditPlan(p.gid, p.current, { status, priority, note, completed }, new Date().toISOString().slice(0, 10));
+    if (!edit) return "Nothing to change";
+    const r = await save({ data: edit });
+    if (!r.ok) throw new Error(r.error);
+    return `${p.company} workstream updated`;
+  };
+  return (
+    <Card title={`Review: update ${p.company} · ${p.track} workstream`}>
+      <div className="text-xs font-medium">{p.name}</div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="text-[11px] text-muted-foreground space-y-0.5"><span>Status</span>
+          <select className={field} disabled={done} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">—</option>{!STATUS_OPTS.includes(status) && status && <option value={status}>{status}</option>}
+            {STATUS_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select></label>
+        <label className="text-[11px] text-muted-foreground space-y-0.5"><span>Priority</span>
+          <select className={field} disabled={done} value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <option value="">—</option>{PRIORITY_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select></label>
+      </div>
+      <textarea className={`${field} min-h-[60px]`} disabled={done} value={note} placeholder="Progress note (added to the workstream notes with today's date)" onChange={(e) => setNote(e.target.value)} />
+      <label className="flex items-center gap-2 text-xs"><Checkbox checked={completed} disabled={done} onCheckedChange={(v) => setCompleted(v === true)} />Mark workstream complete</label>
+      <ApproveRow a={a} run={run} label="Save update" />
     </Card>
   );
 }

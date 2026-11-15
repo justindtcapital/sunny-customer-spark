@@ -8,7 +8,7 @@ import { Conversation, ConversationContent, ConversationEmptyState, Conversation
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
-import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, LogActionReview, RelationshipReview } from "./VicReviewCards";
+import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, LogActionReview, RelationshipReview, WorkstreamReview } from "./VicReviewCards";
 import { useAuth } from "@/lib/auth-context";
 import { VicMark } from "./VicMark";
 import { VicSkillPicker } from "./VicSkillPicker";
@@ -25,17 +25,18 @@ const SUGGESTIONS = [
 
 /** Loads a thread's saved messages, then renders the chat. */
 export function VicChat({ threadId, page, pageLabel }: { threadId: string; page?: string; pageLabel?: string }) {
-  const [initial, setInitial] = useState<UIMessage[] | null>(null);
+  // Messages are tagged with their thread so switching chats never shows (or hands off into) the previous chat's messages.
+  const [loaded, setLoaded] = useState<{ id: string; msgs: UIMessage[] } | null>(null);
   useEffect(() => {
     let live = true;
-    setInitial(null);
     void supabase.from("vic_messages").select("message").eq("thread_id", threadId).order("created_at").then(({ data, error }) => {
       if (!live) return;
       if (error) toast.error("Couldn't load this chat.");
-      setInitial((data || []).map((r) => r.message as unknown as UIMessage));
+      setLoaded({ id: threadId, msgs: (data || []).map((r) => r.message as unknown as UIMessage) });
     });
     return () => { live = false; };
   }, [threadId]);
+  const initial = loaded?.id === threadId ? loaded.msgs : null;
   if (!initial) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   return <VicChatWindow key={threadId} threadId={threadId} initial={initial} page={page} pageLabel={pageLabel} />;
 }
@@ -67,16 +68,20 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
     void sendMessage({ text: t.trim(), metadata: skillId ? { skillId } : undefined });
     setText("");
   };
-  // A question typed on the homepage tile is handed over once, then cleared.
+  // A question typed on the homepage tile or Update V.I.C. is handed over once, then cleared.
+  // Sent on the next tick (cancelled if the chat unmounts first) so a dev double-mount can't swallow it.
   const handedOff = useRef(false);
   useEffect(() => {
-    if (handedOff.current) return;
-    handedOff.current = true;
+    if (handedOff.current || initial.length) return;
     const key = `vic-pending:${threadId}`;
-    const pending = sessionStorage.getItem(key);
-    if (!pending) return;
-    sessionStorage.removeItem(key);
-    if (initial.length === 0) send(pending);
+    const timer = setTimeout(() => {
+      const pending = sessionStorage.getItem(key);
+      if (!pending || handedOff.current) return;
+      handedOff.current = true;
+      sessionStorage.removeItem(key);
+      send(pending);
+    }, 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -109,6 +114,7 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
                     if (out?.status === "awaiting_review" && name === "proposeFollowUp") return <FollowUpReview key={i} p={out as never} me={me} />;
                     if (out?.status === "awaiting_review" && name === "proposeCompleteFollowUps") return <CompleteFollowUpsReview key={i} p={out as never} />;
                     if (out?.status === "awaiting_review" && name === "proposeLogAction") return <LogActionReview key={i} p={out as never} me={me} threadId={threadId} />;
+                    if (out?.status === "awaiting_review" && name === "proposeWorkstreamUpdate") return <WorkstreamReview key={i} p={out as never} />;
                     if (out?.status === "awaiting_review" && name === "proposeEventAttendees") return <AttendeesReview key={i} p={out as never} />;
                     return (
                       <Tool key={i} defaultOpen={false}>
