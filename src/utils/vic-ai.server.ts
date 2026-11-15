@@ -262,7 +262,7 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
       description: "Read-only: search PortCo workstreams (GTM/BD subtasks in the Asana PortCo project) by company, name, status, priority or next steps. owner is a teammate name/email ('me' = current user); empty = everyone.",
       inputSchema: z.object({ query: z.string().default(""), owner: z.string().default(""), includeCompleted: z.boolean().default(false) }),
       execute: async ({ query, owner, includeCompleted }) => {
-        const { fetchPortcoWorkstreams } = await import("./asana.server");
+        const { readWorkstreams: fetchPortcoWorkstreams } = await import("./portco-store.server");
         const { teamMemberFor } = await import("@/lib/user-ownership");
         const who = owner.trim() ? teamMemberFor(/^me$/i.test(owner.trim()) ? opts.teamEmail : owner) : null;
         try {
@@ -271,7 +271,7 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
             && (!who || teamMemberFor(w.owner)?.displayName === who.displayName)
             && (!query.trim() || hit(query, w.company, w.segment, w.name, w.workstreamStatus, w.workstreamPriority, w.status, w.nextSteps, w.category)));
           return { total: list.length, workstreams: list.slice(0, 60).map((w) => ({ gid: w.gid, company: w.company, track: w.segment, name: w.name, status: w.workstreamStatus || w.status, priority: w.workstreamPriority, owner: w.owner, nextSteps: (w.nextSteps || "").slice(0, 400), lastActivity: w.lastActivity, completed: w.completed, url: w.url })) };
-        } catch (e) { return { error: e instanceof Error ? e.message : "Asana workstreams unavailable", workstreams: [] }; }
+        } catch (e) { return { error: e instanceof Error ? e.message : "Workstreams unavailable", workstreams: [] }; }
       },
     }),
     searchAsana: tool({

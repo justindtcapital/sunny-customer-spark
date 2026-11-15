@@ -18,7 +18,7 @@ import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { cleanPriority } from "@/lib/portco-matrix";
-import { applyProfileOverrides, isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
+import { isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, type PriorityChip } from "@/lib/portco-list-view";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
@@ -104,7 +104,8 @@ export const Route = createFileRoute("/portfolio")({
         [];
       return {
         ...c,
-        asanaFields: applyProfileOverrides(asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined, c.profileOverrides),
+        // Profile values live in Venture Pulse ("PortCo Profiles"); legacy overrides were folded in at import.
+        asanaFields: asanaFields && Object.keys(asanaFields).length > 0 ? asanaFields : undefined,
         // Event list entries (official names) first; Asana-only events fill gaps without repeats.
         events: mergeCompanyEvents([...c.events, ...(trackerEvents[c.name.trim().replace(/\s+/g, " ").toLowerCase()] || [])], asanaEvents),
       };

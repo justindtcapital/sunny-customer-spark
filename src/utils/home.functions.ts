@@ -15,6 +15,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const sheets = await import("./sheets.server");
     const asana = await import("./asana.server");
+    const store = await import("./portco-store.server");
     const campaignsStore = await import("./campaigns.server");
     const inbox = await import("./notes-inbox.server");
     const knowledge = await import("./knowledge.server");
@@ -27,7 +28,7 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
       read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCo", sheets.buildPortfolioCompanies, []),
     ]);
     const [eventRows, workstreams, campaigns] = await Promise.all([
-      read("Events", asana.fetchAllAsanaEvents, []), read("Workstreams", asana.fetchPortcoWorkstreams, []), read("Campaigns", campaignsStore.listCampaigns, []),
+      read("Events", asana.fetchAllAsanaEvents, []), read("Workstreams", () => store.readWorkstreams(), []), read("Campaigns", campaignsStore.listCampaigns, []),
     ]);
     const uniqueEvents = new Map<string, typeof eventRows[number]>();
     for (const event of eventRows) {

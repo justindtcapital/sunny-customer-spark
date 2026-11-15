@@ -338,8 +338,8 @@ export async function reviewNote(input: ReviewNoteInput, step: (name: string) =>
     let name = ws.name || "";
     if (ws.action === "create") {
       if (!portco) throw new Error("Pick a PortCo before creating a workstream");
-      const { createWorkstream } = await import("./asana.server");
-      const created = await createWorkstream({ company: portco.split(",")[0]!.trim(), segment: ws.segment || "GTM", name });
+      const { createWorkstream } = await import("./portco-store.server");
+      const created = await createWorkstream({ company: portco.split(",")[0]!.trim(), segment: ws.segment || "GTM", name }, "Notes review");
       gid = created.gid;
       name = created.name;
     }
