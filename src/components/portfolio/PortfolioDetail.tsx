@@ -385,8 +385,8 @@ export function PortfolioDetail({
     <>
       <DetailShell inline={inline} open={open} onOpenChange={onOpenChange}>
           <HeaderEl className="pb-4 border-b border-border shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-[14rem] flex-1 items-center gap-3">
                 <PortcoLogo name={company.name} website={company.website} size="lg" />
                 <div>
                   <TitleEl className="text-base font-semibold">{company.name}</TitleEl>

@@ -44,7 +44,7 @@ function ProfileInput({ def, value, onChange }: { def: PortcoFieldDef; value: st
   if (def.type === "enum") {
     const opts = def.options || [];
     return (
-      <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
+      <Select value={value} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
         <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="" /></SelectTrigger>
         <SelectContent>
           <SelectItem value={NONE} className="text-xs italic text-muted-foreground">Clear</SelectItem>
