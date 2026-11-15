@@ -16,6 +16,11 @@ import { patchWorkstreamCache, useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted, type Workstream } from "@/lib/workstream-parse";
 import { OWNER_OPTIONS, WORKSTREAM_FIELD_DEFS } from "@/lib/portco-fields-schema";
 import { PORTDEV_OPS } from "@/lib/portco-import";
+import { priorityTone } from "@/components/portfolio/WorkstreamsPanel";
+import { cn } from "@/lib/utils";
+
+/** Workstream Priority as the same colored pill used on the company page. */
+const renderPriority = (v: string) => <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", priorityTone(v))}>{v}</span>;
 
 const DEFAULT_COLUMNS = ["Segment", "Owner", "Workstream Status", "Workstream Priority", "Sell-In Status", "Dell Targets", "Dell Stakeholders", "Completed"];
 const ARCHIVED = "archived:";
@@ -183,7 +188,7 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
                   const editable = k.kind !== "readonly" && o.key !== "Segment";
                   return (
                     <td key={o.key} className="min-w-[130px] max-w-[260px] border-r border-border p-0 last:border-r-0">
-                      <EditableCell kind={editable ? k.kind : "readonly"} options={k.options} value={v} onSave={editable ? (next) => saveCell(w, o.key, v, next) : undefined} />
+                      <EditableCell kind={editable ? k.kind : "readonly"} options={k.options} value={v} render={o.key === "Workstream Priority" ? renderPriority : undefined} onSave={editable ? (next) => saveCell(w, o.key, v, next) : undefined} />
                     </td>
                   );
                 })}

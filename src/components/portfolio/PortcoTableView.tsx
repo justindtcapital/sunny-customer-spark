@@ -11,6 +11,10 @@ import { ColumnChooser, useColumnChoice, type ColumnOption } from "@/components/
 import { fetchPortcoTableFn, saveProfileCellFn, type PortcoTableProfile } from "@/utils/portco-store.functions";
 import { OWNER_OPTIONS, PROFILE_FIELD_DEFS } from "@/lib/portco-fields-schema";
 import type { PortfolioCompany } from "@/lib/types";
+import { priorityChip, PRIORITY_TONE } from "@/lib/portco-list-view";
+import { cleanPriority } from "@/lib/portco-matrix";
+import { displayProfileValue, editDraftValue, storedFromDraft } from "@/lib/portco-table-format";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_COLUMNS = ["Owner", "DTC Priority", "Lead Investor", "Company Stage", "DTC Investment ($M)", "DTC Ownership", "GTM Marketing/PMF", "Sales Maturity", "Help / Influence"];
 const ARCHIVED = "archived:";
@@ -22,6 +26,17 @@ function kindOf(key: string): { kind: CellKind; options?: readonly string[] } {
   const d = PROFILE_FIELD_DEFS.find((x) => x.name === key);
   return d ? { kind: d.type, options: d.options } : { kind: "readonly" };
 }
+
+/** DTC Priority as the same colored pill used on the company list; formatted money/percent elsewhere. */
+function renderFor(key: string) {
+  if (key === "DTC Priority") return (v: string) => {
+    const chip = priorityChip(v);
+    return <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-semibold", chip ? PRIORITY_TONE[chip] : "border-border bg-muted text-muted-foreground")}>{cleanPriority(v)}</span>;
+  };
+  if (key === "DTC Investment ($M)" || key === "DTC Ownership") return (v: string) => displayProfileValue(key, v);
+  return undefined;
+}
+const NUMERIC_EDIT = new Set(["DTC Investment ($M)", "DTC Ownership"]);
 
 export function PortcoTableView({ companies, onOpenCompany, onProfileSaved }: {
   companies: PortfolioCompany[];
@@ -123,7 +138,10 @@ export function PortcoTableView({ companies, onOpenCompany, onProfileSaved }: {
                   const v = valueOf(c, o.key);
                   return (
                     <td key={o.key} className="min-w-[140px] max-w-[260px] border-r border-border p-0 last:border-r-0">
-                      <EditableCell kind={k.kind} options={k.options} value={v} onSave={k.kind === "readonly" ? undefined : (next) => saveCell(c, o.key, v, next)} />
+                      <EditableCell kind={k.kind} options={k.options} value={v} render={renderFor(o.key)}
+                        toDraft={NUMERIC_EDIT.has(o.key) ? (x) => editDraftValue(o.key, x) : undefined}
+                        fromDraft={NUMERIC_EDIT.has(o.key) ? (d) => storedFromDraft(o.key, d) : undefined}
+                        onSave={k.kind === "readonly" ? undefined : (next) => saveCell(c, o.key, v, next)} />
                     </td>
                   );
                 })}
