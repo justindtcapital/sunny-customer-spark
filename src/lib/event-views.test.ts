@@ -1,6 +1,11 @@
-
 import { portfolioEventsByCompany, trackerEventAsLegacy } from "./event-views";
-import { blankPlannerEventForTest } from "./event-views.test-helpers";
+import { describe, expect, it } from "vitest";
+import type { PlannerEvent } from "./event-planner";
+const blankPlannerEventForTest = (p: Partial<PlannerEvent>): PlannerEvent => ({
+  urid: "u1", name: "", start: "", end: "", location: "", category: "Briefings", subcategory: "Vation Briefings", status: "Confirmed",
+  sectors: [], portcos: [], partners: [], owner: "", format: "", website: "", lumaUrl: "", source: "Tracker", sourceRef: "",
+  asanaGid: "", networkCount: 0, notes: "", actionsNeeded: "", eventContact: "", createdBy: "", updated: "", dtcStatus: "", ...p,
+});
 
 describe("tracker events replace Asana events", () => {
   const base = blankPlannerEventForTest({ name: "Vation - NYC", start: "2026-10-01", portcos: ["Twine"], asanaGid: "123", dtcStatus: "Completed" });
