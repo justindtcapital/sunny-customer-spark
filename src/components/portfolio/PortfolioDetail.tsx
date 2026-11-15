@@ -78,7 +78,6 @@ import { PortcoCampaigns } from "./PortcoCampaigns";
 import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-parse";
 import { portcoMatches, useKnowledge } from "@/lib/use-knowledge";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
-import { syncPortcoFromAsana } from "@/utils/portco-sync.functions";
 import {
   findPortcoPeople,
   addPortcoPeopleFromApollo,
@@ -135,7 +134,6 @@ export function PortfolioDetail({
 }: PortfolioDetailProps) {
   const [view, setView] = useState<DetailView>("contacts");
   const [vicCtx, setVicCtx] = useState<ActionContext | null>(null);
-  const [asanaSyncing, setAsanaSyncing] = useState(false);
   const [findPeopleOpen, setFindPeopleOpen] = useState(false);
   const [insight, setInsight] = useState<InsightNarrative | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
@@ -239,60 +237,6 @@ export function PortfolioDetail({
       toast.error("Insight generation failed — see console.");
     } finally {
       setInsightLoading(false);
-    }
-  };
-
-  // Asana PortCo fields + events → UI + blank sheet cells + event-exposure pass.
-  const handleAsanaSync = async () => {
-    setAsanaSyncing(true);
-    try {
-      const res = await syncPortcoFromAsana({ data: { companyName: company.name } });
-      if (!res.ok) {
-        toast.error(res.error || "Asana sync failed.");
-        return;
-      }
-      const profileWebsite =
-        Object.entries(res.asanaFields).find(([k]) => /website|^url$|web\s*site/i.test(k))?.[1] ||
-        "";
-      const profileLinkedin =
-        Object.entries(res.asanaFields).find(([k]) => /linkedin/i.test(k))?.[1] || "";
-      const profileLocation =
-        Object.entries(res.asanaFields).find(([k]) =>
-          /^hq$|headquarter|location|city|geograph/i.test(k),
-        )?.[1] || "";
-      const profileDescription =
-        Object.entries(res.asanaFields).find(([k]) =>
-          /summary|description|about|overview/i.test(k),
-        )?.[1] || "";
-
-      const patched: PortfolioCompany = {
-        ...company,
-        asanaFields:
-          Object.keys(res.asanaFields).length > 0 ? res.asanaFields : company.asanaFields,
-        events: mergeCompanyEvents(company.events.filter((e) => !e.id.startsWith("asana-")), res.events),
-        website: company.website || profileWebsite || company.website,
-        linkedinUrl: company.linkedinUrl || profileLinkedin || company.linkedinUrl,
-        location: company.location || profileLocation || company.location,
-        description: company.description || profileDescription || company.description,
-      };
-      onCompanyUpdate?.(patched);
-
-      const parts = [
-        `${res.fieldCount} field${res.fieldCount !== 1 ? "s" : ""}`,
-        `${res.eventCount} event${res.eventCount !== 1 ? "s" : ""}`,
-      ];
-      if (res.sheetFieldsUpdated.length) parts.push(`sheet: ${res.sheetFieldsUpdated.join(", ")}`);
-      if (res.exposuresLogged + res.engagementsLogged > 0) {
-        parts.push(
-          `+${res.exposuresLogged} exposure${res.exposuresLogged !== 1 ? "s" : ""} · +${res.engagementsLogged} engagement${res.engagementsLogged !== 1 ? "s" : ""}`,
-        );
-      }
-      toast.success(`Asana sync · ${parts.join(" · ")}`);
-    } catch (e) {
-      console.error("syncPortcoFromAsana failed", e);
-      toast.error("Asana sync failed — see console.");
-    } finally {
-      setAsanaSyncing(false);
     }
   };
 
@@ -862,16 +806,6 @@ export function PortfolioDetail({
                   <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
                     Events Timeline
                   </h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className={actionBtnClass}
-                    onClick={handleAsanaSync}
-                    disabled={asanaSyncing}
-                  >
-                    <RefreshCw className={`h-3 w-3 mr-1 ${asanaSyncing ? "animate-spin" : ""}`} />
-                    {asanaSyncing ? "Syncing…" : "Sync with Asana"}
-                  </Button>
                 </div>
                 {plannedEvents.length === 0 && completedEvents.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No events recorded</p>
