@@ -23,6 +23,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
 import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
+import { PortcoTableView } from "@/components/portfolio/PortcoTableView";
+import { WorkstreamsTableView } from "@/components/portfolio/WorkstreamsTableView";
 import { compareCompanyNames } from "@/lib/portco-fields";
 import { AddPortfolioCompanyDialog } from "@/components/portfolio/AddPortfolioCompanyDialog";
 import { ContactDetail } from "@/components/crm/ContactDetail";
@@ -296,6 +298,7 @@ function PortfolioPage() {
   const [chipPriority, setChipPriority] = useState<string>("all");
   const [listSearch, setListSearch] = useState("");
   const [showExits, setShowExits] = useState(false);
+  const [view, setView] = useState<"list" | "table" | "workstreams">("list");
   const paneRef = useRef<HTMLDivElement>(null);
   const autoPicked = useRef(false);
   const { workstreams } = useWorkstreams();
@@ -739,6 +742,14 @@ function PortfolioPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border border-border p-0.5 text-xs" role="tablist" aria-label="Portfolio view">
+            {([["list", "Companies"], ["table", "Table"], ["workstreams", "Workstreams"]] as const).map(([k, label]) => (
+              <button key={k} type="button" role="tab" aria-selected={view === k} onClick={() => setView(k)}
+                className={cn("rounded px-2.5 py-1 transition-colors", view === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+                {label}
+              </button>
+            ))}
+          </div>
           <Button size="sm" className="h-8 text-xs" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add company
@@ -768,20 +779,6 @@ function PortfolioPage() {
         </div>
         {selectedIds.size > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className={actionBtnClass}
-              onClick={() => void bulkAsanaSync()}
-              disabled={busy}
-            >
-              {asanaSyncing ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3 mr-1" />
-              )}
-              {asanaSyncing ? "Syncing Asana…" : "Asana Sync"}
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -825,7 +822,19 @@ function PortfolioPage() {
         )}
       </div>
 
-      {showContactsBySector ? (
+      {view === "table" ? (
+        <PortcoTableView
+          companies={filtered}
+          onOpenCompany={(c) => { setSelectedCompany(c); setView("list"); }}
+          onProfileSaved={(c, field, value) => {
+            const fields: Record<string, string> = { ...(c.asanaFields || {}) };
+            if (field !== "Owner") { if (value) fields[field] = value; else delete fields[field]; }
+            patchCompanyLocal({ ...c, asanaFields: fields });
+          }}
+        />
+      ) : view === "workstreams" ? (
+        <WorkstreamsTableView companyNames={companies.map((c) => c.name)} />
+      ) : showContactsBySector ? (
         <div className="space-y-8">
           {sectorGroups.map(({ sector, companies: comps, people }) => (
             <section key={sector}>
