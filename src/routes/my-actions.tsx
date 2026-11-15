@@ -28,7 +28,7 @@ import { editFollowUpFn } from "@/utils/follow-up-edit.functions";
 import { followUpValues } from "@/lib/follow-up-edit";
 import { CompleteFollowUpForm } from "@/components/actions/CompleteFollowUpForm";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
-import { actionDueLabel, inActionRange, type ActionDateRange } from "@/lib/action-calendar";
+import { actionDueLabel, inActionRange, currentWeekRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
 import { fileFollowUp, portcoMatchKey, type Filing } from "@/lib/action-grouping";
 import { ACTION_SORTS, abbreviateTitle, companyKindVisible, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
@@ -88,6 +88,7 @@ function MyActionsPage() {
   const [counts, setCounts] = useState({ notes: 0, activity: 0 });
   const [inbox, setInbox] = useState<InboxToggles>(DEFAULT_INBOX);
   const [dateRange, setDateRange] = useState<ActionDateRange>(null);
+  useEffect(() => { const t = new Date(); const pad = (n: number) => String(n).padStart(2, "0"); setDateRange(currentWeekRange(`${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`)); }, []);
   const [kinds, setKinds] = useState<CompanyKind[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [showWs, setShowWs] = useState(true);
