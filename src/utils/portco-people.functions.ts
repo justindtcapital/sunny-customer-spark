@@ -93,7 +93,7 @@ export const findPortcoPeople = createServerFn({ method: "POST" })
       return { ...empty, ok: false, error: "Company name is required" };
     }
     if (!domain) {
-      const error = "Add a website first (Web Sync) so we can search by company domain";
+      const error = "Add a website first (Edit on the company page) so we can search by company domain";
       await logOpsEvent({
         action: "enrich",
         source: "portco_people_search",

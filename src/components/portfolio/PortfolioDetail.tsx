@@ -78,7 +78,7 @@ import { PortcoCampaigns } from "./PortcoCampaigns";
 import { isWorkstreamCompleted, workstreamBarStatus } from "@/lib/workstream-parse";
 import { portcoMatches, useKnowledge } from "@/lib/use-knowledge";
 import { companyIntroInsights, type InsightNarrative } from "@/utils/insights.functions";
-import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
+import { syncPortcoFromAsana } from "@/utils/portco-sync.functions";
 import {
   findPortcoPeople,
   addPortcoPeopleFromApollo,
@@ -133,7 +133,6 @@ export function PortfolioDetail({
   onCompanyDeleted,
   inline = false,
 }: PortfolioDetailProps) {
-  const [syncing, setSyncing] = useState(false);
   const [view, setView] = useState<DetailView>("contacts");
   const [vicCtx, setVicCtx] = useState<ActionContext | null>(null);
   const [asanaSyncing, setAsanaSyncing] = useState(false);
@@ -243,44 +242,6 @@ export function PortfolioDetail({
     }
   };
 
-  // Sumble org match (+ Asana LinkedIn/website fields) → fill blank Portfolio sheet cells.
-  const handleWebSync = async () => {
-    setSyncing(true);
-    try {
-      const res = await syncPortcoFromWeb({
-        data: {
-          companyName: company.name,
-          website: company.website || undefined,
-          location: company.location || undefined,
-        },
-      });
-      if (!res.ok) {
-        toast.error(res.error || "Web sync failed.");
-        return;
-      }
-      const patched: PortfolioCompany = {
-        ...company,
-        website: company.website || res.website || company.website,
-        linkedinUrl: company.linkedinUrl || res.linkedinUrl || company.linkedinUrl,
-        location: company.location || res.location || company.location,
-        description: company.description || res.description || company.description,
-      };
-      onCompanyUpdate?.(patched);
-      const bits = [
-        res.sumbleDomain ? `matched ${res.sumbleDomain}` : null,
-        res.sheetFieldsUpdated.length
-          ? `filled ${res.sheetFieldsUpdated.join(", ")}`
-          : "profile up to date",
-      ].filter(Boolean);
-      toast.success(`Web sync · ${bits.join(" · ")}`);
-    } catch (e) {
-      console.error("syncPortcoFromWeb failed", e);
-      toast.error("Web sync failed — see console.");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   // Asana PortCo fields + events → UI + blank sheet cells + event-exposure pass.
   const handleAsanaSync = async () => {
     setAsanaSyncing(true);
@@ -337,7 +298,7 @@ export function PortfolioDetail({
 
   const handleFetchPeople = () => {
     if (!companyDomain) {
-      toast.error("Add a website first (Web Sync) so we can search by company domain.");
+      toast.error("Add a website first (Edit) so we can search by company domain.");
       return;
     }
     setFindPeopleOpen(true);
@@ -424,8 +385,8 @@ export function PortfolioDetail({
     <>
       <DetailShell inline={inline} open={open} onOpenChange={onOpenChange}>
           <HeaderEl className="pb-4 border-b border-border shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-[14rem] flex-1 items-center gap-3">
                 <PortcoLogo name={company.name} website={company.website} size="lg" />
                 <div>
                   <TitleEl className="text-base font-semibold">{company.name}</TitleEl>
@@ -445,6 +406,9 @@ export function PortfolioDetail({
                 <Badge variant="outline" className="text-xs">
                   {company.domain}
                 </Badge>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" />Edit
+                </Button>
                 {isSheetBacked && (
                   <Button
                     variant="ghost"
@@ -482,32 +446,9 @@ export function PortfolioDetail({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 sm:divide-x sm:divide-border">
                   {/* Left column: company info */}
                   <div className="min-w-0">
-                    <div className="flex items-start justify-between mb-3 gap-2">
-                      <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">
-                        Company Information
-                      </h3>
-                      <div className="flex flex-col items-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-1.5 text-[10px] font-medium"
-                          onClick={() => setEditOpen(true)}
-                        >
-                          <Pencil className="h-3 w-3 mr-1" />
-                          Edit
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-1.5 text-[10px] font-medium"
-                          onClick={handleWebSync}
-                          disabled={syncing || asanaSyncing}
-                        >
-                          <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? "animate-spin" : ""}`} />
-                          {syncing ? "Syncing" : "Web Sync"}
-                        </Button>
-                      </div>
-                    </div>
+                    <h3 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-3">
+                      Company Information
+                    </h3>
                     <div className="space-y-1.5 text-sm min-w-0">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -602,7 +543,7 @@ export function PortfolioDetail({
                         </dl>
                       ) : (
                         <p className="text-[11px] text-muted-foreground italic">
-                          No Asana data available for this company.
+                          No profile data available.
                         </p>
                       );
                     })()}
@@ -926,7 +867,7 @@ export function PortfolioDetail({
                     size="sm"
                     className={actionBtnClass}
                     onClick={handleAsanaSync}
-                    disabled={asanaSyncing || syncing}
+                    disabled={asanaSyncing}
                   >
                     <RefreshCw className={`h-3 w-3 mr-1 ${asanaSyncing ? "animate-spin" : ""}`} />
                     {asanaSyncing ? "Syncing…" : "Sync with Asana"}

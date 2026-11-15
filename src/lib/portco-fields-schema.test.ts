@@ -26,3 +26,11 @@ describe("PortCo field edits", () => {
     expect(() => storedValueFor(def("Workstream Status"), ["Stalled", "Dell Leverage - Sell Through"])).toThrow();
   });
 });
+
+describe("multi-choice profile edits sent as one string", () => {
+  it("splits a comma-separated Dell Channel Aligned value into its choices", () => {
+    const d = PROFILE_FIELD_DEFS.find((x) => x.name === "Dell Channel Aligned")!;
+    expect(storedValueFor(d, "Dell OEM, Dell CSS")).toBe("Dell OEM, Dell CSS");
+    expect(() => storedValueFor(d, "Dell OEM, Dell Bogus")).toThrow();
+  });
+});

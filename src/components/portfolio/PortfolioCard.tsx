@@ -61,7 +61,7 @@ export function PortfolioCard({
           <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{company.description}</p>
         ) : (
           <p className="text-xs italic text-muted-foreground/70 mb-3">
-            {company.website?.trim() ? "No summary yet — open and use Web Sync." : "No website yet — open and Edit to add it."}
+            {company.website?.trim() ? "No summary yet — open and click Edit to add one." : "No website yet — open and Edit to add it."}
           </p>
         )}
 

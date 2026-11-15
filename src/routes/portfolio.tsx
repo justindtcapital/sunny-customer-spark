@@ -7,7 +7,6 @@ import {
   bulkDeletePortfolioCompanies,
 } from "@/utils/sheets.functions";
 import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functions";
-import { syncPortcoFromWeb } from "@/utils/portco-sync.functions";
 import { fetchPortcoEventIndexFn } from "@/utils/event-planner.functions";
 import { mergeCompanyEvents } from "@/lib/event-portcos";
 import type { PortfolioCompany, Contact, PortfolioDomain, EmailActivityRecord } from "@/lib/types";
@@ -41,7 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building2, Users, Plus, Trash2, Globe, Pencil, ArrowLeft, Loader2, X, Search } from "lucide-react";
+import { Building2, Users, Plus, Trash2, Pencil, ArrowLeft, Loader2, X, Search } from "lucide-react";
 import { usePortfolioFilters } from "@/lib/portfolio-filter-context";
 import { useFilterOptions } from "@/lib/filter-options-context";
 import { companyDomainMap, isSharedEmailDomain, normalizeDomain, suggestDomainMatches } from "@/lib/company-domains";
@@ -291,7 +290,6 @@ function PortfolioPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [webSyncing, setWebSyncing] = useState(false);
   const { filters } = usePortfolioFilters();
   const [chipDomain, setChipDomain] = useState<string>("all");
   const [chipPriority, setChipPriority] = useState<string>("all");
@@ -460,7 +458,7 @@ function PortfolioPage() {
   );
   const allSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
-  const busy = deleting || webSyncing;
+  const busy = deleting;
 
   const toggleId = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -510,47 +508,6 @@ function PortfolioPage() {
     } finally {
       setDeleting(false);
       setConfirmDeleteOpen(false);
-    }
-  };
-
-  const bulkWebSync = async () => {
-    const chosen = selectedCompanies;
-    if (chosen.length === 0) return;
-    setWebSyncing(true);
-    let ok = 0;
-    let failed = 0;
-    try {
-      for (const company of chosen) {
-        try {
-          const res = await syncPortcoFromWeb({
-            data: {
-              companyName: company.name,
-              website: company.website || undefined,
-              location: company.location || undefined,
-            },
-          });
-          if (!res.ok) {
-            failed += 1;
-            continue;
-          }
-          ok += 1;
-          patchCompanyLocal({
-            ...company,
-            website: company.website || res.website || company.website,
-            linkedinUrl: company.linkedinUrl || res.linkedinUrl || company.linkedinUrl,
-            location: company.location || res.location || company.location,
-            description: company.description || res.description || company.description,
-          });
-        } catch {
-          failed += 1;
-        }
-      }
-      const parts = [`${ok} synced`];
-      if (failed) parts.push(`${failed} failed`);
-      (failed ? toast.warning : toast.success)(`Web sync · ${parts.join(" · ")}`);
-      if (ok > 0) void router.invalidate();
-    } finally {
-      setWebSyncing(false);
     }
   };
 
@@ -730,20 +687,6 @@ function PortfolioPage() {
         </div>
         {selectedIds.size > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className={actionBtnClass}
-              onClick={() => void bulkWebSync()}
-              disabled={busy}
-            >
-              {webSyncing ? (
-                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-              ) : (
-                <Globe className="h-3 w-3 mr-1" />
-              )}
-              {webSyncing ? "Syncing Web…" : "Web Sync"}
-            </Button>
             <Button
               variant="outline"
               size="sm"

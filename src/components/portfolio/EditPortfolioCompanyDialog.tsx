@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Pencil } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { updatePortfolioCompany } from "@/utils/sheets.functions";
 import { normalizeFocusArea } from "@/lib/focus-area-utils";
 import { toast } from "sonner";
@@ -21,7 +23,57 @@ import { lookupCompanyFn } from "@/utils/portco-lookup.functions";
 import { parseDomainList } from "@/lib/company-domains";
 import { isLinkedInCompanyUrl } from "@/lib/portco-fields";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
-import { PROFILE_FIELDS } from "@/lib/portco-list-view";
+import { PROFILE_FIELD_DEFS, canonicalOption, type PortcoFieldDef } from "@/lib/portco-fields-schema";
+import { editDraftValue, storedFromDraft } from "@/lib/portco-table-format";
+
+const NONE = "__none__";
+const NUMERIC = new Set(["DTC Investment ($M)", "DTC Ownership"]);
+const LONG_TEXT = new Set(["Sales Momentum", "DTC - Sales Assist Activity"]);
+const FIELD_LABEL: Record<string, string> = { "DTC Investment ($M)": "DTC Investment ($M)", "DTC Ownership": "DTC Ownership (%)", "GTM Marketing/PMF": "Product/Market Fit" };
+
+/** Stored profile value → what the form starts with (choices canonical, ownership as a percent). */
+function initialDraft(def: PortcoFieldDef, stored: string): string {
+  const v = (stored || "").trim();
+  if (NUMERIC.has(def.name)) return editDraftValue(def.name, v);
+  if (def.type === "enum") return canonicalOption(def, v);
+  if (def.type === "multi_enum") return v.split(/\s*,\s*/).filter(Boolean).map((x) => canonicalOption(def, x)).join(", ");
+  return v;
+}
+
+function ProfileInput({ def, value, onChange }: { def: PortcoFieldDef; value: string; onChange: (v: string) => void }) {
+  if (def.type === "enum") {
+    const opts = def.options || [];
+    return (
+      <Select value={value} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
+        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NONE} className="text-xs italic text-muted-foreground">Clear</SelectItem>
+          {value && !opts.includes(value) && <SelectItem value={value} className="text-xs">{value}</SelectItem>}
+          {opts.map((o) => <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    );
+  }
+  if (def.type === "multi_enum") {
+    const cur = value ? value.split(/\s*,\s*/).filter(Boolean) : [];
+    return (
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 rounded-md border border-input px-2 py-1.5">
+        {(def.options || []).map((o) => (
+          <label key={o} className="flex items-center gap-1.5 text-xs">
+            <Checkbox checked={cur.includes(o)} onCheckedChange={(c) => onChange((c ? [...cur, o] : cur.filter((x) => x !== o)).join(", "))} />
+            {o}
+          </label>
+        ))}
+      </div>
+    );
+  }
+  if (def.type === "date") return <Input type="date" className="h-8 text-sm" value={value} onChange={(e) => onChange(e.target.value)} />;
+  if (LONG_TEXT.has(def.name)) return <Textarea className="text-sm min-h-[56px]" value={value} onChange={(e) => onChange(e.target.value)} />;
+  return (
+    <Input className="h-8 text-sm" inputMode={NUMERIC.has(def.name) ? "decimal" : undefined} value={value} onChange={(e) => onChange(e.target.value)}
+      placeholder={def.name === "DTC Ownership" ? "e.g. 7.5" : def.name === "DTC Investment ($M)" ? "e.g. 2.5" : undefined} />
+  );
+}
 
 function fieldValue(fields: Record<string, string> | undefined, key: string): string {
   if (!fields) return "";
@@ -96,7 +148,7 @@ export function EditPortfolioCompanyDialog({
     setDescription(company.description || "");
     setAliases((company.domainAliases || []).join(", "));
     setLinkedin(company.linkedinUrl || "");
-    setProfile(Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, fieldValue(company.asanaFields, f.key)])));
+    setProfile(Object.fromEntries(PROFILE_FIELD_DEFS.map((d) => [d.name, initialDraft(d, fieldValue(company.asanaFields, d.name))])));
     setBusy(false);
     setFindNote("");
   }, [open, company]);
@@ -116,8 +168,12 @@ export function EditPortfolioCompanyDialog({
         domainAliases: parseDomainList(aliases),
         linkedinUrl: normalizeLinkedinUrl(linkedin),
         // Only changed profile values are sent, with the value they started from (conflict check).
-        profileChanges: PROFILE_FIELDS.map((f) => ({ field: f.key as string, original: fieldValue(company.asanaFields, f.key).trim(), value: (profile[f.key] || "").trim() }))
-          .filter((c) => c.value !== c.original),
+        profileChanges: PROFILE_FIELD_DEFS.flatMap((d) => {
+          const original = fieldValue(company.asanaFields, d.name).trim();
+          const draft = (profile[d.name] || "").trim();
+          if (draft === initialDraft(d, original)) return [];
+          return [{ field: d.name, original, value: NUMERIC.has(d.name) ? storedFromDraft(d.name, draft) : draft }];
+        }),
         // Companies that live only in Asana (no sheet row yet) get one created
         // on save so they become editable like every other portfolio company.
         upsertNew: company.id.startsWith("asana-pc-"),
@@ -165,114 +221,76 @@ export function EditPortfolioCompanyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit portfolio company</DialogTitle>
+          <DialogTitle>Edit {company?.name || "company"}</DialogTitle>
           <DialogDescription className="text-xs">
-            Updates the Portfolio Companies sheet row. Website and other email domains are used to match Key People.
-            If the company isn't in the sheet yet (Asana-only), saving creates its row.
+            Everything on the company page, saved in Venture Pulse. Investment profile changes are recorded in the change log.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => void findCompany()} disabled={finding || !name.trim()}>
-            {finding && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-            Find website &amp; details
-          </Button>
-          {findNote && <span className="text-[11px] text-muted-foreground">{findNote}</span>}
-        </div>
-        <div className="grid grid-cols-2 gap-3 py-2">
-          <div className="col-span-2">
-            <Label className={labelClass}>Company name *</Label>
-            <Input
-              className="h-8 text-sm"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Coactive AI"
-              autoFocus
-            />
-          </div>
-          <div className="col-span-2">
-            <Label className={labelClass}>Website</Label>
-            <Input
-              className="h-8 text-sm"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              placeholder="coactive.ai"
-            />
-          </div>
-          <div className="col-span-2">
-            <Label className={labelClass}>LinkedIn page</Label>
-            <Input
-              className="h-8 text-sm"
-              value={linkedin}
-              onChange={(e) => setLinkedin(e.target.value)}
-              placeholder="linkedin.com/company/coactive-ai"
-              aria-invalid={linkedinInvalid}
-            />
-            {linkedinInvalid && (
-              <p className="mt-1 text-[10px] text-destructive">
-                Enter a LinkedIn company page, e.g. linkedin.com/company/acme.
-              </p>
-            )}
-          </div>
-          <div className="col-span-2">
-            <Label className={labelClass}>Other email domains</Label>
-            <Input
-              className="h-8 text-sm"
-              value={aliases}
-              onChange={(e) => setAliases(e.target.value)}
-              placeholder="mavenagi.com, maven.ai"
-            />
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              People with these email addresses show as Key People. Gmail, Outlook and similar are never used.
-            </p>
-          </div>
-          <div>
-            <Label className={labelClass}>Focus area</Label>
-            <Input
-              className="h-8 text-sm"
-              value={focusArea}
-              onChange={(e) => setFocusArea(e.target.value)}
-              placeholder="AI / Data"
-            />
-          </div>
-          <div>
-            <Label className={labelClass}>HQ</Label>
-            <Input
-              className="h-8 text-sm"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="San Jose, CA"
-            />
-          </div>
-          <div className="col-span-2">
-            <Label className={labelClass}>Summary</Label>
-            <Textarea
-              className="text-sm min-h-[64px]"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What the company does…"
-            />
-          </div>
-          <div className="col-span-2 pt-1 text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">DTC investment profile</div>
-          {PROFILE_FIELDS.map((f) => (
-            <div key={f.key}>
-              <Label className={labelClass}>{f.label}</Label>
-              <Input
-                className="h-8 text-sm"
-                list={`portco-profile-${f.key === "DTC Priority" ? "priority" : f.key === "Company Stage" ? "stage" : "none"}`}
-                value={profile[f.key] || ""}
-                onChange={(e) => setProfile((p) => ({ ...p, [f.key]: e.target.value }))}
-              />
+        <div className="space-y-5 py-1">
+          <section className="space-y-3">
+            <h4 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Name &amp; tagline</h4>
+            <div>
+              <Label className={labelClass}>Company name *</Label>
+              <Input className="h-8 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="Coactive AI" autoFocus />
             </div>
-          ))}
-          <datalist id="portco-profile-priority">
-            <option value="1 - Needle Mover" /><option value="2 - Nurture" /><option value="3 - Back Burner" />
-          </datalist>
-          <datalist id="portco-profile-stage">
-            {["Seed", "Series A", "Series B", "Series C", "Series D", "Growth", "Exited"].map((v) => <option key={v} value={v} />)}
-          </datalist>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className={labelClass}>Focus area</Label>
+                <Input className="h-8 text-sm" value={focusArea} onChange={(e) => setFocusArea(e.target.value)} placeholder="AI / Data" />
+              </div>
+              <div>
+                <Label className={labelClass}>HQ</Label>
+                <Input className="h-8 text-sm" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="San Jose, CA" />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">The tagline under the company name reads “Focus area · HQ”.</p>
+            <div>
+              <Label className={labelClass}>Description</Label>
+              <Textarea className="text-sm min-h-[110px]" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What the company does…" />
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t border-border pt-4">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">Company information</h4>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => void findCompany()} disabled={finding || !name.trim()}>
+                {finding && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                Find website &amp; details
+              </Button>
+            </div>
+            {findNote && <p className="text-[11px] text-muted-foreground">{findNote}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className={labelClass}>Website</Label>
+                <Input className="h-8 text-sm" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="coactive.ai" />
+              </div>
+              <div>
+                <Label className={labelClass}>LinkedIn page</Label>
+                <Input className="h-8 text-sm" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="linkedin.com/company/coactive-ai" aria-invalid={linkedinInvalid} />
+                {linkedinInvalid && <p className="mt-1 text-[10px] text-destructive">Enter a LinkedIn company page, e.g. linkedin.com/company/acme.</p>}
+              </div>
+              <div className="col-span-2">
+                <Label className={labelClass}>Other email domains</Label>
+                <Input className="h-8 text-sm" value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="mavenagi.com, maven.ai" />
+                <p className="mt-1 text-[10px] text-muted-foreground">People with these email addresses show as Key People. Gmail, Outlook and similar are never used.</p>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-3 border-t border-border pt-4">
+            <h4 className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground">DTC investment profile</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {PROFILE_FIELD_DEFS.map((d) => (
+                <div key={d.name} className={d.type === "multi_enum" || LONG_TEXT.has(d.name) ? "col-span-2" : ""}>
+                  <Label className={labelClass}>{FIELD_LABEL[d.name] || d.name}</Label>
+                  <ProfileInput def={d} value={profile[d.name] || ""} onChange={(v) => setProfile((p) => ({ ...p, [d.name]: v }))} />
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
 
         <DialogFooter>
