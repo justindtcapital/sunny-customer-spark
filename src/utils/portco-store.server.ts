@@ -3,7 +3,7 @@
  * Sheets tabs). Replaces Asana as the source of truth: every write lands here, never in Asana.
  * Edits re-read the row fresh, refuse conflicting changes, write only changed cells and log them.
  */
-import { appendSheetRows, colLetters, ensureHeaderWidth, ensureTab, fetchSheetTab, updateSheetCells } from "./sheets.server";
+import { appendSheetRows, colLetters, ensureTab, fetchSheetTab, updateSheetCells } from "./sheets.server";
 import type { Workstream, WorkstreamSegment } from "@/lib/workstream-parse";
 import type { FieldChange } from "@/lib/asana-field-payload";
 import { PORTDEV_OPS } from "@/lib/portco-import";
@@ -92,7 +92,6 @@ export async function fetchPortcoProfileFields(): Promise<Map<string, { name: st
 /** Save profile edits for one PortCo; creates its profile row the first time. */
 export async function saveProfileFields(input: { urid?: string; company: string; changes: CellChange[] }, by: string): Promise<PortcoProfile> {
   await ensureTab(PROFILES_TAB, PROFILE_HEADERS);
-  await ensureHeaderWidth(PROFILES_TAB, PROFILE_HEADERS);
   const { headers, items } = parseTab(await fetchSheetTab(PROFILES_TAB, true));
   const key = input.company.trim().toLowerCase();
   let hit = items.find((x) => (input.urid && x.cells["PortCo URID"] === input.urid) || (x.cells["Company"] || "").toLowerCase() === key);
