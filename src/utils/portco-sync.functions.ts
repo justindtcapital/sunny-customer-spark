@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { fetchTrackerPortfolioEvents as fetchPortfolioEvents } from "./tracker-events.server";
 import { fetchPortcoProfileFields as fetchPortcoFields } from "./portco-store.server";
 import { runSyncEventExposure } from "./event-exposure.functions";
-import { matchOrganization, isSumbleConfigured } from "./sumble.server";
 import { fillBlankPortfolioFields, logOpsEvent } from "./sheets.server";
 import type { PortfolioEvent } from "@/lib/types";
 

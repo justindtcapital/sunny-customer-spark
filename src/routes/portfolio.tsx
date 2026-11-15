@@ -40,7 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Building2, Users, Plus, Trash2, Globe, Pencil, ArrowLeft, Loader2, X, Search } from "lucide-react";
+import { Building2, Users, Plus, Trash2, Pencil, ArrowLeft, Loader2, X, Search } from "lucide-react";
 import { usePortfolioFilters } from "@/lib/portfolio-filter-context";
 import { useFilterOptions } from "@/lib/filter-options-context";
 import { companyDomainMap, isSharedEmailDomain, normalizeDomain, suggestDomainMatches } from "@/lib/company-domains";
