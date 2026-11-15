@@ -77,7 +77,7 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
     const pending = sessionStorage.getItem(key);
     if (!pending) return;
     sessionStorage.removeItem(key);
-    if (initial.length === 0) send(pending);
+    console.log("VIC-HANDOFF", initial.length, status); if (initial.length === 0) send(pending);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
