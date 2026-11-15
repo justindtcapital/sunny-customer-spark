@@ -68,7 +68,8 @@ export function fieldMeta(def: PortcoFieldDef, stored: string): WorkstreamFieldM
 
 /** Validate one edit and return the string to store. Throws a user-readable error. */
 export function storedValueFor(def: PortcoFieldDef, value: string | string[]): string {
-  const list = Array.isArray(value) ? value.map(clean).filter(Boolean) : [clean(value)].filter(Boolean);
+  // Multi-choice values may arrive as one comma-separated string (no option contains a comma).
+  const list = Array.isArray(value) ? value.map(clean).filter(Boolean) : def.type === "multi_enum" ? splitMulti(value) : [clean(value)].filter(Boolean);
   switch (def.type) {
     case "enum":
     case "multi_enum": {

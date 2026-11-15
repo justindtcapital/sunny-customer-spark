@@ -166,7 +166,7 @@ export const updatePortfolioCompany = createServerFn({ method: "POST" })
       upsertNew?: boolean;
     }) => {
       if (!data.name?.trim()) throw new Error("Company name is required");
-      if (data.profileChanges && (!Array.isArray(data.profileChanges) || data.profileChanges.length > 20 || data.profileChanges.some((c) => typeof c?.field !== "string" || c.field.length > 80 || typeof c.original !== "string" || typeof c.value !== "string" || c.original.length > 200 || c.value.length > 200)))
+      if (data.profileChanges && (!Array.isArray(data.profileChanges) || data.profileChanges.length > 20 || data.profileChanges.some((c) => typeof c?.field !== "string" || c.field.length > 80 || typeof c.original !== "string" || typeof c.value !== "string" || c.original.length > 2000 || c.value.length > 2000)))
         throw new Error("Invalid profile fields");
       if (data.linkedinUrl !== undefined && !isLinkedInCompanyUrl(data.linkedinUrl))
         throw new Error("LinkedIn URL must be a linkedin.com/company/… page");
