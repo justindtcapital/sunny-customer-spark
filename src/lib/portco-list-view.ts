@@ -30,6 +30,13 @@ export type PriorityChip = (typeof PRIORITY_CHIPS)[number];
 
 export const PRIORITY_LABELS: Record<PriorityChip, string> = { NM: "Needle Mover", NU: "Nurture", BB: "Back Burner" };
 
+/** Pill colors for the DTC priority chips, shared by the company list and the Edit PortCos table. */
+export const PRIORITY_TONE: Record<PriorityChip, string> = {
+  NM: "border-success/40 bg-success/15 text-success",
+  NU: "border-warning/40 bg-warning/15 text-warning",
+  BB: "border-destructive/40 bg-destructive/15 text-destructive",
+};
+
 /** Known chip for a raw priority, or null for anything else (no extra categories). */
 export function priorityChip(raw: string): PriorityChip | null {
   const a = priorityAbbrev(raw);
