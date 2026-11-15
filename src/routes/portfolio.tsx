@@ -7,7 +7,7 @@ import {
   bulkDeletePortfolioCompanies,
 } from "@/utils/sheets.functions";
 import { fetchAsanaPortcoData, type AsanaPortcoData } from "@/utils/asana.functions";
-import { syncPortcoFromAsana, syncPortcoFromWeb } from "@/utils/portco-sync.functions";
+import { syncPortcoFromWeb } from "@/utils/portco-sync.functions";
 import { fetchPortcoEventIndexFn } from "@/utils/event-planner.functions";
 import { mergeCompanyEvents } from "@/lib/event-portcos";
 import type { PortfolioCompany, Contact, PortfolioDomain, EmailActivityRecord } from "@/lib/types";
@@ -291,7 +291,6 @@ function PortfolioPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [asanaSyncing, setAsanaSyncing] = useState(false);
   const [webSyncing, setWebSyncing] = useState(false);
   const { filters } = usePortfolioFilters();
   const [chipDomain, setChipDomain] = useState<string>("all");
@@ -461,7 +460,7 @@ function PortfolioPage() {
   );
   const allSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
-  const busy = deleting || asanaSyncing || webSyncing;
+  const busy = deleting || webSyncing;
 
   const toggleId = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -511,57 +510,6 @@ function PortfolioPage() {
     } finally {
       setDeleting(false);
       setConfirmDeleteOpen(false);
-    }
-  };
-
-  const bulkAsanaSync = async () => {
-    const chosen = selectedCompanies;
-    if (chosen.length === 0) return;
-    setAsanaSyncing(true);
-    let ok = 0;
-    let failed = 0;
-    try {
-      for (const company of chosen) {
-        try {
-          const res = await syncPortcoFromAsana({ data: { companyName: company.name } });
-          if (!res.ok) {
-            failed += 1;
-            continue;
-          }
-          ok += 1;
-          const profileWebsite =
-            Object.entries(res.asanaFields).find(([k]) => /website|^url$|web\s*site/i.test(k))?.[1] ||
-            "";
-          const profileLinkedin =
-            Object.entries(res.asanaFields).find(([k]) => /linkedin/i.test(k))?.[1] || "";
-          const profileLocation =
-            Object.entries(res.asanaFields).find(([k]) =>
-              /^hq$|headquarter|location|city|geograph/i.test(k),
-            )?.[1] || "";
-          const profileDescription =
-            Object.entries(res.asanaFields).find(([k]) =>
-              /summary|description|about|overview/i.test(k),
-            )?.[1] || "";
-          patchCompanyLocal({
-            ...company,
-            asanaFields:
-              Object.keys(res.asanaFields).length > 0 ? res.asanaFields : company.asanaFields,
-            events: res.events,
-            website: company.website || profileWebsite || company.website,
-            linkedinUrl: company.linkedinUrl || profileLinkedin || company.linkedinUrl,
-            location: company.location || profileLocation || company.location,
-            description: company.description || profileDescription || company.description,
-          });
-        } catch {
-          failed += 1;
-        }
-      }
-      const parts = [`${ok} synced`];
-      if (failed) parts.push(`${failed} failed`);
-      (failed ? toast.warning : toast.success)(`Asana sync · ${parts.join(" · ")}`);
-      if (ok > 0) void router.invalidate();
-    } finally {
-      setAsanaSyncing(false);
     }
   };
 
