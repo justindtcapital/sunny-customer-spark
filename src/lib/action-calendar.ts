@@ -20,3 +20,12 @@ export function actionDayCounts(rows: { due: string }[]): Map<string, number> {
   for (const row of rows) { const day = dateKey(row.due); if (day) counts.set(day, (counts.get(day) || 0) + 1); }
   return counts;
 }
+/** Monday–Sunday week containing `today` (YYYY-MM-DD), inclusive. */
+export function currentWeekRange(today: string): NonNullable<ActionDateRange> {
+  const d = new Date(`${today}T12:00:00Z`);
+  const offset = (d.getUTCDay() + 6) % 7;
+  const start = new Date(d.getTime() - offset * 86400000);
+  const end = new Date(start.getTime() + 6 * 86400000);
+  const iso = (x: Date) => x.toISOString().slice(0, 10);
+  return { start: iso(start), end: iso(end) };
+}

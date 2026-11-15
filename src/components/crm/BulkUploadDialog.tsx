@@ -102,6 +102,10 @@ const FIELDS: { key: MapKey; label: string; required?: boolean }[] = [
 
 const NO_COLUMN = -1;
 
+// Fields a user can fill with one value for every row when the file lacks that column.
+const SHARED_FIELDS = ["location", "company", "title", "sector", "prime"] as const;
+type SharedKey = (typeof SHARED_FIELDS)[number];
+
 // Pragmatic email check — catches the common malformed cases (missing @, no
 // domain) without rejecting valid-but-unusual addresses.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -290,6 +294,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
   const [grid, setGrid] = useState<string[][] | null>(null);
   const [fileName, setFileName] = useState("");
   const [mapping, setMapping] = useState<Mapping>(emptyMapping());
+  const [shared, setShared] = useState<Partial<Record<SharedKey, string>>>({});
   const [eventName, setEventName] = useState("");
   // Uploads must say which tracker event they belong to, or that they aren't event-related.
   const [eventDecided, setEventDecided] = useState(false);
@@ -347,16 +352,19 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     if (!grid || grid.length < 2) {
       return { rows: [] as ParsedRow[], items: [] as PreflightItem<ParsedRow>[], skipped: 0, invalid: 0, missingRequired: 0, dataRows: 0 };
     }
-    const cell = (r: string[], idx: number) => (idx >= 0 && idx < r.length ? (r[idx] || "").trim() : "");
+    const col = (r: string[], idx: number) => (idx >= 0 && idx < r.length ? (r[idx] || "").trim() : "");
+    // A shared value fills a field only when no CSV column is mapped to it.
+    const cell = col;
+    const fill = (k: SharedKey) => (mapping[k] === NO_COLUMN ? (shared[k] || "").trim() : "");
     const all: ParsedRow[] = grid.slice(1).map((r) => ({
       name: cell(r, mapping.name) || [cell(r, mapping.firstName), cell(r, mapping.lastName)].filter(Boolean).join(" "),
-      title: cell(r, mapping.title),
-      company: cell(r, mapping.company),
+      title: cell(r, mapping.title) || fill("title"),
+      company: cell(r, mapping.company) || fill("company"),
       email: normalizeEmails(cell(r, mapping.email)),
       phone: cell(r, mapping.phone),
-      location: cell(r, mapping.location),
-      prime: cell(r, mapping.prime),
-      sector: cell(r, mapping.sector),
+      location: cell(r, mapping.location) || fill("location"),
+      prime: cell(r, mapping.prime) || fill("prime"),
+      sector: cell(r, mapping.sector) || fill("sector"),
       linkedin: normalizeLinkedinUrl(cell(r, mapping.linkedin)),
       headline: "",
       employmentHistory: "",
@@ -366,7 +374,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     // Existing people are still sent: the server tags them (event/PortCo) without creating a copy.
     const unique = items.filter(i => i.status === "ready" || i.status === "existing").map(i => i.row);
     return { rows: unique, items, skipped: items.filter(i => i.status === "existing" || i.status === "skipped").length, invalid: 0, missingRequired: 0, dataRows: all.length };
-  }, [grid, mapping, existingEmails, fixes, prospecting]);
+  }, [grid, mapping, shared, existingEmails, fixes, prospecting]);
 
   const { rows, skipped } = report;
   const items = report.items ?? [];
@@ -397,6 +405,7 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
     setGrid(null);
     setFileName("");
     setMapping(emptyMapping());
+    setShared({});
     setEventName("");
     setEventDecided(false);
     setPortcoNames([]);
@@ -526,6 +535,21 @@ export function BulkUploadDialog({ open, onOpenChange, portcoOptions = [], exist
                     );
                   })}
                 </div>
+                {SHARED_FIELDS.some((k) => mapping[k] === NO_COLUMN) && (
+                  <div className="mt-3">
+                    <Label className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1 block">
+                      Same value for everyone (optional)
+                    </Label>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      {SHARED_FIELDS.filter((k) => mapping[k] === NO_COLUMN).map((k) => (
+                        <div key={k} className="flex items-center gap-2">
+                          <span className="text-[11px] w-20 shrink-0 text-muted-foreground">{FIELDS.find((f) => f.key === k)?.label}</span>
+                          <Input value={shared[k] || ""} maxLength={200} placeholder="Applies to every row" className="h-8 text-xs flex-1" onChange={(e) => setShared((v) => ({ ...v, [k]: e.target.value }))} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {missingRequired && (
                   <p className="text-[11px] text-destructive mt-1.5">
                     {prospecting ? "Map a Name (or First/Last name) column to enable import." : "Map both Name and Email to enable import."}
