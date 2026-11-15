@@ -16,14 +16,7 @@ import { isNameOnlyAttendeeEmail } from "@/lib/email-address";
 import { fetchAliasActivities, getActivityAliases, getInternalConfig } from "./gmail.server";
 import { parseToIsoDate, compareIsoDatesDesc } from "@/lib/sheet-date";
 import { parseWorkstreamName, type Workstream } from "@/lib/workstream-parse";
-import {
-  buildCustomFieldsPayload,
-  workstreamNameChange,
-  sameValue,
-  type AsanaFieldType,
-  type FieldChange,
-  type WorkstreamFieldMeta,
-} from "@/lib/asana-field-payload";
+import { type AsanaFieldType, type WorkstreamFieldMeta } from "@/lib/asana-field-payload";
 
 const ASANA_BASE = "https://app.asana.com/api/1.0";
 const CACHE_TTL_MS = 60 * 1000; // 1 minute — Asana edits should show up quickly
