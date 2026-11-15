@@ -18,7 +18,7 @@ import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { isWorkstreamCompleted } from "@/lib/workstream-parse";
 import { cleanPriority } from "@/lib/portco-matrix";
-import { isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, PRIORITY_TONE, type PriorityChip } from "@/lib/portco-list-view";
+import { isExitedStage, matchesListFilter, priorityChip, PRIORITY_CHIPS, PRIORITY_LABELS, PRIORITY_TONE } from "@/lib/portco-list-view";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useRef } from "react";
