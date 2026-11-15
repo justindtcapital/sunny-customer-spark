@@ -115,7 +115,9 @@ export const createWorkstreamFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true; workstream: Workstream } | { ok: false; error: string }> => {
     try {
       const { createWorkstream } = await import("./portco-store.server");
-      return { ok: true, workstream: await createWorkstream(data, await editorName(context.teamEmail)) };
+      const by = await editorName(context.teamEmail);
+      // New workstreams belong to whoever creates them unless an owner is chosen.
+      return { ok: true, workstream: await createWorkstream({ ...data, owner: data.owner || by }, by) };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
