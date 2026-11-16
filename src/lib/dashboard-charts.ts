@@ -29,7 +29,7 @@ export const CHART_DATASETS = {
   outreach: {
     label: "Outreach", dashboard: "network",
     description: "One row per outreach touch (sent email, campaign send, logged activity, prospect outreach), one per person per day.",
-    fields: { month: "Touch month, YYYY-MM", week: "Week starting (Monday), YYYY-MM-DD", teammate: "Teammate who did the outreach (gets credit)", owner: "Contact owner (Relationship Prime)", source: "Email, Campaign, Logged or Prospect outreach", tier: "Person's current level (Council, Hot, Warm, Cold, Prospect)", domain: "Person's primary domain", market: "Person's market/city" },
+    fields: { month: "Touch month, YYYY-MM", week: "Week starting (Monday), YYYY-MM-DD", teammate: "Teammate who did the outreach (gets credit)", owner: "Contact owner (Relationship Prime)", source: "Email, Campaign, Logged or Prospect outreach", tier: "Person's current level (Council, Hot, Warm, Cold, Prospect; PortCo people are \"Not rated (PortCo)\")", domain: "Person's primary domain", market: "Person's market/city" },
     timeFields: ["month", "week"],
   },
   movements: {
@@ -48,7 +48,7 @@ export const CHART_DATASETS = {
   people: {
     label: "People", dashboard: "network",
     description: "One row per person in Network and Prospecting (current state, not dated).",
-    fields: { tier: "Level (Council, Hot, Warm, Cold, Prospect)", owner: "Owner (Relationship Prime)", domain: "Primary domain", market: "Market/city", type: "PortCo, Dell, Partner or Network", company: "Company" },
+    fields: { tier: "Level (Council, Hot, Warm, Cold, Prospect; PortCo people are \"Not rated (PortCo)\")", owner: "Owner (Relationship Prime)", domain: "Primary domain", market: "Market/city", type: "PortCo, Dell, Partner or Network", company: "Company" },
   },
 } satisfies Record<string, DatasetDef>;
 

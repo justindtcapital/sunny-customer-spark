@@ -96,7 +96,7 @@ export function NetworkDashboard() {
     const ownerOf = (k: string) => creditedOwners(people.get(k)?.prime);
     const outreach: ChartRecord[] = touchesInWindow(touches, 3650).map((t) => {
       const p = people.get(t.person);
-      return { _date: t.date, month: t.date.slice(0, 7), week: weekStart(t.date), teammate: t.actor || UNASSIGNED, owner: ownerOf(t.person), source: t.source, tier: p?.tier || "", domain: p?.domain || "", market: p?.market || "" };
+      return { _date: t.date, month: t.date.slice(0, 7), week: weekStart(t.date), teammate: t.actor || UNASSIGNED, owner: ownerOf(t.person), source: t.source, tier: p?.tier || (p?.type === "PortCo" ? "Not rated (PortCo)" : ""), domain: p?.domain || "", market: p?.market || "" };
     });
     const moves: ChartRecord[] = movements.flatMap((m) => {
       const c = classifyMovement(m); const d = dayOf(m.ts);
