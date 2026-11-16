@@ -538,14 +538,14 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       </div>}
       {!doneShown && !canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
       {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
-      <FilingControl x={x} filing={filingOf(x)} />
+      {!doneShown && <FilingControl x={x} filing={filingOf(x)} />}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 text-xs sm:grid-cols-4">
         <div><dt className="text-muted-foreground">Source</dt><dd className="font-medium">{x.source}</dd></div>
         <div><dt className="text-muted-foreground">Created</dt><dd className="font-medium tabular-nums">{x.date ? x.date.slice(0, 10) : "—"}</dd></div>
         <div><dt className="text-muted-foreground">Due</dt><dd className="font-medium tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</dd></div>
         <div><dt className="text-muted-foreground">Owner</dt><dd className="font-medium">{teamMemberFor(x.owner)?.displayName || x.owner || "—"}</dd></div>
       </dl>
-      <FollowUpEditor inline key={x.id} reminder={x} />
+      {!doneShown && <FollowUpEditor inline key={x.id} reminder={x} />}
       {similar.length > 0 && <div className="space-y-2 rounded-md border border-border p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Similar actions · {similar.length}</div>
