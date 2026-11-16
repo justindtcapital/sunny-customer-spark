@@ -38,7 +38,7 @@ export function QuickUpdateButton({ onStarted }: { onStarted?: () => void }) {
 
   return (
     <>
-      <Button size="sm" className="w-full gap-1.5" onClick={() => setOpen(true)}><Zap className="size-3.5" />Update V.I.C.</Button>
+      <Button size="sm" className="w-full gap-1.5" onClick={() => setOpen(true)}><Zap className="size-3.5" />Update with Vic</Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
