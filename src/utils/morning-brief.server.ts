@@ -126,7 +126,7 @@ function assemble(text: string, today: string, f: Facts) {
       const key = c ? norm(c.name) : norm(x.name);
       const inCampaigns = activeCampaigns.filter((cp) => f.members.some((mb) => mb.campaignId === cp.id && norm(mb.name) === key)).map((cp) => cp.name);
       const evs = f.attendees.filter((a) => norm(a.name) === key).map((a) => f.events.find((e) => e.urid === a.eventUrid)).filter((e): e is NonNullable<typeof e> => !!e && daysBetween(e.start, today) <= 365).map((e) => e.name);
-      if (c) return { name: c.name, email: c.email || email, contactId: c.urid || c.id, company: c.company, title: c.title || "", temperature: c.portco ? "PortCo" : c.temperature, lastContact: c.lastContact, campaigns: inCampaigns, events: [...new Set(evs)], status: "matched" as const };
+      if (c) return { name: c.name, email: c.email || email, contactId: c.urid || c.id, company: c.company, title: c.title || "", temperature: c.temperature, lastContact: c.lastContact, campaigns: inCampaigns, events: [...new Set(evs)], status: "matched" as const };
       const hint = personHints(x.name, m.text, m.title);
       const domain = normalizeDomain(email);
       const fromCsv = csvCompany.get(norm(x.name)) || "";
