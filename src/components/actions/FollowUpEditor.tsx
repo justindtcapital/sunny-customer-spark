@@ -18,6 +18,7 @@ import { searchPeopleFn, fetchReviewCompaniesFn } from "@/utils/knowledge.functi
 import { fetchPartnersFn } from "@/utils/partners.functions";
 import { CompanyPicker } from "@/components/actions/CompanyPicker";
 import { companyKey, type CompanyOption } from "@/lib/company-picker";
+import { withRetry } from "@/lib/follow-up-completion";
 
 /** `inline` keeps the form always open in the detail pane (no title or Cancel; saving keeps it open). */
 export function FollowUpEditor({ reminder, onClose, inline = false }: { reminder: HomeReminder; onClose?: () => void; inline?: boolean }) {
@@ -26,6 +27,7 @@ export function FollowUpEditor({ reminder, onClose, inline = false }: { reminder
   const [query, setQuery] = useState("");
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companyError, setCompanyError] = useState(false);
+  const [companiesLoading, setCompaniesLoading] = useState(true);
   const [results, setResults] = useState<{ name: string; email: string; company: string; where: string }[]>([]);
   const save = useServerFn(editFollowUpFn);
   const search = useServerFn(searchPeopleFn);
@@ -37,13 +39,14 @@ export function FollowUpEditor({ reminder, onClose, inline = false }: { reminder
     .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name));
   useEffect(() => {
     let live = true;
-    void Promise.all([loadCompanies(), loadPartners()]).then(([portcos, partners]) => {
+    // Retried: the company list is a fresh read and can hit Google's per-minute limit.
+    void withRetry(() => Promise.all([loadCompanies(), loadPartners()]), [2_000, 5_000]).then(([portcos, partners]) => {
       if (!live) return;
       // A partner that is also a PortCo is listed once, as the PortCo.
       const seen = new Set(portcos.map(companyKey));
       setCompanies([...portcos.map((name) => ({ name, kind: "PortCo" as const })), ...partners.partners.map((p) => p.name).filter((n) => n && !seen.has(companyKey(n))).map((name) => ({ name, kind: "Partner" as const }))]
         .sort((a, b) => a.name.localeCompare(b.name)));
-    }).catch(() => { if (live) setCompanyError(true); });
+    }).catch(() => { if (live) setCompanyError(true); }).finally(() => { if (live) setCompaniesLoading(false); });
     return () => { live = false; };
   }, [loadCompanies, loadPartners]);
   useEffect(() => {
@@ -72,7 +75,7 @@ export function FollowUpEditor({ reminder, onClose, inline = false }: { reminder
       <div className="min-w-0 space-y-1"><Label htmlFor="task-due">Due date</Label><Input id="task-due" type="date" value={values.due} onChange={(e) => setValues({ ...values, due: e.target.value })} /></div>
       <div className="min-w-0 space-y-1"><Label>Action owner</Label><Select value={teamMemberFor(values.owner)?.displayName || values.owner} onValueChange={(owner) => setValues({ ...values, owner })}><SelectTrigger aria-label="Action owner" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{ACTION_OWNERS.map((o) => <SelectItem key={o.name} value={o.name}>{o.name}</SelectItem>)}</SelectContent></Select></div>
     </div>
-    <div className="space-y-1"><Label htmlFor="task-company">PortCo / Partner / Company</Label><CompanyPicker id="task-company" value={values.company} options={companies} onChange={(company) => setValues({ ...values, company })} />{companyError && <p className="text-xs text-destructive">Company choices unavailable. You can still enter a company.</p>}</div>
+    <div className="space-y-1"><Label htmlFor="task-company">PortCo / Partner / Company</Label><CompanyPicker id="task-company" value={values.company} options={companies} loading={companiesLoading} onChange={(company) => setValues({ ...values, company })} />{companyError && <p className="text-xs text-destructive">Company choices unavailable. You can still enter a company.</p>}</div>
     <div className="space-y-1"><Label>Part of workstream</Label>
       <Select value={values.workstreamGid || "none"} onValueChange={(v) => setValues({ ...values, workstreamGid: v === "none" ? "" : v })}>
         <SelectTrigger aria-label="Part of workstream" className="w-full"><SelectValue /></SelectTrigger>

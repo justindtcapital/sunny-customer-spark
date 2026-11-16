@@ -10,7 +10,7 @@ import { companyKey, exactCompany, rankCompanies, type CompanyOption } from "@/l
  * Searchable PortCo / Partner picker. Matching ignores spaces and case, and a listed
  * company is always saved with its exact name; other companies can still be typed in.
  */
-export function CompanyPicker({ id, value, options, onChange }: { id?: string; value: string; options: CompanyOption[]; onChange: (v: string) => void }) {
+export function CompanyPicker({ id, value, options, loading = false, onChange }: { id?: string; value: string; options: CompanyOption[]; loading?: boolean; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ranked = useMemo(() => rankCompanies(query, options), [query, options]);
@@ -33,7 +33,8 @@ export function CompanyPicker({ id, value, options, onChange }: { id?: string; v
         <Command shouldFilter={false}>
           <CommandInput placeholder="Search PortCos and partners…" value={query} onValueChange={setQuery} />
           <CommandList>
-            <CommandEmpty>No PortCo or partner matches.</CommandEmpty>
+            <CommandEmpty>{loading ? "Loading PortCos and partners…" : "No PortCo or partner matches."}</CommandEmpty>
+            {loading && ranked.length > 0 && <div className="px-3 py-1.5 text-xs text-muted-foreground">Still loading the full list…</div>}
             {groups.map(([kind, list]) => (
               <CommandGroup key={kind} heading={kind === "PortCo" ? "PortCos" : "Partners"}>
                 {list.slice(0, 50).map((o) => (
@@ -44,7 +45,7 @@ export function CompanyPicker({ id, value, options, onChange }: { id?: string; v
                 ))}
               </CommandGroup>
             ))}
-            {query.trim() && !exact && (
+            {query.trim() && !exact && !loading && (
               <CommandGroup heading="Other company">
                 <CommandItem value={`other:${query}`} onSelect={() => commit(query.trim())}>Use “{query.trim()}”</CommandItem>
               </CommandGroup>
