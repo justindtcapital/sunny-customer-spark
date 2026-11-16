@@ -6,6 +6,8 @@ import { fetchAsanaPortcoData } from "@/utils/asana.functions";
 import { fetchContacts, fetchTargets } from "@/utils/sheets.functions";
 import { TierChart } from "@/components/crm/NetworkPyramid";
 import { PYRAMID_TIERS, type PyramidTier } from "@/lib/network-pyramid";
+import { contactTier } from "@/lib/network-tiers";
+import { markPortCoContacts } from "@/lib/contact-kind";
 import { buildMatrixPoints } from "@/lib/portco-matrix";
 import { OwnershipMatrix } from "@/components/dashboard/OwnershipMatrix";
 import { fetchPortfolioCompanies } from "@/utils/sheets.functions";
@@ -71,10 +73,14 @@ function DashboardsHub() {
   const { data: targets } = useQuery({ queryKey: ["dashboards-targets"], queryFn: () => fetchTargets().catch(() => []), staleTime: 5 * 60_000 });
   const tierCounts = useMemo(() => {
     const counts = Object.fromEntries(PYRAMID_TIERS.map((t) => [t, 0])) as Record<PyramidTier, number | null>;
-    for (const c of contacts ?? []) if (c.temperature in counts) counts[c.temperature as PyramidTier] = (counts[c.temperature as PyramidTier] || 0) + 1;
+    // PortCo people aren't rated, so they never count toward a tier.
+    for (const c of markPortCoContacts(contacts ?? [], (companies ?? []).map((p) => p.name))) {
+      const tier = contactTier(c);
+      if (tier && tier in counts) counts[tier] = (counts[tier] || 0) + 1;
+    }
     counts.Prospect = targets ? targets.length : null;
     return counts;
-  }, [contacts, targets]);
+  }, [contacts, targets, companies]);
 
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-5">

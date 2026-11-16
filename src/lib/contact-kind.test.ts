@@ -51,3 +51,14 @@ describe("contact types", () => {
     expect(toggleKind(hidden, "Partner")).toEqual([]);
   });
 });
+
+describe("markPortCoContacts", () => {
+  it("types only PortCo people, manual type first", () => {
+    const out = markPortCoContacts([
+      person({ company: "MavenAGI", temperature: "Council" }),
+      person({ company: "Acme" }),
+      person({ company: "MavenAGI", contactType: "Network" }),
+    ], ["MavenAGI"]);
+    expect(out.map((c) => c.kind)).toEqual(["PortCo", undefined, undefined]);
+  });
+});
