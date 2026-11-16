@@ -26,12 +26,11 @@ import { ActionComposer, type ActionContext } from "@/components/actions/ActionC
 import { FollowUpEditor } from "@/components/actions/FollowUpEditor";
 import { editFollowUpFn } from "@/utils/follow-up-edit.functions";
 import { followUpValues } from "@/lib/follow-up-edit";
-import { CompleteFollowUpForm } from "@/components/actions/CompleteFollowUpForm";
 import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { actionDueLabel, inActionRange, currentWeekRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
 import { fileFollowUp, portcoMatchKey, type Filing } from "@/lib/action-grouping";
-import { completionPlan, dropReminders } from "@/lib/follow-up-completion";
+import { canUndoCompletion, completionPlan, dropReminders, restoreReminder, withRetry } from "@/lib/follow-up-completion";
 import { ACTION_SORTS, abbreviateTitle, companyKindVisible, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
 
 type FeedToggles = Record<CompanyKind | "workstreams" | "followups", boolean>;
@@ -279,7 +278,8 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeSel, setMergeSel] = useState<string[]>([]);
   const [pick, setPick] = useState({ summary: "", person: "", due: "", company: "" });
-  const [noteFor, setNoteFor] = useState("");
+  // The follow-up just marked complete: it leaves the list but stays open in the detail pane.
+  const [justDone, setJustDone] = useState<{ x: Reminder; status: "saving" | "saved" | "undoing" } | null>(null);
 
   const { data: homeData, isLoading: fuLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
@@ -369,10 +369,11 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
 
   const firstGroupFu = (g: (typeof groups)[number] | undefined) => g ? [...g.ws.flatMap((w) => g.linked.get(w.gid) || []), ...g.general][0] : undefined;
   const firstSel: Sel | null = flat[0] ? (flat[0].ws ? { kind: "ws", id: flat[0].ws.gid } : { kind: "fu", id: flat[0].fu!.id }) : groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
-  const resolved = sel?.kind === "ws" ? (toggles.workstreams && wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (toggles.followups && fuList.some((x) => x.id === sel.id) ? sel : null) : null;
+  const doneShown = sel?.kind === "fu" && justDone?.x.id === sel.id ? justDone : null;
+  const resolved = doneShown ? sel : sel?.kind === "ws" ? (toggles.workstreams && wsList.some((w) => w.gid === sel.id) ? sel : null) : sel?.kind === "fu" ? (toggles.followups && fuList.some((x) => x.id === sel.id) ? sel : null) : null;
   const cur = resolved || firstSel;
   const ws = cur?.kind === "ws" ? wsList.find((w) => w.gid === cur.id) || null : null;
-  const r = cur?.kind === "fu" ? fuList.find((x) => x.id === cur.id) || null : null;
+  const r = cur?.kind === "fu" ? doneShown?.x || fuList.find((x) => x.id === cur.id) || null : null;
   // Detail pane: follow-ups linked to this workstream first, falling back to the same company.
   const wsGroup = ws ? groups.find((g) => g.ws.some((w) => w.gid === ws.gid)) : undefined;
   const wsGroupBase = ws && wsGroup ? (wsGroup.linked.get(ws.gid) || [...wsGroup.general, ...[...wsGroup.linked.values()].flat()]) : [];
@@ -418,6 +419,43 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     if (ids.length) qc.setQueryData<Awaited<ReturnType<typeof fetchHomeMomentum>>>(["my-actions", "followups", ownerEmail], (d) => dropReminders(d, (r) => ids.includes(r.id)));
     void qc.invalidateQueries({ queryKey: ["my-actions", "done"] });
     void qc.invalidateQueries({ queryKey: ["home-momentum"], refetchType: "none" });
+  };
+  /** One click: the item leaves the list, shows "Completed" here, and saves in the background (retrying Google limits). */
+  const completeNow = (x: Reminder) => {
+    const title = x.summary || `Follow-up with ${x.person}`;
+    setSel({ kind: "fu", id: x.id });
+    setHidden((h) => new Set([...h, x.id]));
+    setJustDone({ x, status: "saving" });
+    void withRetry(() => closeOne(x, false)).then((ok) => {
+      if (!ok) throw new Error("This follow-up couldn't be found to close here — open it on its own page.");
+      settle([x.id]);
+      setJustDone((d) => d?.x.id === x.id ? { x, status: "saved" } : d);
+      toast.success(`Completed: ${title}`, canUndoCompletion(x) ? { action: { label: "Undo", onClick: () => void undoComplete(x) } } : undefined);
+    }).catch((e: unknown) => {
+      console.error(e);
+      unhide([x.id]);
+      setJustDone((d) => d?.x.id === x.id ? null : d);
+      toast.error(`"${title}" wasn't marked complete and is back in your list.`, { description: e instanceof Error ? e.message : undefined });
+    });
+  };
+  /** Reopens a just-completed follow-up and puts it back in the list. */
+  const undoComplete = async (x: Reminder) => {
+    setJustDone((d) => d?.x.id === x.id ? { x, status: "undoing" } : d);
+    try {
+      const ok = await withRetry(async () => x.activityId
+        ? (await completeNote({ data: { activityId: x.activityId, resolved: false } })).success
+        : !!(await updInteraction({ data: { contactEmail: x.email!, originalNote: x.originalNote!, date: x.date, resolved: false } })).success);
+      if (!ok) throw new Error("Couldn't reopen it");
+      qc.setQueryData<Awaited<ReturnType<typeof fetchHomeMomentum>>>(["my-actions", "followups", ownerEmail], (d) => restoreReminder(d, x));
+      void qc.invalidateQueries({ queryKey: ["my-actions", "done"] });
+      unhide([x.id]);
+      setJustDone((d) => d?.x.id === x.id ? null : d);
+      toast.success("Reopened");
+    } catch (e) {
+      console.error(e);
+      setJustDone((d) => d?.x.id === x.id ? { x, status: "saved" } : d);
+      toast.error("Couldn't reopen this follow-up — try again in a minute.");
+    }
   };
   const unhide = (ids: string[]) => setHidden((h) => { const n = new Set(h); for (const id of ids) n.delete(id); return n; });
   /** Hides the items straight away and saves in the background; anything that fails comes back. */
@@ -482,32 +520,23 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
           <div className="font-display text-base font-semibold">{x.summary || `Follow up with ${x.person}`}</div>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2 border-y border-border py-3">
+      {doneShown && <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-good-foreground/30 bg-good/40 px-3 py-2 text-sm">
+        <Badge className="gap-1 border-transparent bg-good-foreground text-background hover:bg-good-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Completed</Badge>
+        <span className="text-muted-foreground">{doneShown.status === "saving" ? "Saving…" : doneShown.status === "undoing" ? "Reopening…" : "Saved — removed from your list."}</span>
+        {canUndoCompletion(x) && <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={doneShown.status !== "saved"} onClick={() => void undoComplete(x)}><Undo2 className="mr-1 h-3.5 w-3.5" />Undo</Button>}
+      </div>}
+      {!doneShown && <div className="flex flex-wrap gap-2 border-y border-border py-3">
         <Button size="sm" onClick={() => onAction({
           sourceKind: "followup", sourceId: x.activityId || x.id, title: x.summary || `Follow-up with ${x.person}`,
           text: x.details || x.originalNote || x.summary, people: x.people || [{ name: x.person, email: x.email || "" }],
           portcos: x.company ? x.company.split(/\s*,\s*/) : [], tracks: x.tracks, followUpActivityId: x.activityId,
         })}><Sparkles className="mr-1 h-3.5 w-3.5" />Action with V.I.C.</Button>
-        <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => setNoteFor(noteFor === x.id ? "" : x.id)}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
+        <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => completeNow(x)}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
         <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
         {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
         {x.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={x.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
-      </div>
-      {noteFor === x.id && <CompleteFollowUpForm key={x.id} busy={!!busy} onCancel={() => setNoteFor("")} onSave={async (note, next) => {
-        // Close the form and hide the item now; the save finishes in the background.
-        setNoteFor(""); setHidden((h) => new Set([...h, x.id]));
-        const title = x.summary || `Follow-up with ${x.person}`;
-        void completeWithNote(x, note, next).then((ok) => {
-          if (!ok) throw new Error("Couldn't update the follow-up");
-          settle([x.id]);
-          toast.success(next ? "Marked complete and future follow-up scheduled" : "Marked complete");
-        }).catch((e: unknown) => {
-          console.error(e);
-          unhide([x.id]);
-          toast.error(`"${title}" wasn't saved and is back in your list.`, { description: e instanceof Error ? e.message : undefined });
-        });
-      }} />}
-      {!canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
+      </div>}
+      {!doneShown && !canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
       {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
       <FilingControl x={x} filing={filingOf(x)} />
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 text-xs sm:grid-cols-4">
