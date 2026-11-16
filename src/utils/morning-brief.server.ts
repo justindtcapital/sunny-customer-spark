@@ -74,7 +74,10 @@ async function gather(today: string) {
   const { fetchHomeMomentum } = await import("./home.functions");
   const warnings: string[] = [];
   const read = async <T,>(label: string, fn: () => Promise<T>, fb: T) => { try { return await fn(); } catch (e) { console.error(`[brief] ${label}`, e); warnings.push(`${label} unavailable`); return fb; } };
-  const [contacts, targets, companies] = await Promise.all([read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCos", () => sheets.buildPortfolioCompanies(), [])]);
+  const [rawContacts, targets, companies] = await Promise.all([read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCos", () => sheets.buildPortfolioCompanies(), [])]);
+  // PortCo people aren't rated: mark them so the brief says "PortCo", never an old saved level.
+  const { markPortCoContacts } = await import("@/lib/contact-kind");
+  const contacts = markPortCoContacts(rawContacts, companies.map((c) => c.name));
   const [workstreams, campaigns, members] = await Promise.all([read("Workstreams", () => store.readWorkstreams(), []), read("Campaigns", camp.listCampaigns, []), read("Campaign members", () => camp.listMembers(), [])]);
   const [events, attendees, records, activities] = await Promise.all([read("Events", () => planner.readPlannerEvents(), []), read("Attendees", planner.readAttendees, []), read("Notes", () => knowledge.listKnowledgeRecords(), []), read("Note steps", knowledge.listHarvestedActivities, [])]);
   const portcoFields = await read("PortCo investment details", store.fetchPortcoProfileFields, new Map<string, { name: string; fields: Record<string, string> }>());

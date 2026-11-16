@@ -31,7 +31,8 @@ import {
   ChevronRight,
   Linkedin,
 } from "lucide-react";
-import { fetchContacts, fetchTargets } from "@/utils/sheets.functions";
+import { fetchContacts, fetchTargets, fetchPortfolioCompanies } from "@/utils/sheets.functions";
+import { markPortCoContacts } from "@/lib/contact-kind";
 import { searchNetworkOrgs } from "@/utils/sumble.functions";
 import { findCompanyDecisionMakers, addProspectsToTargets } from "@/utils/prospects.functions";
 import type { Contact, TargetLead } from "@/lib/types";
@@ -276,7 +277,7 @@ function NetworkSearchDialog({ open, onOpenChange, initialQuery, initialBy }: Di
     if (fDepartment.length && !fDepartment.includes(departmentOf(c.title))) return false;
     if (fGeography.trim() && !(c.location || "").toLowerCase().includes(fGeography.trim().toLowerCase())) return false;
     if (fIndustry.trim() && !(c.sector || "").toLowerCase().includes(fIndustry.trim().toLowerCase())) return false;
-    if (fRelStatus.length && !fRelStatus.includes(c.temperature)) return false;
+    if (fRelStatus.length && (c.portco || !fRelStatus.includes(c.temperature))) return false;
     if (fOwner.trim() && !(c.prime || "").toLowerCase().includes(fOwner.trim().toLowerCase())) return false;
     return true;
   };
@@ -315,9 +316,10 @@ function NetworkSearchDialog({ open, onOpenChange, initialQuery, initialBy }: Di
     let cancelled = false;
     (async () => {
       try {
-        const [cs, ts] = await Promise.all([fetchContacts(), fetchTargets()]);
+        const [cs, ts, cos] = await Promise.all([fetchContacts(), fetchTargets(), fetchPortfolioCompanies().catch(() => [])]);
         if (cancelled) return;
-        setContacts(cs as Contact[]);
+        // PortCo people aren't rated: show "PortCo" and keep them out of rating filters.
+        setContacts(markPortCoContacts(cs as Contact[], cos.map((c) => c.name)));
         setTargets(ts as TargetLead[]);
         setInternalLoaded(true);
       } catch (e) {
@@ -634,7 +636,7 @@ function NetworkSearchDialog({ open, onOpenChange, initialQuery, initialBy }: Di
                         <div key={c.id} className="rounded-md border border-border p-2.5 text-xs">
                           <div className="flex items-center gap-2">
                             <span className="font-medium truncate">{c.name}</span>
-                            {c.temperature && <Badge variant="outline" className="text-[9px]">{c.temperature}</Badge>}
+                            {c.portco ? <Badge variant="outline" className="text-[9px]">PortCo</Badge> : c.temperature && <Badge variant="outline" className="text-[9px]">{c.temperature}</Badge>}
                           </div>
                           <p className="text-muted-foreground truncate">
                             {[c.title, c.company].filter(Boolean).join(" · ")}

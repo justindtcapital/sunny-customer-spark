@@ -24,9 +24,12 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
       try { return await fn(); } catch (error) { console.error(`[home] ${label}`, error); errors.push(label); return fallback; }
     }
     // Bounded batches avoid competing with the Worker outbound-connection limit.
-    const [contacts, targets, companies] = await Promise.all([
+    const [rawContacts, targets, companies] = await Promise.all([
       read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCo", sheets.buildPortfolioCompanies, []),
     ]);
+    // PortCo people aren't rated, so the homepage pyramid must know who they are.
+    const { markPortCoContacts } = await import("@/lib/contact-kind");
+    const contacts = markPortCoContacts(rawContacts, companies.map((c) => c.name));
     const [eventRows, workstreams, campaigns] = await Promise.all([
       read("Events", fetchTrackerEvents, []), read("Workstreams", () => store.readWorkstreams(), []), read("Campaigns", campaignsStore.listCampaigns, []),
     ]);

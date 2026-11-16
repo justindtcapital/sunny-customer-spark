@@ -75,10 +75,13 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
       description: "Search Network (rated contacts) and Prospecting people by name, company, title, sector or email. Returns up to 25 matches.",
       inputSchema: z.object({ query: z.string().describe("Words to match, e.g. 'CISO healthcare' or 'Maven'"), includeProspects: z.boolean().default(true) }),
       execute: async ({ query, includeProspects }) => {
-        const { buildContacts, buildTargets } = await import("./sheets.server");
-        const contacts = await buildContacts();
+        const { buildContacts, buildTargets, buildPortfolioCompanies } = await import("./sheets.server");
+        const { markPortCoContacts } = await import("@/lib/contact-kind");
+        const [rawContacts, portcos] = await Promise.all([buildContacts(), buildPortfolioCompanies().catch(() => [])]);
+        // PortCo people aren't rated, so never report their old saved level (e.g. Council).
+        const contacts = markPortCoContacts(rawContacts, portcos.map((p) => p.name));
         const net = contacts.filter((c) => hit(query, c.name, c.company, c.title, c.sector, c.email)).slice(0, 25)
-          .map((c) => ({ urid: c.urid || "", name: c.name, title: c.title, company: c.company, email: c.email, level: c.temperature, prime: c.prime, list: "Network" }));
+          .map((c) => ({ urid: c.urid || "", name: c.name, title: c.title, company: c.company, email: c.email, level: c.portco ? "PortCo (not rated)" : c.temperature, prime: c.prime, list: "Network" }));
         const pros = includeProspects
           ? (await buildTargets()).filter((t) => hit(query, t.name, t.company, t.title, t.sector, t.email)).slice(0, 15)
               .map((t) => ({ urid: t.urid || "", name: t.name, title: t.title, company: t.company, email: t.email, level: "Prospect", list: "Prospecting" }))

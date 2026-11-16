@@ -61,7 +61,7 @@ export function NetworkDashboard() {
 
   const people = useMemo(() => {
     const m = new Map<string, PersonInfo & { domain: string; market: string; type: string; company: string }>();
-    for (const c of contacts) m.set(contactKey(c), { prime: c.prime, tier: tierOf(c.temperature), prospect: false, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), type: c.kind || "Network", company: c.company });
+    for (const c of contacts) m.set(contactKey(c), { prime: c.prime, tier: c.kind === "PortCo" ? null : tierOf(c.temperature), prospect: false, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), type: c.kind || "Network", company: c.company });
     for (const t of prospects) {
       const k = contactKey(t);
       if (!m.has(k)) m.set(k, { prime: t.prime || "", tier: "Prospect", prospect: true, domain: primaryDomainFor("", [t.sector, t.title].filter(Boolean) as string[]), market: marketFor(t.location), type: t.contactType || "Network", company: t.company });
@@ -80,7 +80,11 @@ export function NetworkDashboard() {
     return out;
   }, [dash, contacts, prospects]);
 
-  const movements = dash?.movements || [];
+  // PortCo people aren't rated, so their old level moves never count.
+  const movements = useMemo(() => {
+    const unrated = new Set(contacts.filter((c) => c.kind === "PortCo").flatMap((c) => (c.email || "").split(/[;,\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)));
+    return (dash?.movements || []).filter((m) => !unrated.has((m.email || "").toLowerCase()));
+  }, [dash?.movements, contacts]);
   const stats = useMemo(() => networkDashboardStats({ people, touches, movements, days }), [people, touches, movements, days]);
   const weekly = useMemo(() => weeklyOutreach(touches, days), [touches, days]);
   const camp = useMemo(() => campaignStats(dash?.campaigns || []), [dash?.campaigns]);
@@ -92,7 +96,7 @@ export function NetworkDashboard() {
     const ownerOf = (k: string) => creditedOwners(people.get(k)?.prime);
     const outreach: ChartRecord[] = touchesInWindow(touches, 3650).map((t) => {
       const p = people.get(t.person);
-      return { _date: t.date, month: t.date.slice(0, 7), week: weekStart(t.date), teammate: t.actor || UNASSIGNED, owner: ownerOf(t.person), source: t.source, tier: p?.tier || "", domain: p?.domain || "", market: p?.market || "" };
+      return { _date: t.date, month: t.date.slice(0, 7), week: weekStart(t.date), teammate: t.actor || UNASSIGNED, owner: ownerOf(t.person), source: t.source, tier: p?.tier || (p?.type === "PortCo" ? "Not rated (PortCo)" : ""), domain: p?.domain || "", market: p?.market || "" };
     });
     const moves: ChartRecord[] = movements.flatMap((m) => {
       const c = classifyMovement(m); const d = dayOf(m.ts);
@@ -104,7 +108,7 @@ export function NetworkDashboard() {
       const d = dayOf(c.created);
       return { _date: d, month: d.slice(0, 7), status: campaignBucket(c.status), owner: canonicalOwnerName(c.owner || c.createdBy) || UNASSIGNED, channel: c.channel, members: c.memberCount || 0 };
     });
-    const ppl: ChartRecord[] = [...people].map(([k, p]) => ({ tier: p.tier || "", owner: ownerOf(k), domain: p.domain, market: p.market, type: p.type, company: p.company }));
+    const ppl: ChartRecord[] = [...people].map(([k, p]) => ({ tier: p.tier || (p.type === "PortCo" ? "Not rated (PortCo)" : ""), owner: ownerOf(k), domain: p.domain, market: p.market, type: p.type, company: p.company }));
     return { outreach, movements: moves, campaigns, people: ppl };
   }, [touches, people, movements, dash?.campaigns]);
 

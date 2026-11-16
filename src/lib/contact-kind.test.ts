@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyContacts, kindShown, manualKind, resolveKind, toggleKind, tracksRating } from "./contact-kind";
+import { classifyContacts, kindShown, manualKind, markPortCoContacts, resolveKind, toggleKind, tracksRating } from "./contact-kind";
 import type { Contact } from "./types";
 import type { Partner } from "./partners";
 
@@ -49,5 +49,16 @@ describe("contact types", () => {
     expect(kindShown({ kind: "Dell" }, hidden)).toBe(true);
     expect(kindShown({ kind: "Network" }, hidden)).toBe(true);
     expect(toggleKind(hidden, "Partner")).toEqual([]);
+  });
+});
+
+describe("markPortCoContacts", () => {
+  it("types only PortCo people, manual type first", () => {
+    const out = markPortCoContacts([
+      person({ company: "MavenAGI", temperature: "Council" }),
+      person({ company: "Acme" }),
+      person({ company: "MavenAGI", contactType: "Network" }),
+    ], ["MavenAGI"]);
+    expect(out.map((c) => c.kind)).toEqual(["PortCo", undefined, undefined]);
   });
 });

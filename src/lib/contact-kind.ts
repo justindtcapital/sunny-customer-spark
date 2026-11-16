@@ -63,3 +63,16 @@ export function classifyContacts<T extends Contact>(contacts: T[], ctx: { portco
     return { ...c, kind, portco: kind === "PortCo" };
   });
 }
+
+/**
+ * Stamp only the PortCo type (for summaries that don't load partners): manual type
+ * wins, else a PortCo company/email match. Other people are left untyped.
+ */
+export function markPortCoContacts<T extends Contact>(contacts: T[], portcoNames: string[]): T[] {
+  const keys = portcoKeys(portcoNames);
+  return contacts.map((c) => {
+    const manual = manualKind(c.contactType);
+    const portco = manual ? manual === "PortCo" : isPortCoContact(c, keys);
+    return portco ? { ...c, kind: "PortCo" as ContactKind, portco: true } : c;
+  });
+}
