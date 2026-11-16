@@ -80,7 +80,11 @@ export function NetworkDashboard() {
     return out;
   }, [dash, contacts, prospects]);
 
-  const movements = dash?.movements || [];
+  // PortCo people aren't rated, so their old level moves never count.
+  const movements = useMemo(() => {
+    const unrated = new Set(contacts.filter((c) => c.kind === "PortCo").flatMap((c) => (c.email || "").split(/[;,\s]+/).map((e) => e.trim().toLowerCase()).filter(Boolean)));
+    return (dash?.movements || []).filter((m) => !unrated.has((m.email || "").toLowerCase()));
+  }, [dash?.movements, contacts]);
   const stats = useMemo(() => networkDashboardStats({ people, touches, movements, days }), [people, touches, movements, days]);
   const weekly = useMemo(() => weeklyOutreach(touches, days), [touches, days]);
   const camp = useMemo(() => campaignStats(dash?.campaigns || []), [dash?.campaigns]);
@@ -104,7 +108,7 @@ export function NetworkDashboard() {
       const d = dayOf(c.created);
       return { _date: d, month: d.slice(0, 7), status: campaignBucket(c.status), owner: canonicalOwnerName(c.owner || c.createdBy) || UNASSIGNED, channel: c.channel, members: c.memberCount || 0 };
     });
-    const ppl: ChartRecord[] = [...people].map(([k, p]) => ({ tier: p.tier || "", owner: ownerOf(k), domain: p.domain, market: p.market, type: p.type, company: p.company }));
+    const ppl: ChartRecord[] = [...people].map(([k, p]) => ({ tier: p.tier || (p.type === "PortCo" ? "Not rated (PortCo)" : ""), owner: ownerOf(k), domain: p.domain, market: p.market, type: p.type, company: p.company }));
     return { outreach, movements: moves, campaigns, people: ppl };
   }, [touches, people, movements, dash?.campaigns]);
 

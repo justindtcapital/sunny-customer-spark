@@ -74,7 +74,10 @@ async function gather(today: string) {
   const { fetchHomeMomentum } = await import("./home.functions");
   const warnings: string[] = [];
   const read = async <T,>(label: string, fn: () => Promise<T>, fb: T) => { try { return await fn(); } catch (e) { console.error(`[brief] ${label}`, e); warnings.push(`${label} unavailable`); return fb; } };
-  const [contacts, targets, companies] = await Promise.all([read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCos", () => sheets.buildPortfolioCompanies(), [])]);
+  const [rawContacts, targets, companies] = await Promise.all([read("Network", sheets.buildContacts, []), read("Prospecting", sheets.buildTargets, []), read("PortCos", () => sheets.buildPortfolioCompanies(), [])]);
+  // PortCo people aren't rated: mark them so the brief says "PortCo", never an old saved level.
+  const { markPortCoContacts } = await import("@/lib/contact-kind");
+  const contacts = markPortCoContacts(rawContacts, companies.map((c) => c.name));
   const [workstreams, campaigns, members] = await Promise.all([read("Workstreams", () => store.readWorkstreams(), []), read("Campaigns", camp.listCampaigns, []), read("Campaign members", () => camp.listMembers(), [])]);
   const [events, attendees, records, activities] = await Promise.all([read("Events", () => planner.readPlannerEvents(), []), read("Attendees", planner.readAttendees, []), read("Notes", () => knowledge.listKnowledgeRecords(), []), read("Note steps", knowledge.listHarvestedActivities, [])]);
   const portcoFields = await read("PortCo investment details", store.fetchPortcoProfileFields, new Map<string, { name: string; fields: Record<string, string> }>());
@@ -123,7 +126,7 @@ function assemble(text: string, today: string, f: Facts) {
       const key = c ? norm(c.name) : norm(x.name);
       const inCampaigns = activeCampaigns.filter((cp) => f.members.some((mb) => mb.campaignId === cp.id && norm(mb.name) === key)).map((cp) => cp.name);
       const evs = f.attendees.filter((a) => norm(a.name) === key).map((a) => f.events.find((e) => e.urid === a.eventUrid)).filter((e): e is NonNullable<typeof e> => !!e && daysBetween(e.start, today) <= 365).map((e) => e.name);
-      if (c) return { name: c.name, email: c.email || email, contactId: c.urid || c.id, company: c.company, title: c.title || "", temperature: c.temperature, lastContact: c.lastContact, campaigns: inCampaigns, events: [...new Set(evs)], status: "matched" as const };
+      if (c) return { name: c.name, email: c.email || email, contactId: c.urid || c.id, company: c.company, title: c.title || "", temperature: c.portco ? "PortCo" : c.temperature, lastContact: c.lastContact, campaigns: inCampaigns, events: [...new Set(evs)], status: "matched" as const };
       const hint = personHints(x.name, m.text, m.title);
       const domain = normalizeDomain(email);
       const fromCsv = csvCompany.get(norm(x.name)) || "";
