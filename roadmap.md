@@ -8,3 +8,4 @@
 - [x] Part B: Events — compared, imported, readers switched to Tracker, Asana controls removed
 - [ ] Final Asana cut-off (Parts A+B): remove Asana read code and V.I.C. Asana access — waits on parallel check
 - [x] "Update V.I.C." quick-add button (follow-ups, actions, workstream updates)
+- [x] My Actions: one-click Mark complete with Completed badge + Undo; retry on Google limits; searchable PortCo/Partner picker with correct filing

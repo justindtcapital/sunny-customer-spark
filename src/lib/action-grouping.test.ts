@@ -69,3 +69,11 @@ describe("fileFollowUp", () => {
     expect(fileFollowUp({ company: "No PortCo", person: "Chris Falloon" }, portco, team).kind).toBe("ops");
   });
 });
+
+describe("fileFollowUp after retagging", () => {
+  const portco = (n: string) => (/^bland/i.test(n) ? "Bland AI" : "");
+  it("files a PortCo-forced follow-up retagged to a partner under that partner, not PortDev Ops", () => {
+    expect(fileFollowUp({ company: "GlenCoCo", filing: "portco", person: "Chris Falloon" }, portco, team))
+      .toMatchObject({ kind: "network", group: "GlenCoCo" });
+  });
+});

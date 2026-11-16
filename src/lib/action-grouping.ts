@@ -104,7 +104,9 @@ export function fileFollowUp(r: FilingInput, portcoName: (name: string) => strin
     const group = networkGroup || personName || personCo || portcoTag;
     return group ? { kind: "network", group, portcoTag, auto } : { kind: "ops", group: "", portcoTag, auto };
   };
-  if (r.filing === "portco") return asPortco(false);
+  // A forced PortCo filing whose tag is no longer a PortCo (e.g. retagged to a partner)
+  // falls back to automatic filing instead of stranding it in PortDev Ops.
+  if (r.filing === "portco" && (portcoTag || personPortco)) return asPortco(false);
   if (r.filing === "network") return asNetwork(false);
   if (portcoTag) return networkGroup ? asNetwork(true) : asPortco(true);
   if (networkGroup) return asNetwork(true);

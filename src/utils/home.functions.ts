@@ -97,8 +97,9 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
   });
 
 export const completeHomeNoteFollowUp = createServerFn({ method: "POST" })
-  .inputValidator((data: { activityId: string }) => z.object({ activityId: z.string().min(1).max(100) }).parse(data))
+  // resolved: false reopens it (Undo in My Actions).
+  .inputValidator((data: { activityId: string; resolved?: boolean }) => z.object({ activityId: z.string().min(1).max(100), resolved: z.boolean().optional() }).parse(data))
   .handler(async ({ data }) => {
     const { resolveHarvestedActivity } = await import("./knowledge.server");
-    return { success: await resolveHarvestedActivity(data.activityId, true) };
+    return { success: await resolveHarvestedActivity(data.activityId, data.resolved !== false) };
   });
