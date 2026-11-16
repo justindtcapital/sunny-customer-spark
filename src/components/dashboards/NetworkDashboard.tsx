@@ -61,7 +61,7 @@ export function NetworkDashboard() {
 
   const people = useMemo(() => {
     const m = new Map<string, PersonInfo & { domain: string; market: string; type: string; company: string }>();
-    for (const c of contacts) m.set(contactKey(c), { prime: c.prime, tier: tierOf(c.temperature), prospect: false, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), type: c.kind || "Network", company: c.company });
+    for (const c of contacts) m.set(contactKey(c), { prime: c.prime, tier: c.kind === "PortCo" ? null : tierOf(c.temperature), prospect: false, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), type: c.kind || "Network", company: c.company });
     for (const t of prospects) {
       const k = contactKey(t);
       if (!m.has(k)) m.set(k, { prime: t.prime || "", tier: "Prospect", prospect: true, domain: primaryDomainFor("", [t.sector, t.title].filter(Boolean) as string[]), market: marketFor(t.location), type: t.contactType || "Network", company: t.company });

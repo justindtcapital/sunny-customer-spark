@@ -15,6 +15,7 @@ import {
   dotBreakdown, marketFor, movementKpis, primaryDomainFor, MARKETS, PRIMARY_DOMAINS, PYRAMID_TIERS, WINDOWS,
   type PyramidTier, type WindowKey,
 } from "@/lib/network-pyramid";
+import { contactTier } from "@/lib/network-tiers";
 
 export interface PyramidSelection { tier: PyramidTier; view: "domain" | "geo" | "tier"; column: string }
 export type PyramidView = "kpis" | "domain" | "geo";
@@ -31,7 +32,7 @@ export function PyramidViewSwitch({ view, onChange }: { view: PyramidView; onCha
 }
 
 export function contactMatchesPyramid(c: Contact, sel: PyramidSelection): boolean {
-  if ((c.prospect ? "Prospect" : c.temperature) !== sel.tier) return false;
+  if (contactTier(c) !== sel.tier) return false;
   if (sel.view === "tier") return true;
   const col = sel.view === "domain" ? primaryDomainFor(c.primaryArea, c.areasOfInterest) : marketFor(c.location);
   return col === sel.column;
@@ -124,8 +125,9 @@ export function NetworkPyramid({
 
   const mine = embedded || scope === "mine";
   const people = useMemo(() => {
-    const net = contacts.filter((c) => embedded || !mine || (!!profile && isMyContact(c, owned, profile))).map((c) => ({
-      email: c.email, tier: c.temperature as PyramidTier, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), dateAdded: c.dateAdded,
+    // PortCo people aren't rated, so they never count toward a tier.
+    const net = contacts.filter((c) => contactTier(c) !== null && (embedded || !mine || (!!profile && isMyContact(c, owned, profile)))).map((c) => ({
+      email: c.email, tier: contactTier(c) as PyramidTier, domain: primaryDomainFor(c.primaryArea, c.areasOfInterest), market: marketFor(c.location), dateAdded: c.dateAdded,
     }));
     const pros = (data?.prospects || []).filter((p) => !excludeEmails?.has((p.email || "").toLowerCase()) && (!mine || (!!profile && ownerMatches(p.prime, profile)))).map((p) => ({
       email: p.email, tier: "Prospect" as PyramidTier, domain: primaryDomainFor("", p.areas), market: marketFor(p.location), dateAdded: p.dateAdded,
@@ -143,9 +145,10 @@ export function NetworkPyramid({
 
   const kpis = useMemo(() => {
     const emails = new Set(people.map((p) => p.email.toLowerCase()).filter(Boolean));
-    const moves = (data?.movements || []).filter((m) => !excludeEmails?.has(m.email.toLowerCase()) && (!mine || emails.has(m.email.toLowerCase())));
+    const unrated = new Set(contacts.filter((c) => contactTier(c) === null).map((c) => (c.email || "").toLowerCase()).filter(Boolean));
+    const moves = (data?.movements || []).filter((m) => !excludeEmails?.has(m.email.toLowerCase()) && !unrated.has(m.email.toLowerCase()) && (!mine || emails.has(m.email.toLowerCase())));
     return movementKpis(moves, people, WINDOWS[win]);
-  }, [people, data, mine, win, excludeEmails]);
+  }, [people, data, mine, win, excludeEmails, contacts]);
 
   const columns = view === "domain" ? [...PRIMARY_DOMAINS] : view === "geo" ? [...MARKETS] : [];
   const cellCount = (tier: PyramidTier, col: string) =>
