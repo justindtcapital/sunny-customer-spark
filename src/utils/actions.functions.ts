@@ -62,27 +62,36 @@ export const completeActionFn = createServerFn({ method: "POST" })
     const people = data.recipients.map((r) => r.name || r.email).join(", ");
     const tracks = data.tracks.length ? data.tracks : [""];
     const base = sha256Hex(`${data.sourceId}:${today}:${data.subject}`).slice(0, 16);
-    await k.saveHarvestedActivities(tracks.map((track) => ({
-      activityId: `action:${base}${track ? `:${track}` : ""}`,
-      recordId: data.sourceId, date: today, track, type: data.mode === "log" ? "logged-action" : "follow-up",
-      title: data.subject || (data.mode === "log" ? "Logged action" : "Follow-up email"), portco: data.portcos.join(", "), person: people, owner,
-      summary: data.mode === "log"
-        ? `Action with V.I.C. (${data.sourceKind}): logged action${people ? ` with ${people}` : ""}${data.note ? ` — ${data.note}` : ""}`
-        : `Action with V.I.C. (${data.sourceKind}): follow-up emailed to ${people || "contacts"}`,
-      sourceUrl: "", createdAt: now,
-    })));
-    if (data.followUpActivityId) await k.resolveHarvestedActivity(data.followUpActivityId, true);
-    if (data.nextFollowUp?.date) {
-      await k.saveHarvestedActivities([{
-        activityId: `followup:${base}`,
-        recordId: data.sourceId, date: data.nextFollowUp.date, track: "Follow-up", type: "follow-up",
-        title: data.nextFollowUp.note || `Follow up: ${data.subject}`, portco: data.portcos.join(", "), person: people, owner,
-        summary: `Follow-up set from Action with V.I.C. (${data.sourceKind}): ${data.nextFollowUp.note || data.subject}`,
-        sourceUrl: "", createdAt: now,
-      }]);
-    }
-    await logOpsEvent({ action: "edit", source: "My Actions", status: "ok", summary: `Action with V.I.C.: ${data.subject}`, records: data.recipients.length, details: { owner, source: data.sourceId }, items: data.recipients.map((r) => r.email) });
-    return { ok: true, actionId: `action:${base}` };
+    const { withDeadline } = await import("./request-deadline.server");
+    const { runInBackground } = await import("./background.server");
+    // One append for the action rows and any next follow-up, then one row update
+    // to close the follow-up. The audit row is written after the response.
+    const resolved = await withDeadline("complete-action", 25_000, async (step) => {
+      step("saving action");
+      await k.saveHarvestedActivities([
+        ...tracks.map((track) => ({
+          activityId: `action:${base}${track ? `:${track}` : ""}`,
+          recordId: data.sourceId, date: today, track, type: data.mode === "log" ? "logged-action" : "follow-up",
+          title: data.subject || (data.mode === "log" ? "Logged action" : "Follow-up email"), portco: data.portcos.join(", "), person: people, owner,
+          summary: data.mode === "log"
+            ? `Action with V.I.C. (${data.sourceKind}): logged action${people ? ` with ${people}` : ""}${data.note ? ` — ${data.note}` : ""}`
+            : `Action with V.I.C. (${data.sourceKind}): follow-up emailed to ${people || "contacts"}`,
+          sourceUrl: "", createdAt: now,
+        })),
+        ...(data.nextFollowUp?.date ? [{
+          activityId: `followup:${base}`,
+          recordId: data.sourceId, date: data.nextFollowUp.date, track: "Follow-up", type: "follow-up",
+          title: data.nextFollowUp.note || `Follow up: ${data.subject}`, portco: data.portcos.join(", "), person: people, owner,
+          summary: `Follow-up set from Action with V.I.C. (${data.sourceKind}): ${data.nextFollowUp.note || data.subject}`,
+          sourceUrl: "", createdAt: now,
+        }] : []),
+      ]);
+      if (!data.followUpActivityId) return false;
+      step("closing follow-up");
+      return k.resolveHarvestedActivity(data.followUpActivityId, true);
+    });
+    await runInBackground(logOpsEvent({ action: "edit", source: "My Actions", status: "ok", summary: `Action with V.I.C.: ${data.subject}`, records: data.recipients.length, details: { owner, source: data.sourceId }, items: data.recipients.map((r) => r.email) }));
+    return { ok: true, actionId: `action:${base}`, resolved };
   });
 
 /** All recorded completions for the selected owner; undone actions stay hidden. */
