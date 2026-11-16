@@ -31,6 +31,7 @@ import { ActionCalendar } from "@/components/actions/ActionCalendar";
 import { actionDueLabel, inActionRange, currentWeekRange, type ActionDateRange } from "@/lib/action-calendar";
 import { reportingDay } from "@/lib/home-momentum";
 import { fileFollowUp, portcoMatchKey, type Filing } from "@/lib/action-grouping";
+import { completionPlan, dropReminders } from "@/lib/follow-up-completion";
 import { ACTION_SORTS, abbreviateTitle, companyKindVisible, sortActions, type ActionSort, type CompanyKind } from "@/lib/action-sort";
 
 type FeedToggles = Record<CompanyKind | "workstreams" | "followups", boolean>;
@@ -141,7 +142,13 @@ function MyActionsPage() {
         {tab === "done" && <DoneTab owner={owner} />}
       </div>}
 
-      <ActionComposer ctx={ctx} onClose={() => setCtx(null)} onDone={() => { void qc.invalidateQueries({ queryKey: ["my-actions"] }); }} />
+      <ActionComposer ctx={ctx} onClose={() => setCtx(null)} onDone={() => {
+        // Drop the finished follow-up from the cached list instead of re-reading every sheet.
+        const done = ctx;
+        if (done) qc.setQueriesData<{ reminders?: { id: string; activityId?: string }[] }>({ queryKey: ["my-actions", "followups"] }, (d) => dropReminders(d, (r) => (!!done.followUpActivityId && r.activityId === done.followUpActivityId) || r.id === done.sourceId));
+        void qc.invalidateQueries({ queryKey: ["my-actions", "done"] });
+        void qc.invalidateQueries({ queryKey: ["home-momentum"], refetchType: "none" });
+      }} />
     </div>
   );
 }
@@ -394,26 +401,40 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   };
   /** Completes a follow-up and records a note about what was done (logged as an action). */
   const completeWithNote = async (x: Reminder, note: string, nextFollowUp?: { date: string; note: string }) => {
-    if (note.trim() || nextFollowUp) {
-      await completeAction({ data: {
+    const plan = completionPlan(x, note, !!nextFollowUp);
+    if (plan.logAction) {
+      const res = await completeAction({ data: {
         sourceKind: "followup", sourceId: x.activityId || x.id, subject: x.summary || `Follow-up with ${x.person}`,
         recipients: x.people?.length ? x.people : [{ name: x.contactName || x.person, email: x.email || "" }], portcos: (x.company || x.groupCompany || "").split(/\s*,\s*/).filter(Boolean),
         tracks: x.tracks || [], actor: owner, followUpActivityId: x.activityId || undefined, mode: "log", note: note.trim(), nextFollowUp,
       } });
+      // The server already closed the follow-up row; don't write it a second time.
+      if (!plan.closeSeparately) return !!res.resolved;
     }
     return closeOne(x, false);
   };
-  const act = async (items: Reminder[], del: boolean, label: string) => {
-    setBusy(label);
-    try {
+  /** After saving: update the cached list in place; other views refresh when next opened. */
+  const settle = (ids: string[]) => {
+    if (ids.length) qc.setQueryData<Awaited<ReturnType<typeof fetchHomeMomentum>>>(["my-actions", "followups", ownerEmail], (d) => dropReminders(d, (r) => ids.includes(r.id)));
+    void qc.invalidateQueries({ queryKey: ["my-actions", "done"] });
+    void qc.invalidateQueries({ queryKey: ["home-momentum"], refetchType: "none" });
+  };
+  const unhide = (ids: string[]) => setHidden((h) => { const n = new Set(h); for (const id of ids) n.delete(id); return n; });
+  /** Hides the items straight away and saves in the background; anything that fails comes back. */
+  const act = (items: Reminder[], del: boolean, label: string) => {
+    const ids = items.map((x) => x.id);
+    setHidden((h) => new Set([...h, ...ids]));
+    void (async () => {
       const ok: string[] = [];
-      for (const x of items) if (await closeOne(x, del)) ok.push(x.id);
-      setHidden((h) => new Set([...h, ...ok]));
-      if (ok.length === items.length) toast.success(label);
-      else toast.error(`${items.length - ok.length} couldn't be updated here — open them on their own page.`);
-      void qc.invalidateQueries({ queryKey: ["my-actions"] });
-    } catch (e) { console.error(e); toast.error("Couldn't update the follow-up"); }
-    finally { setBusy(""); }
+      for (const x of items) {
+        try { if (await closeOne(x, del)) ok.push(x.id); } catch (e) { console.error(e); }
+      }
+      const failed = ids.filter((id) => !ok.includes(id));
+      unhide(failed);
+      settle(ok);
+      if (!failed.length) toast.success(label);
+      else toast.error(`${failed.length} couldn't be updated here — open them on their own page.`);
+    })();
   };
   const toggleMerge = (id: string) => setMergeSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
   const doMerge = async () => {
@@ -431,7 +452,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       setMergeSel([]); setMergeMode(false); setSel({ kind: "fu", id: keep.id });
       if (ok.length === mergeRows.length - 1) toast.success(`Merged into "${chosenSummary}"`);
       else toast.error("Some duplicates couldn't be closed here — open them on their own page.");
-      void qc.invalidateQueries({ queryKey: ["my-actions"] });
+      settle(ok);
     } catch (e) { console.error(e); toast.error("Couldn't merge"); }
     finally { setBusy(""); }
   };
@@ -473,15 +494,18 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
         {x.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={x.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
       </div>
       {noteFor === x.id && <CompleteFollowUpForm key={x.id} busy={!!busy} onCancel={() => setNoteFor("")} onSave={async (note, next) => {
-        setBusy("Marked complete");
-        try {
-          const ok = await completeWithNote(x, note, next);
+        // Close the form and hide the item now; the save finishes in the background.
+        setNoteFor(""); setHidden((h) => new Set([...h, x.id]));
+        const title = x.summary || `Follow-up with ${x.person}`;
+        void completeWithNote(x, note, next).then((ok) => {
           if (!ok) throw new Error("Couldn't update the follow-up");
-          setNoteFor(""); setHidden((h) => new Set([...h, x.id]));
+          settle([x.id]);
           toast.success(next ? "Marked complete and future follow-up scheduled" : "Marked complete");
-          void qc.invalidateQueries({ queryKey: ["my-actions"] });
-          void qc.invalidateQueries({ queryKey: ["home-momentum"] });
-        } finally { setBusy(""); }
+        }).catch((e: unknown) => {
+          console.error(e);
+          unhide([x.id]);
+          toast.error(`"${title}" wasn't saved and is back in your list.`, { description: e instanceof Error ? e.message : undefined });
+        });
       }} />}
       {!canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
       {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
