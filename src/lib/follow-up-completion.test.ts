@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completionPlan, dropReminders } from "./follow-up-completion";
+import { canUndoCompletion, completionPlan, dropReminders, restoreReminder, withRetry } from "./follow-up-completion";
 
 describe("completionPlan", () => {
   it("does not close a note-logged follow-up a second time", () => {
@@ -22,8 +22,6 @@ describe("dropReminders", () => {
     expect(dropReminders(data, (r) => r.id === "a")?.reminders).toEqual([{ id: "b" }]);
   });
 });
-
-import { canUndoCompletion, restoreReminder, withRetry } from "./follow-up-completion";
 
 describe("withRetry", () => {
   it("retries a save that hits Google's limit, then succeeds", async () => {
