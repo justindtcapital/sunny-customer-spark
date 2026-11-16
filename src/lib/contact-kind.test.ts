@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyContacts, kindShown, manualKind, resolveKind, toggleKind, tracksRating } from "./contact-kind";
+import { classifyContacts, kindShown, manualKind, markPortCoContacts, resolveKind, toggleKind, tracksRating } from "./contact-kind";
 import type { Contact } from "./types";
 import type { Partner } from "./partners";
 
