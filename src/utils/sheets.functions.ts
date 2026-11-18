@@ -69,7 +69,7 @@ import {
   type BulkMergeUpdate,
 } from "./sheets.server";
 import { enrichPerson } from "./apollo.server";
-import { sampleContacts, sampleTargets, samplePortfolioCompanies } from "@/lib/sample-data";
+import { lastGoodReader } from "@/lib/last-good";
 import { normalizeInteractionType, targetKeyOf } from "@/lib/types";
 import { formatEngagementSources } from "@/lib/engagement-source";
 import type {
@@ -80,23 +80,15 @@ import type {
   ConnectionPlan,
 } from "@/lib/types";
 
-export const fetchContacts = createServerFn({ method: "GET" }).handler(async () => {
-  try {
-    return await buildContacts();
-  } catch (error) {
-    console.error("Failed to fetch contacts from Google Sheets:", error);
-    return sampleContacts;
-  }
-});
+// Real Sheets data only: on a failed read serve this instance's last good
+// copy or fail visibly — never placeholder records.
+const readContacts = lastGoodReader(() => buildContacts(), "Contacts");
+const readTargets = lastGoodReader(() => buildTargets(), "Prospects");
+const readPortfolioCompanies = lastGoodReader(() => buildPortfolioCompanies(), "Portfolio companies");
 
-export const fetchTargets = createServerFn({ method: "GET" }).handler(async () => {
-  try {
-    return await buildTargets();
-  } catch (error) {
-    console.error("Failed to fetch targets from Google Sheets:", error);
-    return sampleTargets;
-  }
-});
+export const fetchContacts = createServerFn({ method: "GET" }).handler(() => readContacts());
+
+export const fetchTargets = createServerFn({ method: "GET" }).handler(() => readTargets());
 
 // Campaign vocabulary for the import dialogs: the distinct values already in the
 // Targets "Campaign" column. Free text is still allowed — this is only the
@@ -110,14 +102,7 @@ export const fetchTargetCampaigns = createServerFn({ method: "GET" }).handler(as
   }
 });
 
-export const fetchPortfolioCompanies = createServerFn({ method: "GET" }).handler(async () => {
-  try {
-    return await buildPortfolioCompanies();
-  } catch (error) {
-    console.error("Failed to fetch portfolio companies from Google Sheets:", error);
-    return samplePortfolioCompanies;
-  }
-});
+export const fetchPortfolioCompanies = createServerFn({ method: "GET" }).handler(() => readPortfolioCompanies());
 
 // Add a portfolio company (new row in the "Portfolio Companies" tab).
 export const addPortfolioCompany = createServerFn({ method: "POST" })
