@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { classifyContacts, isPortCoRecord, kindShown, manualKind, markPortCoContacts, ratedLevel, resolveKind, toggleKind, tracksRating } from "./contact-kind";
 import { contactsToCsv } from "./csv-export";
+import { buildAttentionQueue, networkContacts } from "./attention-queue";
+import { scoreAttribution } from "./attribution-score";
 import { thesisCoverage } from "./platform-thesis";
 import { portcoKeys } from "./portco-contacts";
 import type { Contact } from "./types";
@@ -87,5 +89,23 @@ describe("PortCo people are never rated", () => {
     expect(isPortCoRecord({ company: "MavenAGI" }, keys)).toBe(true);
     expect(isPortCoRecord({ company: "MavenAGI", contactType: "Network" }, keys)).toBe(false);
     expect(isPortCoRecord({ company: "Acme", contactType: "PortCo" }, keys)).toBe(true);
+  });
+});
+
+describe("PortCo people get no level-based weight", () => {
+  const old = new Date(Date.now() - 15 * 86_400_000).toISOString();
+  it("are left out of the attention list even with an old Hot rating", () => {
+    const portco = person({ email: "p@maven.ai", company: "MavenAGI", temperature: "Hot", portco: true, lastContact: old });
+    const hot = person({ email: "h@acme.com", company: "Acme", temperature: "Hot", lastContact: old });
+    expect(networkContacts([portco, hot]).map((c) => c.email)).toEqual(["h@acme.com"]);
+    expect(buildAttentionQueue([{ ...portco, sector: "" }]).length).toBe(0);
+  });
+  it("add no relationship warmth to signal attribution", () => {
+    const rec = { person: "A", company: "MavenAGI", category: "funding", signal: "", llmRelevance: 50 } as Parameters<typeof scoreAttribution>[0];
+    const ctx = (portco: boolean) => ({ contact: { name: "A", temperature: "Council", portco }, isPortcoCompany: false, isWatchlistCompany: false, portfolioSectors: [] } as unknown as Parameters<typeof scoreAttribution>[1]);
+    const rel = (portco: boolean) => scoreAttribution(rec, ctx(portco)).components.find((c) => c.name === "relationship")!;
+    expect(rel(true).score).toBe(0);
+    expect(rel(true).why).toBe("PortCo (not rated)");
+    expect(rel(false).score).toBe(3);
   });
 });

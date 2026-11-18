@@ -23,6 +23,9 @@ export interface AttributionContact {
   title?: string;
   sector?: string;
   temperature?: string;
+  /** PortCo people aren't rated, so an old saved temperature adds no warmth. */
+  portco?: boolean;
+  kind?: string;
   prime?: string;
   lastContact?: string;
   activityScore?: number;
@@ -134,7 +137,8 @@ export function scoreAttribution(rec: AttributionRec, ctx: AttributionContext): 
 
   // 1) Relationship warmth (max 3) — temperature tier + engagement activity.
   {
-    const temp = (c?.temperature || "").toLowerCase();
+    const unrated = !!c && (c.portco || c.kind === "PortCo");
+    const temp = unrated ? "" : (c?.temperature || "").toLowerCase();
     const base = temp === "council" ? 3 : temp === "hot" ? 2.7 : temp === "warm" ? 1.8 : temp === "cold" ? 0.8 : 0;
     const activity = Math.min(0.3, ((c?.activityScore ?? 0) / 100) * 0.3);
     const score = Math.min(3, base + activity);
@@ -142,7 +146,7 @@ export function scoreAttribution(rec: AttributionRec, ctx: AttributionContext): 
       name: "relationship",
       score,
       max: 3,
-      why: c ? `${c.temperature || "untiered"}${c.activityScore ? `, engagement ${c.activityScore}` : ""}` : "not in CRM",
+      why: c ? `${unrated ? "PortCo (not rated)" : c.temperature || "untiered"}${c.activityScore ? `, engagement ${c.activityScore}` : ""}` : "not in CRM",
     });
   }
 

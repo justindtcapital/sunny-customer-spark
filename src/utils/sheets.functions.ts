@@ -1382,7 +1382,10 @@ export const fetchMyAttention = createServerFn({ method: "POST" })
       await import("@/lib/attention-queue");
     const { teamProfile } = await import("@/lib/user-ownership");
     const profile = teamProfile(data.email);
-    const mine = networkContacts(await buildMyContactsServer(data.email));
+    // Mark PortCo people (company match, not just sector) so they never get a level-based nudge.
+    const { markPortCoContacts } = await import("@/lib/contact-kind");
+    const portcoNames = (await buildPortfolioCompanies().catch(() => [])).map((p) => p.name);
+    const mine = networkContacts(markPortCoContacts(await buildMyContactsServer(data.email), portcoNames));
     const queue = buildAttentionQueue(mine);
     return {
       firstName: profile?.firstName || "there",

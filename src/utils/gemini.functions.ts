@@ -21,6 +21,7 @@ import { buildRadarWatchlist } from "./platform.server";
 import { scoreAttribution } from "@/lib/attribution-score";
 import { outreachVerdict } from "@/lib/outreach-gate";
 import type { Contact } from "@/lib/types";
+import { markPortCoContacts, ratedLevel } from "@/lib/contact-kind";
 // Signal persistence (Signals tab row contract) lives in signal-store.server —
 // shared with the Gmail digest pipeline, which archives per-link signals too.
 import {
@@ -74,6 +75,7 @@ export const draftEmail = createServerFn({ method: "POST" })
   });
 
 const STRENGTH_BY_TEMPERATURE: Record<string, string> = {
+  Council: "strong",
   Hot: "strong",
   Warm: "medium",
   Cold: "weak",
@@ -374,7 +376,9 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
   const topic = (data.topic || "").trim().replace(/\s+/g, " ").slice(0, 80);
 
   try {
-    const [contacts, portfolio] = await Promise.all([buildContacts(), buildPortfolioCompanies()]);
+    const [rawContacts, portfolio] = await Promise.all([buildContacts(), buildPortfolioCompanies()]);
+    // PortCo people aren't rated: mark them so an old saved level never ranks or labels them.
+    const contacts = markPortCoContacts(rawContacts, portfolio.map((p) => p.name));
 
     const allPortcos = portfolio.map((p) => ({
       name: p.name,
@@ -398,16 +402,16 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
         )
       : contacts;
 
-    const tempRank: Record<string, number> = { Hot: 0, Warm: 1, Cold: 2 };
+    const tempRank: Record<string, number> = { Council: 0, Hot: 0, Warm: 1, Cold: 2 };
     const people: SignalPerson[] = peopleSource
       .filter((c) => c.email)
-      .sort((a, b) => (tempRank[a.temperature] ?? 3) - (tempRank[b.temperature] ?? 3))
+      .sort((a, b) => (tempRank[ratedLevel(a) ?? ""] ?? 3) - (tempRank[ratedLevel(b) ?? ""] ?? 3))
       .slice(0, maxPeople)
       .map((c) => ({
         name: c.name,
         title: c.title,
         company: c.company,
-        strength: STRENGTH_BY_TEMPERATURE[c.temperature] || "weak",
+        strength: STRENGTH_BY_TEMPERATURE[ratedLevel(c) ?? ""] || "weak",
         sector: c.sector,
         email: c.email?.split(";")[0]?.trim(),
         lastContact: c.lastContact,

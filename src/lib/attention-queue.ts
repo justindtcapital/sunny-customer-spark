@@ -1,4 +1,5 @@
 import type { Contact } from "@/lib/types";
+import { ratedLevel } from "@/lib/contact-kind";
 
 export type AttentionReason = "overdue" | "stale" | "cooling";
 
@@ -18,7 +19,7 @@ export function hasOpenFollowUp(c: Contact): boolean {
 }
 
 function isPortfolioContact(c: Contact): boolean {
-  return (c.sector || "").trim().toLowerCase() === "portfolio";
+  return c.portco === true || c.kind === "PortCo" || (c.sector || "").trim().toLowerCase() === "portfolio";
 }
 
 /** Exclude portfolio-tagged people from the Network / Home attention set. */
@@ -33,7 +34,7 @@ export function networkContacts(contacts: Contact[]): Contact[] {
 export function buildAttentionQueue(contacts: Contact[]): AttentionItem[] {
   const now = Date.now();
   const DAY = 86_400_000;
-  const tempW = (t: string) => (t === "Hot" ? 3 : t === "Warm" ? 2 : 1);
+  const tempW = (t: string) => (t === "Hot" || t === "Council" ? 3 : t === "Warm" ? 2 : 1);
   const lastTouch = (c: Contact): number => {
     let ts = Date.parse(c.lastContact || "") || 0;
     for (const it of c.interactions) {
@@ -48,7 +49,7 @@ export function buildAttentionQueue(contacts: Contact[]): AttentionItem[] {
     const ts = lastTouch(c);
     const days = ts ? Math.floor((now - ts) / DAY) : 999;
     const importance =
-      tempW(c.temperature) + Math.min(c.portCoIntros.length, 5) * 0.6 + (c.activityScore || 0) / 40;
+      tempW(ratedLevel(c) ?? "") + Math.min(c.portCoIntros.length, 5) * 0.6 + (c.activityScore || 0) / 40;
     const open = hasOpenFollowUp(c);
 
     let reason: AttentionReason | null = null;
@@ -59,7 +60,7 @@ export function buildAttentionQueue(contacts: Contact[]): AttentionItem[] {
     } else if (days >= 30 && importance >= 2.5) {
       reason = "stale";
       detail = `Last touch ${days} days ago`;
-    } else if ((c.temperature === "Hot" || c.temperature === "Warm") && days >= 10 && days < 30) {
+    } else if ((ratedLevel(c) === "Hot" || ratedLevel(c) === "Warm") && days >= 10 && days < 30) {
       reason = "cooling";
       detail = `Quiet ${days} days`;
     }

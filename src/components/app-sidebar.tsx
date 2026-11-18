@@ -280,6 +280,8 @@ export function AppSidebar({
         const updated = selectedContacts.map((c) => {
           const u = { ...c };
           if (bulkField === "status") {
+            // PortCo people aren't rated; the save skips them, so the list does too.
+            if (c.kind === "PortCo" || c.portco) return u;
             u.temperature = value as Temperature;
             u.ratingLocked = true;
           } else if (bulkField === "location") u.location = value;
@@ -299,7 +301,8 @@ export function AppSidebar({
         onBulkUpdate(updated);
       }
       toast.success(
-        `Updated ${res.updated} contact${res.updated !== 1 ? "s" : ""} · ${BULK_FIELD_LABELS[bulkField]} → ${value}`,
+        `Updated ${res.updated} contact${res.updated !== 1 ? "s" : ""} · ${BULK_FIELD_LABELS[bulkField]} → ${value}` +
+          (res.skippedPortCo ? ` · ${res.skippedPortCo} PortCo (not rated) skipped` : ""),
       );
       setBulkEditOpen(false);
       setBulkValue("");

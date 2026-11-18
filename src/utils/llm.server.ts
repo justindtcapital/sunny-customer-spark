@@ -26,6 +26,7 @@ import {
   type GeminiResponse,
 } from "./gemini.server";
 import type { Contact } from "@/lib/types";
+import { markPortCoContacts, ratedLevel, PORTCO_UNRATED } from "@/lib/contact-kind";
 
 export const LLM_MODEL = GEMINI_MODEL;
 export const MAX_STEPS = 8;
@@ -634,7 +635,7 @@ function matchContacts(contacts: Contact[], input: Record<string, JsonValue>): C
       if (!hay.includes(search)) return false;
     }
     if (sector && !(c.sector || "").toLowerCase().includes(sector)) return false;
-    if (temp && (c.temperature || "").toLowerCase() !== temp) return false;
+    if (temp && (ratedLevel(c) || "").toLowerCase() !== temp) return false;
     if (prime && !(c.prime || "").toLowerCase().includes(prime)) return false;
     if (company && !(c.company || "").toLowerCase().includes(company)) return false;
     return true;
@@ -651,7 +652,7 @@ function leanContact(c: Contact, detail = false) {
     company: c.company,
     email: c.email,
     sector: c.sector,
-    temperature: c.temperature,
+    temperature: ratedLevel(c) ?? PORTCO_UNRATED,
     prime: c.prime,
     location: c.location || "",
     activityScore: c.activityScore ?? 0,
@@ -764,7 +765,8 @@ interface ToolOutput {
 }
 
 async function getCachedContacts(cache: ToolCache): Promise<Contact[]> {
-  if (!cache.contacts) cache.contacts = await buildContacts();
+  // PortCo people aren't rated: mark them so lookups never report or filter by an old saved level.
+  if (!cache.contacts) cache.contacts = markPortCoContacts(await buildContacts(), (await getCachedPortfolio(cache).catch(() => [])).map((p) => p.name));
   return cache.contacts;
 }
 async function getCachedPortfolio(cache: ToolCache) {
