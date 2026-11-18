@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { callGeminiJSON } from "./gemini.server";
-import { buildContacts } from "./sheets.server";
+import { buildContacts, buildPortfolioCompanies } from "./sheets.server";
+import { markPortCoContacts, ratedLevel } from "@/lib/contact-kind";
 import { extractDomain, GENERIC_EMAIL_DOMAINS } from "@/lib/domain-utils";
 
 // Broadcast actions for the Signals feed — all Gemini (Vertex) backed, all
@@ -18,7 +19,9 @@ export interface ScoredTarget {
   reason: string;
 }
 
-const TEMP_RANK: Record<string, number> = { Hot: 0, Warm: 1, Cold: 2 };
+/** Warmest first; PortCo people (not rated) and unknowns rank last. */
+const TEMP_RANK: Record<string, number> = { Council: 0, Hot: 0, Warm: 1, Cold: 2 };
+const levelRank = (c: Parameters<typeof ratedLevel>[0]) => TEMP_RANK[ratedLevel(c) ?? ""] ?? 3;
 const MAX_POOL = 120;
 const MAX_TARGETS = 5;
 /** Drop anything below this after the model ranks — enforces quality over quantity. */
@@ -75,10 +78,11 @@ export const scoreNetworkTargets = createServerFn({ method: "POST" })
     try {
       // Pool: contacts with an email, not employed by the signal company,
       // warmer ties first, capped for token budget.
-      const pool = (await buildContacts())
+      const [rawContacts, portcos] = await Promise.all([buildContacts(), buildPortfolioCompanies().catch(() => [])]);
+      const pool = markPortCoContacts(rawContacts, portcos.map((p) => p.name))
         .filter((c) => c.email)
         .filter((c) => !worksAtSignalCompany(c, data.company, data.companyDomain))
-        .sort((a, b) => (TEMP_RANK[a.temperature] ?? 3) - (TEMP_RANK[b.temperature] ?? 3))
+        .sort((a, b) => levelRank(a) - levelRank(b))
         .slice(0, MAX_POOL);
 
       if (pool.length === 0) return { ok: true, targets: [] };

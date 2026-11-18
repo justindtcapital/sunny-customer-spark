@@ -3417,7 +3417,7 @@ export async function bulkUpdateContacts(
   emails: string[],
   field: BulkEditField,
   value: string,
-): Promise<{ updated: number }> {
+): Promise<{ updated: number; skippedPortCo?: number }> {
   const header = BULK_FIELD_HEADERS[field];
   if (!header) throw new Error(`Unsupported bulk-edit field: ${field}`);
   if (field === "prime") value = canonicalOwnerName(value);
@@ -3439,6 +3439,16 @@ export async function bulkUpdateContacts(
   }
 
   const wanted = new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean));
+  // PortCo people aren't rated, so a bulk rating (status) change never writes one onto them.
+  let portcoRow: ((row: string[]) => boolean) | null = null;
+  if (field === "status") {
+    const { portcoKeys } = await import("@/lib/portco-contacts");
+    const { isPortCoRecord } = await import("@/lib/contact-kind");
+    const keys = portcoKeys((await buildPortfolioCompanies().catch(() => [] as PortfolioCompany[])).map((p) => p.name));
+    const at = (row: string[], name: string) => { const i = headers.indexOf(name); return i === -1 ? "" : row[i] || ""; };
+    portcoRow = (row) => isPortCoRecord({ contactType: at(row, "contact type"), company: at(row, "company"), sector: at(row, "industry category") }, keys);
+  }
+  let skippedPortCo = 0;
   const col = colLetters(colIdx);
   const ts = new Date().toISOString();
   const cellUpdates: { range: string; value: string }[] = [];
@@ -3448,6 +3458,7 @@ export async function bulkUpdateContacts(
   for (let i = 1; i < rows.length; i++) {
     const e = (rows[i][emailIdx] || "").trim().toLowerCase();
     if (!wanted.has(e)) continue;
+    if (portcoRow?.(rows[i])) { skippedPortCo++; continue; }
     const prev = (rows[i][colIdx] || "").trim();
     if (prev === value) continue;
     cellUpdates.push({ range: `${col}${i + 1}`, value });
@@ -3469,7 +3480,7 @@ export async function bulkUpdateContacts(
     }
   }
 
-  if (cellUpdates.length === 0) return { updated: 0 };
+  if (cellUpdates.length === 0) return { updated: 0, skippedPortCo };
   await updateSheetCells(TAB_NAMES.contacts, cellUpdates);
 
   // Setting status by hand locks those contacts from the auto-scorecard.
@@ -3481,7 +3492,7 @@ export async function bulkUpdateContacts(
     await appendSheetRows(TAB_NAMES.ratingHistory, historyRows);
   }
 
-  return { updated: cellUpdates.length };
+  return { updated: cellUpdates.length, skippedPortCo };
 }
 
 // Read the Target Outreach tab → { targetKey: OutreachAttempt[] } (newest first).

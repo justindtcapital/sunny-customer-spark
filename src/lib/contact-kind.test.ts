@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { classifyContacts, kindShown, manualKind, markPortCoContacts, resolveKind, toggleKind, tracksRating } from "./contact-kind";
+import { classifyContacts, isPortCoRecord, kindShown, manualKind, markPortCoContacts, ratedLevel, resolveKind, toggleKind, tracksRating } from "./contact-kind";
+import { contactsToCsv } from "./csv-export";
+import { thesisCoverage } from "./platform-thesis";
+import { portcoKeys } from "./portco-contacts";
 import type { Contact } from "./types";
 import type { Partner } from "./partners";
 
@@ -60,5 +63,29 @@ describe("markPortCoContacts", () => {
       person({ company: "MavenAGI", contactType: "Network" }),
     ], ["MavenAGI"]);
     expect(out.map((c) => c.kind)).toEqual(["PortCo", undefined, undefined]);
+  });
+});
+
+describe("PortCo people are never rated", () => {
+  const council = person({ company: "MavenAGI", temperature: "Council", kind: "PortCo", portco: true, sector: "AI security" });
+  it("has no level, whatever rating is saved", () => {
+    expect(ratedLevel(council)).toBeNull();
+    expect(ratedLevel(person({ temperature: "Hot", kind: "Network" }))).toBe("Hot");
+  });
+  it("exports 'Not rated (PortCo)' instead of the saved rating", () => {
+    const row = contactsToCsv([council]).split("\r\n")[1];
+    expect(row).toContain("Not rated (PortCo)");
+    expect(row).not.toContain("Council");
+  });
+  it("doesn't count as a warm contact on a thesis", () => {
+    const thesis = { sectors: ["AI security"], keywords: [] } as unknown as Parameters<typeof thesisCoverage>[0];
+    const hot = person({ company: "Acme", temperature: "Hot", sector: "AI security" });
+    expect(thesisCoverage(thesis, [council, hot], [])).toEqual({ contacts: 2, warmContacts: 1, targets: 0 });
+  });
+  it("recognises saved PortCo rows for bulk rating changes (manual type wins)", () => {
+    const keys = portcoKeys(["MavenAGI"]);
+    expect(isPortCoRecord({ company: "MavenAGI" }, keys)).toBe(true);
+    expect(isPortCoRecord({ company: "MavenAGI", contactType: "Network" }, keys)).toBe(false);
+    expect(isPortCoRecord({ company: "Acme", contactType: "PortCo" }, keys)).toBe(true);
   });
 });

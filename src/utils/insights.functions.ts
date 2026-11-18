@@ -5,6 +5,7 @@ import { connectionStrategistGem } from "./gems/registry";
 import { runGemJSON } from "./gems/run";
 import type { GemKnowledge } from "./gems/types";
 import type { Contact, PortfolioCompany } from "@/lib/types";
+import { markPortCoContacts, ratedLevel } from "@/lib/contact-kind";
 
 // AI-narrative layer for the requirements' "AI insights" items. The raw stats are
 // computed client-side (deterministic, always shown); these endpoints only add the
@@ -195,14 +196,15 @@ function buildConnectionKnowledge(
 
   // Network people who could broker a warm intro, scored by closeness to the
   // target (same company > same sector) and relationship temperature.
-  const tempScore: Record<string, number> = { Hot: 2, Warm: 1, Cold: 0 };
-  const brokers = contacts
+  // PortCo people aren't rated, so an old saved rating adds nothing and they show as PortCo.
+  const tempScore: Record<string, number> = { Council: 2, Hot: 2, Warm: 1, Cold: 0 };
+  const brokers = markPortCoContacts(contacts, portfolio.map((p) => p.name))
     .filter((c) => norm(c.name) && norm(c.name) !== tName)
     .map((c) => {
       let score = 0;
       if (tCompany && norm(c.company) === tCompany) score += 3;
       if (sectorMatch(c.sector, target.sector)) score += 2;
-      score += tempScore[c.temperature] ?? 0;
+      score += tempScore[ratedLevel(c) ?? ""] ?? 0;
       return { c, score };
     })
     .filter((x) => x.score > 0)
@@ -210,7 +212,7 @@ function buildConnectionKnowledge(
     .slice(0, 10)
     .map(
       ({ c }) =>
-        `- ${c.name}${c.title ? `, ${c.title}` : ""}${c.company ? ` @ ${c.company}` : ""} · ${c.temperature}${c.sector ? ` · ${c.sector}` : ""}${c.lastContact ? ` · last contact ${c.lastContact}` : ""}`,
+        `- ${c.name}${c.title ? `, ${c.title}` : ""}${c.company ? ` @ ${c.company}` : ""} · ${ratedLevel(c) ?? "PortCo"}${c.sector ? ` · ${c.sector}` : ""}${c.lastContact ? ` · last contact ${c.lastContact}` : ""}`,
     );
 
   // Compact roster of the whole portfolio (names + sector) for any other angle.

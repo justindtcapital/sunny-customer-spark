@@ -8,6 +8,7 @@
 // thesis's space, computed on read from data we already hold.
 
 import type { Contact, TargetLead } from "./types";
+import { ratedLevel } from "./contact-kind";
 
 // ── Theses ────────────────────────────────────────────────────────
 
@@ -156,7 +157,7 @@ export function matchStatusLabel(status: ThesisMatchStatus): string {
 export interface ThesisCoverage {
   /** Network contacts in the thesis space. */
   contacts: number;
-  /** Of those, Hot or Council (strongest paths). */
+  /** Of those, Hot or Council (strongest paths); PortCo people never count. */
   warmContacts: number;
   /** Targeting-pipeline leads in the thesis space. */
   targets: number;
@@ -185,7 +186,8 @@ export function thesisCoverage(
     const hay = `${c.company} ${c.sector} ${c.title} ${(c.areasOfInterest || []).join(" ")}`.toLowerCase();
     if (!hitsAny(hay, hooks)) continue;
     contactCount++;
-    if (c.temperature === "Hot" || c.temperature === "Council") warm++;
+    const level = ratedLevel(c); // PortCo people aren't rated, so never "warm"
+    if (level === "Hot" || level === "Council") warm++;
   }
   let targetCount = 0;
   for (const t of targets) {

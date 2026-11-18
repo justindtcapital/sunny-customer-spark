@@ -3,7 +3,9 @@ import type { Temperature } from "@/lib/types";
 import { outcomeTotals, type BulkOutcome } from "@/lib/bulk-operation";
 import { emailIdentities } from "@/lib/import-dedupe";
 import { planStatusFlags, PROSPECT_STATUS, isProspectStatus } from "@/lib/unified-contacts";
-import { logNetworkMovements, setContactRating, ensureColumn, fetchSheetTab, updateSheetCells, colLetters, TAB_NAMES } from "./sheets.server";
+import { logNetworkMovements, setContactRating, ensureColumn, fetchSheetTab, updateSheetCells, colLetters, TAB_NAMES, buildPortfolioCompanies } from "./sheets.server";
+import { portcoKeys } from "@/lib/portco-contacts";
+import { isPortCoRecord } from "@/lib/contact-kind";
 
 const norm = (value: string) => value.trim().toLowerCase();
 const cell = (headers: string[], row: string[], name: string) => row[headers.indexOf(norm(name))] || "";
@@ -25,6 +27,12 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
   const seen = new Set<string>();
   const toProspect: { key: string; urid: string; expected: string; base: Omit<BulkOutcome, "status" | "reason">; email: string; name: string }[] = [];
   const toNetwork: typeof toProspect = [];
+  // PortCo people aren't rated: tier writes skip them (portfolio names read once, only if needed).
+  let keys: Set<string> | null = null;
+  const isPortCo = async (row: string[]) => {
+    keys ??= portcoKeys((await buildPortfolioCompanies().catch(() => [])).map((p) => p.name));
+    return isPortCoRecord({ contactType: cell(headers, row, "contact type"), company: cell(headers, row, "company"), sector: cell(headers, row, "industry category") }, keys);
+  };
 
   for (const selected of input.contacts) {
     const key = selected.urid || norm(selected.email);
@@ -53,6 +61,7 @@ export async function changeRelationshipLevels(input: RelationshipInput, prior: 
     }
     if (!urid) { results.set(key, { ...base, status: "blocked", reason: "Missing stable contact ID; nothing was changed." }); continue; }
     if (destination === "Prospecting") { toProspect.push({ key, urid, expected: saved, base, email: cell(headers, source, "email"), name: cell(headers, source, "name") }); continue; }
+    if (current !== "Prospect" && await isPortCo(source)) { results.set(key, { ...base, status: "blocked", reason: "PortCo people aren't rated; nothing was changed." }); continue; }
     if (current === "Prospect") { toNetwork.push({ key, urid, expected: saved, base, email: cell(headers, source, "email"), name: cell(headers, source, "name") }); continue; }
     if (limits && (processed >= limits.maxItems || Date.now() - started >= limits.maxMs)) {
       results.set(key, { ...base, status: "pending", retryable: true, reason: "Not started in this slice. Resume finishes the original destination, without replaying completed items." });

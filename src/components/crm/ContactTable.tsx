@@ -1,3 +1,4 @@
+import { ratedLevel } from "@/lib/contact-kind";
 import { useMemo, useState } from "react";
 import type { Contact } from "@/lib/types";
 import {
@@ -79,7 +80,7 @@ function sortValue(c: Contact, key: SortKey): string | number {
     case "prime":
       return c.prime.toLowerCase();
     case "temperature":
-      return TEMP_RANK[c.temperature] ?? 0;
+      return TEMP_RANK[ratedLevel(c) ?? ""] ?? 0; // PortCo people aren't rated
     case "engagement":
       return effectiveScore(c);
     case "followUp":

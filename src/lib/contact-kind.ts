@@ -1,7 +1,7 @@
 // Who a person is (PortCo / Dell / Partner / Network), separate from how warm the
 // relationship is. A manual pick in the Contact Type column always wins; otherwise
 // the type is guessed at read time from the company/email. Never saved by the guess.
-import type { Contact, ContactType } from "@/lib/types";
+import type { Contact, ContactType, Temperature } from "@/lib/types";
 import { isPortCoContact, portcoKeys } from "@/lib/portco-contacts";
 import { isDellContact } from "@/lib/dell-contacts";
 import { matchPartner, type Partner } from "@/lib/partners";
@@ -30,6 +30,20 @@ export function resolveKind(manual: ContactKind | null, guess: { portco: boolean
 
 /** PortCo people aren't rated; Dell, Partner and Network people keep Council–Cold/Prospect. */
 export const tracksRating = (kind?: ContactKind) => kind !== "PortCo";
+
+/** What exports and summaries show instead of a level for PortCo people. */
+export const PORTCO_UNRATED = "Not rated (PortCo)";
+
+/** The level to show, count or rank by: PortCo people have none, whatever old rating is saved. */
+export function ratedLevel(c: Pick<Contact, "temperature" | "kind" | "portco">): Temperature | null {
+  return c.kind === "PortCo" || c.portco ? null : c.temperature;
+}
+
+/** A saved Contacts row is PortCo: manual Contact Type wins, else a PortCo company/sector match. */
+export function isPortCoRecord(c: { contactType?: string; company?: string; sector?: string }, keys: Set<string>): boolean {
+  const manual = manualKind(c.contactType);
+  return manual ? manual === "PortCo" : isPortCoContact({ company: c.company || "", sector: c.sector || "" }, keys);
+}
 
 /** Show/hide by type: hidden types drop out of the list and the pyramid. */
 export function kindShown(c: Pick<Contact, "kind">, hidden: ContactKind[]): boolean {
@@ -71,8 +85,6 @@ export function classifyContacts<T extends Contact>(contacts: T[], ctx: { portco
 export function markPortCoContacts<T extends Contact>(contacts: T[], portcoNames: string[]): T[] {
   const keys = portcoKeys(portcoNames);
   return contacts.map((c) => {
-    const manual = manualKind(c.contactType);
-    const portco = manual ? manual === "PortCo" : isPortCoContact(c, keys);
-    return portco ? { ...c, kind: "PortCo" as ContactKind, portco: true } : c;
+    return isPortCoRecord(c, keys) ? { ...c, kind: "PortCo" as ContactKind, portco: true } : c;
   });
 }

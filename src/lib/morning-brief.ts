@@ -305,7 +305,7 @@ export function anticipatedFollowUps(input: QuietInput, limit = 8): QuietItem[] 
   for (const c of input.contacts) {
     if (!(c.temperature === "Hot" || c.temperature === "Warm" || c.temperature === "Council" || c.portco) || !c.lastContact) continue;
     const d = daysBetween(c.lastContact, today);
-    if (d >= QUIET_DAYS.contact) out.push({ kind: "contact", label: `${c.name}${c.company ? `, ${c.company}` : ""}`, detail: `${c.portco ? "PortCo contact" : c.temperature} · last touch ${d} days ago`, days: d, weight: c.temperature === "Hot" || c.temperature === "Council" ? 3 : c.portco ? 2 : 1 });
+    if (d >= QUIET_DAYS.contact) out.push({ kind: "contact", label: `${c.name}${c.company ? `, ${c.company}` : ""}`, detail: `${c.portco ? "PortCo contact" : c.temperature} · last touch ${d} days ago`, days: d, weight: c.portco ? 2 : c.temperature === "Hot" || c.temperature === "Council" ? 3 : 1 });
   }
   for (const s of input.noteSteps) {
     if (s.resolved || !s.date) continue;

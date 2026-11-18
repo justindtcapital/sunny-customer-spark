@@ -1,4 +1,5 @@
 import type { Contact } from "@/lib/types";
+import { ratedLevel, PORTCO_UNRATED } from "@/lib/contact-kind";
 
 // Quote a cell if it contains a comma, quote, or newline; double any inner quotes.
 function csvCell(value: string): string {
@@ -18,7 +19,8 @@ export const EXPORT_COLUMNS: { header: string; value: (c: Contact) => string }[]
   { header: "Location", value: (c) => c.location ?? "" },
   { header: "Prime", value: (c) => c.prime },
   { header: "Sector", value: (c) => c.sector },
-  { header: "Temperature", value: (c) => c.temperature },
+  // PortCo people aren't rated, so an old saved rating never leaves the app.
+  { header: "Temperature", value: (c) => ratedLevel(c) ?? PORTCO_UNRATED },
   { header: "Follow-up Pending", value: (c) => (c.followUpPending ? "Yes" : "No") },
   { header: "PortCo Intros", value: (c) => (c.portCoIntros ?? []).join("; ") },
   { header: "Events Attended", value: (c) => (c.eventsAttended ?? []).join("; ") },
