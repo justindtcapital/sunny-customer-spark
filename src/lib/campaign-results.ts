@@ -42,16 +42,34 @@ export function ownerInitials(owner: string): string {
   return n ? initialsOf(n) : "";
 }
 
-export const CAMPAIGN_RESULTS = ["attending", "interested", "follow-up", "declined", "no-reply"] as const;
+/** "attending" and "follow-up" are legacy values kept so earlier saved marks still read. */
+export const CAMPAIGN_RESULTS = ["interested", "confirmed", "declined", "no-reply", "attending", "follow-up"] as const;
 export type CampaignResult = (typeof CAMPAIGN_RESULTS)[number];
 
+/** The four results the owner picks from, on every campaign type. */
+export const RESULT_OPTIONS: CampaignResult[] = ["interested", "confirmed", "declined", "no-reply"];
+
 export const RESULT_LABEL: Record<CampaignResult, string> = {
-  attending: "Attending",
   interested: "Interested",
-  "follow-up": "Follow up",
-  declined: "Declined / unavailable",
+  confirmed: "Confirmed",
+  declined: "Declined",
   "no-reply": "No reply",
+  attending: "Confirmed",
+  "follow-up": "Follow up",
 };
+
+/** Legacy "attending" is the same as Confirmed; other values pass through. */
+export function normalizeResult(r: CampaignResult | ""): CampaignResult | "" {
+  return r === "attending" ? "confirmed" : r;
+}
+
+/** Confirmed people (incl. legacy Attending) are registered to the event when an event campaign closes. */
+export const isConfirmedResult = (r: string | undefined) => r === "confirmed" || r === "attending";
+
+/** Choices shown on one person's row: the four options, plus a legacy Follow up mark so it isn't hidden. */
+export function resultOptionsFor(current: CampaignResult | ""): CampaignResult[] {
+  return current === "follow-up" ? [...RESULT_OPTIONS, "follow-up"] : RESULT_OPTIONS;
+}
 
 export interface ResultRow {
   campaignId: string;
@@ -75,9 +93,9 @@ export function latestResults(rows: ResultRow[]): Map<string, ResultRow> {
 }
 
 export function resultCounts(keys: string[], results: Map<string, ResultRow>, campaignId: string) {
-  const c: Record<CampaignResult | "unmarked", number> = { attending: 0, interested: 0, "follow-up": 0, declined: 0, "no-reply": 0, unmarked: 0 };
+  const c: Record<CampaignResult | "unmarked", number> = { interested: 0, confirmed: 0, declined: 0, "no-reply": 0, attending: 0, "follow-up": 0, unmarked: 0 };
   for (const k of keys) {
-    const r = results.get(`${campaignId}|${k.toLowerCase()}`)?.result;
+    const r = normalizeResult(results.get(`${campaignId}|${k.toLowerCase()}`)?.result || "");
     c[r || "unmarked"]++;
   }
   return c;

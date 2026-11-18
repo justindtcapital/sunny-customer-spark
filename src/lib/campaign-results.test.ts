@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attendeesToRegister, campaignTypeOf, isEventType, statusAfterAddingPeople, latestResults, ownerInitials, resultCounts } from "./campaign-results";
+import { RESULT_LABEL, RESULT_OPTIONS, attendeesToRegister, campaignTypeOf, isConfirmedResult, isEventType, statusAfterAddingPeople, latestResults, ownerInitials, resultCounts, resultOptionsFor } from "./campaign-results";
 
 describe("campaign results", () => {
   it("four types: Event outreach, Event follow-up, Network outreach, Business development", () => {
@@ -24,7 +24,18 @@ describe("campaign results", () => {
     ]);
     expect(m.size).toBe(1);
     expect(m.get("c|a@x.com")?.result).toBe("attending");
-    expect(resultCounts(["a@x.com", "b@x.com"], m, "c")).toMatchObject({ attending: 1, unmarked: 1 });
+    expect(resultCounts(["a@x.com", "b@x.com"], m, "c")).toMatchObject({ confirmed: 1, attending: 0, unmarked: 1 });
+  });
+  it("the four results are Interested, Confirmed, Declined, No reply — no Follow up", () => {
+    expect(RESULT_OPTIONS.map((o) => RESULT_LABEL[o])).toEqual(["Interested", "Confirmed", "Declined", "No reply"]);
+  });
+  it("an earlier Follow up mark still shows on its row", () => {
+    expect(resultOptionsFor("follow-up")).toContain("follow-up");
+    expect(resultOptionsFor("interested")).not.toContain("follow-up");
+  });
+  it("Confirmed (and earlier Attending) people are the ones registered to the event", () => {
+    expect(["confirmed", "attending", "interested", "declined", "no-reply", "follow-up"].map(isConfirmedResult))
+      .toEqual([true, true, false, false, false, false]);
   });
   it("registering skips people already on the event by email or full name", () => {
     const out = attendeesToRegister(

@@ -617,7 +617,7 @@ export const finishCampaign = createServerFn({ method: "POST" })
 
 // ── Results (step 6) and closing ─────────────────────────────
 
-const resultEnum = z.enum(["attending", "interested", "follow-up", "declined", "no-reply", ""]);
+const resultEnum = z.enum(["interested", "confirmed", "declined", "no-reply", "attending", "follow-up", ""]);
 
 export const fetchCampaignResults = createServerFn({ method: "POST" })
   .inputValidator((d: { campaignId: string }) => z.object({ campaignId: z.string().min(1) }).parse(d))
@@ -674,7 +674,7 @@ export const closeCampaign = createServerFn({ method: "POST" })
     return withDeadline("closeCampaign", 55_000, async (step) => {
       step("checking owner");
       const camp = await assertOwner(data.campaignId, data.by);
-      const { latestResults, attendeesToRegister } = await import("@/lib/campaign-results");
+      const { latestResults, attendeesToRegister, isConfirmedResult } = await import("@/lib/campaign-results");
       const { canonicalOwnerName } = await import("@/lib/user-ownership");
       step("reading members and results");
       const [members, results] = await Promise.all([listMembers(data.campaignId), listResults(data.campaignId)]);
@@ -683,7 +683,7 @@ export const closeCampaign = createServerFn({ method: "POST" })
       const unmarked = members.filter((m) => !latest.get(`${data.campaignId}|${m.personKey}`)?.result);
       step("recording no-replies");
       await appendResults(unmarked.map((m) => ({ campaignId: data.campaignId, personKey: m.personKey, result: "no-reply" as const, followUpOwner: "", followUpDue: "", by: canonicalOwnerName(data.by), at })));
-      const yes = members.filter((m) => latest.get(`${data.campaignId}|${m.personKey}`)?.result === "attending");
+      const yes = members.filter((m) => isConfirmedResult(latest.get(`${data.campaignId}|${m.personKey}`)?.result));
       let registered = 0;
       let skipped = 0;
       let eventMissing = false;
@@ -709,7 +709,7 @@ export const closeCampaign = createServerFn({ method: "POST" })
         action: "edit",
         source: "campaign_builder",
         status: eventMissing ? "warning" : "ok",
-        summary: `Campaign "${camp.name}" closed: ${yes.length} attending (${registered} registered, ${skipped} already on event), ${unmarked.length} marked no reply`,
+        summary: `Campaign "${camp.name}" closed: ${yes.length} confirmed (${registered} registered, ${skipped} already on event), ${unmarked.length} marked no reply`,
         records: members.length,
         details: { by: data.by, event: evName, eventMissing },
       });

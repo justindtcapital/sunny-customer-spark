@@ -4,17 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { closeCampaign, fetchCampaignResults, saveCampaignFn, saveCampaignResults, setCampaignFollowUps } from "@/utils/campaigns.functions";
-import { CAMPAIGN_TEAM, followUpDueDate, type CampaignMember, type CampaignRecord } from "@/lib/campaigns";
+import { closeCampaign, fetchCampaignResults, saveCampaignFn, saveCampaignResults } from "@/utils/campaigns.functions";
+import { type CampaignMember, type CampaignRecord } from "@/lib/campaigns";
 import { canonicalOwnerName } from "@/lib/user-ownership";
-import { RESULT_LABEL, campaignTypeOf, isClosedStatus, isEventType, type CampaignResult } from "@/lib/campaign-results";
+import { RESULT_LABEL, RESULT_OPTIONS, campaignTypeOf, isClosedStatus, isEventType, normalizeResult, resultOptionsFor, type CampaignResult } from "@/lib/campaign-results";
 
 type Mark = { result: CampaignResult | ""; followUpOwner: string; followUpDue: string };
 
@@ -36,7 +35,6 @@ export function CampaignResults({
   const qc = useQueryClient();
   const saveFn = useServerFn(saveCampaignResults);
   const closeFn = useServerFn(closeCampaign);
-  const followFn = useServerFn(setCampaignFollowUps);
   const saveCampaign = useServerFn(saveCampaignFn);
   const resultsQ = useQuery({
     queryKey: ["campaign-results", campaign.id],
@@ -49,11 +47,10 @@ export function CampaignResults({
   const closed = isClosedStatus(campaign.status);
   const editable = isOwner && !closed;
   const isEvent = isEventType(campaignTypeOf(campaign.purpose));
-  const options: CampaignResult[] = [isEvent ? "attending" : "interested", "follow-up", "declined", "no-reply"];
 
   const saved = useMemo(() => {
     const m = new Map<string, Mark>();
-    for (const r of resultsQ.data || []) m.set(r.personKey, { result: r.result, followUpOwner: r.followUpOwner, followUpDue: r.followUpDue });
+    for (const r of resultsQ.data || []) m.set(r.personKey, { result: normalizeResult(r.result), followUpOwner: r.followUpOwner, followUpDue: r.followUpDue });
     return m;
   }, [resultsQ.data]);
   const [marks, setMarks] = useState<Map<string, Mark>>(new Map());
@@ -69,12 +66,7 @@ export function CampaignResults({
     setMarks((cur) => {
       const next = new Map(cur);
       const prev = next.get(k) || { result: "", followUpOwner: "", followUpDue: "" };
-      const m = { ...prev, ...patch };
-      if (patch.result === "follow-up" && !m.followUpDue) {
-        m.followUpDue = followUpDueDate(new Date(), 1, "weeks");
-        m.followUpOwner = m.followUpOwner || canonicalOwnerName(campaign.owner || campaign.createdBy) || me;
-      }
-      next.set(k, m);
+      next.set(k, { ...prev, ...patch });
       return next;
     });
 
@@ -96,18 +88,6 @@ export function CampaignResults({
   const persist = async () => {
     if (!dirty.length) return;
     await saveFn({ data: { campaignId: campaign.id, by: userEmail, marks: dirty.map((m) => ({ personKey: m.personKey, ...markOf(m.personKey) })) } });
-    // New or changed follow-ups become dated follow-ups in My Actions, grouped by owner + date.
-    const groups = new Map<string, CampaignMember[]>();
-    for (const m of dirty) {
-      const k = markOf(m.personKey);
-      if (k.result !== "follow-up" || !k.followUpDue || !k.followUpOwner) continue;
-      const g = `${k.followUpOwner}|${k.followUpDue}`;
-      groups.set(g, [...(groups.get(g) || []), m]);
-    }
-    for (const [g, ppl] of groups) {
-      const [owner, due] = g.split("|");
-      await followFn({ data: { campaignId: campaign.id, campaignName: campaign.name, owner, due, people: ppl.map((p) => ({ personKey: p.personKey, kind: p.kind, email: p.email })) } });
-    }
     await qc.invalidateQueries({ queryKey: ["campaign-results", campaign.id] });
     await qc.invalidateQueries({ queryKey: ["person-campaigns"] });
   };
@@ -130,7 +110,7 @@ export function CampaignResults({
       await persist();
       const r = await closeFn({ data: { campaignId: campaign.id, by: userEmail, eventName: eventName || undefined } });
       const parts = [`${r.noReply} marked no reply`];
-      if (r.attending) parts.unshift(r.eventMissing ? `${r.attending} attending — event "${r.event}" not found on the Events page, so nobody was registered` : `${r.registered} registered to ${r.event}${r.skipped ? ` (${r.skipped} already on the list)` : ""}`);
+      if (r.attending && isEvent) parts.unshift(r.eventMissing ? `${r.attending} confirmed — event "${r.event}" not found on the Events page, so nobody was registered` : `${r.registered} registered to ${r.event}${r.skipped ? ` (${r.skipped} already on the list)` : ""}`);
       toast.success(`Campaign closed. ${parts.join(" · ")}`);
       await qc.invalidateQueries({ queryKey: ["campaigns"] });
       await qc.invalidateQueries({ queryKey: ["person-campaigns"] });
@@ -157,12 +137,13 @@ export function CampaignResults({
 
   const rows = members.filter((m) => !onlyUnmarked || !markOf(m.personKey).result);
   const loading = loadingMembers || resultsQ.isLoading;
-  const attendingCount = counts[isEvent ? "attending" : "interested"] || 0;
+  const attendingCount = counts.confirmed || 0;
+  const summary: CampaignResult[] = counts["follow-up"] ? [...RESULT_OPTIONS, "follow-up"] : RESULT_OPTIONS;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        {options.map((o) => (
+        {summary.map((o) => (
           <span key={o} className="rounded-full border border-border px-2 py-0.5">
             <b className="text-foreground">{counts[o] || 0}</b> <span className="text-muted-foreground">{RESULT_LABEL[o].toLowerCase()}</span>
           </span>
@@ -192,7 +173,7 @@ export function CampaignResults({
                   <div className="text-muted-foreground truncate">{[m.title, m.company].filter(Boolean).join(" · ")}</div>
                 </div>
                 <div role="radiogroup" aria-label={`Result for ${m.name}`} className="flex flex-wrap gap-1">
-                  {options.map((o) => (
+                  {resultOptionsFor(k.result).map((o) => (
                     <button
                       key={o}
                       type="button"
@@ -204,19 +185,10 @@ export function CampaignResults({
                         k.result === o ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:bg-muted/50"
                       }`}
                     >
-                      {o === "declined" ? "Declined" : RESULT_LABEL[o]}
+                      {RESULT_LABEL[o]}
                     </button>
                   ))}
                 </div>
-                {k.result === "follow-up" && (
-                  <div className="flex basis-full justify-end gap-1.5">
-                    <Select value={k.followUpOwner} onValueChange={(v) => setMark(m.personKey, { followUpOwner: v })} disabled={!editable}>
-                      <SelectTrigger className="h-7 w-[150px] text-[11px]"><SelectValue placeholder="Teammate" /></SelectTrigger>
-                      <SelectContent>{CAMPAIGN_TEAM.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-                    </Select>
-                    <Input type="date" value={k.followUpDue} disabled={!editable} onChange={(e) => setMark(m.personKey, { followUpDue: e.target.value })} className="h-7 w-[140px] text-[11px]" />
-                  </div>
-                )}
               </div>
             );
           })}
@@ -248,11 +220,11 @@ export function CampaignResults({
                 {isEvent ? (
                   attendingCount ? (
                     campaign.events.length ? (
-                      <p>{attendingCount} people marked Attending will be registered to the event (anyone already on its list is skipped).</p>
+                      <p>{attendingCount} people marked Confirmed will be registered to the event (anyone already on its list is skipped).</p>
                     ) : (
-                      <p>{attendingCount} people are marked Attending, but this campaign has no event linked, so nobody will be registered.</p>
+                      <p>{attendingCount} people are marked Confirmed, but this campaign has no event linked, so nobody will be registered.</p>
                     )
-                  ) : <p>Nobody is marked Attending.</p>
+                  ) : <p>Nobody is marked Confirmed.</p>
                 ) : null}
                 {campaign.events.length > 1 && isEvent && attendingCount > 0 && (
                   <Select value={eventName} onValueChange={setEventName}>
