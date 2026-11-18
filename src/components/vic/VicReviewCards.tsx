@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { mailtoLink } from "@/lib/campaigns";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,7 @@ export function RelationshipReview({ proposal }: { proposal: RelProposal }) {
 export function EmailReview({ draft }: { draft: { to: string[]; subject: string; body: string } }) {
   const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body);
-  const href = `mailto:${draft.to.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const href = mailtoLink(draft.to, subject, body);
   return (
     <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
       <div className="font-medium">Review email draft</div>

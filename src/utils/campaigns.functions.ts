@@ -7,6 +7,7 @@ import {
   buildContacts,
   buildPortfolioCompanies,
   buildTargets,
+  bulkUpdateTargetFields,
   flagContactsForFollowUp,
   logOpsEvent,
   updateTargetFields,
@@ -473,6 +474,63 @@ export const logCampaignSend = createServerFn({ method: "POST" })
       { personKey: data.personKey, fields: { sentChannel: data.channel, sentDate: today() } },
     ]);
     return { ok: true };
+  });
+
+/** Log one opened email that went to several campaign members (per-company or
+ *  BCC send) with one batched write per tab, so big sends stay within Sheets quota. */
+export const logCampaignSends = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    campaignId: string;
+    campaignName: string;
+    mode: "individual" | "company" | "bcc";
+    people: Array<{ personKey: string; kind: "network" | "prospect"; email: string }>;
+    portcos?: string[];
+    by?: string;
+  }) =>
+    z
+      .object({
+        campaignId: z.string().min(1),
+        campaignName: z.string().min(1),
+        mode: z.enum(["individual", "company", "bcc"]),
+        people: z
+          .array(z.object({ personKey: z.string().min(1), kind: z.enum(["network", "prospect"]), email: z.string() }))
+          .min(1)
+          .max(1000),
+        portcos: z.array(z.string()).max(30).optional(),
+        by: z.string().max(200).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const how = data.mode === "bcc" ? " (one email, BCC)" : data.mode === "company" ? " (shared company email)" : "";
+    const summary = `Campaign: ${data.campaignName} — email opened${how}${data.by ? ` by ${data.by}` : ""}`;
+    const prospects = data.people.filter((p) => p.kind === "prospect");
+    const network = data.people.filter((p) => p.kind === "network" && p.email);
+    if (prospects.length) {
+      await appendTargetOutreachRows(
+        prospects.map((p) => ({
+          targetKey: p.personKey,
+          date: today(),
+          method: "Email",
+          summary,
+          id: crypto.randomUUID(),
+          portcos: data.portcos,
+        })),
+      );
+      await bulkUpdateTargetFields(prospects.map((p) => ({ key: p.personKey, fields: { lastContacted: today() } }))).catch(
+        () => undefined,
+      );
+    }
+    if (network.length) {
+      await appendInteractionRows(
+        network.map((p) => ({ email: p.email, date: today(), summary, type: "email" as const, requiresFollowUp: false, owner: data.by })),
+      );
+    }
+    await updateMembers(
+      data.campaignId,
+      data.people.map((p) => ({ personKey: p.personKey, fields: { sentChannel: "email", sentDate: today() } })),
+    );
+    return { ok: true, logged: data.people.length };
   });
 
 export const setCampaignFollowUps = createServerFn({ method: "POST" })

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { joinAddresses } from "@/lib/campaigns";
 import { TEAM_OWNER_NAMES } from "@/lib/user-ownership";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -397,7 +398,7 @@ export function BulkEditBar() {
         disabled={anyBusy || !selectedContacts.some((c) => c.email)}
         onClick={() => {
           // Primary address only, so multi-email cells don't break the recipient list.
-          const to = selectedContacts.map((c) => (c.email || "").split(/[,;]/)[0].trim()).filter(Boolean).join(",");
+          const to = joinAddresses(selectedContacts.map((c) => (c.email || "").split(/[,;]/)[0].trim()));
           window.open(`mailto:${to}`, "_self");
         }}
       >

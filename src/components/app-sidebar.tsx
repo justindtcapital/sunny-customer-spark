@@ -1,4 +1,5 @@
 import { VicMark } from "@/components/vic/VicMark";
+import { joinAddresses } from "@/lib/campaigns";
 import { useEffect, useState } from "react";
 import {
   Users,
@@ -227,10 +228,7 @@ export function AppSidebar({
     if (selectedContacts.length === 0) return;
     // Use each contact's PRIMARY email (first of a ";"-separated cell) so a
     // multi-email contact doesn't inject a malformed recipient into the mailto.
-    const emails = selectedContacts
-      .map((c) => c.email?.split(";")[0]?.trim() || c.email)
-      .filter(Boolean)
-      .join(",");
+    const emails = joinAddresses(selectedContacts.map((c) => c.email?.split(/[,;]/)[0]?.trim() || ""));
     window.open(`mailto:${emails}`, "_self");
 
     // Log email interaction for each selected contact
@@ -449,10 +447,7 @@ export function AppSidebar({
 
   const handleTargetBulkEmail = () => {
     if (selectedTargets.length === 0) return;
-    const emails = selectedTargets
-      .map((t) => t.email)
-      .filter(Boolean)
-      .join(",");
+    const emails = joinAddresses(selectedTargets.map((t) => (t.email || "").split(/[,;]/)[0].trim()));
     if (emails) window.open(`mailto:${emails}`, "_self");
 
     if (onTargetBulkUpdate) {

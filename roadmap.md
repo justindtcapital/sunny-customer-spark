@@ -9,3 +9,4 @@
 - [ ] Final Asana cut-off (Parts A+B): remove Asana read code and V.I.C. Asana access — waits on parallel check
 - [x] "Update V.I.C." quick-add button (follow-ups, actions, workstream updates)
 - [x] My Actions: one-click Mark complete with Completed badge + Undo; retry on Google limits; searchable PortCo/Partner picker with correct filing
+- [x] Campaign send options: individual emails, one email per company, or one email with everyone in BCC; all recipient lists separated by semicolons for Outlook

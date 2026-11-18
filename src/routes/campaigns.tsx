@@ -51,7 +51,11 @@ import { CampaignResults } from "@/components/campaigns/CampaignResults";
 import { clearPreload, readPreload } from "@/lib/campaign-preload";
 import {
   CAMPAIGN_PURPOSES,
+  CAMPAIGN_SEND_MODES,
   CAMPAIGN_TEAM,
+  campaignEmailBatches,
+  joinAddresses,
+  unfilledPlaceholders,
   fillTemplate,
   followUpDueDate,
   mailtoLink,
@@ -59,6 +63,8 @@ import {
   parseCandidateCsv,
   personKeyOf,
   type CampaignChannel,
+  type CampaignEmailBatch,
+  type CampaignSendMode,
   type CampaignMember,
   type CampaignRecord,
   type CandidatePerson,
@@ -76,6 +82,7 @@ import {
   deleteCampaignFn,
   finishCampaign,
   logCampaignSend,
+  logCampaignSends,
   personalizeCampaignMessages,
   saveCampaignFn,
   saveMemberDrafts,
@@ -1640,6 +1647,7 @@ function ActionSteps({
   const saveCampaign = useServerFn(saveCampaignFn);
   const uploadFn = useServerFn(uploadCampaignAttachment);
   const logSend = useServerFn(logCampaignSend);
+  const logSends = useServerFn(logCampaignSends);
   const followFn = useServerFn(setCampaignFollowUps);
   const finishFn = useServerFn(finishCampaign);
 
@@ -1667,6 +1675,7 @@ function ActionSteps({
   const [fuUnit, setFuUnit] = useState<FollowUpUnit>("weeks");
   const [fuOwner, setFuOwner] = useState(campaign.owner || CAMPAIGN_TEAM[0]);
   const [fuPicked, setFuPicked] = useState<Set<string>>(new Set());
+  const [sendMode, setSendMode] = useState<CampaignSendMode>("individual");
 
   const draftFor = (m: CampaignMember): Draft =>
     drafts[m.personKey] || {
@@ -1825,6 +1834,29 @@ function ActionSteps({
       });
     } catch (e) {
       toast.error(`Couldn't log the send for ${m.name}: ${e instanceof Error ? e.message : "error"}`);
+    }
+  };
+
+  const sendBatch = async (b: CampaignEmailBatch) => {
+    window.location.href = mailtoLink(b.to, b.subject, b.body, { bcc: b.bcc });
+    setSentNow((prev) => {
+      const n = new Set(prev);
+      for (const m of b.members) n.add(m.personKey);
+      return n;
+    });
+    try {
+      await logSends({
+        data: {
+          campaignId: campaign.id,
+          campaignName: campaign.name,
+          mode: sendMode,
+          people: b.members.map((m) => ({ personKey: m.personKey, kind: m.kind, email: m.email })),
+          portcos: campaign.portcos,
+          by: userEmail,
+        },
+      });
+    } catch (e) {
+      toast.error(`Couldn't log the send for ${b.label}: ${e instanceof Error ? e.message : "error"}`);
     }
   };
 
@@ -2025,8 +2057,93 @@ function ActionSteps({
   }
 
   // step === "send"
+  const emailPlan = campaignEmailBatches(members, sendMode, draftFor, template, userEmail);
+  const modeInfo = CAMPAIGN_SEND_MODES.find((o) => o.value === sendMode);
   return (
     <div className="space-y-4">
+      {campaign.channel !== "linkedin" && (
+        <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+          <SectionLabel>How should the emails go out?</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            {CAMPAIGN_SEND_MODES.map((o) => (
+              <Button key={o.value} size="sm" variant={sendMode === o.value ? "default" : "outline"} onClick={() => setSendMode(o.value)}>
+                {o.label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {modeInfo?.hint}
+            {sendMode !== "individual" && " Shared emails use the template, not personalised drafts."}
+            {emailPlan.skipped > 0 && ` ${emailPlan.skipped} ${emailPlan.skipped === 1 ? "person has" : "people have"} no email address and ${emailPlan.skipped === 1 ? "is" : "are"} left out.`}
+          </p>
+          {sendMode !== "individual" && (
+            <div className="space-y-2">
+              {emailPlan.batches.length === 0 && <p className="text-xs text-muted-foreground">Nobody on this list has an email address.</p>}
+              {emailPlan.batches.map((b) => {
+                const sent = b.members.every((m) => sentNow.has(m.personKey) || !!m.sentDate);
+                const long = mailtoLink(b.to, b.subject, b.body, { bcc: b.bcc }).length > 1900;
+                const copyList = b.bcc.length ? b.bcc : b.to;
+                const leftover = unfilledPlaceholders(`${b.subject}\n${b.body}`);
+                return (
+                  <div key={b.key} className="rounded-md border border-border px-3 py-2 space-y-1.5">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 text-xs">
+                        <div className="font-medium text-foreground">{b.label}</div>
+                        <div className="text-muted-foreground break-all">
+                          {b.bcc.length ? (
+                            <>
+                              To: {b.to.length ? joinAddresses(b.to, "; ") : "(blank)"} · BCC: {b.bcc.length} {b.bcc.length === 1 ? "person" : "people"}
+                            </>
+                          ) : (
+                            <>To: {joinAddresses(b.to, "; ")}</>
+                          )}
+                        </div>
+                        <div className="text-muted-foreground truncate">Subject: {b.subject || "(no subject)"}</div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {sent && (
+                          <Badge variant="outline" className="text-[9px]">
+                            Sent
+                          </Badge>
+                        )}
+                        <Button size="sm" variant="outline" className="h-7" onClick={() => void sendBatch(b)}>
+                          <Mail className="h-3.5 w-3.5 mr-1" /> Open email
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title={b.bcc.length ? "Copy BCC addresses" : "Copy addresses"}
+                          onClick={() => {
+                            void navigator.clipboard.writeText(joinAddresses(copyList, "; "));
+                            toast.success(`${copyList.length} ${copyList.length === 1 ? "address" : "addresses"} copied, separated by semicolons`);
+                          }}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    {leftover.length > 0 && (
+                      <p className="text-[10px] text-destructive">
+                        Still has {leftover.join(", ")} — fill it in before sending, either in Message or in Outlook.
+                      </p>
+                    )}
+                    {long && (
+                      <p className="text-[10px] text-muted-foreground">
+                        This is a long email. If Outlook opens without every address, copy the addresses and paste them into {b.bcc.length ? "BCC" : "To"}.
+                      </p>
+                    )}
+                    <details>
+                      <summary className="cursor-pointer text-[11px] text-muted-foreground">Preview message</summary>
+                      <p className="mt-1 whitespace-pre-wrap text-xs text-foreground">{b.body}</p>
+                    </details>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
       <div className="rounded-lg border border-border bg-card">
         <table className="w-full text-xs">
           <thead className="bg-muted text-muted-foreground">
@@ -2073,7 +2190,7 @@ function ActionSteps({
                     {m.followUpDue && <div className="text-[10px] text-muted-foreground mt-0.5">Follow up {m.followUpDue} · {m.followUpOwner}</div>}
                   </td>
                   <td className="px-2 py-2 text-right space-x-1 whitespace-nowrap">
-                    {campaign.channel !== "linkedin" && (
+                    {campaign.channel !== "linkedin" && sendMode === "individual" && (
                       <>
                         <Button size="sm" variant="outline" className="h-7" disabled={!m.email} onClick={() => void doSend(m, "email")}>
                           <Mail className="h-3.5 w-3.5 mr-1" /> Open email

@@ -29,9 +29,10 @@ export function writeActionDraft(store: Store, key: string, draft: CachedActionD
 }
 
 export function outlookComposeLinks(to: string[], subject: string, body: string) {
-  const query = `to=${encodeURIComponent(to.join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // Outlook only recognises semicolons between addresses, never commas.
+  const query = `to=${encodeURIComponent(to.join(";"))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   const desktopQuery = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.replace(/\r?\n/g, "\r\n"))}`;
-  return { app: `ms-outlook://compose?${query}`, desktop: `mailto:${to.map(encodeURIComponent).join(",")}?${desktopQuery}`, web: `https://outlook.office.com/mail/deeplink/compose?${query}` };
+  return { app: `ms-outlook://compose?${query}`, desktop: `mailto:${to.map(encodeURIComponent).join(";")}?${desktopQuery}`, web: `https://outlook.office.com/mail/deeplink/compose?${query}` };
 }
 export function isAppleMobile(userAgent: string, platform: string, maxTouchPoints: number) {
   return /iPad|iPhone|iPod/.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
