@@ -1,4 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import {
   draftEmail as runDraftEmail,
   scanSignals as runScanSignals,
@@ -894,6 +894,15 @@ export const suggestAreasOfInterest = createServerFn({ method: "POST" })
     }
   });
 
+/**
+ * Stored Signals rows after the read-time outreach gate, as a scan result.
+ * Shared by the Signals page feed so both views show the same cleaned rows.
+ */
+export const gatedStoredSignals = createServerOnlyFn(
+  (stored: StoredSignal[], contacts: Contact[], portcoNames: Set<string>): SignalScanResult =>
+    resultFromStored(gateStoredRecs(stored, contacts, portcoNames), [], 0),
+);
+
 export const fetchSignals = createServerFn({ method: "GET" }).handler(
   async (): Promise<SignalScanResult> => {
     try {
@@ -936,3 +945,18 @@ export const fetchSignalBody = createServerFn({ method: "POST" })
     }
   });
 
+
+/**
+ * Daily scheduled scan (the morning cron): full PortCo + network scan with the
+ * scheduled tier cadence. Server-only so the client never bundles it.
+ * SIGNALS_CRON_ENABLED=false turns it off; SIGNALS_CRON_WINDOW_DAYS sets the lookback.
+ */
+export const runScheduledSignalScan = createServerOnlyFn(
+  async (): Promise<SignalScanResult & { skipped?: boolean }> => {
+    if ((process.env["SIGNALS_CRON_ENABLED"] || "true").toLowerCase() === "false") {
+      return { found: false, skipped: true, error: "SIGNALS_CRON_ENABLED=false", recommendations: [], otherSignals: [], compliance: [] };
+    }
+    const windowDays = Number(process.env["SIGNALS_CRON_WINDOW_DAYS"]) || 14;
+    return executeSignalScan({ windowDays, scheduled: true });
+  },
+);

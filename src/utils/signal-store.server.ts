@@ -94,7 +94,7 @@ function driveDocUrl(url?: string): string {
 // Prefixed with "s" so the value is never a pure number — otherwise Google
 // Sheets (USER_ENTERED) coerces an all-digit hash to scientific notation, which
 // corrupts the ID on round-trip.
-function signalId(type: string, who: string, what: string): string {
+export function signalId(type: string, who: string, what: string): string {
   const key = `${type}|${who.toLowerCase().trim()}|${what.toLowerCase().trim().slice(0, 200)}`;
   let h = 0x811c9dc5;
   for (let i = 0; i < key.length; i++) {
@@ -204,14 +204,24 @@ export function rowFromStored(s: StoredSignal): string[] {
 // `withBody:false` (the default) elides the heavy Body column from the returned
 // signals to keep the feed load light — the feed only needs it on card expand,
 // which `fetchSignalBody` serves. `hasBody` still reflects whether a Body exists.
+/** Sheets answers "Unable to parse range" when the tab doesn't exist. */
+function isMissingTab(e: unknown): boolean {
+  return /unable to parse range/i.test(e instanceof Error ? e.message : String(e));
+}
+
+// `fresh` skips this instance's cache (use before appending); `strict` throws
+// on a failed read instead of returning [] so callers can say "unavailable"
+// rather than "no signals".
 export async function fetchStoredSignals(
-  opts: { withBody?: boolean } = {},
+  opts: { withBody?: boolean; fresh?: boolean; strict?: boolean } = {},
 ): Promise<StoredSignal[]> {
   const withBody = opts.withBody ?? false;
   let rows: string[][] = [];
   try {
-    rows = await fetchSheetTab(TAB_NAMES.signals);
-  } catch {
+    rows = await fetchSheetTab(TAB_NAMES.signals, opts.fresh ?? false);
+  } catch (e) {
+    // A spreadsheet without a Signals tab simply has no signals yet.
+    if (opts.strict && !isMissingTab(e)) throw e;
     return [];
   }
   if (rows.length === 0) return [];

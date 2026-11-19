@@ -15,6 +15,7 @@ import { teamMemberFor } from "@/lib/user-ownership";
 import { reportingDay, activeWorkstream } from "@/lib/home-momentum";
 import { workstreamBarStatus } from "@/lib/workstream-parse";
 import { createLovableAiGatewayRunIdFetch } from "./morning-brief-run-id.server";
+import { briefSignals, type BriefSignal } from "@/lib/signals-page";
 
 export const BRIEF_OWNER = "chris.falloon@dell.com";
 export const BRIEF_RECIPIENT = "chris.falloon@dell.com";
@@ -48,6 +49,8 @@ export interface MorningBrief {
   campaigns: { id: string; name: string; members: number; contacted: number; inToday: string[] }[];
   events: { urid: string; name: string; start: string; location: string; portcos: string[]; todaysPeople: string[] }[];
   gaps: string; newPeople: { name: string; title: string; company: string; email?: string }[]; warnings: string[];
+  /** "Signals to know today" — new since yesterday, meeting PortCos first. Absent on older briefs. */
+  signals?: BriefSignal[];
 }
 
 async function admin() { return (await import("@/integrations/supabase/client.server")).supabaseAdmin; }
@@ -82,8 +85,10 @@ async function gather(today: string) {
   const [events, attendees, records, activities] = await Promise.all([read("Events", () => planner.readPlannerEvents(), []), read("Attendees", planner.readAttendees, []), read("Notes", () => knowledge.listKnowledgeRecords(), []), read("Note steps", knowledge.listHarvestedActivities, [])]);
   const portcoFields = await read("PortCo investment details", store.fetchPortcoProfileFields, new Map<string, { name: string; fields: Record<string, string> }>());
   const home = await read("Actions", () => fetchHomeMomentum({ data: { email: BRIEF_OWNER, scope: "mine" } }), null);
+  const { fetchStoredSignals } = await import("./signal-store.server");
+  const signals = await read("Signals", () => fetchStoredSignals({ strict: true }), []);
   void today;
-  return { contacts, targets, companies, workstreams, campaigns, members, events, attendees, records, activities, reminders: home?.reminders || [], portcoFields, warnings };
+  return { contacts, targets, companies, workstreams, campaigns, members, events, attendees, records, activities, reminders: home?.reminders || [], portcoFields, signals, warnings };
 }
 
 type Facts = Awaited<ReturnType<typeof gather>>;
@@ -306,6 +311,7 @@ export async function buildMorningBrief(opts: { force?: boolean; sendEmail?: boo
       }),
       dueThisWeek: a.due, quiet: a.quiet.map((q, i) => ({ label: q.label, detail: q.detail, link: q.link, nextStep: ai.quiet.find((y) => y.index === i)?.nextStep || "" })),
       campaigns: a.campaigns, events: a.events, gaps: a.cowork.gaps, newPeople: a.newPeople, warnings: facts.warnings,
+      signals: briefSignals(facts.signals, { today, meetingPortcos: a.meetings.flatMap((m) => [...m.portcos.map((p) => p.name), ...(m.mentionedPortcos || []).map((p) => p.name)]) }),
     };
     await db.from("morning_briefs").update({ status: "ready", brief: brief as never, cowork_text: text.slice(0, 50_000), error: "", updated_at: new Date().toISOString() }).eq("id", id);
     if (opts.sendEmail !== false) await sendBriefEmail(id);
@@ -348,6 +354,7 @@ ${m.prep.length ? `<div style="font-size:12px"><b>Prep</b>${list(m.prep.map(esc)
 <p style="margin:0 0 10px;color:#445">${esc(b.glance)}</p>
 ${h2("Top priorities")}<ol style="margin:4px 0 8px 18px;padding:0">${b.priorities.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
 ${h2("Meetings")}${meetings}
+${b.signals?.length ? `${h2("Signals to know today")}${list(b.signals.map((x) => `<a href="${esc(`${appUrl}/signals?open=${encodeURIComponent(x.id)}`)}">${esc(x.headline)}</a> · ${esc(x.company || "Industry")}${x.inMeeting ? " <b>(in today's meetings)</b>" : ""} <span style="color:#667">${esc(x.sourceType)}</span>`))}` : ""}
 ${h2("Due this week")}${list(b.dueThisWeek.map((d) => `${esc(d.due)} ${d.overdue ? "<b style='color:#b42318'>overdue</b> " : ""}${esc(d.summary)}${d.person ? ` · ${esc(d.person)}` : ""}`)) || "<p>Nothing due.</p>"}
 ${h2("Anticipated follow-ups")}${list(b.quiet.map((q) => `<b>${esc(q.label)}</b> — ${esc(q.detail)}${q.nextStep ? `. <i>${esc(q.nextStep)}</i>` : ""}`)) || "<p>Nothing has gone quiet.</p>"}
 ${h2("Active campaigns")}${list(b.campaigns.map((c) => `${esc(c.name)} — ${c.contacted}/${c.members} contacted${c.inToday.length ? ` · today: ${esc(c.inToday.join(", "))}` : ""}`)) || "<p>No active campaigns.</p>"}

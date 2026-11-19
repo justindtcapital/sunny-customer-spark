@@ -19,8 +19,10 @@ export const dailyIntelSweep = inngest.createFunction(
     retries: 2,
   },
   async ({ event, step }) => {
-    if ((process.env["INTEL_CRON_ENABLED"] || "true").toLowerCase() === "false") {
-      return { skipped: true, reason: "INTEL_CRON_ENABLED=false" };
+    // Off unless explicitly enabled — this sweep never ran live before, so
+    // turning Inngest on for the Signals scan must not start it silently.
+    if ((process.env["INTEL_CRON_ENABLED"] || "false").toLowerCase() !== "true") {
+      return { skipped: true, reason: "INTEL_CRON_ENABLED is not true" };
     }
     const data =
       event && typeof event === "object" && "data" in event
@@ -43,4 +45,25 @@ export const dailyIntelSweep = inngest.createFunction(
   },
 );
 
-export const functions = [dailyIntelSweep];
+/**
+ * Daily Signals scan, started each morning by the scheduled
+ * /api/public/cron/signals-scan route (event `signals/scan.requested`) before
+ * the Morning Brief. Runs here because a full scan takes minutes — longer than
+ * a Worker may keep working after answering the scheduler.
+ */
+export const dailySignalScan = inngest.createFunction(
+  {
+    id: "daily-signal-scan",
+    name: "Daily Signal Scan",
+    triggers: [{ event: "signals/scan.requested" }],
+    retries: 1,
+  },
+  async ({ step }) =>
+    step.run("scan-signals", async () => {
+      const { runScheduledSignalScan } = await import("@/utils/gemini.functions");
+      const r = await runScheduledSignalScan();
+      return { ok: r.found, skipped: r.skipped ?? false, newCount: r.newCount ?? 0, error: r.error ?? null };
+    }),
+);
+
+export const functions = [dailyIntelSweep, dailySignalScan];

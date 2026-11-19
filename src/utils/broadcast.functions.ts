@@ -151,21 +151,6 @@ export const scoreNetworkTargets = createServerFn({ method: "POST" })
 export const draftLinkedInPost = createServerFn({ method: "POST" })
   .inputValidator((d: { company?: string; headline: string; summary?: string; sourceUrl?: string }) => d)
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string; post?: string }> => {
-    try {
-      const system =
-        "You write short, polished LinkedIn posts in the voice of Dell Technologies Capital (DTC), a deep-tech VC. " +
-        "Tone: warm, credible, not hypey. 80-150 words. Reference the signal, add a brief DTC perspective, and end with " +
-        "3-5 relevant hashtags that MUST include #DellTechCapital. Do not fabricate facts beyond what's given. " +
-        'Output ONLY JSON: {"post":"<the post text with real \\n line breaks>"}';
-      const user =
-        `Signal:\nCompany: ${data.company || "—"}\nHeadline: ${data.headline}\n` +
-        `${data.summary ? `Summary: ${data.summary}\n` : ""}${data.sourceUrl ? `Source: ${data.sourceUrl}\n` : ""}`;
-
-      const res = await callGeminiJSON<{ post?: string }>(system, user, 800);
-      if (!res.ok || !res.data?.post) return { ok: false, error: res.error || "Draft failed" };
-      return { ok: true, post: res.data.post };
-    } catch (e) {
-      console.error("[broadcast] draftLinkedInPost failed:", e);
-      return { ok: false, error: e instanceof Error ? e.message : "Draft failed" };
-    }
+    const { draftLinkedInPostText } = await import("./broadcast.server");
+    return draftLinkedInPostText(data);
   });

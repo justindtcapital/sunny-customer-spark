@@ -30,6 +30,7 @@ import {
   matchCompanyByHost,
 } from "@/lib/link-digest";
 import { parseResearchSubject } from "@/lib/news-subject";
+import { SIGNAL_MARKER_RE } from "@/lib/signals-page";
 import { researchCardCopy, isWeakResearchSnippet } from "@/lib/email-body-clean";
 import { guessDomainFromCompanyName } from "@/lib/domain-utils";
 import { companiesMatch } from "@/lib/attribution-score";
@@ -247,7 +248,12 @@ export async function gatherNetworkEmails(pre?: {
   // Post-filter: Delivered-To, DTC:/GTM Discussion subjects, Zoom/GTM meeting
   // invites — Gmail -deliveredto: is imperfect and many threads never hit the
   // alias header but are still Activity (not Industry News).
-  const kept = res.messages.filter((m) => !isActivityTrackingMail(m, aliasSet));
+  // Signals the team sent to news@ from the Signals page are already saved on
+  // the Signals tab (the email carries a VP-Signal-Id marker) — skip them so
+  // the round-trip never adds the same story twice.
+  const kept = res.messages.filter(
+    (m) => !isActivityTrackingMail(m, aliasSet) && !SIGNAL_MARKER_RE.test(m.body || ""),
+  );
 
   // PDF attachments on NEWS@-alias messages become scan grounding documents —
   // the diagram's "scraper needs to handle PDFs" lane. Refs only; the scan

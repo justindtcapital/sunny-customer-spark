@@ -9,12 +9,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Linkedin, Users, Sparkles, Copy, ExternalLink, Loader2, Mail } from "lucide-react";
+import { Linkedin, Users, Sparkles, Copy, ExternalLink, Loader2, Mail, Inbox, Check } from "lucide-react";
 import { toast } from "sonner";
 import { scoreNetworkTargets, draftLinkedInPost, type ScoredTarget } from "@/utils/broadcast.functions";
 import type { FeedCard } from "@/lib/signal-feed";
+import { sendSignalToNewsFn } from "@/utils/signals.functions";
+import { signalNewsEmail, type SignalNewsKind } from "@/lib/signals-page";
 
-type Mode = "linkedin" | "targets";
+type Mode = "linkedin" | "targets" | "news";
 
 interface BroadcastDialogProps {
   open: boolean;
@@ -30,8 +32,14 @@ export function BroadcastDialog({ open, onOpenChange, card, onEmailTarget }: Bro
   const [postBusy, setPostBusy] = useState(false);
   const [targets, setTargets] = useState<ScoredTarget[] | null>(null);
   const [targetsBusy, setTargetsBusy] = useState(false);
+  const [newsKind, setNewsKind] = useState<SignalNewsKind | null>(null);
+  const [newsBusy, setNewsBusy] = useState(false);
+  const [newsSentTo, setNewsSentTo] = useState("");
 
   if (!card) return null;
+  const kind: SignalNewsKind = newsKind ?? (card.sourceType.startsWith("PortCo") ? "PortCo" : "Industry");
+  const realSource = card.sourceUrl && !card.sourceIsSearch ? card.sourceUrl : undefined;
+  const newsMail = signalNewsEmail({ id: card.storedId, kind, company: card.company, headline: card.headline, summary: card.summary, sourceUrl: realSource });
 
   const reset = () => {
     setMode("linkedin");
@@ -39,6 +47,25 @@ export function BroadcastDialog({ open, onOpenChange, card, onEmailTarget }: Bro
     setPostBusy(false);
     setTargets(null);
     setTargetsBusy(false);
+    setNewsKind(null);
+    setNewsBusy(false);
+    setNewsSentTo("");
+  };
+
+  const sendToNews = async () => {
+    setNewsBusy(true);
+    try {
+      const res = await sendSignalToNewsFn({
+        data: { id: card.storedId, kind, company: card.company, headline: card.headline, summary: card.summary, sourceUrl: realSource },
+      });
+      setNewsSentTo(res.to);
+      toast.success(`Sent to ${res.to}`);
+    } catch (e) {
+      console.error("sendSignalToNews failed", e);
+      toast.error(e instanceof Error ? e.message : "Could not send to news@.");
+    } finally {
+      setNewsBusy(false);
+    }
   };
 
   const close = (o: boolean) => {
@@ -121,12 +148,15 @@ export function BroadcastDialog({ open, onOpenChange, card, onEmailTarget }: Bro
         </DialogHeader>
 
         {/* Mode switch */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Button variant={mode === "linkedin" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => setMode("linkedin")}>
             <Linkedin className="h-3.5 w-3.5" /> LinkedIn post
           </Button>
           <Button variant={mode === "targets" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => setMode("targets")}>
-            <Users className="h-3.5 w-3.5" /> Find network targets
+            <Users className="h-3.5 w-3.5" /> Send to relevant contacts
+          </Button>
+          <Button variant={mode === "news" ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => setMode("news")}>
+            <Inbox className="h-3.5 w-3.5" /> Send to Venture Pulse
           </Button>
         </div>
 
@@ -212,6 +242,32 @@ export function BroadcastDialog({ open, onOpenChange, card, onEmailTarget }: Bro
 
             {targets && targets.length === 0 && !targetsBusy && (
               <p className="text-sm text-muted-foreground text-center py-4">No strongly relevant contacts found.</p>
+            )}
+          </div>
+        )}
+        {mode === "news" && (
+          <div className="space-y-3 py-1">
+            <p className="text-xs text-muted-foreground">
+              Emails this signal to the news@ inbox from the team mailbox. Venture Pulse picks it up like any forwarded email and files it for review — it won't be added to Signals twice.
+            </p>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground mr-1">File as</span>
+              {(["PortCo", "Industry"] as const).map((k) => (
+                <Button key={k} variant={kind === k ? "default" : "outline"} size="sm" className="h-7 text-[11px]" onClick={() => setNewsKind(k)} disabled={!!newsSentTo}>
+                  {k === "PortCo" ? "PortCo news" : "Industry news"}
+                </Button>
+              ))}
+            </div>
+            <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs space-y-1.5">
+              <div><span className="text-muted-foreground">Subject:</span> <span className="font-medium">{newsMail.subject}</span></div>
+              <pre className="whitespace-pre-wrap font-sans text-foreground">{newsMail.body}</pre>
+            </div>
+            {newsSentTo ? (
+              <p className="inline-flex items-center gap-1.5 text-sm text-primary"><Check className="h-4 w-4" /> Sent to {newsSentTo}</p>
+            ) : (
+              <Button size="sm" className="h-8 text-xs" onClick={sendToNews} disabled={newsBusy}>
+                {newsBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />} Send to news@
+              </Button>
             )}
           </div>
         )}

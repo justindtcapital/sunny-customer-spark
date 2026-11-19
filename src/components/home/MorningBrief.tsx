@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle, ArrowRight, Building2, CalendarClock, CalendarDays, ChevronDown, ChevronRight, ChevronUp, ExternalLink,
-  FileText, GitBranch, Hourglass, ListChecks, Mail, Megaphone, RefreshCw, Sparkles, Sun, UserPlus, Users, Video,
+  FileText, GitBranch, Hourglass, ListChecks, Mail, Megaphone, Radar, RefreshCw, Sparkles, Sun, UserPlus, Users, Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -338,6 +338,14 @@ export function MorningBriefView({ date, add, embedded }: { date?: string; add?:
         {b.warnings.length > 0 && <p className="mt-2 inline-flex items-center gap-1 text-xs text-warning-foreground"><AlertTriangle className="h-3.5 w-3.5" />{b.warnings.join(", ")}</p>}
       </section>
       {b.meetings.map((m, i) => <MeetingCard key={i} m={m} added={added} onAdd={onAdd} websites={websites} />)}
+      {b.signals && b.signals.length > 0 && <Section title="Signals to know today" icon={<Radar className="h-4 w-4 text-primary" />}>
+        <ul className="space-y-1.5 text-xs">{b.signals.map((x) => <li key={x.id}>
+          <Link to="/signals" search={{ open: x.id }} className="font-medium text-foreground hover:text-primary">{x.headline}</Link>
+          <span className="text-muted-foreground"> · {x.company || "Industry"} · {x.sourceType}</span>
+          {x.inMeeting && <Badge variant="secondary" className="ml-1.5 text-[10px]">In today's meetings</Badge>}
+        </li>)}</ul>
+        <Link to="/signals" className="mt-2 inline-block text-xs text-primary">Open Signals</Link>
+      </Section>}
       <div className="grid gap-3 lg:grid-cols-2">
         <Section title="Due this week" icon={<ListChecks className="h-4 w-4 text-primary" />}>
           {b.dueThisWeek.length ? <ul className="space-y-1 text-xs">{b.dueThisWeek.map((d, i) => <li key={d.id || i}><span className={d.overdue ? "font-semibold text-destructive" : "text-muted-foreground"}>{d.due}</span> {d.id ? <Link to="/my-actions" search={{ tab: "actions", fu: d.id }} className="text-foreground hover:text-primary">{d.summary}</Link> : d.summary}{d.person ? ` · ${d.person}` : ""}</li>)}</ul> : <p className="text-xs text-muted-foreground">Nothing due.</p>}
