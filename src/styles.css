@@ -519,19 +519,7 @@
   }
 }
 
-/* Signals radar — incoming waves travel toward the rings */
-@keyframes radar-wave {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 0.9; }
-}
-.radar-wave {
-  animation: radar-wave 2.4s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .radar-wave {
-    animation: none !important;
-  }
   .wsi [class*="wsi-"] {
     animation: none !important;
   }

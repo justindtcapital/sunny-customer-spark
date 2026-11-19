@@ -29,17 +29,16 @@ function sectorPath(r: number, a1: number, a2: number) {
   const [x1, y1] = pt(r, a1); const [x2, y2] = pt(r, a2);
   return `M ${R} ${R} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`;
 }
-/** Radar sweep angle, its fading trail, and the incoming signal waves along it. */
-const SWEEP = 194;
-const TRAIL = Array.from({ length: 7 }, (_, i) => ({ a1: 180 + i * 2, a2: 182 + i * 2, o: 0.05 + i * 0.045 }));
-const WAVES = [
-  { r: 380, span: 13, delay: 0 }, { r: 350, span: 11, delay: 0.3 }, { r: 320, span: 9.5, delay: 0.6 },
-  { r: 268, span: 8, delay: 0.9 }, { r: 232, span: 7, delay: 1.2 },
-];
+/** Radar arm angle and its fading trail. */
+const SWEEP = 205;
+const TRAIL = Array.from({ length: 10 }, (_, i) => ({ a1: SWEEP - 20 + i * 2, a2: SWEEP - 18 + i * 2, o: 0.03 + i * 0.03 }));
+/** Echo arcs trailing one side of the arm: strongest at the arm, fading behind it, so the arm reads as sweeping. */
+const ECHO_RADII = [45, 85, 130, 170, 230, 268, 320, 352, 382];
+const ECHO_STEPS = Array.from({ length: 10 }, (_, i) => ({ a1: SWEEP - (i + 1) * 2, a2: SWEEP - i * 2, o: 1 - i * 0.095 }));
 /** Blip slots per ring, kept clear of the labels and the sweep line. */
 const BLIPS: Record<Ring, { a: number; f: number }[]> = {
-  Market: [{ a: 199, f: 0.45 }, { a: 186, f: 0.75 }, { a: 256, f: 0.3 }, { a: 263, f: 0.7 }, { a: 212, f: 0.82 }],
-  Network: [{ a: 200, f: 0.55 }, { a: 187, f: 0.25 }, { a: 254, f: 0.6 }, { a: 262, f: 0.3 }, { a: 268, f: 0.8 }],
+  Market: [{ a: 214, f: 0.9 }, { a: 186, f: 0.75 }, { a: 256, f: 0.3 }, { a: 263, f: 0.7 }, { a: 212, f: 0.82 }],
+  Network: [{ a: 197, f: 0.5 }, { a: 187, f: 0.25 }, { a: 254, f: 0.6 }, { a: 262, f: 0.3 }, { a: 268, f: 0.8 }],
   PortCo: [{ a: 185, f: 0.85 }, { a: 189, f: 0.6 }],
 };
 const BLIP_FILL: Record<Ring, string> = { Market: "fill-ring-network", Network: "fill-card", PortCo: "fill-card" };
@@ -85,7 +84,7 @@ export function SignalRadar({ cards, keys, search, onChange, query, onQuery, por
           const [r1, r2] = RADII[r]; const mid = (r1 + r2) / 2;
           const a = (225 * Math.PI) / 180;
           // The PortCo core is small, so its label sits at a fixed spot clear of the edge and the sweep line.
-          const [lx, ly] = r1 ? [R + Math.cos(a) * mid, R + Math.sin(a) * mid] : [255, 254];
+          const [lx, ly] = r1 ? [R + Math.cos(a) * mid, R + Math.sin(a) * mid] : [262, 246];
           const sel = search.ring === r;
           return <g key={r} className="cursor-pointer" onClick={() => pickRing(r)} role="button" aria-pressed={sel} aria-label={`${r} signals`}>
             <path d={ringPath(r1, r2)} className={cn(RING_STYLE[r].fill, "stroke-ring-line transition-opacity", search.ring && !sel && "opacity-50")} strokeWidth={sel ? 5 : 3} />
@@ -109,7 +108,7 @@ export function SignalRadar({ cards, keys, search, onChange, query, onQuery, por
               </g>;
             });
           })}
-          {WAVES.map((w) => <path key={w.r} d={arcPath(w.r, SWEEP - w.span, SWEEP + w.span)} className="radar-wave fill-none stroke-ring-sweep" strokeWidth={3.5} strokeLinecap="round" style={{ animationDelay: `${w.delay}s` }} />)}
+          {ECHO_RADII.map((r) => ECHO_STEPS.map((e) => <path key={`${r}-${e.a1}`} d={arcPath(r, e.a1, e.a2)} className={cn("fill-none", r > 100 && r < 200 ? "stroke-ring-network-foreground" : "stroke-ring-sweep")} strokeWidth={3.5} opacity={e.o} />))}
           <line x1={R} y1={R} x2={pt(396, SWEEP)[0]} y2={pt(396, SWEEP)[1]} className="stroke-ring-line" strokeWidth={2.5} strokeLinecap="round" />
         </g>
       </svg>
