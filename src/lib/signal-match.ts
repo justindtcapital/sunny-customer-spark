@@ -87,13 +87,13 @@ export const personLine = (p: PersonCandidate) =>
 export const portcoLine = (p: PortcoCandidate) => [p.name, p.focus, p.about].filter(Boolean).join(" | ");
 
 export interface RawMatches {
-  portcos: { name: string; angle: string; why: string; talkingPoint: string }[];
-  people: { id: string; why: string; opener: string }[];
+  portcos: { name: string; angle: string; short: string; why: string; talkingPoint: string }[];
+  people: { id: string; short: string; why: string; opener: string }[];
   note: string;
 }
 
-export interface PortcoSuggestion { name: string; angle: PortcoAngle; why: string; talkingPoint: string; founderName: string; founderEmail: string }
-export interface PersonSuggestion { id: string; name: string; title: string; company: string; email: string; tier: string; prime: string; why: string; opener: string }
+export interface PortcoSuggestion { name: string; angle: PortcoAngle; short: string; why: string; talkingPoint: string; founderName: string; founderEmail: string }
+export interface PersonSuggestion { id: string; name: string; title: string; company: string; email: string; tier: string; prime: string; short: string; why: string; opener: string }
 export interface SignalMatches { portcos: PortcoSuggestion[]; people: PersonSuggestion[]; note: string }
 
 /**
@@ -113,7 +113,7 @@ export function validateMatches(raw: RawMatches, people: PersonCandidate[], port
     if (!hit || !why || norm(hit.name) === subject || pcSeen.has(hit.name)) continue;
     pcSeen.add(hit.name);
     const angle = (PORTCO_ANGLES as readonly string[]).includes(m.angle) ? (m.angle as PortcoAngle) : "Validation";
-    outPc.push({ name: hit.name, angle, why, talkingPoint: clip(m.talkingPoint, 400), founderName: hit.founderName, founderEmail: hit.founderEmail });
+    outPc.push({ name: hit.name, angle, short: shortReason(m.short, why), why, talkingPoint: clip(m.talkingPoint, 400), founderName: hit.founderName, founderEmail: hit.founderEmail });
     if (outPc.length >= MAX_PORTCOS) break;
   }
   const pSeen = new Set<string>();
@@ -123,7 +123,7 @@ export function validateMatches(raw: RawMatches, people: PersonCandidate[], port
     const why = clip(m.why, 600);
     if (!hit || !why || pSeen.has(hit.id)) continue;
     pSeen.add(hit.id);
-    outP.push({ id: hit.id, name: hit.name, title: hit.title, company: hit.company, email: hit.email, tier: hit.tier, prime: hit.prime, why, opener: clip(m.opener, 400) });
+    outP.push({ id: hit.id, name: hit.name, title: hit.title, company: hit.company, email: hit.email, tier: hit.tier, prime: hit.prime, short: shortReason(m.short, why), why, opener: clip(m.opener, 400) });
     if (outP.length >= MAX_PEOPLE) break;
   }
   return { portcos: outPc, people: outP, note: clip(raw.note, 300) };
@@ -161,4 +161,10 @@ function firstSentence(text: string): string {
     if (head.length >= 12 && !ABBREV.test(head)) return head.trim();
   }
   return text.trim();
+}
+
+/** The one-line gist shown in the shortlist: the model's short line, else the reason's first sentence. */
+export function shortReason(short: string | undefined, why: string, max = 110): string {
+  const t = clip(short, 300) || firstSentence(why);
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }

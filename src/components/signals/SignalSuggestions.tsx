@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, CalendarPlus, Check, Loader2, Mail, MessageSquare, RefreshCw, Users } from "lucide-react";
+import { Building2, CalendarPlus, Check, ChevronRight, Loader2, Mail, MessageSquare, RefreshCw, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ export function SignalSuggestions({ card, onDraft }: { card: FeedCard; onDraft: 
   const q = useQuery({
     queryKey: ["signal-matches", signalKey],
     queryFn: () => suggest({ data: { company: card.company, headline: card.headline, summary: card.summary, body: card.body, sourceType: card.sourceType, sourceUrl: card.sourceIsSearch ? "" : card.sourceUrl || "" } }),
+    enabled: false, // runs only when someone asks — opening a card costs nothing
     staleTime: Infinity,
     gcTime: 60 * 60_000,
     retry: false,
@@ -39,6 +40,8 @@ export function SignalSuggestions({ card, onDraft }: { card: FeedCard; onDraft: 
   const [followUp, setFollowUp] = useState<FollowUpSeed | null>(null);
   const [done, setDone] = useState<Set<string>>(new Set());
   const [asking, setAsking] = useState<string | null>(null);
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const toggle = (k: string) => setOpenRow((o) => (o === k ? null : k));
   const navigate = useNavigate();
   const topic = signalTopic({ company: card.company, headline: card.headline, summary: readableSummary(card.summary) });
 
@@ -69,27 +72,37 @@ export function SignalSuggestions({ card, onDraft }: { card: FeedCard; onDraft: 
         <VicMark className="h-4 w-4 text-primary" />
         <h4 className="whitespace-nowrap text-sm font-semibold text-foreground">V.I.C. suggests</h4>
         {data?.ok && data.note && <span className="hidden min-w-0 truncate text-xs text-muted-foreground sm:inline">— {data.note}</span>}
-        {!q.isFetching && (
-          <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={() => void q.refetch()}>
+        {!q.isFetching && q.data && (
+          <Button size="sm" variant="ghost" className="ml-auto h-7 px-2 text-xs" onClick={() => { setOpenRow(null); void q.refetch(); }}>
             <RefreshCw className="h-3 w-3" /> Rethink
           </Button>
         )}
       </div>
 
+      {!q.data && !q.isFetching && !q.isError && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => void q.refetch()}><Users className="h-4 w-4" /> Who might care?</Button>
+          <span className="text-xs text-muted-foreground">V.I.C. picks the PortCos and people this news matters to.</span>
+        </div>
+      )}
+
       {q.isFetching && (
         <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> V.I.C. is reading this signal against your PortCos and network…</p>
       )}
       {!q.isFetching && (q.isError || (data && !data.ok)) && (
-        <p className="text-xs text-destructive">{data && !data.ok ? data.error : "V.I.C. couldn't read this signal right now. Try again in a minute."}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-destructive">{data && !data.ok ? data.error : "V.I.C. couldn't read this signal right now. Try again in a minute."}</p>
+          {!data && <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => void q.refetch()}>Try again</Button>}
+        </div>
       )}
       {!q.isFetching && empty && <p className="text-xs text-muted-foreground">{data.note || "Nothing in your PortCos or network is a strong fit for this one."}</p>}
 
       {!q.isFetching && data?.ok && data.portcos.length > 0 && (
         <div className="mb-3">
           <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><Building2 className="h-3.5 w-3.5" /> PortCos that fit this news</p>
-          <ul className="space-y-2">
+          <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-card">
             {data.portcos.map((p) => (
-              <PortcoRow key={p.name} p={p} done={done.has(`pc:${p.name}`)} asking={asking === p.name}
+              <PortcoRow key={p.name} p={p} open={openRow === `pc:${p.name}`} onToggle={() => toggle(`pc:${p.name}`)} done={done.has(`pc:${p.name}`)} asking={asking === p.name}
                 onDraft={() => onDraft({
                   name: p.founderName || p.name, title: p.founderName ? `${p.name} founder` : "", company: p.name, email: p.founderEmail,
                   purpose: `Heads-up for ${p.name} on ${card.company ? `${card.company} news` : "industry news"}: ${topic} Why it matters to ${p.name}: ${p.why}`,
@@ -105,9 +118,9 @@ export function SignalSuggestions({ card, onDraft }: { card: FeedCard; onDraft: 
       {!q.isFetching && data?.ok && data.people.length > 0 && (
         <div>
           <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><Users className="h-3.5 w-3.5" /> People who might care</p>
-          <ul className="space-y-2">
+          <ul className="divide-y divide-border overflow-hidden rounded-md border border-border bg-card">
             {data.people.map((p) => (
-              <PersonRow key={p.id} p={p} done={done.has(`p:${p.id}`)} asking={asking === p.name}
+              <PersonRow key={p.id} p={p} open={openRow === `p:${p.id}`} onToggle={() => toggle(`p:${p.id}`)} done={done.has(`p:${p.id}`)} asking={asking === p.name}
                 onDraft={() => onDraft({
                   name: p.name, title: p.title, company: p.company, email: p.email,
                   purpose: `Share ${card.company ? `${card.company} news` : "industry news"} with ${p.name}: ${topic} Why they'd care: ${p.why}`,
@@ -141,35 +154,53 @@ function Actions({ email, done, asking, onDraft, onFollowUp, onAsk }: { email: b
   );
 }
 
-function PortcoRow({ p, ...a }: { p: PortcoSuggestion; done: boolean; asking: boolean; onDraft: () => void; onFollowUp: () => void; onAsk: () => void }) {
+type RowProps = { open: boolean; onToggle: () => void; done: boolean; asking: boolean; onDraft: () => void; onFollowUp: () => void; onAsk: () => void };
+
+/** Shortlist row: name + gist; clicking opens the full reason and the actions. */
+function Row({ open, onToggle, head, short, children }: { open: boolean; onToggle: () => void; head: ReactNode; short: string; children: ReactNode }) {
   return (
-    <li className="rounded-md border border-border bg-card p-2.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-sm font-semibold text-foreground">{p.name}</span>
-        <Badge variant="secondary" className="font-normal">{p.angle}</Badge>
-        {p.founderName && <span className="text-xs text-muted-foreground">· {p.founderName}</span>}
-      </div>
-      <p className="mt-1 text-sm text-foreground">{p.why}</p>
-      {p.talkingPoint && <p className="mt-1 text-xs italic text-muted-foreground">“{p.talkingPoint}”</p>}
-      <Actions email={!!p.founderEmail} {...a} />
+    <li>
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-start gap-2 px-2.5 py-2 text-left hover:bg-muted/50">
+        <ChevronRight className={`mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">{head}</div>
+          {!open && short && <p className="mt-0.5 truncate text-xs text-muted-foreground">{short}</p>}
+        </div>
+      </button>
+      {open && <div className="px-2.5 pb-2.5 pl-8">{children}</div>}
     </li>
   );
 }
 
-function PersonRow({ p, ...a }: { p: PersonSuggestion; done: boolean; asking: boolean; onDraft: () => void; onFollowUp: () => void; onAsk: () => void }) {
+function PortcoRow({ p, open, onToggle, ...a }: { p: PortcoSuggestion } & RowProps) {
+  return (
+    <Row open={open} onToggle={onToggle} short={p.short} head={<>
+      <span className="text-sm font-semibold text-foreground">{p.name}</span>
+      <Badge variant="secondary" className="font-normal">{p.angle}</Badge>
+      {a.done && <Check className="h-3.5 w-3.5 text-primary" aria-label="Follow-up added" />}
+    </>}>
+      {p.founderName && <p className="text-[11px] text-muted-foreground">Founder on file: {p.founderName}</p>}
+      <p className="mt-1 text-sm text-foreground">{p.why}</p>
+      {p.talkingPoint && <p className="mt-1 text-xs italic text-muted-foreground">“{p.talkingPoint}”</p>}
+      <Actions email={!!p.founderEmail} {...a} />
+    </Row>
+  );
+}
+
+function PersonRow({ p, open, onToggle, ...a }: { p: PersonSuggestion } & RowProps) {
   const prime = canonicalOwnerName(p.prime);
   return (
-    <li className="rounded-md border border-border bg-card p-2.5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-sm font-semibold text-foreground">{p.name}</span>
-        {p.tier !== "Unrated" && <Badge variant="outline" className="font-normal">{p.tier}</Badge>}
-        <span className="text-xs text-muted-foreground">{[p.title, p.company].filter(Boolean).join(" · ")}</span>
-      </div>
-      {prime && <p className="text-[11px] text-muted-foreground">DTC prime: {prime}</p>}
+    <Row open={open} onToggle={onToggle} short={p.short} head={<>
+      <span className="text-sm font-semibold text-foreground">{p.name}</span>
+      {p.tier !== "Unrated" && <Badge variant="outline" className="font-normal">{p.tier}</Badge>}
+      {p.company && <span className="text-xs text-muted-foreground">{p.company}</span>}
+      {a.done && <Check className="h-3.5 w-3.5 text-primary" aria-label="Follow-up added" />}
+    </>}>
+      <p className="text-[11px] text-muted-foreground">{[p.title, prime && `DTC prime: ${prime}`].filter(Boolean).join(" · ")}</p>
       <p className="mt-1 text-sm text-foreground">{p.why}</p>
       {p.opener && <p className="mt-1 text-xs italic text-muted-foreground">“{p.opener}”</p>}
       <Actions email={!!p.email} {...a} />
-    </li>
+    </Row>
   );
 }
 

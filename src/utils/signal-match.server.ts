@@ -28,10 +28,11 @@ const Schema = z.object({
   portcos: z.array(z.object({
     name: z.string(),
     angle: z.enum(PORTCO_ANGLES),
+    short: z.string(),
     why: z.string(),
     talkingPoint: z.string(),
   })),
-  people: z.array(z.object({ id: z.string(), why: z.string(), opener: z.string() })),
+  people: z.array(z.object({ id: z.string(), short: z.string(), why: z.string(), opener: z.string() })),
   note: z.string(),
 });
 
@@ -45,6 +46,7 @@ Two lenses:
 Rules:
 - Use ONLY the candidates given. Echo PortCo names exactly; echo people by their id (the first field).
 - Fewer, better: at most 3 PortCos and 4 people, and an empty list is the right answer when nothing truly fits. Never pad with weak matches.
+- Each "short" is the gist in at most 12 words (shown in a shortlist, e.g. "Owns IAM at Barclays; Entro is the angle").
 - Each "why" is 1–2 sentences, concrete, tied to this news and to that company or person. No scores, no generic phrases like "may be interested".
 - Never suggest the PortCo the news is about as its own match.
 - "note": one short sentence on the overall read (e.g. "Mostly a GTM opening for identity PortCos"), or "" if nothing fits.`;
