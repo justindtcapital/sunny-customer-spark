@@ -226,6 +226,7 @@ function resultFromStored(
       email: s.email,
       category: s.category,
       signal: s.signal,
+      headline: s.headline,
       sourceUrl: s.sourceUrl,
       subject: s.subject,
       body: s.body,
@@ -252,6 +253,7 @@ function resultFromStored(
       summary: s.signal,
       // Awareness rows store an article title (digest links) in Subject.
       title: s.subject || undefined,
+      headline: s.headline,
       sourceUrl: s.sourceUrl,
       dateFound: s.dateFound,
       sourceType: s.sourceType,
@@ -730,6 +732,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
           company: r.company,
           person: "",
           category: r.category,
+          headline: r.headline,
           summary: r.signal,
           sourceUrl: r.sourceUrl,
         });

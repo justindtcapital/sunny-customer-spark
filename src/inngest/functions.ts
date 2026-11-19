@@ -79,7 +79,14 @@ export const dailySignalScan = inngest.createFunction(
       if (!r.found && !r.skipped) throw new Error(r.error || "scan failed");
       return { ok: r.found, skipped: r.skipped ?? false, newCount: r.newCount ?? 0, error: r.error ?? null };
     });
-    return { news, scan, enterprise };
+    // Last: write short headlines for anything that arrived without one.
+    const headlines = await step.run("signal-headlines", async () => {
+      const { writeMissingSignalHeadlines } = await import("@/utils/signal-headlines.server");
+      const r = await writeMissingSignalHeadlines();
+      if (r.error && r.written === 0) throw new Error(r.error);
+      return r;
+    });
+    return { news, scan, enterprise, headlines };
   },
 );
 

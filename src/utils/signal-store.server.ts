@@ -20,6 +20,7 @@ import {
 import { fetchSheetTab, appendSheetRows, updateSheetCells, colLetters, TAB_NAMES } from "./sheets.server";
 import { articleUrlKey } from "./news.server";
 import { isWeakResearchSnippet } from "@/lib/email-body-clean";
+import { acceptableHeadline } from "@/lib/signal-headline";
 
 export interface StoredSignal {
   id: string;
@@ -55,6 +56,8 @@ export interface StoredSignal {
   badges?: string;
   /** JSON component breakdown — every stored score reconstructible from this. */
   scoreBreakdown?: string;
+  /** Short news headline for the card (one or two lines); "" until written. */
+  headline?: string;
 }
 
 // Write-time size caps that keep the hot read path light. The Summary is the
@@ -130,6 +133,7 @@ export function storedFromRec(
     email: r.email || "",
     category: r.category || "",
     signal: clampHeadline(r.signal || ""),
+    headline: acceptableHeadline(r.headline || "", r.company),
     sourceUrl: r.sourceUrl || "",
     subject: r.subject || "",
     body: clampText(r.body || "", SIGNAL_BODY_MAX),
@@ -160,6 +164,7 @@ export function storedFromAwareness(
     email: "",
     category: a.category || "",
     signal: clampHeadline(a.summary || ""),
+    headline: acceptableHeadline(a.headline || "", a.company),
     sourceUrl: a.sourceUrl || "",
     subject: a.title || "",
     body: "",
@@ -198,6 +203,7 @@ export function rowFromStored(s: StoredSignal): string[] {
     s.rankScore == null ? "" : String(s.rankScore),
     s.badges || "",
     (s.scoreBreakdown || "").slice(0, 4000),
+    s.headline || "",
   ];
 }
 
@@ -261,6 +267,7 @@ export async function fetchStoredSignals(
         rankScore: g(row, 20) ? Number(g(row, 20)) : null,
         badges: g(row, 21),
         scoreBreakdown: g(row, 22),
+        headline: g(row, 23),
       }))
       // Keep only rows that are real signals (valid type + some content).
       .filter(

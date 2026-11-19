@@ -7,6 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { allowedTeamEmail } from "@/lib/team-access";
 import { getVicSkill } from "@/lib/vic-skills";
 import { vicSourceInstructions } from "@/lib/vic-sources";
+import { storedHeadline } from "@/lib/signal-headline";
 
 const RUN_ID = "X-Lovable-AIG-Run-ID";
 
@@ -117,7 +118,7 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
           .sort((a, b) => b.dateFound.localeCompare(a.dateFound) || (b.rankScore ?? b.relevance * 10) - (a.rankScore ?? a.relevance * 10));
         return { total: list.length, truncated: list.length > limit, signals: list.slice(0, limit).map((s) => ({
           id: s.id, date: s.dateFound, company: s.company, sourceType: s.sourceType, category: s.category,
-          headline: s.subject || s.signal, summary: s.subject ? s.signal : "", sourceUrl: s.sourceUrl, rankScore: s.rankScore ?? null,
+          headline: storedHeadline(s), summary: s.signal, sourceUrl: s.sourceUrl, rankScore: s.rankScore ?? null,
           link: `/signals?open=${encodeURIComponent(s.id)}`,
         })) };
       },
@@ -130,7 +131,7 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
         const s = (await fetchStoredSignals({ withBody: true, strict: true })).find((x) => x.id === id.trim());
         if (!s) return { error: "Signal not found." };
         return { id: s.id, date: s.dateFound, company: s.company, person: s.person, sourceType: s.sourceType, category: s.category,
-          headline: s.subject || s.signal, summary: s.signal, why: s.justification, outreach: s.body, sourceUrl: s.sourceUrl, docUrl: s.docUrl,
+          headline: storedHeadline(s), summary: s.signal, why: s.justification, outreach: s.body, sourceUrl: s.sourceUrl, docUrl: s.docUrl,
           link: `/signals?open=${encodeURIComponent(s.id)}` };
       },
     }),
@@ -142,8 +143,8 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
         const s = (await fetchStoredSignals({ strict: true })).find((x) => x.id === id.trim());
         if (!s) return { error: "Signal not found." };
         const { draftLinkedInPostText } = await import("./broadcast.server");
-        const res = await draftLinkedInPostText({ company: s.company, headline: s.subject || s.signal, summary: s.subject ? s.signal : s.justification, sourceUrl: /^https?:\/\//.test(s.sourceUrl) ? s.sourceUrl : undefined });
-        return res.ok ? { post: res.post, signal: { id: s.id, company: s.company, headline: s.subject || s.signal } } : { error: res.error || "Draft failed" };
+        const res = await draftLinkedInPostText({ company: s.company, headline: storedHeadline(s), summary: s.signal, sourceUrl: /^https?:\/\//.test(s.sourceUrl) ? s.sourceUrl : undefined });
+        return res.ok ? { post: res.post, signal: { id: s.id, company: s.company, headline: storedHeadline(s) } } : { error: res.error || "Draft failed" };
       },
     }),
     searchPartners: tool({

@@ -5,6 +5,7 @@ import { buildFeed, newsSourceType, type FeedCard } from "@/lib/signal-feed";
 import { signalNewsEmail, type SignalNewsKind } from "@/lib/signals-page";
 import { teamMemberFor } from "@/lib/user-ownership";
 import { lastGoodReader } from "@/lib/last-good";
+import { acceptableHeadline, shortenHeadline } from "@/lib/signal-headline";
 
 /** Newest cards sent to the page; older ones stay on the sheet (and in V.I.C.). */
 const FEED_MAX = 600;
@@ -174,6 +175,7 @@ export async function addManualSignal(input: NewSignal, teamEmail: string): Prom
     signal: summary.replace(/\s+/g, " ").slice(0, 600),
     sourceUrl: url,
     subject: headline.slice(0, 200),
+    headline: acceptableHeadline(shortenHeadline(headline), company),
     body: "",
     relevance: 6,
     justification: `Added by ${displayName(teamEmail)}`,

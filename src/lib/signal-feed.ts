@@ -9,6 +9,7 @@ import type { GmailSignal } from "@/utils/gmail.functions";
 import type { Contact, PortfolioCompany } from "@/lib/types";
 import { domainFromCompanySourceUrl, resolveCompanyLogoDomain } from "@/lib/domain-utils";
 import { absoluteHttpUrl } from "@/lib/safe-url";
+import { cardHeadline } from "@/lib/signal-headline";
 import { makeScorer, type SignalInsight } from "@/lib/signal-strength";
 
 export type SignalSourceType =
@@ -442,8 +443,9 @@ export function buildFeed(input: BuildFeedInput): FeedCard[] {
       // Body is present inline for a fresh scan but elided on a plain feed load;
       // only offer lazy-load when the stored row has a Body we don't already have.
       bodyElided: Boolean(r.hasBody) && !r.body,
-      headline: r.signal || "Signal",
-      summary: r.justification || r.signal || "",
+      headline: cardHeadline({ headline: r.headline, signal: r.signal, company: r.company }),
+      // The news fact under a short headline; the old scoring reason stays in the body.
+      summary: r.signal || r.justification || "",
       body,
       sourceUrl: realUrl || searchUrl(r.company || "", r.signal || ""),
       sourceIsSearch: !realUrl,
@@ -481,7 +483,7 @@ export function buildFeed(input: BuildFeedInput): FeedCard[] {
       industry: inferIndustry(text),
       investor: investorFor(s.company || ""),
       docUrl: s.docUrl || undefined,
-      headline: s.title || `${s.company || "Industry"}${s.category ? ` — ${s.category}` : ""}`,
+      headline: cardHeadline({ headline: s.headline, title: s.title, signal: s.summary, company: s.company }),
       summary: s.summary || "",
       body: s.summary || "",
       sourceUrl: realUrl || searchUrl(s.company || "", s.summary || s.category || ""),

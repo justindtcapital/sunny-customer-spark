@@ -1,5 +1,6 @@
 // Pure helpers for the Signals page, the Morning Brief "Signals to know today"
 // section and the "Send to news@" email. Browser-safe: no server imports.
+import { storedHeadline } from "@/lib/signal-headline";
 
 /** Minimal card fields the Signals filters read (FeedCard satisfies this). */
 export interface FilterableSignal {
@@ -91,6 +92,8 @@ export interface RankableSignal {
   company: string;
   signal: string;
   subject?: string;
+  type?: string;
+  headline?: string;
   sourceType: string;
   sourceUrl: string;
   relevance: number;
@@ -136,7 +139,7 @@ export function briefSignals(rows: RankableSignal[], opts: { today: string; meet
       (b.r.dateFound > a.r.dateFound ? 1 : b.r.dateFound < a.r.dateFound ? -1 : 0));
   const out: BriefSignal[] = [];
   for (const { r, inMeeting } of fresh) {
-    const headline = (r.subject || r.signal).trim();
+    const headline = storedHeadline(r);
     const key = /^https?:\/\//i.test(r.sourceUrl) ? `u:${norm(r.sourceUrl)}` : `h:${norm(r.company)}|${norm(headline)}`;
     if (seen.has(key)) continue;
     seen.add(key);

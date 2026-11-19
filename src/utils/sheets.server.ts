@@ -1518,6 +1518,8 @@ export const SIGNAL_HEADERS = [
   "Rank Score",
   "Badges",
   "Score Breakdown",
+  // Short card headline (written by the scan or the daily headline step).
+  "Headline",
 ];
 
 const CONTACT_COLS: Record<string, string> = {

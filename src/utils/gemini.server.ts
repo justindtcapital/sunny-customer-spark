@@ -712,6 +712,8 @@ export interface SignalRecommendation {
   justification: string;
   urgency: "High" | "Medium" | "Low" | string;
   timing: string;
+  /** Short news headline for the card (8–14 words). */
+  headline?: string;
   /** Date this signal was stored (YYYY-MM-DD), for the feed's relative time. */
   dateFound?: string;
   /** Persisted source-type bucket (from the taxonomy) — set on stored signals. */
@@ -740,6 +742,8 @@ export interface SignalAwarenessItem {
   /** Article/post title when the signal is a specific piece (e.g. a digest-email
    *  blog link) — the feed uses it as the card headline instead of company—category. */
   title?: string;
+  /** Short news headline for the card (8–14 words). */
+  headline?: string;
   sourceUrl?: string;
   /** Date this signal was stored (YYYY-MM-DD), for the feed's relative time. */
   dateFound?: string;
@@ -782,17 +786,18 @@ Method:
 5. FLAG any compliance/confidentiality concerns (e.g. material non-public info, regulated communications) in the compliance array.
 
 CARD COPY — keep the feed scannable:
-- recommendations[].signal: the card headline. At most 1-2 short sentences (≤ ~40 words). Lead with the concrete news fact; do NOT write essays, multi-clause industry analysis, or "aligns with / indicates / suggests" padding.
+- headline (both arrays): a real news headline, 8-14 words and at most 90 characters, active voice, naming the company and the concrete news ("IBM acquires identity security startup AuthMind"). Never a category label like "IBM — Funding/M&A", never a question, no trailing period.
+- recommendations[].signal: the card summary. At most 1-2 short sentences (≤ ~40 words). Lead with the concrete news fact; do NOT write essays, multi-clause industry analysis, or "aligns with / indicates / suggests" padding.
 - otherSignals[].summary: same rule — 1-2 short sentences max.
 - Put longer reasoning only in justification (recommendations) if needed.
 
 Output ONLY a single JSON object, no prose, no markdown fences, in exactly this shape:
 {
   "recommendations": [
-    {"person":"","company":"","email":"","category":"","signal":"","sourceUrl":"","subject":"","body":"","relevance":0,"justification":"","urgency":"High|Medium|Low","timing":"this week|next 7 days|within month"}
+    {"person":"","company":"","email":"","category":"","headline":"","signal":"","sourceUrl":"","subject":"","body":"","relevance":0,"justification":"","urgency":"High|Medium|Low","timing":"this week|next 7 days|within month"}
   ],
   "otherSignals": [
-    {"company":"","person":"","category":"","summary":"","sourceUrl":""}
+    {"company":"","person":"","category":"","headline":"","summary":"","sourceUrl":""}
   ],
   "compliance": []
 }

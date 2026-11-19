@@ -6,6 +6,7 @@ import { MarkdownMessage } from "@/components/query/MarkdownMessage";
 import { companyLogoSources } from "@/lib/domain-utils";
 import { absoluteHttpUrl } from "@/lib/safe-url";
 import { readableSummary } from "@/lib/signals-page";
+import { summaryBelowHeadline } from "@/lib/signal-headline";
 import type { FeedCard } from "@/lib/signal-feed";
 import { fetchSignalBody } from "@/utils/gemini.functions";
 import { SignalSuggestions, type DraftTarget } from "@/components/signals/SignalSuggestions";
@@ -62,7 +63,7 @@ export function SignalCard({
   }, [expanded, card.bodyElided, card.storedId, extra]);
 
   const body = `${card.body || card.summary}${extra ? `\n\n${extra}` : ""}`;
-  const summary = readableSummary(card.summary);
+  const summary = summaryBelowHeadline(readableSummary(card.summary), card.headline);
   const source = absoluteHttpUrl(card.sourceUrl);
   const doc = absoluteHttpUrl(card.docUrl);
 
@@ -78,7 +79,7 @@ export function SignalCard({
         <SignalLogo card={card} />
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold leading-snug text-foreground">{card.headline}</h3>
-          {!expanded && summary && summary !== card.headline && (
+          {!expanded && summary && (
             <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">{summary}</p>
           )}
           <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1">

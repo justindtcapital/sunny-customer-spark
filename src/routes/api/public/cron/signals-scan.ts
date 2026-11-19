@@ -30,9 +30,13 @@ export const Route = createFileRoute("/api/public/cron/signals-scan")({
           return Response.json({ ok: true, queued: true, day }, { status: 202 });
         }
 
-        // Local dev: run one part inline ({"part":"news"|"scan"|"enterprise"}).
+        // Local dev: run one part inline ({"part":"news"|"scan"|"enterprise"|"headlines"}).
         const body = (await request.json().catch(() => ({}))) as { part?: string; windowDays?: number };
         const g = await import("@/utils/gemini.functions");
+        if (body.part === "headlines") {
+          const { writeMissingSignalHeadlines } = await import("@/utils/signal-headlines.server");
+          return Response.json(await writeMissingSignalHeadlines({ max: 400 }));
+        }
         if (body.part === "news") return Response.json(await g.archiveNewsInbox({ windowDays: body.windowDays, max: 200 }));
         const r = body.part === "enterprise" ? await g.runEnterpriseWatchScan() : await g.runScheduledSignalScan();
         return Response.json({ ok: r.found, skipped: r.skipped ?? false, newCount: r.newCount ?? 0, error: r.error ?? null });
