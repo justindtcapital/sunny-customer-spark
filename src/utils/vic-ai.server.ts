@@ -80,13 +80,15 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
         const [rawContacts, portcos] = await Promise.all([buildContacts(), buildPortfolioCompanies().catch(() => [])]);
         // PortCo people aren't rated, so never report their old saved level (e.g. Council).
         const contacts = markPortCoContacts(rawContacts, portcos.map((p) => p.name));
-        const net = contacts.filter((c) => hit(query, c.name, c.company, c.title, c.sector, c.email)).slice(0, 25)
+        const netAll = contacts.filter((c) => hit(query, c.name, c.company, c.title, c.sector, c.email));
+        const net = netAll.slice(0, 50)
           .map((c) => ({ urid: c.urid || "", name: c.name, title: c.title, company: c.company, email: c.email, level: c.portco ? "PortCo (not rated)" : c.temperature, prime: c.prime, list: "Network" }));
+        const prosAll = includeProspects ? (await buildTargets()).filter((t) => hit(query, t.name, t.company, t.title, t.sector, t.email)) : [];
         const pros = includeProspects
-          ? (await buildTargets()).filter((t) => hit(query, t.name, t.company, t.title, t.sector, t.email)).slice(0, 15)
+          ? prosAll.slice(0, 30)
               .map((t) => ({ urid: t.urid || "", name: t.name, title: t.title, company: t.company, email: t.email, level: "Prospect", list: "Prospecting" }))
           : [];
-        return { network: net, prospects: pros };
+        return { network: net, prospects: pros, networkTotal: netAll.length, prospectsTotal: prosAll.length, truncated: netAll.length > net.length || prosAll.length > pros.length };
       },
     }),
     searchPortcos: tool({
@@ -106,7 +108,8 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
       execute: async ({ query }) => {
         const { listPartners } = await import("./partners.server");
         const all = await listPartners();
-        return all.filter((p) => !query.trim() || hit(query, JSON.stringify(p))).slice(0, 30);
+        const list = all.filter((p) => !query.trim() || hit(query, JSON.stringify(p)));
+        return { partners: list.slice(0, 200), total: list.length, truncated: list.length > 200 };
       },
     }),
     searchEvents: tool({
@@ -115,8 +118,9 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
       execute: async ({ query }) => {
         const { readPlannerEvents } = await import("./event-planner.server");
         const all = await readPlannerEvents();
-        return all.filter((e) => hit(query, e.name, e.location, e.start, e.portcos.join(" "), e.partners.join(" "), e.subcategory, e.status, e.dtcStatus)).slice(0, 30)
-          .map((e) => ({ urid: e.urid, name: e.name, start: e.start, end: e.end, location: e.location, status: e.dtcStatus || e.status, category: e.subcategory, portcos: e.portcos, partners: e.partners }));
+        const list = all.filter((e) => hit(query, e.name, e.location, e.start, e.portcos.join(" "), e.partners.join(" "), e.subcategory, e.status, e.dtcStatus));
+        return { total: list.length, truncated: list.length > 150, events: list.slice(0, 150)
+          .map((e) => ({ urid: e.urid, name: e.name, start: e.start, end: e.end, location: e.location, status: e.dtcStatus || e.status, category: e.subcategory, portcos: e.portcos, partners: e.partners })) };
       },
     }),
     getEventDetails: tool({
@@ -237,10 +241,11 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
         const { teamMemberFor } = await import("@/lib/user-ownership");
         const me = teamMemberFor(opts.teamEmail);
         const mine = (owner: string) => { const m = teamMemberFor(owner); return !!m && !!me && m.displayName === me.displayName; };
-        return (await listHarvestedActivities())
+        const list = (await listHarvestedActivities())
           .filter((a) => /follow/i.test(a.type) && !a.resolved && (everyone || mine(a.owner)) && (!query.trim() || hit(query, a.title, a.portco, a.person, a.summary)))
-          .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 40)
-          .map((a) => ({ activityId: a.activityId, title: a.title, due: a.date, owner: a.owner, portco: a.portco, person: a.person }));
+          .sort((a, b) => a.date.localeCompare(b.date));
+        return { total: list.length, truncated: list.length > 100, followUps: list.slice(0, 100)
+          .map((a) => ({ activityId: a.activityId, title: a.title, due: a.date, owner: a.owner, portco: a.portco, person: a.person })) };
       },
     }),
     proposeFollowUp: tool({
@@ -274,7 +279,7 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
           const list = all.filter((w) => (includeCompleted || !w.completed)
             && (!who || teamMemberFor(w.owner)?.displayName === who.displayName)
             && (!query.trim() || hit(query, w.company, w.segment, w.name, w.workstreamStatus, w.workstreamPriority, w.status, w.nextSteps, w.category)));
-          return { total: list.length, workstreams: list.slice(0, 60).map((w) => ({ gid: w.gid, company: w.company, track: w.segment, name: w.name, status: w.workstreamStatus || w.status, priority: w.workstreamPriority, owner: w.owner, nextSteps: (w.nextSteps || "").slice(0, 400), lastActivity: w.lastActivity, completed: w.completed, url: w.url })) };
+          return { total: list.length, truncated: list.length > 200, workstreams: list.slice(0, 200).map((w) => ({ gid: w.gid, company: w.company, track: w.segment, name: w.name, status: w.workstreamStatus || w.status, priority: w.workstreamPriority, owner: w.owner, nextSteps: (w.nextSteps || "").slice(0, 400), lastActivity: w.lastActivity, completed: w.completed, url: w.url })) };
         } catch (e) { return { error: e instanceof Error ? e.message : "Workstreams unavailable", workstreams: [] }; }
       },
     }),
