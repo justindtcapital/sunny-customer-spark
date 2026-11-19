@@ -137,7 +137,7 @@ function SignalsPage() {
           <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-border bg-card p-4">{filters}</div>
         </aside>
 
-        <main className="min-w-0 space-y-3">
+        <main className="min-w-0 space-y-2">
           {feed.isLoading && (
             <p className="flex items-center gap-2 py-10 text-sm text-muted-foreground justify-center"><Loader2 className="h-4 w-4 animate-spin" /> Loading signals…</p>
           )}

@@ -20,15 +20,18 @@ function SignalLogo({ card }: { card: FeedCard }) {
   useEffect(() => setIdx(0), [sources]);
   const src = sources[idx];
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary/10">
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary/10">
       {src ? (
-        <img key={src} src={src} alt="" className="h-7 w-7 object-contain" onError={() => setIdx((i) => i + 1)} />
+        <img key={src} src={src} alt="" className="h-5 w-5 object-contain" onError={() => setIdx((i) => i + 1)} />
       ) : (
-        <span className="text-sm font-semibold text-primary">{card.initial}</span>
+        <span className="text-xs font-semibold text-primary">{card.initial}</span>
       )}
     </div>
   );
 }
+
+// Meta pills: kept deliberately tiny so the headline owns the tile.
+const PILL = "h-4 rounded-sm px-1.5 py-0 text-[10px] font-normal leading-none";
 
 export function SignalCard({
   card,
@@ -71,27 +74,29 @@ export function SignalCard({
         expanded ? "shadow-md ring-2 ring-primary/30" : "hover:shadow-sm",
       )}
     >
-      <button type="button" onClick={onToggle} aria-expanded={expanded} className="flex w-full items-start gap-3 p-4 text-left">
+      <button type="button" onClick={onToggle} aria-expanded={expanded} className="flex w-full items-start gap-2.5 p-3 text-left">
         <SignalLogo card={card} />
         <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{card.company}</span>
-            <Badge variant="outline" className="font-normal">{card.sourceType}</Badge>
-            {card.segmentBucket !== "Other" && <Badge variant="secondary" className="font-normal">{card.segmentBucket}</Badge>}
-            {card.industry && <Badge variant="outline" className="font-normal">{card.industry}</Badge>}
-            {(card.sourceCount ?? 1) > 1 && <span>· {card.sourceCount} sources</span>}
-            {card.timeLabel && <span className="ml-auto whitespace-nowrap">{card.timeLabel}</span>}
-          </div>
-          <h3 className="text-[15px] font-semibold leading-snug text-foreground">{card.headline}</h3>
+          <h3 className="text-sm font-semibold leading-snug text-foreground">{card.headline}</h3>
           {!expanded && summary && summary !== card.headline && (
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{summary}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted-foreground">{summary}</p>
           )}
+          <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1">
+            {(card.sourceCount ?? 1) > 1 && (
+              <span className="text-[10px] text-muted-foreground">{card.sourceCount} sources</span>
+            )}
+            <Badge variant="outline" className={PILL}>{card.sourceType}</Badge>
+            {card.segmentBucket !== "Other" && <Badge variant="secondary" className={PILL}>{card.segmentBucket}</Badge>}
+            {card.industry && <Badge variant="outline" className={PILL}>{card.industry}</Badge>}
+            {card.timeLabel && <span className="text-[10px] whitespace-nowrap text-muted-foreground">{card.timeLabel}</span>}
+          </div>
         </div>
-        <ChevronDown className={cn("mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+        <ChevronDown className={cn("mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-180")} />
       </button>
 
       {expanded && (
-        <div className="space-y-3 border-t border-border px-4 pb-4 pt-3 sm:pl-[4.25rem]">
+        <div className="space-y-2.5 border-t border-border px-3 pb-3 pt-2.5 sm:pl-[3.375rem]">
+          <p className="text-xs font-medium text-muted-foreground">{card.company}</p>
           <MarkdownMessage text={body} />
           {loadingBody && (
             <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading suggested outreach…</p>
