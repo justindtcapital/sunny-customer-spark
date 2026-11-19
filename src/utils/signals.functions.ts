@@ -40,3 +40,19 @@ export const addSignalFn = createServerFn({ method: "POST" })
     const { addManualSignal } = await import("./signals.server");
     return addManualSignal(data, context.teamEmail);
   });
+
+/** On-demand "V.I.C. suggests" for one signal: fitting PortCos and people who'd care. Read-only. */
+export const suggestSignalMatchesFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { company?: string; headline: string; summary?: string; body?: string; sourceType?: string; sourceUrl?: string }) => {
+    const headline = str(d?.headline, 300);
+    if (!headline) throw new Error("A headline is required.");
+    return {
+      company: str(d.company, 200), headline, summary: str(d.summary, 4000), body: str(d.body, 6000),
+      sourceType: str(d.sourceType, 60), sourceUrl: str(d.sourceUrl, 2000),
+    };
+  })
+  .middleware([requireTeamAuth])
+  .handler(async ({ data }) => {
+    const { suggestSignalMatches } = await import("./signal-match.server");
+    return suggestSignalMatches(data);
+  });

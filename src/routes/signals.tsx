@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2, Plus, Radar, SlidersHorizontal } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SignalCard } from "@/components/signals/SignalCard";
+import type { DraftTarget } from "@/components/signals/SignalSuggestions";
 import { SignalFilters } from "@/components/signals/SignalFilters";
 import { AddSignalDialog } from "@/components/signals/AddSignalDialog";
 import { BroadcastDialog } from "@/components/crm/BroadcastDialog";
@@ -97,6 +98,16 @@ function SignalsPage() {
     });
   };
 
+  // "V.I.C. suggests" → the same reviewed email draft dialog, seeded with V.I.C.'s reason.
+  const draftFor = (t: DraftTarget) => {
+    setDraftContact({
+      id: `signal-${t.email || t.name}`, name: t.name, title: t.title, company: t.company, email: t.email,
+      phone: "", address: "", prime: "", sector: "", areasOfInterest: [], temperature: "Warm",
+      portCoIntros: [], eventsAttended: [], eventsInvited: [], interactions: [],
+    });
+    setDraftSeed({ purpose: t.purpose, notes: t.notes });
+  };
+
   const filters = (
     <SignalFilters search={search} onChange={patch} query={query} onQuery={setQuery} cards={inWindow} portcos={feed.data?.portcos ?? []} />
   );
@@ -149,6 +160,7 @@ function SignalsPage() {
               expanded={expanded === keyOf(c)}
               onToggle={() => setExpanded((e) => (e === keyOf(c) ? null : keyOf(c)))}
               onBroadcast={() => setBroadcastCard(c)}
+              onDraft={draftFor}
             />
           ))}
           {filtered.length > shown && (

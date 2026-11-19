@@ -8,6 +8,7 @@ import { absoluteHttpUrl } from "@/lib/safe-url";
 import { readableSummary } from "@/lib/signals-page";
 import type { FeedCard } from "@/lib/signal-feed";
 import { fetchSignalBody } from "@/utils/gemini.functions";
+import { SignalSuggestions, type DraftTarget } from "@/components/signals/SignalSuggestions";
 import { cn } from "@/lib/utils";
 
 function SignalLogo({ card }: { card: FeedCard }) {
@@ -34,11 +35,13 @@ export function SignalCard({
   expanded,
   onToggle,
   onBroadcast,
+  onDraft,
 }: {
   card: FeedCard;
   expanded: boolean;
   onToggle: () => void;
   onBroadcast: () => void;
+  onDraft: (t: DraftTarget) => void;
 }) {
   const [extra, setExtra] = useState<string | null>(null);
   const [loadingBody, setLoadingBody] = useState(false);
@@ -93,9 +96,7 @@ export function SignalCard({
           {loadingBody && (
             <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Loading suggested outreach…</p>
           )}
-          {card.insight?.whyItMatters && (
-            <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Why it matters:</span> {card.insight.whyItMatters}</p>
-          )}
+          <SignalSuggestions card={card} onDraft={onDraft} />
           <div className="flex flex-wrap gap-2 pt-1">
             <Button size="sm" onClick={onBroadcast}><Send className="h-4 w-4" /> Broadcast</Button>
             {source && (
