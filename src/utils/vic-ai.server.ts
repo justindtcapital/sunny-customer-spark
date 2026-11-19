@@ -90,13 +90,14 @@ export function vicTools(opts: { teamEmail: string; kbFolderIds: string[] }) {
       },
     }),
     searchPortcos: tool({
-      description: "Search portfolio companies (PortCos) by name, sector, location or anything in their summary — e.g. 'vector database', 'healthcare'. Use for 'do any PortCos…' questions. Empty query lists all.",
-      inputSchema: z.object({ query: z.string() }),
-      execute: async ({ query }) => {
+      description: "Search portfolio companies (PortCos) by name, sector, location or anything in their summary — e.g. 'vector database', 'healthcare'. Use for 'do any PortCos…' questions. Empty query lists all (up to 250 per call; use offset to page if truncated).",
+      inputSchema: z.object({ query: z.string(), offset: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(250).optional() }),
+      execute: async ({ query, offset = 0, limit = 250 }) => {
         const { buildPortfolioCompanies } = await import("./sheets.server");
         const all = await buildPortfolioCompanies();
         const list = query.trim() ? all.filter((c) => hit(query, c.name, c.sector, c.location, c.description, c.website)) : all;
-        return { companies: list.slice(0, 100).map((c) => ({ name: c.name, sector: c.sector, website: c.website, location: c.location, summary: (c.description || "").slice(0, 1200) })), total: list.length, truncated: list.length > 100 };
+        const page = list.slice(offset, offset + limit);
+        return { companies: page.map((c) => ({ name: c.name, sector: c.sector, website: c.website, location: c.location, summary: (c.description || "").slice(0, 1200) })), total: list.length, offset, truncated: offset + page.length < list.length };
       },
     }),
     searchPartners: tool({
