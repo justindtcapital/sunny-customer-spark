@@ -1,0 +1,1 @@
+- Signals header is the quarter-circle radar (src/components/signals/SignalRadar.tsx) over pure src/lib/signal-radar.ts: PortCo ring = PortCo stories, Network ring = enterprise-watch employers, Market = the rest; selection lives in URL search (ring/view/col) so counts and filters stay testable and deep-linkable.

@@ -22,6 +22,10 @@ export interface SignalsSearch {
   src?: string[];
   /** Max age in days, or "all"; missing = DEFAULT_DAYS. */
   days?: number | "all";
+  /** Radar selection: ring (PortCo/Network/Market), view and column. */
+  ring?: string;
+  view?: string;
+  col?: string;
   /** Stored signal ID to open on arrival (e.g. from the Morning Brief). */
   open?: string;
 }
@@ -51,6 +55,9 @@ export function validateSignalsSearch(search: Record<string, unknown>): SignalsS
     pc: list(search.pc),
     src: list(search.src),
     days,
+    ring: typeof search.ring === "string" && ["PortCo", "Network", "Market"].includes(search.ring) ? search.ring : undefined,
+    view: typeof search.view === "string" && ["domain", "industry", "source"].includes(search.view) ? search.view : undefined,
+    col: typeof search.col === "string" && search.col.trim() ? search.col.trim().slice(0, 60) : undefined,
     open: typeof search.open === "string" && /^[\w-]{1,60}$/.test(search.open) ? search.open : undefined,
   };
 }

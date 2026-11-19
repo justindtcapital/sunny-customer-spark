@@ -13,6 +13,8 @@ const FEED_MAX = 600;
 export interface SignalsFeed {
   cards: FeedCard[];
   portcos: string[];
+  /** Employers of Council/Hot/Warm people (enterprise watch) — the Network ring. */
+  watch: string[];
   total: number;
   truncated: boolean;
 }
@@ -46,6 +48,7 @@ async function loadSignalsFeedLive(): Promise<SignalsFeed> {
   return {
     cards: cards.slice(0, FEED_MAX),
     portcos: portfolio.map((p) => p.name).sort((a, b) => a.localeCompare(b)),
+    watch: (await import("@/lib/enterprise-watch")).enterpriseWatchList(contacts, { portcoNames: portfolio.map((p) => p.name) }).map((w) => w.name),
     total: cards.length,
     truncated: cards.length > FEED_MAX,
   };

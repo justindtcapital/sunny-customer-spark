@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Plus, Radar, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { SignalCard } from "@/components/signals/SignalCard";
 import type { DraftTarget } from "@/components/signals/SignalSuggestions";
-import { SignalFilters } from "@/components/signals/SignalFilters";
+import { SignalRadar } from "@/components/signals/SignalRadar";
+import { matchesRadar, radarKeys } from "@/lib/signal-radar";
 import { AddSignalDialog } from "@/components/signals/AddSignalDialog";
 import { BroadcastDialog } from "@/components/crm/BroadcastDialog";
 import { EmailDraftDialog } from "@/components/crm/EmailDraftDialog";
@@ -45,7 +45,6 @@ function SignalsPage() {
   const [query, setQuery] = useState(search.q || "");
   const [shown, setShown] = useState(PAGE);
   const [expanded, setExpanded] = useState<string | null>(search.open ? `s:${search.open}` : null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [broadcastCard, setBroadcastCard] = useState<FeedCard | null>(null);
   const [draftContact, setDraftContact] = useState<Contact | null>(null);
@@ -67,14 +66,16 @@ function SignalsPage() {
 
   const cards = feed.data?.cards ?? [];
   const keyOf = (c: FeedCard) => (c.storedId ? `s:${c.storedId}` : c.id);
+  const keys = useMemo(() => radarKeys(feed.data?.portcos ?? [], feed.data?.watch ?? []), [feed.data]);
   const filtered = useMemo(() => {
-    const list = filterSignals(cards, search);
+    const list = filterSignals(cards, search).filter((c) => (search.open && c.storedId === search.open) || matchesRadar(c, search, keys));
     // A deep-linked signal is pinned to the top.
     if (!search.open) return list;
     const i = list.findIndex((c) => c.storedId === search.open);
     return i > 0 ? [list[i], ...list.slice(0, i), ...list.slice(i + 1)] : list;
-  }, [cards, search]);
-  const inWindow = useMemo(() => filterSignals(cards, { days: search.days }), [cards, search.days]);
+  }, [cards, search, keys]);
+  // Radar counts follow every filter except the radar selection itself.
+  const forRadar = useMemo(() => filterSignals(cards, { ...search, open: undefined }), [cards, search]);
 
   // Open + scroll to a deep-linked signal once the feed arrives.
   const scrolled = useRef<string | null>(null);
@@ -108,10 +109,6 @@ function SignalsPage() {
     setDraftSeed({ purpose: t.purpose, notes: t.notes });
   };
 
-  const filters = (
-    <SignalFilters search={search} onChange={patch} query={query} onQuery={setQuery} cards={inWindow} portcos={feed.data?.portcos ?? []} />
-  );
-
   return (
     <div className="mx-auto max-w-[1200px] p-4">
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -125,17 +122,13 @@ function SignalsPage() {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="outline" size="sm" className="lg:hidden" onClick={() => setFiltersOpen(true)}>
-            <SlidersHorizontal className="h-4 w-4" /> Filters
-          </Button>
           <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add a signal</Button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="hidden lg:block">
-          <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl border border-border bg-card p-4">{filters}</div>
-        </aside>
+      <SignalRadar cards={forRadar} keys={keys} search={search} onChange={patch} query={query} onQuery={setQuery} portcos={feed.data?.portcos ?? []} />
+
+      <div>
 
         <main className="min-w-0 space-y-2">
           {feed.isLoading && (
@@ -171,12 +164,6 @@ function SignalsPage() {
         </main>
       </div>
 
-      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="left" className="w-[300px] overflow-y-auto">
-          <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
-          <div className="mt-4">{filters}</div>
-        </SheetContent>
-      </Sheet>
 
       <AddSignalDialog
         open={addOpen}

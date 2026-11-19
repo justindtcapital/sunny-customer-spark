@@ -56,6 +56,13 @@
   --color-hot: var(--hot);
   --color-hot-foreground: var(--hot-foreground);
   --color-council: var(--council);
+  --color-ring-portco: var(--ring-portco);
+  --color-ring-portco-foreground: var(--ring-portco-foreground);
+  --color-ring-network: var(--ring-network);
+  --color-ring-network-foreground: var(--ring-network-foreground);
+  --color-ring-market: var(--ring-market);
+  --color-ring-market-foreground: var(--ring-market-foreground);
+  --color-ring-line: var(--ring-line);
   --color-council-foreground: var(--council-foreground);
   --color-warm: var(--warm);
   --color-warm-foreground: var(--warm-foreground);
@@ -119,6 +126,13 @@
   --sidebar-ring: oklch(0.62 0.16 250);
   /* Temperature climate (low chroma — meaning, not candy) */
   --council: oklch(0.94 0.025 300);
+  --ring-portco: oklch(0.38 0.07 235);
+  --ring-portco-foreground: oklch(0.98 0.01 235);
+  --ring-network: oklch(0.7 0.13 235);
+  --ring-network-foreground: oklch(0.99 0.01 235);
+  --ring-market: oklch(0.93 0.03 240);
+  --ring-market-foreground: oklch(0.25 0.04 240);
+  --ring-line: oklch(0.25 0.04 240);
   --council-foreground: oklch(0.42 0.1 300);
   --hot: oklch(0.945 0.025 25);
   --hot-foreground: oklch(0.48 0.14 25);
@@ -209,6 +223,13 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.615 0.175 241);
   --council: oklch(0.32 0.07 300);
+  --ring-portco: oklch(0.55 0.1 235);
+  --ring-portco-foreground: oklch(0.99 0.01 235);
+  --ring-network: oklch(0.42 0.1 235);
+  --ring-network-foreground: oklch(0.96 0.02 235);
+  --ring-market: oklch(0.28 0.04 240);
+  --ring-market-foreground: oklch(0.92 0.02 240);
+  --ring-line: oklch(0.7 0.04 240);
   --council-foreground: oklch(0.78 0.16 300);
   --hot: oklch(0.3 0.06 25);
   --hot-foreground: oklch(0.7 0.18 25);
