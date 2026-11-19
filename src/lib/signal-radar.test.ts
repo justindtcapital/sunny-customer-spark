@@ -21,3 +21,17 @@ describe("signal radar", () => {
     expect(matchesRadar(card("IBM"), { ring: "Market" }, keys)).toBe(false);
   });
 });
+
+describe("signal domain columns", () => {
+  it("uses the same six domains as PortCos, plus Other", async () => {
+    const { radarColumns } = await import("./signal-radar");
+    expect(radarColumns("domain")).toEqual(["Data", "AI", "Cloud", "Security", "Supply Chain", "Silicon", "Other"]);
+  });
+  it("folds Logistics into Supply Chain and keeps Cloud and Silicon", async () => {
+    const { bucketOf } = await import("./signal-feed");
+    expect(bucketOf("Logistics")).toBe("Supply Chain");
+    expect(bucketOf("Cloud")).toBe("Cloud");
+    expect(bucketOf("Silicon")).toBe("Silicon");
+    expect(bucketOf("Fintech")).toBe("Other");
+  });
+});

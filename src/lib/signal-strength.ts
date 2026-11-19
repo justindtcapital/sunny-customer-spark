@@ -14,6 +14,7 @@
 // Pure functions — safe to run client-side.
 
 import type { Contact, PortfolioCompany } from "@/lib/types";
+import { domainCategory } from "@/lib/types";
 
 export type ConfidenceLevel = "High" | "Medium" | "Low";
 export type ImpactLevel = "High" | "Medium" | "Low" | "None";
@@ -64,13 +65,8 @@ function norm(s?: string): string {
   return (s || "").trim().toLowerCase();
 }
 
-// Local segment bucketer (mirrors signal-feed.bucketOf — duplicated to avoid a
-// circular import). Portfolio domains and inferred segments collapse to 4 buckets.
-function bucket(s: string): string {
-  if (s === "AI" || s === "Data" || s === "Security") return s;
-  if (s === "Supply Chain" || s === "Logistics") return "Supply Chain";
-  return "Other";
-}
+// Portfolio domains and inferred segments collapse to the shared domain categories.
+const bucket = domainCategory;
 
 // Loose company-name match: normalized equality, or one clearly contains the
 // other (guards against "Acme" vs "Acme, Inc."). Avoids matching on stub tokens.

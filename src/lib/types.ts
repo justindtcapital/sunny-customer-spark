@@ -430,6 +430,16 @@ export const portfolioDomains: PortfolioDomain[] = [
   "Silicon",
 ];
 
+/** Domain categories shared by PortCos and Signals. Logistics folds into
+ *  Supply Chain so every PortCo domain lands in one of these. */
+export const DOMAIN_CATEGORIES = ["Data", "AI", "Cloud", "Security", "Supply Chain", "Silicon"] as const;
+
+/** Collapse a PortCo domain or inferred segment into a shared domain category ("Other" when none). */
+export function domainCategory(segment: string): string {
+  if (segment === "Logistics") return "Supply Chain";
+  return (DOMAIN_CATEGORIES as readonly string[]).includes(segment) ? segment : "Other";
+}
+
 export interface PortfolioCompany {
   id: string;
   /** Stable surrogate primary key (UUID) from the Portfolio Companies "URID" column. */

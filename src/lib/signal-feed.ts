@@ -7,6 +7,7 @@ import type { LinkedInPost } from "@/utils/linkedin.server";
 import type { DriveDoc } from "@/utils/drive.server";
 import type { GmailSignal } from "@/utils/gmail.functions";
 import type { Contact, PortfolioCompany } from "@/lib/types";
+import { DOMAIN_CATEGORIES, domainCategory } from "@/lib/types";
 import { domainFromCompanySourceUrl, resolveCompanyLogoDomain } from "@/lib/domain-utils";
 import { absoluteHttpUrl } from "@/lib/safe-url";
 import { cardHeadline } from "@/lib/signal-headline";
@@ -28,7 +29,7 @@ export const SOURCE_TYPES: SignalSourceType[] = [
   "Industry News",
   "LinkedIn",
 ];
-export const SEGMENTS = ["Data", "AI", "Security", "Supply Chain"];
+export const SEGMENTS: string[] = [...DOMAIN_CATEGORIES];
 export const INDUSTRIES = [
   "Manufacturing",
   "Retail",
@@ -40,12 +41,10 @@ export const INDUSTRIES = [
   "Energy",
 ];
 
-// Collapse a rich segment (portfolio domain or inferred) into one of the filter
-// buckets. "Logistics" folds into "Supply Chain" so both portfolio domains match.
+// Collapse a rich segment (portfolio domain or inferred) into the shared PortCo
+// domain categories so Signals and PortCos use one list.
 export function bucketOf(segment: string): string {
-  if (segment === "AI" || segment === "Data" || segment === "Security") return segment;
-  if (segment === "Supply Chain" || segment === "Logistics") return "Supply Chain";
-  return "Other";
+  return domainCategory(segment);
 }
 
 /** URL path/host hint that overrides category when classifying Source Type. */
@@ -121,7 +120,7 @@ export interface FeedCard {
   company: string;
   /** Rich segment (portfolio domain or inferred) shown on the badge. */
   segment: string;
-  /** One of AI/Data/Security/Supply Chain/Other — used by the sidebar filter. */
+  /** One of the shared domain categories or "Other" — used by the radar domain view. */
   segmentBucket: string;
   industry?: string;
   /** Lead investor (from the portfolio company's Asana profile), for the investor filter. */
@@ -239,6 +238,10 @@ const SEGMENT_RULES: Array<[string, RegExp]> = [
   [
     "Supply Chain",
     /\b(supply[- ]?chain|logistics|procurement|inventory|freight|shipping|fulfillment|warehous)\b/i,
+  ],
+  [
+    "Silicon",
+    /\b(silicon|semiconductors?|chips?|chipmakers?|gpus?|asics?|fpgas?|foundry|foundries|wafers?|fabs?)\b/i,
   ],
   [
     "Security",
