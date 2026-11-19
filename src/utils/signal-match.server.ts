@@ -44,6 +44,7 @@ Two lenses:
 2. "people": people in our network who would care. Good reasons are specific: their role owns the problem in the news, their company is the subject or a direct buyer/competitor, or their stated interests match. Mention which PortCo (if any) would make the conversation worth their time. "opener" is one natural first line of a short note to them (no greeting, no sign-off).
 
 Rules:
+- History matters most. People lines may carry "prior intros" (PortCos we already introduced them to, with month) and "note" (our latest logged conversations). When that history connects to this news — they met a relevant PortCo, or a note shows they discussed this problem — prefer them, say so plainly in "why" (e.g. "You introduced her to Entro in May; this breach is exactly the NHI gap they discussed"), and build the "opener" on that earlier conversation. Never claim history that isn't in their line.
 - Use ONLY the candidates given. Echo PortCo names exactly; echo people by their id (the first field).
 - Fewer, better: at most 3 PortCos and 4 people, and an empty list is the right answer when nothing truly fits. Never pad with weak matches.
 - Each "short" is the gist in at most 12 words (shown in a shortlist, e.g. "Owns IAM at Barclays; Entro is the angle").
@@ -87,7 +88,7 @@ export async function suggestSignalMatches(s: SignalForMatch): Promise<SignalMat
     `PORTCOS (${portcos.length}) — name | focus | about`,
     ...portcos.map(portcoLine),
     "",
-    `PEOPLE (${people.length}) — id | name | title | company | level | interests | DTC prime | last contact`,
+    `PEOPLE (${people.length}) — id | name | title | company | level | interests | DTC prime | last contact | prior intros | recent notes`,
     ...people.map(personLine),
   ].filter((l) => l !== "").join("\n");
 

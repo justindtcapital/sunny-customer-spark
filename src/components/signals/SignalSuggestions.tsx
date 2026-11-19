@@ -124,7 +124,7 @@ export function SignalSuggestions({ card, onDraft }: { card: FeedCard; onDraft: 
                 onDraft={() => onDraft({
                   name: p.name, title: p.title, company: p.company, email: p.email,
                   purpose: `Share ${card.company ? `${card.company} news` : "industry news"} with ${p.name}: ${topic} Why they'd care: ${p.why}`,
-                  notes: [p.opener && `Opening line: ${p.opener}`, sourceNote(card)].filter(Boolean).join("\n"),
+                  notes: [p.opener && `Opening line: ${p.opener}`, p.history && `Prior history: ${p.history}`, sourceNote(card)].filter(Boolean).join("\n"),
                 })}
                 onFollowUp={() => setFollowUp({ key: `p:${p.id}`, title: `Share with ${p.name}: ${topic}`.slice(0, 300), portco: "", person: p.name, details: p.why })}
                 onAsk={() => void askVic(`${p.name}${p.company ? ` (${p.company})` : ""}`, p.why)} />
@@ -199,6 +199,7 @@ function PersonRow({ p, open, onToggle, ...a }: { p: PersonSuggestion } & RowPro
       <p className="text-[11px] text-muted-foreground">{[p.title, prime && `DTC prime: ${prime}`].filter(Boolean).join(" · ")}</p>
       <p className="mt-1 text-sm text-foreground">{p.why}</p>
       {p.opener && <p className="mt-1 text-xs italic text-muted-foreground">“{p.opener}”</p>}
+      {p.history && <p className="mt-1 text-[11px] text-muted-foreground">On record: {p.history}</p>}
       <Actions email={!!p.email} {...a} />
     </Row>
   );

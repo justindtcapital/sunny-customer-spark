@@ -81,3 +81,38 @@ describe("shortReason", () => {
   it("uses the model's short line when given", () => expect(shortReason("Direct competitor to Vault", "Long reason. More.")).toBe("Direct competitor to Vault"));
   it("falls back to the reason's first sentence", () => expect(shortReason("", "Owns IAM at Barclays. Entro fits.")).toBe("Owns IAM at Barclays."));
 });
+
+describe("priorHistory", () => {
+  it("lists recorded PortCo intros newest first, dated from engagements, without duplicates", () => {
+    const [c] = personCandidates([person("a", "Hot", "Acme", {
+      portCoIntros: ["AuthMind", "entro"],
+      portCoEngagements: [
+        { portco: "Entro", date: "2026-05-14", sources: [] },
+        { portco: "Singulr", date: "09/02/2026", sources: [] },
+      ],
+    })]);
+    expect(c.intros).toEqual(["Singulr (2026-09)", "Entro (2026-05)", "AuthMind"]);
+  });
+  it("keeps only the two latest notes that have a summary", () => {
+    const [c] = personCandidates([person("a", "Warm", "Acme", {
+      interactions: [
+        { id: "1", date: "2026-01-10", type: "note", summary: "old chat" },
+        { id: "2", date: "2026-09-12", type: "meeting", summary: "discussed IAM consolidation" },
+        { id: "3", date: "2026-10-01", type: "email", summary: "  " },
+        { id: "4", date: "2026-08-01", type: "call", summary: "API security budget" },
+      ],
+    })]);
+    expect(c.notes).toEqual([
+      { date: "2026-09-12", text: "meeting: discussed IAM consolidation" },
+      { date: "2026-08-01", text: "call: API security budget" },
+    ]);
+  });
+  it("gives picked people their on-record history line", () => {
+    const people = personCandidates([person("a", "Council", "Acme", {
+      portCoIntros: ["Entro"],
+      interactions: [{ id: "1", date: "2026-09-12", type: "note", summary: "NHI gap" }],
+    })]);
+    const m = validateMatches({ portcos: [], people: [{ id: "a", short: "", why: "Met Entro.", opener: "" }], note: "" }, people, []);
+    expect(m.people[0].history).toBe("Introduced before: Entro · Last note 2026-09-12: NHI gap");
+  });
+});
