@@ -146,7 +146,9 @@ function SignalsPage() {
               No signals match these filters. Try a longer date range or clear the filters.
             </p>
           )}
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2 [&>div>*]:h-full">
           {filtered.slice(0, shown).map((c) => (
+            <div key={keyOf(c)} className={expanded === keyOf(c) ? "lg:col-span-2" : undefined}>
             <SignalCard
               key={keyOf(c)}
               card={c}
@@ -155,7 +157,9 @@ function SignalsPage() {
               onBroadcast={() => setBroadcastCard(c)}
               onDraft={draftFor}
             />
+            </div>
           ))}
+          </div>
           {filtered.length > shown && (
             <div className="flex justify-center pt-2">
               <Button variant="outline" onClick={() => setShown((n) => n + PAGE)}>Show more ({filtered.length - shown} left)</Button>
