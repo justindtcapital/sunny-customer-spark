@@ -16,6 +16,34 @@ const RING_STYLE: Record<Ring, { fill: string; text: string; band: string }> = {
 const R = 300;
 const RADII: Record<Ring, [number, number]> = { Market: [200, 300], Network: [100, 200], PortCo: [0, 100] };
 
+/** Point on the radar at radius r and angle deg (SVG angles: 180 = left, 270 = up). */
+function pt(r: number, deg: number): [number, number] {
+  const a = (deg * Math.PI) / 180;
+  return [R + Math.cos(a) * r, R + Math.sin(a) * r];
+}
+function arcPath(r: number, a1: number, a2: number) {
+  const [x1, y1] = pt(r, a1); const [x2, y2] = pt(r, a2);
+  return `M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}`;
+}
+function sectorPath(r: number, a1: number, a2: number) {
+  const [x1, y1] = pt(r, a1); const [x2, y2] = pt(r, a2);
+  return `M ${R} ${R} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`;
+}
+/** Radar sweep angle, its fading trail, and the incoming signal waves along it. */
+const SWEEP = 194;
+const TRAIL = Array.from({ length: 7 }, (_, i) => ({ a1: 180 + i * 2, a2: 182 + i * 2, o: 0.05 + i * 0.045 }));
+const WAVES = [
+  { r: 380, span: 13, delay: 0 }, { r: 350, span: 11, delay: 0.3 }, { r: 320, span: 9.5, delay: 0.6 },
+  { r: 268, span: 8, delay: 0.9 }, { r: 232, span: 7, delay: 1.2 },
+];
+/** Blip slots per ring, kept clear of the labels and the sweep line. */
+const BLIPS: Record<Ring, { a: number; f: number }[]> = {
+  Market: [{ a: 199, f: 0.45 }, { a: 186, f: 0.75 }, { a: 256, f: 0.3 }, { a: 263, f: 0.7 }, { a: 212, f: 0.82 }],
+  Network: [{ a: 200, f: 0.55 }, { a: 187, f: 0.25 }, { a: 254, f: 0.6 }, { a: 262, f: 0.3 }, { a: 268, f: 0.8 }],
+  PortCo: [{ a: 185, f: 0.85 }, { a: 189, f: 0.6 }],
+};
+const BLIP_FILL: Record<Ring, string> = { Market: "fill-ring-network", Network: "fill-card", PortCo: "fill-card" };
+
 function ringPath(r1: number, r2: number) {
   const outer = `M ${R - r2} ${R} A ${r2} ${r2} 0 0 1 ${R} ${R - r2}`;
   return r1 === 0 ? `${outer} L ${R} ${R} Z` : `${outer} L ${R} ${R - r1} A ${r1} ${r1} 0 0 0 ${R - r1} ${R} Z`;
@@ -52,17 +80,38 @@ export function SignalRadar({ cards, keys, search, onChange, query, onQuery, por
     </div>
 
     <div className="flex gap-0 overflow-x-auto">
-      <svg viewBox="0 0 300 300" className="h-[150px] w-[150px] shrink-0 sm:h-[216px] sm:w-[216px]" role="group" aria-label="Signal rings">
+      <svg viewBox="-90 0 390 300" className="h-[150px] w-[195px] shrink-0 sm:h-[216px] sm:w-[281px]" role="group" aria-label="Signal radar">
         {RINGS.map((r) => {
-          const [r1, r2] = RADII[r]; const mid = r1 ? (r1 + r2) / 2 : 62;
-          const a = ((r1 ? 225 : 238) * Math.PI) / 180;
+          const [r1, r2] = RADII[r]; const mid = (r1 + r2) / 2;
+          const a = (225 * Math.PI) / 180;
+          // The PortCo core is small, so its label sits at a fixed spot clear of the edge and the sweep line.
+          const [lx, ly] = r1 ? [R + Math.cos(a) * mid, R + Math.sin(a) * mid] : [255, 254];
           const sel = search.ring === r;
           return <g key={r} className="cursor-pointer" onClick={() => pickRing(r)} role="button" aria-pressed={sel} aria-label={`${r} signals`}>
             <path d={ringPath(r1, r2)} className={cn(RING_STYLE[r].fill, "stroke-ring-line transition-opacity", search.ring && !sel && "opacity-50")} strokeWidth={sel ? 5 : 3} />
-            <text x={R + Math.cos(a) * mid} y={R + Math.sin(a) * mid} textAnchor="middle" className={cn(RING_STYLE[r].text, r1 ? "text-[26px] font-medium" : "text-[21px] font-medium")}>{r}</text>
-            <text x={R + Math.cos(a) * mid} y={R + Math.sin(a) * mid + 26} textAnchor="middle" className={cn(RING_STYLE[r].text, "text-[18px] opacity-80")}>{rings.get(r) || 0}</text>
+            <text x={lx} y={ly} textAnchor="middle" className={cn(RING_STYLE[r].text, r1 ? "text-[26px] font-medium" : "text-[20px] font-medium")}>{r}</text>
+            <text x={lx} y={ly + (r1 ? 26 : 22)} textAnchor="middle" className={cn(RING_STYLE[r].text, "text-[18px] opacity-80")}>{rings.get(r) || 0}</text>
           </g>;
         })}
+
+        <g className="pointer-events-none" aria-hidden="true">
+          {TRAIL.map((t) => <path key={t.a1} d={sectorPath(R, t.a1, t.a2)} className="fill-ring-sweep" opacity={t.o} />)}
+          {RINGS.map((r) => {
+            const n = rings.get(r) || 0;
+            if (!n) return null;
+            const [r1, r2] = RADII[r];
+            return BLIPS[r].slice(0, Math.min(BLIPS[r].length, Math.ceil(Math.sqrt(n)))).map((b) => {
+              const [x, y] = pt(r1 + (r2 - r1) * b.f, b.a);
+              const lit = b.a < SWEEP && b.a > SWEEP - 20;
+              return <g key={`${r}-${b.a}`} className={cn(search.ring && search.ring !== r && "opacity-40")}>
+                {lit && <circle cx={x} cy={y} r={9} className="fill-ring-sweep" opacity={0.35} />}
+                <circle cx={x} cy={y} r={lit ? 4.5 : 3.5} className={cn(BLIP_FILL[r], "stroke-ring-line")} strokeWidth={1} opacity={lit ? 1 : 0.75} />
+              </g>;
+            });
+          })}
+          {WAVES.map((w) => <path key={w.r} d={arcPath(w.r, SWEEP - w.span, SWEEP + w.span)} className="radar-wave fill-none stroke-ring-sweep" strokeWidth={3.5} strokeLinecap="round" style={{ animationDelay: `${w.delay}s` }} />)}
+          <line x1={R} y1={R} x2={pt(396, SWEEP)[0]} y2={pt(396, SWEEP)[1]} className="stroke-ring-line" strokeWidth={2.5} strokeLinecap="round" />
+        </g>
       </svg>
 
       <div className="min-w-[420px] flex-1">

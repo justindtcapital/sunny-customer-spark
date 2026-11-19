@@ -63,6 +63,7 @@
   --color-ring-market: var(--ring-market);
   --color-ring-market-foreground: var(--ring-market-foreground);
   --color-ring-line: var(--ring-line);
+  --color-ring-sweep: var(--ring-sweep);
   --color-council-foreground: var(--council-foreground);
   --color-warm: var(--warm);
   --color-warm-foreground: var(--warm-foreground);
@@ -133,6 +134,7 @@
   --ring-market: oklch(0.93 0.03 240);
   --ring-market-foreground: oklch(0.25 0.04 240);
   --ring-line: oklch(0.25 0.04 240);
+  --ring-sweep: oklch(0.72 0.12 225);
   --council-foreground: oklch(0.42 0.1 300);
   --hot: oklch(0.945 0.025 25);
   --hot-foreground: oklch(0.48 0.14 25);
@@ -230,6 +232,7 @@
   --ring-market: oklch(0.28 0.04 240);
   --ring-market-foreground: oklch(0.92 0.02 240);
   --ring-line: oklch(0.7 0.04 240);
+  --ring-sweep: oklch(0.78 0.12 225);
   --council-foreground: oklch(0.78 0.16 300);
   --hot: oklch(0.3 0.06 25);
   --hot-foreground: oklch(0.7 0.18 25);
@@ -516,7 +519,19 @@
   }
 }
 
+/* Signals radar — incoming waves travel toward the rings */
+@keyframes radar-wave {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.9; }
+}
+.radar-wave {
+  animation: radar-wave 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .radar-wave {
+    animation: none !important;
+  }
   .wsi [class*="wsi-"] {
     animation: none !important;
   }
