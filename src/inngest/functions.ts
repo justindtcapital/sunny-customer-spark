@@ -46,7 +46,8 @@ export const dailyIntelSweep = inngest.createFunction(
 );
 
 /**
- * Daily Signals scan, started each morning by the scheduled
+ * Daily Signals run — news@ inbox filing, the main scan, then the enterprise
+ * watch — started each morning by the scheduled
  * /api/public/cron/signals-scan route (event `signals/scan.requested`) before
  * the Morning Brief. Runs here because a full scan takes minutes — longer than
  * a Worker may keep working after answering the scheduler.
@@ -56,14 +57,30 @@ export const dailySignalScan = inngest.createFunction(
     id: "daily-signal-scan",
     name: "Daily Signal Scan",
     triggers: [{ event: "signals/scan.requested" }],
-    retries: 1,
+    retries: 2,
   },
-  async ({ step }) =>
-    step.run("scan-signals", async () => {
+  async ({ step }) => {
+    // Each step is its own request, so one slow part can't starve the others.
+    const news = await step.run("archive-news-inbox", async () => {
+      const { archiveNewsInbox } = await import("@/utils/gemini.functions");
+      return archiveNewsInbox();
+    });
+    const scan = await step.run("scan-signals", async () => {
       const { runScheduledSignalScan } = await import("@/utils/gemini.functions");
       const r = await runScheduledSignalScan();
+      // Throw so Inngest retries the step later (e.g. a Sheets rate limit).
+      if (!r.found && !r.skipped) throw new Error(r.error || "scan failed");
       return { ok: r.found, skipped: r.skipped ?? false, newCount: r.newCount ?? 0, error: r.error ?? null };
-    }),
+    });
+    const enterprise = await step.run("enterprise-watch", async () => {
+      const { runEnterpriseWatchScan } = await import("@/utils/gemini.functions");
+      const r = await runEnterpriseWatchScan();
+      // Throw so Inngest retries the step later (e.g. a Sheets rate limit).
+      if (!r.found && !r.skipped) throw new Error(r.error || "scan failed");
+      return { ok: r.found, skipped: r.skipped ?? false, newCount: r.newCount ?? 0, error: r.error ?? null };
+    });
+    return { news, scan, enterprise };
+  },
 );
 
 export const functions = [dailyIntelSweep, dailySignalScan];

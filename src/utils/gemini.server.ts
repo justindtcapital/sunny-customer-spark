@@ -693,6 +693,10 @@ export interface SignalScanInput {
    *  scan grabs recent stories ABOUT these topics; each story is attributed to
    *  the actual company it concerns, never to the topic phrase itself. */
   topics?: string[];
+  /** List portfolio companies only as context for judging relevance (enterprise watch). */
+  portcosAsContext?: boolean;
+  /** Extra instructions for a focused scan, added before the company lists. */
+  focus?: string;
 }
 
 export interface SignalRecommendation {
@@ -799,8 +803,16 @@ function buildSignalPrompt(input: SignalScanInput): string {
   lines.push(
     `News window: the last ${input.windowDays} days. Today's context: treat anything older as stale.`,
   );
+  if (input.focus) {
+    lines.push("");
+    lines.push(input.focus);
+  }
   lines.push("");
-  lines.push("PORTFOLIO COMPANIES (primary search targets):");
+  lines.push(
+    input.portcosAsContext
+      ? "PORTFOLIO COMPANIES (context only — use them to judge why a story matters to the firm; do NOT search for their news):"
+      : "PORTFOLIO COMPANIES (primary search targets):",
+  );
   for (const p of input.portcos) {
     const bits = [p.name];
     if (p.sector) bits.push(`sector: ${p.sector}`);

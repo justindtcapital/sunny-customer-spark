@@ -22,6 +22,7 @@ import { scoreAttribution } from "@/lib/attribution-score";
 import { outreachVerdict } from "@/lib/outreach-gate";
 import type { Contact } from "@/lib/types";
 import { markPortCoContacts, ratedLevel } from "@/lib/contact-kind";
+import { companyKey, enterpriseWatchList, isWatchedStory, storyNamesCompany, todaysWatchBatch } from "@/lib/enterprise-watch";
 // Signal persistence (Signals tab row contract) lives in signal-store.server —
 // shared with the Gmail digest pipeline, which archives per-link signals too.
 import {
@@ -358,7 +359,13 @@ type SignalScanInput = {
    *  universe. Stories are attributed to their actual companies and flow
    *  through clustering/scoring like any other signal. */
   topic?: string;
+  /** Enterprise watch: today's batch of Council/Hot/Warm network companies,
+   *  searched for technology and significant business announcements. */
+  enterprise?: boolean;
 };
+
+const ENTERPRISE_FOCUS =
+  "ENTERPRISE WATCH: this scan covers large companies where the firm has close relationships (listed under OTHER NETWORK COMPANIES). Look only for significant, concrete announcements: technology and AI initiatives, platform or infrastructure changes, major product launches, M&A, large funding or investment programs, executive changes in technology leadership (CIO/CTO/CISO/CDO), big partnerships or vendor selections, earnings-driven strategy shifts, security incidents and regulatory actions. Skip routine marketing, awards, hiring posts and minor updates. A story matters most when it opens a door for a portfolio company (listed below as context) or warrants a timely note to the listed person at that company.";
 
 /**
  * Shared signal-scan runner used by the UI server fn (and schedulers via
@@ -374,6 +381,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
   const scoped = (data.companyName || "").trim().toLowerCase();
   // Ad-hoc topic scan: search the SUBJECT, not the universe.
   const topic = (data.topic || "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const enterprise = Boolean(data.enterprise) && !scoped && !topic;
 
   try {
     const [rawContacts, portfolio] = await Promise.all([buildContacts(), buildPortfolioCompanies()]);
@@ -426,7 +434,19 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
     let companies: string[] = [];
     let topics: string[] = topic ? [topic] : [];
     let tier2Skipped = false;
-    if (!scoped && !topic) {
+    let watchKeys = new Set<string>();
+    if (enterprise) {
+      const batch = todaysWatchBatch(
+        enterpriseWatchList(contacts, { portcoNames: portfolio.map((p) => p.name) }),
+        { now: Date.now() },
+      );
+      companies = batch.map((w) => w.name);
+      watchKeys = new Set(batch.map((w) => companyKey(w.name)));
+      // Attribution pool: people at today's companies first, then everyone else.
+      people.sort(
+        (a, b) => Number(watchKeys.has(companyKey(b.company))) - Number(watchKeys.has(companyKey(a.company))),
+      );
+    } else if (!scoped && !topic) {
       let tier2Day = true;
       if (data.scheduled) {
         try {
@@ -459,7 +479,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
 
     // Internal PDFs from the shared drive (best-effort — empty if unconfigured).
     // Topic scans skip them: they're universe context, not subject context.
-    const documents = topic ? [] : await loadSignalDocuments();
+    const documents = topic || enterprise ? [] : await loadSignalDocuments();
 
     // Already-stored signals — used both to dedupe new signals AND to skip
     // articles we've already turned into signals on a prior scan.
@@ -481,7 +501,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
     const topicLower = new Set(topicList.map((t) => t.toLowerCase()));
     // Don't re-query the same name as both a company and a pinned topic.
     const companyTargets = uniqueSearchNames([
-      ...portcos.map((p) => p.name),
+      ...(enterprise ? [] : portcos.map((p) => p.name)),
       ...companies,
     ]).filter((n) => !topicLower.has(n.toLowerCase()));
     let articles: Awaited<ReturnType<typeof fetchNewsForCompanies>> = [];
@@ -566,7 +586,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
     // domain, then read by Gemini via the URL-context tool. Skipped for topic
     // scans (subject searches, not inbox digestion).
     let emailLinks: Array<{ url: string; company?: string }> = [];
-    if (!topic) {
+    if (!topic && !enterprise) {
       try {
         const g = await gatherNetworkEmails({ contacts, portfolio });
         if (g.ok) {
@@ -632,6 +652,8 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
       articles: cappedArticles,
       emailLinks: cappedEmailLinks,
       topics,
+      portcosAsContext: enterprise,
+      focus: enterprise ? ENTERPRISE_FOCUS : undefined,
     });
     if (!fresh.found) {
       await logOpsEvent({
@@ -722,12 +744,28 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
     }
 
     const dateFound = new Date().toISOString().split("T")[0];
-    const candidates = [
+    const allCandidates = [
       ...rescoredRecs.map((r) => storedFromRec(r, dateFound, portcoNames)),
       ...[...fresh.otherSignals, ...demotedToAwareness].map((a) =>
         storedFromAwareness(a, dateFound, portcoNames),
       ),
     ];
+    // Enterprise watch keeps only stories about today's companies (or a PortCo).
+    const candidates = enterprise
+      ? allCandidates.filter((c) =>
+          isWatchedStory(
+            { company: c.company, text: `${c.signal} ${c.subject}` },
+            { watchNames: companies, portcoNames: portfolio.map((p) => p.name) },
+          ),
+        )
+      : // Other scans: a network-company story must name that company (the
+        // model sometimes files news under the suggested person's employer).
+        allCandidates.filter(
+          (c) =>
+            !c.company ||
+            portcoNames.has(c.company.trim().toLowerCase()) ||
+            storyNamesCompany({ company: c.company, text: `${c.signal} ${c.subject}` }),
+        );
 
     // Dedup on content key AND source URL so re-scans / Gemini duplicates
     // don't double-store the same story (even with UTM / trailing-slash variants).
@@ -766,7 +804,9 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
         ? `Signals scan for ${data.companyName} · +${toAppend.length} new`
         : topic
           ? `Topic scan "${topic}" · +${toAppend.length} new`
-          : `Signals scan · +${toAppend.length} new · ${existing.length + toAppend.length} total`,
+          : enterprise
+            ? `Enterprise watch (${companies.join(", ").slice(0, 120)}) · +${toAppend.length} new`
+            : `Signals scan · +${toAppend.length} new · ${existing.length + toAppend.length} total`,
       records: toAppend.length,
       details: {
         windowDays,
@@ -951,12 +991,40 @@ export const fetchSignalBody = createServerFn({ method: "POST" })
  * scheduled tier cadence. Server-only so the client never bundles it.
  * SIGNALS_CRON_ENABLED=false turns it off; SIGNALS_CRON_WINDOW_DAYS sets the lookback.
  */
+const cronDisabled = () => (process.env["SIGNALS_CRON_ENABLED"] || "true").toLowerCase() === "false";
+const skippedScan = (): SignalScanResult & { skipped?: boolean } => ({
+  found: false, skipped: true, error: "SIGNALS_CRON_ENABLED=false", recommendations: [], otherSignals: [], compliance: [],
+});
+
 export const runScheduledSignalScan = createServerOnlyFn(
   async (): Promise<SignalScanResult & { skipped?: boolean }> => {
-    if ((process.env["SIGNALS_CRON_ENABLED"] || "true").toLowerCase() === "false") {
-      return { found: false, skipped: true, error: "SIGNALS_CRON_ENABLED=false", recommendations: [], otherSignals: [], compliance: [] };
-    }
+    if (cronDisabled()) return skippedScan();
     const windowDays = Number(process.env["SIGNALS_CRON_WINDOW_DAYS"]) || 14;
     return executeSignalScan({ windowDays, scheduled: true });
+  },
+);
+
+/** Daily enterprise watch: today's rotating batch of Council/Hot/Warm companies. */
+export const runEnterpriseWatchScan = createServerOnlyFn(
+  async (): Promise<SignalScanResult & { skipped?: boolean }> => {
+    if (cronDisabled()) return skippedScan();
+    return executeSignalScan({ windowDays: 7, enterprise: true, maxPeople: 200 });
+  },
+);
+
+/**
+ * Files news@ forwards (451 research, PortCo blog digests, forwarded articles)
+ * into Signals. URL/content-deduped, so re-running over the same mail adds
+ * nothing. Daily runs look back 14 days; a backfill passes a longer window.
+ */
+export const archiveNewsInbox = createServerOnlyFn(
+  async (opts: { windowDays?: number; max?: number } = {}): Promise<{ ok: boolean; emails: number; error?: string }> => {
+    const r = await gatherNetworkEmails({
+      persistDigest: true,
+      newsOnly: true,
+      windowDays: opts.windowDays ?? 14,
+      max: opts.max ?? 50,
+    });
+    return { ok: r.ok, emails: r.emails.length, error: r.error };
   },
 );

@@ -4,6 +4,7 @@
 import { buildFeed, newsSourceType, type FeedCard } from "@/lib/signal-feed";
 import { signalNewsEmail, type SignalNewsKind } from "@/lib/signals-page";
 import { teamMemberFor } from "@/lib/user-ownership";
+import { lastGoodReader } from "@/lib/last-good";
 
 /** Newest cards sent to the page; older ones stay on the sheet (and in V.I.C.). */
 const FEED_MAX = 600;
@@ -15,7 +16,11 @@ export interface SignalsFeed {
   truncated: boolean;
 }
 
-export async function loadSignalsFeed(): Promise<SignalsFeed> {
+// A busy spreadsheet (rate limit) serves this instance's last real feed, else a
+// plain "temporarily unavailable" message — never raw Google errors or demo rows.
+export const loadSignalsFeed = lastGoodReader(loadSignalsFeedLive, "Signals");
+
+async function loadSignalsFeedLive(): Promise<SignalsFeed> {
   const { fetchStoredSignals } = await import("./signal-store.server");
   const { buildContacts, buildPortfolioCompanies } = await import("./sheets.server");
   const { gatedStoredSignals } = await import("./gemini.functions");

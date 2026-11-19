@@ -164,6 +164,11 @@ export async function gatherNetworkEmails(pre?: {
   contacts?: Contact[];
   portfolio?: PortfolioCompany[];
   persistDigest?: boolean;
+  /** Only mail sent to the news@ alias (no network-domain matching). */
+  newsOnly?: boolean;
+  /** Overrides GMAIL_SIGNALS_WINDOW_DAYS / GMAIL_SIGNALS_MAX (news@ backfill). */
+  windowDays?: number;
+  max?: number;
 }): Promise<{
   configured: boolean;
   ok: boolean;
@@ -200,11 +205,11 @@ export async function gatherNetworkEmails(pre?: {
   }
   const domList = [...domains].slice(0, 30); // keep the Gmail query within limits
 
-  const windowDays = Number(process.env.GMAIL_SIGNALS_WINDOW_DAYS) || 14;
-  const max = Number(process.env.GMAIL_SIGNALS_MAX) || 25;
+  const windowDays = pre?.windowDays || Number(process.env.GMAIL_SIGNALS_WINDOW_DAYS) || 14;
+  const max = pre?.max || Number(process.env.GMAIL_SIGNALS_MAX) || 25;
 
   // Optional manual override (e.g. `subject:"portco blogs" OR from:dell.com`).
-  const custom = process.env.GMAIL_SIGNALS_QUERY?.trim();
+  const custom = pre?.newsOnly ? "" : process.env.GMAIL_SIGNALS_QUERY?.trim();
   // NEWS@ ingestion alias: anything the team forwards there is signal by
   // definition, so it's ORed in regardless of domain matching. deliveredto:
   // catches alias-inbox delivery where the alias never shows in To/Cc.
@@ -215,12 +220,14 @@ export async function gatherNetworkEmails(pre?: {
     .join(" OR ");
   if (!custom && domList.length === 0 && newsAliases.length === 0)
     return { configured: true, ok: true, emails: [], newsDocs: [] };
+  if (pre?.newsOnly && newsAliases.length === 0)
+    return { configured: true, ok: false, emails: [], newsDocs: [], error: "No news@ address is configured." };
 
   // Match a portfolio/network domain ANYWHERE in the message (headers OR body) so
   // internal digests that merely LINK to those sites (e.g. a "Portco blogs"
   // forward) are caught — not just direct emails with the network.
   const clauses = [
-    domList.length > 0 ? `(${domList.join(" OR ")})` : "",
+    domList.length > 0 && !pre?.newsOnly ? `(${domList.join(" OR ")})` : "",
     aliasClause ? `(${aliasClause})` : "",
   ].filter(Boolean);
   const terms = clauses.join(" OR ");
