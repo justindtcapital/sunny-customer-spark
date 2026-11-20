@@ -14,20 +14,20 @@ export const Route = createFileRoute("/api/public/cron/signals-scan")({
         const { inngest } = await import("@/inngest/client");
 
         if (process.env["NODE_ENV"] !== "development") {
+          // Keep Inngest Cloud pointed at this app's custom domain (idempotent)
+          // before queueing, so the scan runs on this deployment.
+          let sync: { ok: boolean; status: number; detail: string };
           try {
-            // Keep Inngest Cloud's copy of our job list current (idempotent),
-            // in-process so no manual sync step is needed after publishing.
-            const { serve } = await import("inngest/edge");
-            const { functions } = await import("@/inngest/functions");
-            const syncUrl = new URL("/api/public/inngest", request.url);
-            await serve({ client: inngest, functions })(new Request(syncUrl, { method: "PUT" }));
+            const { syncInngest } = await import("@/inngest/serve");
+            sync = await syncInngest();
           } catch (e) {
-            console.error("[cron/signals-scan] inngest sync failed (continuing):", e);
+            sync = { ok: false, status: 0, detail: e instanceof Error ? e.message : String(e) };
           }
+          if (!sync.ok) console.error("[cron/signals-scan] inngest sync failed (continuing):", sync);
           const day = new Date().toISOString().slice(0, 10);
           // Event id makes repeat scheduler calls on one day start one scan.
-          await inngest.send({ id: `signals-scan-${day}`, name: "signals/scan.requested", data: {} });
-          return Response.json({ ok: true, queued: true, day }, { status: 202 });
+          const sent = await inngest.send({ id: `signals-scan-${day}`, name: "signals/scan.requested", data: {} });
+          return Response.json({ ok: true, queued: true, day, eventIds: sent.ids, sync }, { status: 202 });
         }
 
         // Local dev: run one part inline ({"part":"news"|"scan"|"enterprise"|"headlines"}).

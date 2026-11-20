@@ -430,6 +430,46 @@ export async function geminiGenerate(
   return r.data;
 }
 
+/** One Google-grounded Gemini answer plus the web sources Google returned for it. */
+export interface GroundedSearchResult {
+  text: string;
+  /** groundingChunks[i].web — uri is a Google redirect to the real article. */
+  chunks: Array<{ uri: string; title: string }>;
+  /** Answer segments and the chunk indexes Google tied each one to. */
+  supports: Array<{ text: string; chunks: number[] }>;
+}
+
+/** Ask Gemini a question answered from live Google Search results. */
+export async function groundedSearch(
+  prompt: string,
+): Promise<{ ok: true; result: GroundedSearchResult } | { ok: false; error: string }> {
+  const r = await callGeminiRaw(
+    {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      tools: [{ googleSearch: {} }],
+      generationConfig: genConfig(3000, 512, { temperature: 0.1 }),
+    },
+    GEMINI_MODEL,
+    3,
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  const gm = (r.data.candidates?.[0]?.groundingMetadata || {}) as {
+    groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
+    groundingSupports?: Array<{ segment?: { text?: string }; groundingChunkIndices?: number[] }>;
+  };
+  return {
+    ok: true,
+    result: {
+      text: responseText(r.data),
+      chunks: (gm.groundingChunks || []).map((c) => ({ uri: c.web?.uri || "", title: c.web?.title || "" })),
+      supports: (gm.groundingSupports || []).map((s) => ({
+        text: s.segment?.text || "",
+        chunks: s.groundingChunkIndices || [],
+      })),
+    },
+  };
+}
+
 // Concatenate all text parts of the first candidate.
 export function responseText(r: GeminiResponse): string {
   const parts = r.candidates?.[0]?.content?.parts || [];

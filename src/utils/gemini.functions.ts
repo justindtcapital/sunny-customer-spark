@@ -13,7 +13,9 @@ import {
   type SignalDocument,
 } from "./gemini.server";
 import { isDriveConfigured, listDriveDocs, downloadDriveFile } from "./drive.server";
-import { isNewsConfigured, fetchNewsForCompanies, articleUrlKey, uniqueSearchNames } from "./news.server";
+import { articleUrlKey, uniqueSearchNames, type NewsArticle } from "./news.server";
+import { fetchGoogleNewsRss, fetchGoogleSearchNews } from "./google-news.server";
+import { ENTERPRISE_NEWS_CONTEXT } from "@/lib/google-news";
 import { isPerplexityConfigured, fetchPerplexityNews } from "./perplexity.server";
 import { gatherNetworkEmails, type GmailSignal } from "./gmail.functions";
 import { downloadGmailAttachment } from "./gmail.server";
@@ -506,7 +508,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
       ...(enterprise ? [] : portcos.map((p) => p.name)),
       ...companies,
     ]).filter((n) => !topicLower.has(n.toLowerCase()));
-    let articles: Awaited<ReturnType<typeof fetchNewsForCompanies>> = [];
+    let articles: NewsArticle[] = [];
     const pushUnique = (incoming: typeof articles) => {
       const have = new Set(articles.map((a) => articleUrlKey(a.url)).filter(Boolean));
       for (const a of incoming) {
@@ -517,22 +519,30 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
         }
       }
     };
+    // Google first, on every scan: Google-grounded search (real article URLs)
+    // and Google News headlines. Event Registry (NEWSAPI_KEY) is no longer used.
+    const sourceCounts: Record<string, number> = {};
+    const tally = (name: string, items: NewsArticle[]) => {
+      sourceCounts[name] = (sourceCounts[name] ?? 0) + items.length;
+      pushUnique(items);
+    };
     try {
-      if (isNewsConfigured()) {
-        if (topicList.length > 0) {
-          pushUnique(
-            await fetchNewsForCompanies(topicList, windowDays, {
-              maxBatches: Math.max(1, Math.ceil(topicList.length / 10)),
-              max: 40,
-            }),
-          );
-        }
-        if (companyTargets.length > 0) {
-          pushUnique(await fetchNewsForCompanies(companyTargets, windowDays));
-        }
-      }
+      const [searchTopics, searchCompanies, rss] = await Promise.all([
+        topicList.length > 0
+          ? fetchGoogleSearchNews(topicList, windowDays, { mode: "topics", maxBatches: 2, max: 30 })
+          : Promise.resolve([]),
+        companyTargets.length > 0
+          ? fetchGoogleSearchNews(companyTargets, windowDays, { mode: "companies" })
+          : Promise.resolve([]),
+        Promise.all([
+          fetchGoogleNewsRss(topicList, windowDays),
+          fetchGoogleNewsRss(companyTargets, windowDays, enterprise ? { context: ENTERPRISE_NEWS_CONTEXT } : undefined),
+        ]).then(([a, b]) => [...a, ...b]),
+      ]);
+      tally("googleSearch", [...searchTopics, ...searchCompanies]);
+      tally("googleNews", rss);
     } catch (e) {
-      console.error("[gemini] fetchNewsForCompanies failed (continuing without):", e);
+      console.error("[gemini] Google news sources failed (continuing without):", e);
     }
     try {
       if (isPerplexityConfigured()) {
@@ -546,7 +556,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
           );
         }
         if (companyTargets.length > 0) {
-          pushUnique(await fetchPerplexityNews(companyTargets, windowDays, { mode: "companies" }));
+          tally("perplexity", await fetchPerplexityNews(companyTargets, windowDays, { mode: "companies" }));
         }
       }
     } catch (e) {
@@ -823,6 +833,7 @@ async function executeSignalScan(data: SignalScanInput = {}): Promise<SignalScan
         // WS6 cadence audit trail: true on scheduled non-Tier-2 days.
         tier2Skipped,
         articles: articles.length,
+        newsSources: Object.entries(sourceCounts).map(([k, v]) => `${k}:${v}`).join(", "),
         emailLinks: emailLinks.length,
         documents: documents.length,
         existing: existing.length,

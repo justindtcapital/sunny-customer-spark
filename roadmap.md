@@ -11,6 +11,8 @@
 - [x] My Actions: one-click Mark complete with Completed badge + Undo; retry on Google limits; searchable PortCo/Partner picker with correct filing
 - [x] Campaign send options: individual emails, one email per company, or one email with everyone in BCC; all recipient lists separated by semicolons for Outlook
 - [x] Signals (from the Signals project plan): Signals page with filters; Broadcast (LinkedIn, contacts, send to news@); Add a signal; Morning Brief "Signals to know today"; V.I.C. signal lookup and LinkedIn drafts
-- [ ] Signals daily automatic scan before the Morning Brief — built and scheduled; starts running live after the next publish
+- [ ] Signals daily automatic scan before the Morning Brief — trigger now registers at crm.dt-capital.net; Google News + Google Search sources; goes live after the next publish
+- [ ] Perplexity as an extra news source — waits on connecting Perplexity
+- [x] Manual signal scan run (Nov 20)
 - [x] Signals: backfill from news@ email history
 - [x] Signals: enterprise watch — Hot/Warm network companies, technology and major business announcements
