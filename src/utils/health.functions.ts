@@ -191,30 +191,23 @@ async function checkSumble(): Promise<ServiceHealth> {
   return { service: "Sumble", status: "ok", detail: "API key valid" };
 }
 
-// NewsAPI.ai / Event Registry — light usage call validates the key.
+// Google News — the Signals scan's headline source (Event Registry is no longer
+// used). One small RSS search shows whether Google is answering this server.
 async function checkNews(): Promise<ServiceHealth> {
-  const apiKey = process.env.NEWSAPI_KEY;
-  if (!has(apiKey))
-    return { service: "News", status: "unconfigured", detail: "NEWSAPI_KEY missing" };
   try {
     const { latencyMs } = await timed(async () => {
+      const { googleNewsRssUrl } = await import("@/lib/google-news");
       const res = await withTimeout(
-        fetch(`https://eventregistry.org/api/v1/usage?apiKey=${encodeURIComponent(apiKey!)}`),
+        fetch(googleNewsRssUrl(["Dell Technologies"], 7), {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; VenturePulse/1.0)" },
+        }),
         8000,
       );
-      if (res.status === 401 || res.status === 403) throw new Error(`HTTP ${res.status}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     });
-    return { service: "News", status: "ok", detail: "API key valid", latencyMs };
+    return { service: "Google News", status: "ok", detail: "Headline search answering", latencyMs };
   } catch (e) {
-    // Some keys reject /usage but still work for getArticles — treat network
-    // success with a soft fallback when the key is present and error is ambiguous.
-    const detail = msg(e);
-    if (/timed out|fetch failed|network/i.test(detail)) {
-      return { service: "News", status: "error", detail };
-    }
-    // Key present; usage endpoint may differ by account type.
-    return { service: "News", status: "ok", detail: "API key valid" };
+    return { service: "Google News", status: "error", detail: msg(e) };
   }
 }
 

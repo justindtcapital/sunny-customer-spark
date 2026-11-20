@@ -44,6 +44,12 @@ export const Route = createFileRoute("/api/cron/intel-scan")({
 
         if (!sync) {
           try {
+            // Same registration fix as the signals cron: run on this deployment.
+            if (process.env["NODE_ENV"] !== "development") {
+              const { syncInngest } = await import("@/inngest/serve");
+              const r = await syncInngest().catch((e) => ({ ok: false, detail: String(e) }));
+              if (!r.ok) console.error("[cron/intel-scan] inngest sync failed (continuing):", r);
+            }
             await Promise.race([
               inngest.send({
                 name: "intel/sweep.requested",
