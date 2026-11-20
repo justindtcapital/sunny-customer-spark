@@ -48,6 +48,9 @@ import { PortfolioDetail } from "@/components/portfolio/PortfolioDetail";
 import { useAuth } from "@/lib/auth-context";
 import { CampaignList, CampaignTypeBadge } from "@/components/campaigns/CampaignList";
 import { CampaignResults } from "@/components/campaigns/CampaignResults";
+import { PeopleTable } from "@/components/campaigns/PeopleTable";
+import { PortcoAudience } from "@/components/campaigns/PortcoAudience";
+import { NetworkAudience } from "@/components/campaigns/NetworkAudience";
 import { clearPreload, readPreload } from "@/lib/campaign-preload";
 import {
   CAMPAIGN_PURPOSES,
@@ -292,7 +295,9 @@ function CampaignBuilderPage() {
           campaign={campaign}
           staged={staged}
           memberKeys={memberKeys}
+          userEmail={userEmail || ""}
           onStaged={setStaged}
+          onCampaign={setCampaign}
           onBack={() => setStep("start")}
           onNext={() => setStep("confirm")}
         />
@@ -1078,22 +1083,48 @@ function BuildStep({
   campaign,
   staged,
   memberKeys,
+  userEmail,
   onStaged,
+  onCampaign,
   onBack,
   onNext,
 }: {
   campaign: CampaignRecord;
   staged: CandidatePerson[];
   memberKeys: Set<string>;
+  userEmail: string;
   onStaged: (s: CandidatePerson[]) => void;
+  onCampaign: (c: CampaignRecord) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
-  const [tab, setTab] = useState<"internal" | "external" | "upload">("internal");
+  const save = useServerFn(saveCampaignFn);
+  const [tab, setTab] = useState<"portcos" | "internal" | "external" | "upload">(
+    campaign.portcos.length ? "portcos" : "internal",
+  );
+  const [tagging, setTagging] = useState(false);
+  const skipKeys = useMemo(() => new Set([...memberKeys, ...staged.map((p) => personKeyOf(p))]), [memberKeys, staged]);
   const add = (incoming: CandidatePerson[]) => {
     const r = mergeCandidates(staged, incoming, memberKeys);
     onStaged(r.list);
     toast.success(`${r.added} added${r.skipped ? ` · ${r.skipped} already on the list` : ""}`);
+  };
+  // People from the PortCo picker are staged at once; the campaign is tagged with those companies.
+  const addFromPortcos = async (people: CandidatePerson[], portcos: string[]) => {
+    add(people);
+    const have = new Set(campaign.portcos.map((p) => p.toLowerCase()));
+    const extra = portcos.filter((p) => !have.has(p.toLowerCase()));
+    if (!extra.length) return;
+    setTagging(true);
+    try {
+      const res = await save({ data: { id: campaign.id, portcos: [...campaign.portcos, ...extra], by: userEmail } });
+      if (!res.ok) toast.error(`People added, but tagging companies failed: ${res.error}`);
+      else onCampaign(res.campaign);
+    } catch (e) {
+      toast.error(`People added, but tagging companies failed: ${e instanceof Error ? e.message : "try again"}`);
+    } finally {
+      setTagging(false);
+    }
   };
   const counts = staged.reduce<Record<string, number>>((acc, p) => {
     acc[p.origin] = (acc[p.origin] || 0) + 1;
@@ -1112,10 +1143,11 @@ function BuildStep({
         {memberKeys.size > 0 && <span className="text-muted-foreground">· {memberKeys.size} already in this campaign</span>}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(
           [
-            ["internal", "Our Network & Prospecting"],
+            ["portcos", "Portfolio companies"],
+            ["internal", "Network & Prospecting"],
             ["external", "Get more (Sumble / Apollo)"],
             ["upload", "Upload"],
           ] as const
@@ -1127,7 +1159,8 @@ function BuildStep({
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">
-        {tab === "internal" && <InternalSearch campaign={campaign} onAdd={add} />}
+        {tab === "portcos" && <PortcoAudience campaign={campaign} busy={tagging} skipKeys={skipKeys} onAdd={(p, cos) => void addFromPortcos(p, cos)} />}
+        {tab === "internal" && <NetworkAudience campaign={campaign} onAdd={add} />}
         {tab === "external" && <ExternalSearch onAdd={add} />}
         {tab === "upload" && <UploadPeople onAdd={add} />}
       </div>
@@ -1144,156 +1177,6 @@ function BuildStep({
   );
 }
 
-function InternalSearch({ campaign, onAdd }: { campaign: CampaignRecord; onAdd: (p: CandidatePerson[]) => void }) {
-  const contactsQ = useQuery({ queryKey: ["campaign-contacts"], queryFn: () => fetchContacts(), staleTime: 60_000 });
-  const targetsQ = useQuery({ queryKey: ["campaign-targets"], queryFn: () => fetchTargets(), staleTime: 60_000 });
-  const [useNetwork, setUseNetwork] = useState(true);
-  const [useProspects, setUseProspects] = useState(true);
-  const [q, setQ] = useState("");
-  const [title, setTitle] = useState("");
-  const [sector, setSector] = useState("");
-  const [location, setLocation] = useState("");
-  const [onlyTagged, setOnlyTagged] = useState(false);
-  // Nothing is matched until Find is clicked; results use the criteria at that moment.
-  const [applied, setApplied] = useState<null | { q: string; title: string; sector: string; location: string; onlyTagged: boolean; net: boolean; pro: boolean }>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-
-  const pool = useMemo<CandidatePerson[]>(() => {
-    const out: CandidatePerson[] = [];
-    if (applied?.net)
-      for (const c of contactsQ.data || [])
-        out.push({
-          name: c.name,
-          email: (c.email || "").split(/[,;]/)[0].trim(),
-          title: c.title,
-          company: c.company,
-          linkedin: c.linkedinUrl || "",
-          location: c.location || c.address,
-          sector: c.sector,
-          origin: "network",
-          urid: c.urid,
-          // tags for filtering
-          ...({ _tags: [...(c.eventsAttended || []), ...(c.eventsInvited || []), ...(c.portCoIntros || [])] } as object),
-        });
-    if (applied?.pro)
-      for (const t of targetsQ.data || [])
-        out.push({
-          name: t.name,
-          email: t.email,
-          title: t.title,
-          company: t.company,
-          linkedin: t.linkedinUrl,
-          location: t.location,
-          sector: t.sector,
-          origin: "prospect",
-          urid: t.urid,
-          ...({ _tags: [t.event || "", ...(t.portcoTags || [])] } as object),
-        });
-    return out;
-  }, [contactsQ.data, targetsQ.data, applied]);
-
-  const tagSet = useMemo(
-    () => new Set([...campaign.events, ...campaign.portcos].map((x) => x.toLowerCase())),
-    [campaign],
-  );
-  const filtered = useMemo(() => {
-    if (!applied) return [];
-    const s = applied.q.trim().toLowerCase();
-    const ti = applied.title.trim().toLowerCase();
-    const se = applied.sector.trim().toLowerCase();
-    const lo = applied.location.trim().toLowerCase();
-    const onlyTagged = applied.onlyTagged;
-    return pool.filter((p) => {
-      if (s && !`${p.name} ${p.company} ${p.email}`.toLowerCase().includes(s)) return false;
-      if (ti && !p.title.toLowerCase().includes(ti)) return false;
-      if (se && !(p.sector || "").toLowerCase().includes(se)) return false;
-      if (lo && !(p.location || "").toLowerCase().includes(lo)) return false;
-      if (onlyTagged) {
-        const tags = ((p as unknown as { _tags?: string[] })._tags || []).map((x) => x.toLowerCase());
-        if (!tags.some((t) => tagSet.has(t))) return false;
-      }
-      return true;
-    });
-  }, [pool, applied, tagSet]);
-
-  const keyOf = (p: CandidatePerson) => `${p.origin}:${personKeyOf(p)}`;
-  const shown = filtered.slice(0, 300);
-  const loading = contactsQ.isLoading || targetsQ.isLoading;
-  const strip = (p: CandidatePerson): CandidatePerson => {
-    const { ...rest } = p as CandidatePerson & { _tags?: string[] };
-    delete (rest as { _tags?: string[] })._tags;
-    return rest;
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-4 text-xs">
-        <label className="flex items-center gap-1.5">
-          <Checkbox checked={useNetwork} onCheckedChange={(v) => setUseNetwork(!!v)} /> Network
-        </label>
-        <label className="flex items-center gap-1.5">
-          <Checkbox checked={useProspects} onCheckedChange={(v) => setUseProspects(!!v)} /> Prospecting
-        </label>
-        {tagSet.size > 0 && (
-          <label className="flex items-center gap-1.5">
-            <Switch checked={onlyTagged} onCheckedChange={setOnlyTagged} /> People tied to this campaign's event/PortCos
-          </label>
-        )}
-      </div>
-      <div className="grid gap-2 sm:grid-cols-4">
-        <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-          <Input className="pl-7" placeholder="Name, company, email" value={q} onChange={(e) => setQ(e.target.value)} />
-        </div>
-        <Input placeholder="Title contains" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <Input placeholder="Sector contains" value={sector} onChange={(e) => setSector(e.target.value)} />
-        <Input placeholder="Location contains" value={location} onChange={(e) => setLocation(e.target.value)} />
-      </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>{!applied ? "Choose where to look and any filters, then click Find." : loading ? "Loading…" : `${filtered.length} match${filtered.length === 1 ? "" : "es"}${filtered.length > 300 ? " (showing 300)" : ""}`}</span>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            disabled={!useNetwork && !useProspects}
-            onClick={() => {
-              setPicked(new Set());
-              setApplied({ q, title, sector, location, onlyTagged, net: useNetwork, pro: useProspects });
-            }}
-          >
-            <Search className="h-3.5 w-3.5 mr-1" /> Find
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => onAdd(filtered.map(strip))} disabled={!filtered.length}>
-            Add all {filtered.length}
-          </Button>
-          <Button
-            size="sm"
-            disabled={!picked.size}
-            onClick={() => {
-              onAdd(filtered.filter((p) => picked.has(keyOf(p))).map(strip));
-              setPicked(new Set());
-            }}
-          >
-            Add selected ({picked.size})
-          </Button>
-        </div>
-      </div>
-      <PeopleTable
-        people={shown}
-        selectable={{
-          isSelected: (p) => picked.has(keyOf(p)),
-          toggle: (p) =>
-            setPicked((prev) => {
-              const n = new Set(prev);
-              const k = keyOf(p);
-              if (n.has(k)) n.delete(k);
-              else n.add(k);
-              return n;
-            }),
-        }}
-      />
-    </div>
-  );
-}
 
 const JOB_LEVELS = ["C-Suite", "VP", "Director", "Manager"];
 
@@ -1437,77 +1320,6 @@ function UploadPeople({ onAdd }: { onAdd: (p: CandidatePerson[]) => void }) {
         </Button>
       </div>
       {parsed.length > 0 && <PeopleTable people={parsed.slice(0, 100)} />}
-    </div>
-  );
-}
-
-function PeopleTable({
-  people,
-  selectable,
-  onRemove,
-  badge,
-}: {
-  people: CandidatePerson[];
-  selectable?: { isSelected: (p: CandidatePerson) => boolean; toggle: (p: CandidatePerson) => void };
-  onRemove?: (p: CandidatePerson) => void;
-  badge?: (p: CandidatePerson) => string;
-}) {
-  return (
-    <div className="max-h-[420px] overflow-auto rounded-md border border-border">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-muted text-muted-foreground">
-          <tr>
-            {selectable && <th className="w-8" />}
-            <th className="text-left px-2 py-1.5">Name</th>
-            <th className="text-left px-2 py-1.5">Title</th>
-            <th className="text-left px-2 py-1.5">Company</th>
-            <th className="text-left px-2 py-1.5">Email</th>
-            <th className="text-left px-2 py-1.5">Source</th>
-            {onRemove && <th className="w-8" />}
-          </tr>
-        </thead>
-        <tbody>
-          {people.map((p, i) => (
-            <tr key={`${personKeyOf(p)}-${i}`} className="border-t border-border">
-              {selectable && (
-                <td className="px-2">
-                  <Checkbox checked={selectable.isSelected(p)} onCheckedChange={() => selectable.toggle(p)} />
-                </td>
-              )}
-              <td className="px-2 py-1.5 font-medium text-foreground">
-                {p.name}
-                {p.linkedin && (
-                  <a href={p.linkedin} target="_blank" rel="noreferrer" className="ml-1 inline-block text-primary">
-                    <Linkedin className="h-3 w-3" />
-                  </a>
-                )}
-              </td>
-              <td className="px-2 py-1.5 text-muted-foreground">{p.title}</td>
-              <td className="px-2 py-1.5">{p.company}</td>
-              <td className="px-2 py-1.5 text-muted-foreground">{p.email || "—"}</td>
-              <td className="px-2 py-1.5">
-                <Badge variant="outline" className="text-[9px] capitalize">
-                  {badge ? badge(p) : p.origin}
-                </Badge>
-              </td>
-              {onRemove && (
-                <td className="px-2">
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onRemove(p)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </td>
-              )}
-            </tr>
-          ))}
-          {people.length === 0 && (
-            <tr>
-              <td colSpan={7} className="px-2 py-6 text-center text-muted-foreground">
-                No people.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
     </div>
   );
 }
