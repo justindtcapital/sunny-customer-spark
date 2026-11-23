@@ -469,8 +469,9 @@ export const addProspectsToTargets = createServerFn({ method: "POST" })
 
     if (targetRows.length > 0) {
       try {
-        await appendTargetRows(targetRows);
-        result.added = targetRows.length;
+        const saved = await appendTargetRows(targetRows);
+        result.added = saved.added;
+        result.duplicates += saved.existing.length;
       } catch (e) {
         console.error("[prospects] add-to-targets failed:", e);
         result.failed = targetRows.length;

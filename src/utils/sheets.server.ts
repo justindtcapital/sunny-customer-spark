@@ -2158,8 +2158,27 @@ export interface TargetRowInput {
 // Header-aware Targets append: stamps a stable URID on every new row and places
 // each value in the column whose header matches, so a column insert in the Sheets
 // UI can never silently misalign the write (the failure that produced fix_carmen).
-export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> {
-  if (inputs.length === 0) return;
+export interface AppendTargetsResult { added: number; existing: { name: string; company: string; matchedName: string; reason: string }[] }
+export async function appendTargetRows(all: TargetRowInput[]): Promise<AppendTargetsResult> {
+  if (all.length === 0) return { added: 0, existing: [] };
+  // One duplicate gate for every Prospecting add path (campaigns, prospect search, accounts,
+  // V.I.C., theses): a person already anywhere in Contacts — Network or Prospecting, same email,
+  // LinkedIn or full name + company — is never appended again, nor twice within one batch.
+  const { findExistingContact } = await import("@/lib/contact-identity");
+  const people = await fetchSheetTab(TAB_NAMES.contacts, true);
+  const lists = [people];
+  if (!(people[0] || []).some((h) => h.trim().toLowerCase() === "prospecting stage")) lists.push(await fetchSheetTab(TAB_NAMES.targets, true).catch(() => [] as string[][]));
+  const batch: string[][] = [["name", "email", "company", "linkedin"]];
+  const existing: AppendTargetsResult["existing"] = [];
+  const inputs = all.filter((t) => {
+    const name = `${t.firstName} ${t.lastName}`.trim();
+    const id = { name, email: t.email, company: t.company, linkedin: t.linkedin };
+    const hit = lists.map((rows) => findExistingContact(rows, id)).find(Boolean) || findExistingContact(batch, id);
+    if (hit) { existing.push({ name, company: t.company, matchedName: hit.name || name, reason: hit.reason }); return false; }
+    batch.push([name, t.email, t.company, t.linkedin]);
+    return true;
+  });
+  if (inputs.length === 0) return { added: 0, existing };
   await ensureTab(TAB_NAMES.targets, TARGET_HEADERS);
   await ensureColumn(TAB_NAMES.targets, "URID");
   await ensureColumn(TAB_NAMES.targets, "Reason Surfaced");
@@ -2210,6 +2229,7 @@ export async function appendTargetRows(inputs: TargetRowInput[]): Promise<void> 
   // Literal cells: USER_ENTERED strips "+" from phones, so a successful save
   // failed read-back verification and stranded the shared bulk lock.
   await appendSheetRows(TAB_NAMES.targets, built, true);
+  return { added: built.length, existing };
 }
 
 // Repair the Targets tab's stable-key column: create URID if the tab predates it,

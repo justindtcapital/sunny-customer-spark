@@ -519,8 +519,8 @@ export const addAccountPeople = createServerFn({ method: "POST" })
     // Batch-write the new prospecting targets to the Targets sheet.
     if (targetRows.length > 0) {
       try {
-        await appendTargetRows(targetRows);
-        result.added = targetRows.length;
+        const saved = await appendTargetRows(targetRows);
+        result.added = saved.added;
       } catch (e) {
         console.error("[accounts] appendTargetRows failed:", e);
         result.failed += targetRows.length;

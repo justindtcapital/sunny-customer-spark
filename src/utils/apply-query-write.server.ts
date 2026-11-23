@@ -135,7 +135,7 @@ export async function applyQueryWrite(
           /* dedup read failed — proceed with the add */
         }
         const parts = name.split(/\s+/).filter(Boolean);
-        await appendTargetRows([
+        const saved = await appendTargetRows([
           {
             firstName: parts[0] || "",
             lastName: parts.slice(1).join(" "),
@@ -151,6 +151,10 @@ export async function applyQueryWrite(
             reasonSurfaced: str(d.reasonSurfaced),
           },
         ]);
+        if (!saved.added) {
+          const hit = saved.existing[0];
+          return { ok: false, error: `${name} is already in Contacts${hit && hit.matchedName !== name ? ` as ${hit.matchedName}` : ""} — no second record was created` };
+        }
         return {
           ok: true,
           summary: `Approved & applied (sheets_add_target): ${name}${company ? ` · ${company}` : ""} — ${str(d.stage) || "Prospecting"}`,

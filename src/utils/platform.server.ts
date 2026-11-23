@@ -2340,8 +2340,9 @@ export async function promoteThesisMatch(
       }
 
       if (rows.length > 0) {
-        await appendTargetRows(rows);
-        peopleAdded = rows.length;
+        const saved = await appendTargetRows(rows);
+        peopleAdded = saved.added;
+        duplicates += saved.existing.length;
       } else if (!warning && duplicates > 0) {
         warning = `Leaders at ${match.company} are already in Targets.`;
       }
