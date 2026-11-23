@@ -278,6 +278,16 @@ export async function fetchSheetTab(tabName: string, fresh = false): Promise<str
   return run;
 }
 
+/** Read path for app-owned tabs: a missing tab reads as empty, with no
+ *  metadata/ensureTab request — keeps page loads inside the Sheets read quota. */
+export async function fetchSheetTabIfExists(tabName: string, fresh = false): Promise<string[][]> {
+  try { return await fetchSheetTab(tabName, fresh); }
+  catch (e) {
+    if (/\[400\]/.test(String((e as Error)?.message)) && /Unable to parse range/i.test(String((e as Error)?.message))) return [];
+    throw e;
+  }
+}
+
 // ── Append a row to a sheet tab ──────────────────────────────
 export async function appendSheetRow(tabName: string, values: string[]): Promise<void> {
   if (tabName === TAB_NAMES.targets && (await unifiedProspects())) return appendProspectRows([values]);

@@ -1,13 +1,11 @@
 import { createServerOnlyFn } from "@tanstack/react-start";
 import { followUpEditSchema, type FollowUpEdit } from "@/lib/follow-up-edit";
-import { fetchSheetTab } from "./sheets.server";
-import { KNOWLEDGE_TABS, HARVEST_STATE_HEADERS, setHarvestState } from "./knowledge.server";
-import { ensureTab } from "./sheets.server";
+import { fetchSheetTab, fetchSheetTabIfExists } from "./sheets.server";
+import { KNOWLEDGE_TABS, setHarvestState } from "./knowledge.server";
 
 const PREFIX = "followup-edit:";
 export const readFollowUpEdits = createServerOnlyFn(async (): Promise<Map<string, FollowUpEdit>> => {
-  await ensureTab(KNOWLEDGE_TABS.harvestState, HARVEST_STATE_HEADERS);
-  const rows = await fetchSheetTab(KNOWLEDGE_TABS.harvestState);
+  const rows = await fetchSheetTabIfExists(KNOWLEDGE_TABS.harvestState);
   const edits = new Map<string, FollowUpEdit>();
   for (const row of rows.slice(1)) {
     if (!row[0]?.startsWith(PREFIX)) continue;

@@ -151,7 +151,6 @@ function rowToMember(headers: string[], r: string[]): CampaignMember {
 }
 
 export async function listCampaigns(): Promise<CampaignRecord[]> {
-  await ensureTabs();
   const c = await readTab(CAMPAIGNS_TAB);
   const m = await readTab(MEMBERS_TAB);
   const counts = new Map<string, number>();
@@ -168,7 +167,6 @@ export async function listCampaigns(): Promise<CampaignRecord[]> {
 }
 
 export async function listMembers(campaignId?: string): Promise<CampaignMember[]> {
-  await ensureTabs();
   const m = await readTab(MEMBERS_TAB);
   return m.rows
     .map((r) => rowToMember(m.headers, r))
@@ -380,7 +378,6 @@ export const RESULTS_TAB = "Campaign Results";
 const RESULT_HEADERS = ["Campaign ID", "Person Key", "Result", "Follow Up Owner", "Follow Up Due", "By", "At"];
 
 export async function listResults(campaignId?: string): Promise<import("@/lib/campaign-results").ResultRow[]> {
-  await ensureTab(RESULTS_TAB, RESULT_HEADERS);
   const { rows } = await readTab(RESULTS_TAB);
   return rows
     .map((r) => ({

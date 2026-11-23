@@ -17,6 +17,7 @@ import {
   ensureTab,
   ensureHeaderWidth,
   fetchSheetTab,
+  fetchSheetTabIfExists,
   appendSheetRows,
   writeSheetRow,
 } from "./sheets.server";
@@ -217,23 +218,19 @@ function firstById<T>(items: T[], id: (item: T) => string): T[] {
 }
 
 export async function listKnowledgeRecords(fresh = false): Promise<KnowledgeRecord[]> {
-  await ensureTab(KNOWLEDGE_TABS.records, RECORD_HEADERS);
-  return firstById(rowsToRecords(await fetchSheetTab(KNOWLEDGE_TABS.records, fresh)), (r) => r.recordId);
+  return firstById(rowsToRecords(await fetchSheetTabIfExists(KNOWLEDGE_TABS.records, fresh)), (r) => r.recordId);
 }
 
 export async function listHarvestedActivities(): Promise<HarvestedActivity[]> {
-  await ensureTab(KNOWLEDGE_TABS.activities, ACTIVITY_HEADERS);
-  return uniqueActivities(rowsToActivities(await fetchSheetTab(KNOWLEDGE_TABS.activities)));
+  return uniqueActivities(rowsToActivities(await fetchSheetTabIfExists(KNOWLEDGE_TABS.activities)));
 }
 
 export async function listWorkstreamLinks(): Promise<WorkstreamLink[]> {
-  await ensureTab(KNOWLEDGE_TABS.workstreamLinks, WORKSTREAM_LINK_HEADERS);
-  return firstById(rowsToLinks(await fetchSheetTab(KNOWLEDGE_TABS.workstreamLinks)), (l) => l.linkId);
+  return firstById(rowsToLinks(await fetchSheetTabIfExists(KNOWLEDGE_TABS.workstreamLinks)), (l) => l.linkId);
 }
 
 export async function listSuggestedContacts(): Promise<SuggestedContact[]> {
-  await ensureTab(KNOWLEDGE_TABS.suggestedContacts, SUGGESTED_CONTACT_HEADERS);
-  return firstById(rowsToSuggested(await fetchSheetTab(KNOWLEDGE_TABS.suggestedContacts)), (c) => c.suggestionId);
+  return firstById(rowsToSuggested(await fetchSheetTabIfExists(KNOWLEDGE_TABS.suggestedContacts)), (c) => c.suggestionId);
 }
 
 // ── Writers ──────────────────────────────────────────────────
@@ -351,8 +348,7 @@ export function reviewSuggestedContact(suggestionId: string, status: string): Pr
 // ── Harvest state (cursors) ──────────────────────────────────
 
 export async function getHarvestState(key: string): Promise<string> {
-  await ensureTab(KNOWLEDGE_TABS.harvestState, HARVEST_STATE_HEADERS);
-  const rows = await fetchSheetTab(KNOWLEDGE_TABS.harvestState);
+  const rows = await fetchSheetTabIfExists(KNOWLEDGE_TABS.harvestState);
   const row = rows.find((r, i) => i > 0 && r[0] === key);
   return row?.[1] || "";
 }
