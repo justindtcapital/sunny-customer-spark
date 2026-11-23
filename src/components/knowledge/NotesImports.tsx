@@ -3,7 +3,7 @@
 // move to History. Granola is pulled only when "Import from Granola" is clicked.
 
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConnectGranolaButton } from "./ConnectGranolaButton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ExternalLink, HelpCircle, History, Loader2, RefreshCw, Upload, Sparkles, X } from "lucide-react";
@@ -81,13 +81,19 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
 
   const cbRef = useRef({ onCount, onItems, onStats });
   cbRef.current = { onCount, onItems, onStats };
-  const load = useCallback(async () => {
+  const qc = useQueryClient();
+  // First load shares one request with any identical inbox already loading
+  // (re-mounts, the other panel); reloads after a review always re-read.
+  const load = useCallback(async (fresh = true) => {
     setLoading(true);
+    const owner = actionOwner || undefined;
+    const read = (h: boolean) => qc.fetchQuery({
+      queryKey: ["notes-inbox", kind, owner || "", h],
+      queryFn: () => fetchNotesInboxFn({ data: { history: h, owner, kind } }),
+      staleTime: fresh ? 0 : 20_000,
+    });
     try {
-      const [r, h] = await Promise.all([
-        fetchNotesInboxFn({ data: { history, owner: actionOwner || undefined, kind } }),
-        history ? Promise.resolve(null) : fetchNotesInboxFn({ data: { history: true, owner: actionOwner || undefined, kind } }),
-      ]);
+      const [r, h] = await Promise.all([read(history), history ? Promise.resolve(null) : read(true)]);
       setItems(r.items);
       if (!history) {
         cbRef.current.onCount?.(r.items.length);
@@ -100,8 +106,8 @@ export function NotesImports({ actionOwner = "", kind = "notes", onCount, onItem
     } finally {
       setLoading(false);
     }
-  }, [history, actionOwner, kind]);
-  useEffect(() => { void load(); }, [load]);
+  }, [history, actionOwner, kind, qc]);
+  useEffect(() => { void load(false); }, [load]);
 
   const [granolaProgress, setGranolaProgress] = useState<{ done: number; total: number } | null>(null);
 

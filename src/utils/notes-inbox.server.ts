@@ -144,6 +144,9 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
   const { listGranolaImports } = await import("./granola.server");
   const granola = new Map((await listGranolaImports().catch(() => [])).map((g) => [g.noteId, g]));
   const linkBy = new Map(links.map((l) => [l.recordId, l]));
+  const suggestedBy = new Map<string, typeof contacts>();
+  for (const c of contacts) { const l = suggestedBy.get(c.recordId); if (l) l.push(c); else suggestedBy.set(c.recordId, [c]); }
+  const { ownerMatches } = await import("@/lib/action-owners");
   const actsBy = new Map<string, { owners: string[]; track: string }>();
   const sourceAuthor = (r: KnowledgeRecord): string => {
     const stamped = importers.get(r.recordId);
@@ -171,7 +174,6 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
     if (history ? !review : !!review) continue;
     // When an action owner is selected, only notes that person imported.
     if (ownerKey) {
-      const { ownerMatches } = await import("@/lib/action-owners");
       // Recorded author first; legacy unstamped emails fall back to name matching.
       const who = sourceAuthor(r) || (kind === "activity"
         ? [...(actsBy.get(r.recordId)?.owners || []), r.participants, r.summary].join(" ")
@@ -217,7 +219,7 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
         for (const p of parseParticipants(r.participants)) put(p.name, p.email, "");
         for (const p of ex.people || []) put(p.name, (p.email || "").toLowerCase(), p.company);
         for (const p of meetingTitleDefaults(r.title).people) put(p.name, p.email, p.company);
-        for (const c of contacts.filter((c) => c.recordId === r.recordId)) put(c.name, c.email, c.company, c.suggestionId, c.status);
+        for (const c of suggestedBy.get(r.recordId) || []) put(c.name, c.email, c.company, c.suggestionId, c.status);
         // Names only heard in next steps ("Brent to send contract") join the roster too.
         const known = [...map.values()].map((p) => p.name.toLowerCase());
         for (const n of ex.nextSteps || []) {

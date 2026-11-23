@@ -28,14 +28,33 @@ export function meetingTitleDefaults(title: string) {
 
 const nameKey = (name: string) => name.normalize("NFKC").toLowerCase().replace(/[’]/g, "'").replace(/\s+/g, " ").trim();
 
+interface DirIndex<T> { byEmail: Map<string, T[]>; byName: Map<string, T[]> }
+// One lookup index per directory array: notes inboxes match thousands of names
+// against thousands of contacts, and a linear scan per name took seconds.
+const indexes = new WeakMap<object, DirIndex<DirPerson>>();
+function dirIndex<T extends DirPerson>(directory: T[]): DirIndex<T> {
+  const cached = indexes.get(directory) as DirIndex<T> | undefined;
+  if (cached) return cached;
+  const byEmail = new Map<string, T[]>(), byName = new Map<string, T[]>();
+  for (const p of directory) {
+    for (const e of new Set(extractEmails(p.email))) { const list = byEmail.get(e); if (list) list.push(p); else byEmail.set(e, [p]); }
+    const k = nameKey(p.name);
+    const list = byName.get(k); if (list) list.push(p); else byName.set(k, [p]);
+  }
+  const index = { byEmail, byName };
+  indexes.set(directory, index as unknown as DirIndex<DirPerson>);
+  return index;
+}
+
 /** Never turn a first name, shared email, or ambiguous full name into an automatic link. */
 export function uniqueReviewPerson<T extends DirPerson>(person: { name: string; email?: string }, directory: T[]): T | undefined {
   const email = (person.email || "").trim().toLowerCase();
   const name = nameKey(person.name);
+  const index = dirIndex(directory);
   const candidates = email
-    ? directory.filter((p) => extractEmails(p.email).includes(email))
+    ? index.byEmail.get(email) || []
     : name.split(" ").length >= 2 && !isPlaceholderName(name)
-      ? directory.filter((p) => nameKey(p.name) === name)
+      ? index.byName.get(name) || []
       : [];
   // Multiple source rows are ambiguous, even if their names/emails happen to agree.
   if (candidates.length !== 1) return undefined;
@@ -43,7 +62,7 @@ export function uniqueReviewPerson<T extends DirPerson>(person: { name: string; 
   if (!hit) return undefined;
   const emails = extractEmails(hit.email);
   const primary = email || emails[0];
-  if (!primary || directory.filter((p) => extractEmails(p.email).includes(primary)).length !== 1) return undefined;
+  if (!primary || (index.byEmail.get(primary) || []).length !== 1) return undefined;
   return { ...hit, email: primary };
 }
 

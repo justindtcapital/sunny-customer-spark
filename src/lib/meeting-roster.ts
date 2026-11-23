@@ -17,16 +17,35 @@ function clean(s: string): string {
  * exactly; a first name alone matches people with that first name, ranked by
  * company hints (tagged PortCos, attendee companies/domains). Placeholders match nobody.
  */
+interface RosterIndex { byEmail: Map<string, DirPerson[]>; byName: Map<string, DirPerson[]>; byFirst: Map<string, DirPerson[]> }
+// Built once per directory array so a note with many people doesn't rescan every contact.
+const rosterIndexes = new WeakMap<object, RosterIndex>();
+function rosterIndex(dir: DirPerson[]): RosterIndex {
+  const cached = rosterIndexes.get(dir);
+  if (cached) return cached;
+  const add = (m: Map<string, DirPerson[]>, k: string, d: DirPerson) => { const l = m.get(k); if (l) l.push(d); else m.set(k, [d]); };
+  const index: RosterIndex = { byEmail: new Map(), byName: new Map(), byFirst: new Map() };
+  for (const d of dir) {
+    add(index.byEmail, d.email, d);
+    const n = clean(d.name);
+    add(index.byName, n, d);
+    add(index.byFirst, n.split(" ")[0]!, d);
+  }
+  rosterIndexes.set(dir, index);
+  return index;
+}
+
 export function suggestPeople(person: { name: string; email?: string }, dir: DirPerson[], hints: string[] = [], max = 3): DirPerson[] {
+  const index = rosterIndex(dir);
   const email = (person.email || "").trim().toLowerCase();
   if (email) {
-    const hit = dir.filter((d) => d.email === email);
+    const hit = index.byEmail.get(email) || [];
     if (hit.length) return hit.slice(0, max);
   }
   const name = clean(person.name);
   if (!name || isPlaceholderName(name)) return [];
   const parts = name.split(" ");
-  const exact = dir.filter((d) => clean(d.name) === name);
+  const exact = index.byName.get(name) || [];
   if (exact.length || parts.length >= 2) return exact.slice(0, max);
   const first = parts[0]!;
   if (first.length < 2) return [];
@@ -35,8 +54,7 @@ export function suggestPeople(person: { name: string; email?: string }, dir: Dir
     const co = clean(d.company), dom = d.email.split("@")[1] || "";
     return h.some((x) => (co && (co.includes(x) || x.includes(co))) || (dom && x.includes(dom.split(".")[0]!))) ? 1 : 0;
   };
-  return dir
-    .filter((d) => clean(d.name).split(" ")[0] === first)
+  return (index.byFirst.get(first) || [])
     .map((d) => ({ d, s: score(d) }))
     .sort((a, b) => b.s - a.s)
     .slice(0, max)
