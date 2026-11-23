@@ -1,7 +1,7 @@
 // Spreadsheet view of every workstream: click any column header to sort or
 // filter by it, edit cells inline, add a workstream, choose columns.
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import { OWNER_OPTIONS, WORKSTREAM_FIELD_DEFS } from "@/lib/portco-fields-schema
 import { PORTDEV_OPS } from "@/lib/portco-import";
 import { priorityTone } from "@/components/portfolio/WorkstreamsPanel";
 import { cn } from "@/lib/utils";
+import { SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
 
 /** Workstream Priority as the same colored pill used on the company page. */
 const renderPriority = (v: string) => <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", priorityTone(v))}>{v}</span>;
@@ -53,6 +54,7 @@ export function WorkstreamsTableView({ companyNames, contacts = [], onContactsCh
   const { data: archiveData } = useQuery({ queryKey: ["portco-table"], queryFn: () => loadArchives(), staleTime: 60_000 });
   const archives = archiveData?.workstreamArchives || {};
   const update = useServerFn(updateWorkstreamFn);
+  const qc = useQueryClient();
   const create = useServerFn(createWorkstreamFn);
   const [patched, setPatched] = useState<Record<string, Workstream>>({});
   const [cols, setCols, resetCols] = useColumnChoice("workstreams", DEFAULT_COLUMNS, RENAMED_COLUMNS);
@@ -142,6 +144,8 @@ export function WorkstreamsTableView({ companyNames, contacts = [], onContactsCh
     if (!res.ok) { toast.error(res.error); return false; }
     patchWorkstreamCache(res.workstream);
     setPatched((p) => ({ ...p, [w.gid]: res.workstream }));
+    // The company keeps a synced copy of Sell With Dell Status; show it fresh in Edit PortCos.
+    if (key === SWD_STATUS_FIELD) void qc.invalidateQueries({ queryKey: ["portco-table"] });
     const stored = valueOf(res.workstream, key);
     if (!undo) toast.success(`${w.name}: ${key} saved`, { action: { label: "Undo", onClick: () => void saveCell(res.workstream, key, stored, original, true) } });
     return true;

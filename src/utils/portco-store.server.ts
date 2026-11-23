@@ -7,7 +7,7 @@ import { appendSheetRows, colLetters, ensureTab, fetchSheetTab, updateSheetCells
 import type { Workstream, WorkstreamSegment } from "@/lib/workstream-parse";
 import type { FieldChange } from "@/lib/asana-field-payload";
 import { PORTDEV_OPS } from "@/lib/portco-import";
-import { SWD_STATUS_FIELD, normalizeSellWithDell } from "@/lib/sell-with-dell-status";
+import { SWD_STATUS_FIELD, applyStatusEdit, companyStatusAfterWorkstreamEdit, effectiveCompanyStatus, normalizeSellWithDell, workstreamStatusesAfterCompanyEdit } from "@/lib/sell-with-dell-status";
 import { PROFILE_FIELD_DEFS, WORKSTREAM_FIELD_DEFS, cellChangesFromFieldChanges, fieldMeta, planRowEdit, storedOwner, type CellChange } from "@/lib/portco-fields-schema";
 
 export const PROFILES_TAB = "PortCo Profiles";
@@ -75,12 +75,32 @@ function toProfile(x: SheetRow): PortcoProfile {
   return { row: x.row, urid: x.cells["PortCo URID"] || "", company: x.cells["Company"] || "", owner: x.cells["Owner"] || "", fields, archived: parseJson(x.cells["Archived Fields"] || ""), updatedAt: x.cells["Updated At"] || "", updatedBy: x.cells["Updated By"] || "" };
 }
 
-export async function readProfiles(fresh = false): Promise<PortcoProfile[]> {
+async function profileRows(fresh: boolean) {
   const rows = await fetchSheetTab(PROFILES_TAB, fresh).catch((e) => {
     if (/Unable to parse range/i.test(String(e))) return [] as string[][];
     throw e;
   });
-  return parseTab(rows).items.map(toProfile).filter((p) => p.company);
+  const { headers, items } = parseTab(rows);
+  // Guard: an old "Sell With Dell - Maturity" column or value still reads as "Sell With Dell Status".
+  return normalizeSellWithDell(headers, items);
+}
+
+/** The company's workstream rows (PortCo URID first, else exact company name). */
+function workstreamsOfCompany(items: SheetRow[], urid: string, company: string): SheetRow[] {
+  const name = company.trim().toLowerCase();
+  return items.filter((w) => (urid && w.cells["PortCo URID"] === urid) || (!!name && (w.cells["Company"] || "").trim().toLowerCase() === name));
+}
+
+export async function readProfiles(fresh = false): Promise<PortcoProfile[]> {
+  const [{ items }, ws] = await Promise.all([profileRows(fresh), workstreamRows(fresh).catch(() => null)]);
+  return items.map((x) => {
+    const p = toProfile(x);
+    if (!ws) return p;
+    // Sell With Dell Status shows everything the company's workstreams carry, even if a sync was missed.
+    const value = effectiveCompanyStatus(p.fields[SWD_STATUS_FIELD] || "", workstreamsOfCompany(ws.items, p.urid, p.company).map((w) => w.cells[SWD_STATUS_FIELD] || ""));
+    if (value) p.fields[SWD_STATUS_FIELD] = value;
+    return p;
+  }).filter((p) => p.company);
 }
 
 /** Same shape the Asana field map had: lowercased company name → kept profile values. */
@@ -97,28 +117,85 @@ export async function fetchPortcoProfileFields(): Promise<Map<string, { name: st
   return out;
 }
 
-/** Save profile edits for one PortCo; creates its profile row the first time. */
-export async function saveProfileFields(input: { urid?: string; company: string; changes: CellChange[] }, by: string): Promise<PortcoProfile> {
+/** The profile row for one PortCo, read fresh; creates the row the first time. */
+async function profileRowFor(input: { urid?: string; company: string }): Promise<{ headers: string[]; hit: SheetRow }> {
   await ensureTab(PROFILES_TAB, PROFILE_HEADERS);
-  const { headers, items } = parseTab(await fetchSheetTab(PROFILES_TAB, true));
+  const { headers, items } = await profileRows(true);
   const key = input.company.trim().toLowerCase();
-  let hit = items.find((x) => (input.urid && x.cells["PortCo URID"] === input.urid) || (x.cells["Company"] || "").toLowerCase() === key);
-  if (!hit) {
-    const { buildPortfolioCompanies } = await import("./sheets.server");
-    const co = (await buildPortfolioCompanies(true)).find((c) => (input.urid && c.urid === input.urid) || c.name.trim().toLowerCase() === key);
-    if (!co) throw new Error(`"${input.company}" isn't a PortCo in Venture Pulse.`);
-    await appendSheetRows(PROFILES_TAB, [PROFILE_HEADERS.map((h) => (h === "PortCo URID" ? co.urid || "" : h === "Company" ? co.name : ""))], true);
-    const again = parseTab(await fetchSheetTab(PROFILES_TAB, true));
-    hit = again.items.find((x) => (x.cells["Company"] || "").toLowerCase() === co.name.trim().toLowerCase());
-    if (!hit) throw new Error("Couldn't create the profile row — try again.");
-  }
-  const plan = planRowEdit(hit.cells, input.changes, PROFILE_FIELD_DEFS);
+  const hit = items.find((x) => (input.urid && x.cells["PortCo URID"] === input.urid) || (x.cells["Company"] || "").toLowerCase() === key);
+  if (hit) return { headers: headers.length ? headers : PROFILE_HEADERS, hit };
+  const { buildPortfolioCompanies } = await import("./sheets.server");
+  const co = (await buildPortfolioCompanies(true)).find((c) => (input.urid && c.urid === input.urid) || c.name.trim().toLowerCase() === key);
+  if (!co) throw new Error(`"${input.company}" isn't a PortCo in Venture Pulse.`);
+  await appendSheetRows(PROFILES_TAB, [PROFILE_HEADERS.map((h) => (h === "PortCo URID" ? co.urid || "" : h === "Company" ? co.name : ""))], true);
+  const again = await profileRows(true);
+  const created = again.items.find((x) => (x.cells["Company"] || "").toLowerCase() === co.name.trim().toLowerCase());
+  if (!created) throw new Error("Couldn't create the profile row — try again.");
+  return { headers: again.headers.length ? again.headers : PROFILE_HEADERS, hit: created };
+}
+
+/**
+ * Save profile edits for one PortCo; creates its profile row the first time. A Sell With Dell Status
+ * edit is checked against what the company shows (its value plus its workstreams'), and statuses
+ * removed here are also removed from the workstreams that carry them — both copies stay in sync.
+ */
+export async function saveProfileFields(input: { urid?: string; company: string; changes: CellChange[] }, by: string): Promise<PortcoProfile> {
+  const { headers, hit } = await profileRowFor(input);
+  const swdEdit = input.changes.some((c) => c.field === SWD_STATUS_FIELD);
+  const ws = swdEdit ? await workstreamRows(true) : null;
+  const mine = ws ? workstreamsOfCompany(ws.items, hit.cells["PortCo URID"] || input.urid || "", hit.cells["Company"] || input.company) : [];
+  const stored = hit.cells[SWD_STATUS_FIELD] || "";
+  const shown = effectiveCompanyStatus(stored, mine.map((w) => w.cells[SWD_STATUS_FIELD] || ""));
+  // Sell With Dell Status merges as a change (added/removed statuses) onto what the company shows now,
+  // so a workstream saved since the editor opened never makes this a conflict or gets undone.
+  const changes = input.changes.map((c) => (c.field === SWD_STATUS_FIELD ? { field: c.field, original: shown, value: applyStatusEdit(shown, c.original, c.value) } : c));
+  const plan = planRowEdit(swdEdit ? { ...hit.cells, [SWD_STATUS_FIELD]: shown } : hit.cells, changes, PROFILE_FIELD_DEFS);
+  const swd = plan.find((p) => p.field === SWD_STATUS_FIELD);
+  if (swd) swd.before = stored;
+  else if (swdEdit && shown !== stored) plan.push({ field: SWD_STATUS_FIELD, before: stored, after: shown });
   if (plan.length) {
-    await writeCells(PROFILES_TAB, headers.length ? headers : PROFILE_HEADERS, hit.row, { ...Object.fromEntries(plan.map((p) => [p.field, p.after])), "Updated At": nowIso(), "Updated By": by });
+    await writeCells(PROFILES_TAB, headers, hit.row, { ...Object.fromEntries(plan.map((p) => [p.field, p.after])), "Updated At": nowIso(), "Updated By": by });
     await logChanges("profile", hit.cells["PortCo URID"] || hit.cells["Company"] || "", hit.cells["Company"] || "", by, plan);
   }
   for (const p of plan) hit.cells[p.field] = p.after;
+  if (swd && ws) {
+    const next = workstreamStatusesAfterCompanyEdit(shown, swd.after, mine.map((w) => w.cells[SWD_STATUS_FIELD] || ""));
+    const at = nowIso();
+    const edits = mine.map((w, i) => ({ w, before: w.cells[SWD_STATUS_FIELD] || "", after: next[i] ?? "" })).filter((e) => e.after !== e.before);
+    if (edits.length) {
+      const col = (h: string) => { const i = ws.headers.indexOf(h); if (i < 0) throw new Error(`The "${WORKSTREAMS_TAB}" tab is missing the "${h}" column.`); return colLetters(i); };
+      try {
+        await updateSheetCells(WORKSTREAMS_TAB, edits.flatMap((e) => [
+          { range: `${col(SWD_STATUS_FIELD)}${e.w.row}`, value: e.after },
+          { range: `${col("Updated At")}${e.w.row}`, value: at },
+          { range: `${col("Updated By")}${e.w.row}`, value: by },
+        ]), true);
+      } catch (e) {
+        throw new Error(`Saved on the company, but its workstreams couldn't be updated (${e instanceof Error ? e.message : String(e)}) — save again to finish.`);
+      }
+      for (const e of edits) await logChanges("workstream", e.w.cells["Workstream ID"] || "", e.w.cells["Company"] || "", by, [{ field: SWD_STATUS_FIELD, before: e.before, after: e.after }]);
+    }
+  }
   return toProfile(hit);
+}
+
+/**
+ * After a workstream's Sell With Dell Status changed, update its company's copy: added statuses are
+ * added, removed ones leave only when no other workstream of the company still has them.
+ */
+async function syncCompanyFromWorkstream(ws: SheetRow, others: SheetRow[], before: string, after: string, by: string): Promise<void> {
+  const company = ws.cells["Company"] || "";
+  if (!company || company.toLowerCase() === PORTDEV_OPS.toLowerCase()) return;
+  const urid = ws.cells["PortCo URID"] || "";
+  const { headers, items } = await profileRows(true);
+  const existing = items.find((x) => (urid && x.cells["PortCo URID"] === urid) || (x.cells["Company"] || "").toLowerCase() === company.toLowerCase());
+  const stored = existing?.cells[SWD_STATUS_FIELD] || "";
+  const next = companyStatusAfterWorkstreamEdit({ company: stored, before, after, otherWorkstreams: others.map((w) => w.cells[SWD_STATUS_FIELD] || "") });
+  if (next === stored) return;
+  const row = existing ? { headers: headers.length ? headers : PROFILE_HEADERS, hit: existing } : await profileRowFor({ urid, company });
+  const current = row.hit.cells[SWD_STATUS_FIELD] || "";
+  await writeCells(PROFILES_TAB, row.headers, row.hit.row, { [SWD_STATUS_FIELD]: next, "Updated At": nowIso(), "Updated By": by });
+  await logChanges("profile", row.hit.cells["PortCo URID"] || company, row.hit.cells["Company"] || company, by, [{ field: SWD_STATUS_FIELD, before: current, after: next }]);
 }
 
 // ─── Workstreams ────────────────────────────────────────────────────
@@ -240,6 +317,12 @@ export async function updateWorkstream(input: WorkstreamUpdate, by: string): Pro
     await logChanges("workstream", input.gid, hit.cells["Company"] || "", by, plan);
     for (const p of plan) hit.cells[p.field] = p.after;
     hit.cells["Updated At"] = nowIso();
+    const swd = plan.find((p) => p.field === SWD_STATUS_FIELD);
+    if (swd) {
+      const others = workstreamsOfCompany(items, hit.cells["PortCo URID"] || "", hit.cells["Company"] || "").filter((w) => w !== hit);
+      // The workstream is saved; a failed company update is repaired on read (the company shows its workstreams' statuses).
+      await syncCompanyFromWorkstream(hit, others, swd.before, swd.after, by).catch((e) => console.error("[portco-store] Sell With Dell company sync failed", e));
+    }
   }
   return toWorkstream(hit);
 }

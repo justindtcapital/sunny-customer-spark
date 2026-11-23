@@ -24,6 +24,8 @@ import { parseDomainList } from "@/lib/company-domains";
 import { isLinkedInCompanyUrl } from "@/lib/portco-fields";
 import { normalizeLinkedinUrl } from "@/lib/linkedin";
 import { PROFILE_FIELD_DEFS, canonicalOption, type PortcoFieldDef } from "@/lib/portco-fields-schema";
+import { SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
+import { reloadWorkstreams } from "@/lib/use-workstreams";
 import { editDraftValue, storedFromDraft } from "@/lib/portco-table-format";
 
 const NONE = "__none__";
@@ -209,6 +211,8 @@ export function EditPortfolioCompanyDialog({
         res.created ? `Added ${payload.name} to the portfolio sheet.` : `Updated ${payload.name}.`,
       );
       if (res.syncError) toast.warning(res.syncError, { duration: 12000 });
+      // Statuses removed on the company are removed from its workstreams too.
+      if (payload.profileChanges.some((c) => c.field === SWD_STATUS_FIELD)) void reloadWorkstreams();
       await onSaved?.(updated);
       onOpenChange(false);
     } catch (e) {
@@ -287,6 +291,9 @@ export function EditPortfolioCompanyDialog({
                 <div key={d.name} className={d.type === "multi_enum" || LONG_TEXT.has(d.name) ? "col-span-2" : ""}>
                   <Label className={labelClass}>{FIELD_LABEL[d.name] || d.name}</Label>
                   <ProfileInput def={d} value={profile[d.name] || ""} onChange={(v) => setProfile((p) => ({ ...p, [d.name]: v }))} />
+                  {d.name === SWD_STATUS_FIELD && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">Includes every status on this company's workstreams. Removing one here removes it from those workstreams too.</p>
+                  )}
                 </div>
               ))}
             </div>

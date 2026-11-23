@@ -8,6 +8,7 @@ import type { Workstream } from "@/lib/workstream-parse";
 
 let cache: Workstream[] | null = null;
 let inflight: Promise<Workstream[]> | null = null;
+const listeners = new Set<(w: Workstream[]) => void>();
 
 function load(): Promise<Workstream[]> {
   if (!inflight) {
@@ -27,6 +28,13 @@ function load(): Promise<Workstream[]> {
 export function useWorkstreams() {
   const [workstreams, setWorkstreams] = useState<Workstream[]>(cache ?? []);
   const [loading, setLoading] = useState(cache === null);
+
+  useEffect(() => {
+    listeners.add(setWorkstreams);
+    return () => {
+      listeners.delete(setWorkstreams);
+    };
+  }, []);
 
   useEffect(() => {
     if (cache !== null) return;
@@ -57,4 +65,12 @@ export function useWorkstreams() {
 /** Swap one saved workstream into the shared cache so other panels see it. */
 export function patchWorkstreamCache(w: Workstream) {
   if (cache) cache = cache.map((x) => (x.gid === w.gid ? w : x));
+}
+
+/** Re-read workstreams for every open panel (e.g. a company edit changed some of them). */
+export async function reloadWorkstreams(): Promise<void> {
+  cache = null;
+  inflight = null;
+  const w = await load();
+  for (const l of listeners) l(w);
 }

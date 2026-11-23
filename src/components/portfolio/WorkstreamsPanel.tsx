@@ -10,6 +10,8 @@ import { Pencil } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useServerFn } from "@tanstack/react-start";
+import { useQueryClient } from "@tanstack/react-query";
+import { SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
 import { toast } from "sonner";
 import { updateWorkstreamFn } from "@/utils/asana.functions";
 import { patchWorkstreamCache } from "@/lib/use-workstreams";
@@ -76,6 +78,7 @@ type EditKey = keyof Workstream;
 
 function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onSaved: (w: Workstream) => void; onCancel: () => void; inline?: boolean }) {
   const save = useServerFn(updateWorkstreamFn);
+  const qc = useQueryClient();
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState(w.name || w.rawName);
   const keys: Array<[string, EditKey]> = [
@@ -115,6 +118,8 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
       return;
     }
     patchWorkstreamCache(res.workstream);
+    // The company keeps a synced copy of Sell With Dell Status; show it fresh in Edit PortCos.
+    if (changes.some((c) => c.gid === SWD_STATUS_FIELD)) void qc.invalidateQueries({ queryKey: ["portco-table"] });
     toast.success("Saved");
     setDraft({});
     setEditingTitle(false);

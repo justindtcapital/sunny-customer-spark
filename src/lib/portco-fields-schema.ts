@@ -11,7 +11,6 @@ export type PortcoFieldType = "enum" | "multi_enum" | "number" | "date" | "text"
 export interface PortcoFieldDef { name: string; type: PortcoFieldType; options?: readonly string[] }
 
 const SAGETAP = ["Pending Setup / Onboarding", "Onboarded / No Campaigns", "Onboarded / Active Campaigns", "Experienced / Ongoing User", "Frustrated User", "Paused/Not Active Right Now", "Campaign/Credits Ended"];
-const SWD_MATURITY = ["Preliminary Discussions", "Formally Engaged", "Reference Architecture / Joint Solution", "On Dell Paper / Revenue Generating", "Services Enabled / Dell Delivered", "Embedded in Dell Offering", "None: Field Collaboration Only"];
 
 export const PROFILE_FIELD_DEFS: readonly PortcoFieldDef[] = [
   { name: "DTC Priority", type: "enum", options: ["1 - Needle Mover", "2 - Nurture", "3 - Back-Burner", "Exited"] },
@@ -23,7 +22,7 @@ export const PROFILE_FIELD_DEFS: readonly PortcoFieldDef[] = [
   { name: "Sales Maturity", type: "enum", options: ["1 - Founder Led Sales", "2 - Immature / Emerging", "3 - Repeatable / Tooled", "4 - Enterprise Ready", "5 - Mature & Scaling"] },
   { name: "Help / Influence", type: "enum", options: ["Needs", "Wants", "Accepts", "Resists", "n/a"] },
   { name: "SageTap Status", type: "enum", options: SAGETAP },
-  { name: "Sell With Dell - Maturity", type: "enum", options: SWD_MATURITY },
+  { name: SWD_STATUS_FIELD, type: "multi_enum", options: SWD_STATUS_OPTIONS },
   { name: "Dell Channel Aligned", type: "multi_enum", options: ["Dell OEM", "Dell CSS", "Dell ETC", "Dell Services", "Dell DP3", "Dell GTO"] },
   { name: "Last Pitch Reviewed", type: "date" },
   { name: "Sales Momentum", type: "text" },

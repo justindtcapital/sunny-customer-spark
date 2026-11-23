@@ -39,3 +39,42 @@ describe("Sell With Dell Status", () => {
     expect("Sell With Dell - Maturity" in out.items[0]!.cells).toBe(false);
   });
 });
+
+import { PROFILE_FIELD_DEFS } from "./portco-fields-schema";
+import { applyStatusEdit, companyStatusAfterWorkstreamEdit, effectiveCompanyStatus, mergeStatuses, workstreamStatusesAfterCompanyEdit } from "./sell-with-dell-status";
+
+const TRY = "3 - Trying to Engage";
+const REF = "Existing - Reference Architecture / Joint Solution";
+const EMB = "Existing - Embedded in Dell Offering";
+
+describe("Sell With Dell Status on companies and workstreams", () => {
+  it("company profiles use the same multi-choice field and choices as workstreams", () => {
+    const company = PROFILE_FIELD_DEFS.filter((d) => /sell with dell/i.test(d.name));
+    expect(company.map((d) => d.name)).toEqual(["Sell With Dell Status"]);
+    expect(company[0]!.type).toBe("multi_enum");
+    expect(company[0]!.options).toEqual(SWD_STATUS_OPTIONS);
+  });
+  it("a company shows every status its workstreams carry, plus its own (old names mapped)", () => {
+    expect(effectiveCompanyStatus("Reference Architecture / Joint Solution", [TRY, ""])).toBe(`${TRY}, ${REF}`);
+  });
+  it("adding a status on a workstream adds it to the company", () => {
+    expect(companyStatusAfterWorkstreamEdit({ company: "", before: "", after: TRY, otherWorkstreams: [] })).toBe(TRY);
+  });
+  it("removing a status on a workstream removes it from the company only if no other workstream has it", () => {
+    expect(companyStatusAfterWorkstreamEdit({ company: `${TRY}, ${EMB}`, before: EMB, after: "", otherWorkstreams: [TRY] })).toBe(TRY);
+    expect(companyStatusAfterWorkstreamEdit({ company: `${TRY}, ${EMB}`, before: EMB, after: "", otherWorkstreams: [EMB] })).toBe(`${TRY}, ${EMB}`);
+  });
+  it("a company-wide status not on any workstream survives workstream edits", () => {
+    expect(companyStatusAfterWorkstreamEdit({ company: REF, before: "", after: TRY, otherWorkstreams: [] })).toBe(`${TRY}, ${REF}`);
+  });
+  it("removing a status on the company removes it from every workstream that has it", () => {
+    expect(workstreamStatusesAfterCompanyEdit(`${TRY}, ${EMB}`, TRY, [EMB, `${TRY}, ${EMB}`, TRY])).toEqual(["", TRY, TRY]);
+  });
+  it("a company edit merges onto statuses added since the editor opened", () => {
+    expect(applyStatusEdit(`${TRY}, ${EMB}`, [TRY], [TRY, REF])).toBe(`${TRY}, ${EMB}, ${REF}`);
+    expect(applyStatusEdit(`${TRY}, ${EMB}`, [TRY], [])).toBe(EMB);
+  });
+  it("lists statuses once, in choice order", () => {
+    expect(mergeStatuses(`${EMB}, ${TRY}`, TRY)).toBe(`${TRY}, ${EMB}`);
+  });
+});

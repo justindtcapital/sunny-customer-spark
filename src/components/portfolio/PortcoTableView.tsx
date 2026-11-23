@@ -15,6 +15,8 @@ import { priorityChip, PRIORITY_LABELS, PRIORITY_TONE } from "@/lib/portco-list-
 import { cleanPriority } from "@/lib/portco-matrix";
 import { displayProfileValue, editDraftValue, storedFromDraft } from "@/lib/portco-table-format";
 import { cn } from "@/lib/utils";
+import { LEGACY_SWD_FIELD, SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
+import { reloadWorkstreams } from "@/lib/use-workstreams";
 
 const DEFAULT_COLUMNS = ["Owner", "DTC Priority", "Lead Investor", "Company Stage", "DTC Investment ($M)", "DTC Ownership", "GTM Marketing/PMF", "Sales Maturity", "Help / Influence"];
 const ARCHIVED = "archived:";
@@ -47,7 +49,7 @@ export function PortcoTableView({ companies, onOpenCompany, onProfileSaved }: {
   const save = useServerFn(saveProfileCellFn);
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEY, queryFn: () => load(), staleTime: 60_000 });
-  const [cols, setCols, resetCols] = useColumnChoice("portcos", DEFAULT_COLUMNS);
+  const [cols, setCols, resetCols] = useColumnChoice("portcos", DEFAULT_COLUMNS, { [LEGACY_SWD_FIELD]: SWD_STATUS_FIELD });
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: "Company", dir: 1 });
 
@@ -91,6 +93,8 @@ export function PortcoTableView({ companies, onOpenCompany, onProfileSaved }: {
     qc.setQueryData(QUERY_KEY, (old: typeof data) => old && ({ ...old, profiles: [...old.profiles.filter((p) => p !== profileFor(c)), res.profile] }));
     const stored = field === "Owner" ? res.profile.owner : res.profile.fields[field] || "";
     onProfileSaved(c, field, stored);
+    // Statuses removed on the company are removed from its workstreams too.
+    if (field === SWD_STATUS_FIELD) void reloadWorkstreams();
     if (!undo) toast.success(`${c.name}: ${field} saved`, { action: { label: "Undo", onClick: () => void saveCell(c, field, stored, original, true) } });
     return true;
   };
