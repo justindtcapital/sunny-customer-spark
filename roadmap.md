@@ -34,3 +34,4 @@
 - [x] Dell dashboard: company status board as the top row/main navigation (round logos, status tiles merged into board, filters far right)
 - [x] Dell dashboard: status pop-up (companies, stakeholders, notes) and company pop-up (relationships, movement, stakeholders, workstreams)
 - [x] Dell engagement notes: drafted by V.I.C., editable, saved only when approved
+- [x] Dell dashboard: full-width status board, Sell-In/Sell-With pills by the title, BU picker top right, workstream list (company, engagement, stage track, stakeholders, current state & next steps) replaces pop-ups
