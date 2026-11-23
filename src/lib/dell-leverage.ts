@@ -34,6 +34,8 @@ export const SELL_WITH_OUTCOMES = [
 export const SELL_IN_OUTCOMES = ["Existing - Growing", "Existing - Static", "Existing - Concerned"] as const;
 
 export const NO_BU = "BU not set";
+/** Dell-facing engagement notes on a workstream (drafted by V.I.C., approved by a person). Internal "Notes" never reach a DellRow. */
+export const DELL_NOTES_FIELD = "Dell Engagement Notes";
 export const DELL_LEVERAGE_CATEGORY = "Dell Leverage - Sell Through";
 
 /** Workstream fields that must never appear on the Dell Leverage Dashboard. */
@@ -59,6 +61,8 @@ export interface DellRow {
   bu: string;
   stakeholders: DellStakeholder[];
   products: string[];
+  /** Dell-facing notes (DELL_NOTES_FIELD), safe to show Dell. */
+  engagementNotes: string;
   completed: boolean;
   updatedAt: string;
 }
@@ -140,6 +144,7 @@ export function dellRowsFrom(
         bu: clean(w.dellTargets) || NO_BU,
         stakeholders,
         products,
+        engagementNotes: (w.fields?.[DELL_NOTES_FIELD] || "").trim(),
         completed: !!w.completed,
         updatedAt: clean(w.lastActivity).slice(0, 10),
       });
@@ -276,22 +281,27 @@ export function existingOutcomes(rows: DellRow[]): { sellWith: Array<{ outcome: 
 
 export interface StakeholderPerson { name: string; title: string; linked: boolean; workstreams: Array<{ company: string; name: string; motion: DellMotion }> }
 
+/** Dell people named on these rows, one entry per person (linked first, then alphabetical). */
+export function peopleOf(rows: DellRow[]): StakeholderPerson[] {
+  const people = new Map<string, StakeholderPerson>();
+  for (const r of rows) for (const s of r.stakeholders) {
+    const key = s.status === "linked" ? `u:${s.urid || s.name.toLowerCase()}` : `n:${s.name.toLowerCase()}`;
+    const p = people.get(key) || { name: s.name, title: s.title || "", linked: s.status === "linked", workstreams: [] };
+    if (!p.workstreams.some((w) => w.company === r.company && w.name === r.name && w.motion === r.motion)) p.workstreams.push({ company: r.company, name: r.name, motion: r.motion });
+    people.set(key, p);
+  }
+  return [...people.values()].sort((a, b) => Number(b.linked) - Number(a.linked) || a.name.localeCompare(b.name));
+}
+
 /** Per BU: Dell people named on its workstreams (linked first) and how many workstreams have nobody linked. */
 export function stakeholderMap(rows: DellRow[]): Array<{ bu: string; people: StakeholderPerson[]; gaps: number; workstreams: number }> {
   return buHeatmap(rows).map(({ bu }) => {
     const mine = rows.filter((r) => r.bu === bu);
-    const people = new Map<string, StakeholderPerson>();
-    for (const r of mine) for (const s of r.stakeholders) {
-      const key = s.status === "linked" ? `u:${s.urid || s.name.toLowerCase()}` : `n:${s.name.toLowerCase()}`;
-      const p = people.get(key) || { name: s.name, title: s.title || "", linked: s.status === "linked", workstreams: [] };
-      if (!p.workstreams.some((w) => w.company === r.company && w.name === r.name && w.motion === r.motion)) p.workstreams.push({ company: r.company, name: r.name, motion: r.motion });
-      people.set(key, p);
-    }
     const wsIds = new Set(mine.map((r) => r.workstreamId));
     const gapIds = new Set(mine.filter((r) => !hasLinkedStakeholder(r)).map((r) => r.workstreamId));
     return {
       bu,
-      people: [...people.values()].sort((a, b) => Number(b.linked) - Number(a.linked) || a.name.localeCompare(b.name)),
+      people: peopleOf(mine),
       gaps: gapIds.size,
       workstreams: wsIds.size,
     };
@@ -364,4 +374,69 @@ export function statusChangesFromLog(rows: string[][]): StatusChange[] {
   return rows.slice(1)
     .map((r) => ({ at: get(r, idx.at), kind: get(r, idx.kind), recordId: get(r, idx.id), company: get(r, idx.co), field: get(r, idx.field), before: get(r, idx.before), after: get(r, idx.after) }))
     .filter((c) => MOTION_FOR_FIELD[c.field.toLowerCase()] && c.kind.toLowerCase() === "workstream");
+}
+
+// ─── Detail panels ──────────────────────────────────────────────────
+
+export interface DellWorkstream {
+  workstreamId: string;
+  company: string;
+  name: string;
+  bu: string;
+  motions: Array<{ motion: DellMotion; statuses: string[]; stage: DellStage }>;
+  stakeholders: DellStakeholder[];
+  products: string[];
+  engagementNotes: string;
+  completed: boolean;
+  updatedAt: string;
+}
+
+/** Rows → one entry per workstream (its Sell-In and Sell-With motions merged), furthest stage first. */
+export function workstreamsOf(rows: DellRow[]): DellWorkstream[] {
+  const by = new Map<string, DellWorkstream>();
+  for (const r of rows) {
+    const w = by.get(r.workstreamId) ?? {
+      workstreamId: r.workstreamId, company: r.company, name: r.name, bu: r.bu, motions: [], stakeholders: r.stakeholders,
+      products: r.products, engagementNotes: r.engagementNotes, completed: r.completed, updatedAt: r.updatedAt,
+    };
+    if (!w.motions.some((m) => m.motion === r.motion)) w.motions.push({ motion: r.motion, statuses: r.statuses, stage: r.stage });
+    by.set(r.workstreamId, w);
+  }
+  const top = (w: DellWorkstream) => Math.max(...w.motions.map((m) => RANK[m.stage]));
+  return [...by.values()].sort((a, b) => top(b) - top(a) || a.name.localeCompare(b.name));
+}
+
+/** Status pop-up: the companies with work at `stage`, alphabetical, each with only its workstreams at that stage. */
+export function companiesAtStage(rows: DellRow[], stage: DellStage): Array<{ company: string; workstreams: DellWorkstream[]; people: StakeholderPerson[] }> {
+  const mine = rows.filter((r) => r.stage === stage);
+  const companies = [...new Set(mine.map((r) => r.company))].sort((a, b) => a.localeCompare(b));
+  return companies.map((company) => {
+    const theirs = mine.filter((r) => r.company === company);
+    return { company, workstreams: workstreamsOf(theirs), people: peopleOf(theirs) };
+  });
+}
+
+/** Company pop-up: the company's Dell BUs (alphabetical, "BU not set" last) with the workstreams in each. */
+export function companyRelationships(rows: DellRow[], company: string): Array<{ bu: string; workstreams: DellWorkstream[] }> {
+  const mine = rows.filter((r) => r.company === company);
+  return buHeatmap(mine).map(({ bu }) => ({ bu, workstreams: workstreamsOf(mine.filter((r) => r.bu === bu)) }));
+}
+
+// ─── V.I.C. engagement-note drafts ──────────────────────────────────
+
+/** Words that mark internal DTC judgment; a drafted sentence containing one is dropped before anyone sees it. */
+const INTERNAL_TERMS = /\b(needle[- ]mover|nurture|back[- ]burner|must do|should do|could do|roi|priority|priorities|prioriti[sz]e|investment|invested|ownership|valuation|cap table|term sheet|board seat|dtc[- ]internal)\b/i;
+
+/**
+ * A V.I.C. draft made safe to show Dell: sentences naming internal priorities, ROI, investment or
+ * ownership are removed, whitespace is tidied and the note is capped at 600 characters.
+ */
+export function sanitizeDellNote(text: string): string {
+  const sentences = clean(text).split(/(?<=[.!?])\s+/).filter((x) => x && !INTERNAL_TERMS.test(x));
+  let out = "";
+  for (const x of sentences) {
+    if ((out ? out.length + 1 : 0) + x.length > 600) break;
+    out = out ? `${out} ${x}` : x;
+  }
+  return out;
 }

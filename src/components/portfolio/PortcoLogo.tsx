@@ -8,10 +8,13 @@ export function PortcoLogo({
   name,
   website,
   size = "md",
+  fill = false,
 }: {
   name: string;
   website?: string;
   size?: "sm" | "md" | "lg";
+  /** Fill the whole circle with the logo (round logo) instead of a small square icon inside it. */
+  fill?: boolean;
 }) {
   const sources = useMemo(() => {
     const r = resolveCompanyLogoDomain({ website });
@@ -22,15 +25,15 @@ export function PortcoLogo({
   useEffect(() => setIdx(0), [sources]);
 
   const box = size === "lg" ? "h-12 w-12" : size === "sm" ? "h-8 w-8" : "h-9 w-9";
-  const img = size === "lg" ? "h-9 w-9" : size === "sm" ? "h-6 w-6" : "h-7 w-7";
+  const img = fill ? "h-full w-full rounded-full object-cover" : `${size === "lg" ? "h-9 w-9" : size === "sm" ? "h-6 w-6" : "h-7 w-7"} object-contain`;
   const text = size === "lg" ? "text-lg font-bold" : "text-sm font-semibold";
   const src = sources[idx];
   const initials = (name || "?").trim().split(/\s+/).map((n) => n[0]).join("").slice(0, 2);
 
   return (
-    <div className={`${box} rounded-full bg-primary/10 flex items-center justify-center overflow-hidden shrink-0`}>
+    <div className={`${box} rounded-full ${fill && src ? "bg-card" : "bg-primary/10"} flex items-center justify-center overflow-hidden shrink-0`}>
       {src ? (
-        <img key={src} src={src} alt={name} className={`${img} object-contain`} onError={() => setIdx((i) => i + 1)} />
+        <img key={src} src={src} alt={name} className={img} onError={() => setIdx((i) => i + 1)} />
       ) : (
         <span className={`${text} text-primary`}>{initials}</span>
       )}

@@ -31,3 +31,6 @@
 ## Dell statuses
 - [x] Sell-In Status: new choices (Existing - Growing / Static / Concerned), one per workstream, synced to the company
 - [x] Dell Leverage Dashboard (Dashboards → Dell Leverage)
+- [x] Dell dashboard: company status board as the top row/main navigation (round logos, status tiles merged into board, filters far right)
+- [x] Dell dashboard: status pop-up (companies, stakeholders, notes) and company pop-up (relationships, movement, stakeholders, workstreams)
+- [x] Dell engagement notes: drafted by V.I.C., editable, saved only when approved

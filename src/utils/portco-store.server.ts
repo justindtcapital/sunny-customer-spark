@@ -3,7 +3,7 @@
  * Sheets tabs). Replaces Asana as the source of truth: every write lands here, never in Asana.
  * Edits re-read the row fresh, refuse conflicting changes, write only changed cells and log them.
  */
-import { appendSheetRows, colLetters, ensureTab, fetchSheetTab, updateSheetCells } from "./sheets.server";
+import { addHeaderColumns, appendSheetRows, colLetters, ensureTab, fetchSheetTab, updateSheetCells } from "./sheets.server";
 import type { Workstream, WorkstreamSegment } from "@/lib/workstream-parse";
 import type { FieldChange } from "@/lib/asana-field-payload";
 import { PORTDEV_OPS } from "@/lib/portco-import";
@@ -56,11 +56,17 @@ async function logChanges(kind: "profile" | "workstream", id: string, company: s
 }
 
 async function writeCells(tab: string, headers: string[], row: number, values: Record<string, string>) {
-  const updates = Object.entries(values).map(([h, value]) => {
-    const idx = headers.indexOf(h);
-    if (idx < 0) throw new Error(`The "${tab}" tab is missing the "${h}" column.`);
-    return { range: `${colLetters(idx)}${row}`, value };
-  });
+  // A schema field added after the tab was created (e.g. "Dell Engagement Notes") gets its column
+  // appended on first save; anything else missing is a real layout problem.
+  const known = tab === WORKSTREAMS_TAB ? WORKSTREAM_HEADERS : tab === PROFILES_TAB ? PROFILE_HEADERS : [];
+  const missing = Object.keys(values).filter((h) => !headers.includes(h));
+  const unknown = missing.find((h) => !known.includes(h));
+  if (unknown) throw new Error(`The "${tab}" tab is missing the "${unknown}" column.`);
+  if (missing.length) {
+    await addHeaderColumns(tab, headers.length, missing);
+    headers.push(...missing);
+  }
+  const updates = Object.entries(values).map(([h, value]) => ({ range: `${colLetters(headers.indexOf(h))}${row}`, value }));
   await updateSheetCells(tab, updates, true);
 }
 

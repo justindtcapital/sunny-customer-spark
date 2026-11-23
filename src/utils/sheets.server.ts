@@ -526,6 +526,31 @@ export async function ensureColumn(tabName: string, header: string): Promise<num
   return newIdx;
 }
 
+// ── Add header columns to the right of a tab ─────────────────
+// Writes new header cells starting at 0-based `startIndex`, widening the tab's grid first when it
+// is too narrow (a values write past the last column fails with "exceeds grid limits").
+export async function addHeaderColumns(tabName: string, startIndex: number, headers: string[]): Promise<void> {
+  if (!headers.length) return;
+  const spreadsheetId = requireSpreadsheetId();
+  const token = await getAccessToken();
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}`;
+  const res = await sheetsFetch(`${base}?fields=sheets.properties(sheetId,title,gridProperties.columnCount)`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Could not read the "${tabName}" tab layout, so no column was added.`);
+  const meta = (await res.json()) as { sheets?: Array<{ properties?: { sheetId?: number; title?: string; gridProperties?: { columnCount?: number } } }> };
+  const tab = (meta.sheets || []).find((x) => x.properties?.title === tabName)?.properties;
+  if (tab?.sheetId == null) throw new Error(`The "${tabName}" tab was not found, so no column was added.`);
+  const need = startIndex + headers.length - (tab.gridProperties?.columnCount ?? 0);
+  if (need > 0) {
+    const grow = await sheetsFetch(`${base}:batchUpdate`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ requests: [{ appendDimension: { sheetId: tab.sheetId, dimension: "COLUMNS", length: need } }] }),
+    }, { mirrorTab: tabName });
+    if (!grow.ok) throw new Error(`Could not widen the "${tabName}" tab [${grow.status}]: ${await grow.text()}`);
+  }
+  await updateSheetCells(tabName, headers.map((h, i) => ({ range: `${colLetters(startIndex + i)}1`, value: h })), true);
+}
+
 // ── Update a specific cell in a sheet tab ────────────────────
 export async function updateSheetCell(
   tabName: string,

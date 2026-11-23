@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DELL_FILTER, EXCLUDED_FIELDS, buHeatmap, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
+  DEFAULT_DELL_FILTER, DELL_NOTES_FIELD, EXCLUDED_FIELDS, buHeatmap, companiesAtStage, companyRelationships, sanitizeDellNote, workstreamsOf, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
   primaryStage, productCounts, stakeholderMap, statusChangesFromLog, summarizeDell, type DellWorkstreamInput,
 } from "./dell-leverage";
 import type { Contact } from "./types";
@@ -30,9 +30,9 @@ describe("dell leverage rows", () => {
   it("never carries DTC priorities, ROI ratings, owners or notes", () => {
     const leaked = dellRowsFrom([ws({ gid: "x", sellInStatus: "3 - Trying to Engage", fields: { "DTC Priority": "1 - Needle Mover", "Workstream Priority": "1: High - Must Do", "DTC Dell Leverage Priority": "High ROI", "DTC - Dell Leverage Opportunity": "Immediate - Active" } })]);
     const text = JSON.stringify(leaked);
-    for (const f of EXCLUDED_FIELDS) expect(text).not.toContain(f);
+    for (const f of EXCLUDED_FIELDS) expect(text).not.toContain(JSON.stringify(f));
     for (const v of ["Needle Mover", "High - Must Do", "High ROI", "Immediate - Active"]) expect(text).not.toContain(v);
-    expect(Object.keys(leaked[0]!).sort()).toEqual(["bu", "company", "completed", "domain", "id", "motion", "name", "outcomes", "products", "stage", "stakeholders", "statuses", "updatedAt", "workstreamId"]);
+    expect(Object.keys(leaked[0]!).sort()).toEqual(["bu", "company", "completed", "domain", "engagementNotes", "id", "motion", "name", "outcomes", "products", "stage", "stakeholders", "statuses", "updatedAt", "workstreamId"]);
   });
 
   it("Existing beats any pipeline stage; Dell Leverage category without a status is Not set", () => {
@@ -134,5 +134,36 @@ describe("movement since last QBR", () => {
     expect(kinds["b:Sell-With"]).toBeUndefined();
     expect(kinds["c:Sell-In"]).toBeUndefined();
     expect(moves.length).toBe(4);
+  });
+});
+
+describe("dell status and company pop-ups", () => {
+  it("carries the Dell-facing engagement notes, never the internal Notes", () => {
+    const r = dellRowsFrom([ws({ gid: "n", sellInStatus: "3 - Trying to Engage", fields: { [DELL_NOTES_FIELD]: "Intro call booked with Dell IT.", Notes: "internal only" } })]);
+    expect(r[0]!.engagementNotes).toBe("Intro call booked with Dell IT.");
+    expect(JSON.stringify(r)).not.toContain("internal only");
+  });
+
+  it("merges a workstream's Sell-In and Sell-With rows into one entry", () => {
+    const c = workstreamsOf(rows.filter((r) => r.workstreamId === "c"));
+    expect(c).toHaveLength(1);
+    expect(c[0]!.motions.map((m) => `${m.motion}:${m.stage}`)).toEqual(["Sell-In:Engaged / Progressing", "Sell-With:Trying to Engage"]);
+  });
+
+  it("status pop-up lists each company at that status with only its workstreams there", () => {
+    const at = companiesAtStage(rows, "Engaged / Progressing");
+    expect(at.map((c) => c.company)).toEqual(["Alation", "Redis"]);
+    expect(at.find((c) => c.company === "Redis")!.workstreams.map((w) => w.workstreamId)).toEqual(["a"]);
+    expect(at.find((c) => c.company === "Redis")!.people.map((p) => p.name)).toEqual(["Ward Williams"]);
+  });
+
+  it("company pop-up groups the company's workstreams by Dell BU", () => {
+    expect(companyRelationships(rows, "Redis").map((r) => [r.bu, r.workstreams.map((w) => w.workstreamId)])).toEqual([["Dell - IT", ["a"]], ["Dell - UDS", ["b"]]]);
+  });
+
+  it("drops drafted sentences naming internal priorities, ROI, investment or ownership", () => {
+    expect(sanitizeDellNote("Pilot with Dell IT is live. This is a Needle Mover with High ROI for us. Next step is a joint review in Q1."))
+      .toBe("Pilot with Dell IT is live. Next step is a joint review in Q1.");
+    expect(sanitizeDellNote("Our investment and ownership grew.")).toBe("");
   });
 });

@@ -1,22 +1,25 @@
 // Dell Leverage Dashboard: a QBR view of the Sell-In and Sell-With workstreams, written from Dell's
 // side. Rows come from fetchDellLeverageFn, which only returns Dell-facing fields (no DTC
 // priorities, ROI ratings, owners or notes), so the page is safe to share on screen.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, UserRoundX, X } from "lucide-react";
+import { toast } from "sonner";
+import { AlertTriangle, ExternalLink, Loader2, Pencil, RefreshCw, Sparkles, UserRoundX, X } from "lucide-react";
 import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
-import { fetchDellLeverageFn, type DellLeverageData } from "@/utils/dell-leverage.functions";
+import { draftDellNotesFn, fetchDellLeverageFn, type DellLeverageData } from "@/utils/dell-leverage.functions";
+import { updateWorkstreamFn } from "@/utils/asana.functions";
 import { useAuth } from "@/lib/auth-context";
 import {
-  ALL_STAGES, DEFAULT_DELL_FILTER, DELL_MOTIONS, NO_BU, PIPELINE_STAGES, buHeatmap, companyStageBoard, existingOutcomes, filterDellRows, hasLinkedStakeholder,
-  movementInWindow, productCounts, stageCounts, stakeholderMap, summarizeDell,
-  type DellFilter, type DellMotion, type DellRow, type DellStage, type Movement, type MovementKind,
+  ALL_STAGES, DEFAULT_DELL_FILTER, DELL_MOTIONS, DELL_NOTES_FIELD, NO_BU, PIPELINE_STAGES, buHeatmap, companiesAtStage, companyRelationships, companyStageBoard,
+  existingOutcomes, filterDellRows, hasLinkedStakeholder, movementInWindow, peopleOf, productCounts, stageCounts, stakeholderMap, summarizeDell, workstreamsOf,
+  type DellFilter, type DellMotion, type DellRow, type DellStage, type DellWorkstream, type Movement, type MovementKind, type StakeholderPerson,
 } from "@/lib/dell-leverage";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { WorkstreamDetail } from "@/components/portfolio/WorkstreamsPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -41,6 +44,14 @@ function Stat({ label, value, sub, onClick, active, dot, dim }: { label: string;
     {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
   </CardContent>;
   return <Card className={cn("border-border", active && "ring-2 ring-primary", dim && "opacity-50", onClick && "cursor-pointer transition-shadow hover:shadow-md")} onClick={onClick}>{body}</Card>;
+}
+
+function MiniStat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return <div className="rounded-lg border border-border px-3 py-2">
+    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+    <p className="font-display text-lg font-semibold tabular-nums text-foreground leading-tight">{value}</p>
+    {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
+  </div>;
 }
 
 function Section({ title, sub, children, className = "" }: { title: string; sub?: string; children: React.ReactNode; className?: string }) {
@@ -80,37 +91,50 @@ const motionRing = (motions: DellMotion[]) => motions.length > 1
   ? `linear-gradient(90deg, ${MOTION_COLOR["Sell-In"]} 50%, ${MOTION_COLOR["Sell-With"]} 50%)`
   : MOTION_COLOR[motions[0] ?? "Sell-In"];
 
-/** Company logos laid out by Dell status column. Click a column to filter by status, a logo by company. */
+/** Round company logo with its motion ring (split ring = both motions). */
+function RingLogo({ company, website, motions, size = "md", count }: { company: string; website?: string; motions: DellMotion[]; size?: "sm" | "md" | "lg"; count?: number }) {
+  return <span className="relative inline-flex shrink-0 rounded-full p-[2px]" style={{ background: motionRing(motions) }}>
+    <span className="block rounded-full bg-card p-px"><PortcoLogo name={company} website={website} size={size} fill /></span>
+    {!!count && count > 1 && <span className="absolute -right-1.5 -top-1 rounded-full bg-foreground px-1 text-[9px] font-semibold leading-4 text-background">{count}</span>}
+  </span>;
+}
+
+const STAGE_SUB: Partial<Record<DellStage, string>> = { Existing: "Live with Dell" };
+
+/** The page's main navigation: status tiles over the company logos at each status. */
 function CompanyBoard({ rows, websites, stage, company, onStage, onCompany }: {
   rows: DellRow[]; websites: Record<string, string>; stage: DellStage | null; company: string | null;
   onStage: (s: DellStage) => void; onCompany: (c: string) => void;
 }) {
   const board = companyStageBoard(rows);
-  return <div className="overflow-x-auto">
-    <div className="grid min-w-[900px] gap-3" style={{ gridTemplateColumns: `repeat(${board.length}, minmax(0, 1fr))` }}>
-      {board.map((col) => (
-        <div key={col.stage} className={cn("rounded-lg border p-2 transition-opacity", stage === col.stage ? "border-primary bg-muted/40" : "border-border", stage && stage !== col.stage && "opacity-50")}>
-          <button type="button" onClick={() => onStage(col.stage)} className="flex w-full items-baseline justify-between gap-2 rounded px-1 py-0.5 text-left hover:bg-muted/60">
-            <span className="text-xs font-semibold text-foreground">{col.stage}</span>
-            <span className="text-xs tabular-nums text-muted-foreground">{col.companies.length}</span>
-          </button>
-          <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-x-1 gap-y-2">
-            {col.companies.map((c) => (
-              <button key={c.company} type="button" onClick={() => onCompany(c.company)}
-                title={`${c.company} · ${c.motions.join(" + ")} · ${c.workstreams} workstream${c.workstreams === 1 ? "" : "s"}`}
-                className={cn("flex min-w-0 flex-col items-center gap-1 rounded-md p-1 hover:bg-muted/60", company === c.company && "bg-muted ring-1 ring-primary", company && company !== c.company && "opacity-40")}>
-                <span className="relative rounded-full p-[2px]" style={{ background: motionRing(c.motions) }}>
-                  <span className="block rounded-full bg-card"><PortcoLogo name={c.company} website={websites[c.company]} /></span>
-                  {c.workstreams > 1 && <span className="absolute -right-1.5 -top-1 rounded-full bg-foreground px-1 text-[9px] font-semibold leading-4 text-background">{c.workstreams}</span>}
-                </span>
-                <span className="w-full truncate text-center text-[10px] leading-tight text-foreground">{c.company}</span>
-              </button>
-            ))}
-          </div>
-          {!col.companies.length && <p className="px-1 py-2 text-[11px] text-muted-foreground">None yet</p>}
+  const summary = summarizeDell(rows);
+  return <div className="grid min-w-0 flex-1 gap-3" style={{ gridTemplateColumns: `repeat(${board.length}, minmax(9.5rem, 1fr))` }}>
+    {board.map((col) => {
+      const on = stage === col.stage;
+      const sub = col.stage === "Engaged / Stalled" && summary.stalledShare != null ? `${Math.round(summary.stalledShare * 100)}% of engaged` : STAGE_SUB[col.stage];
+      return <div key={col.stage} className={cn("flex min-w-0 flex-col rounded-lg border transition-opacity", on ? "border-primary bg-muted/40" : "border-border", stage && !on && "opacity-50")}>
+        <button type="button" onClick={() => onStage(col.stage)} aria-pressed={on}
+          className={cn("rounded-t-lg border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/60", on && "bg-muted")}>
+          <span className="block text-[11px] uppercase leading-tight tracking-wide text-muted-foreground">{col.stage}</span>
+          <span className="mt-0.5 flex items-baseline gap-2">
+            <span className="font-display text-2xl font-semibold tabular-nums text-foreground">{col.companies.length}</span>
+            <span className="text-[11px] text-muted-foreground">{col.companies.length === 1 ? "company" : "companies"} · {col.workstreams} ws</span>
+          </span>
+          {sub && <span className="block text-[11px] text-muted-foreground">{sub}</span>}
+        </button>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(3.75rem,1fr))] gap-x-1 gap-y-2 p-2">
+          {col.companies.map((c) => (
+            <button key={c.company} type="button" onClick={() => onCompany(c.company)}
+              title={`${c.company} · ${c.motions.join(" + ")} · ${c.workstreams} workstream${c.workstreams === 1 ? "" : "s"}`}
+              className={cn("flex min-w-0 flex-col items-center gap-1 rounded-md p-1 hover:bg-muted/60", company === c.company && "bg-muted ring-1 ring-primary", company && company !== c.company && "opacity-40")}>
+              <RingLogo company={c.company} website={websites[c.company]} motions={c.motions} count={c.workstreams} />
+              <span className="w-full truncate text-center text-[10px] leading-tight text-foreground">{c.company}</span>
+            </button>
+          ))}
+          {!col.companies.length && <p className="col-span-full px-1 py-2 text-[11px] text-muted-foreground">None yet</p>}
         </div>
-      ))}
-    </div>
+      </div>;
+    })}
   </div>;
 }
 
@@ -119,6 +143,195 @@ const MOVE_TONE: Record<MovementKind, string> = {
   advanced: "bg-good text-good-foreground", slipped: "bg-hot text-hot-foreground", new: "bg-cold text-cold-foreground", closed: "bg-muted text-muted-foreground",
 };
 
+// ─── Engagement notes (V.I.C. drafts, saved only when approved) ─────
+
+type Drafts = { get: (gid: string) => string | undefined; loading: (gid: string) => boolean; redraft: (gid: string) => void; error: string };
+
+/** Drafts for every workstream in a pop-up that has no saved notes yet (one V.I.C. call per pop-up). */
+function useNoteDrafts(workstreams: DellWorkstream[]): Drafts {
+  const ids = useMemo(() => [...new Set(workstreams.filter((w) => !w.engagementNotes).map((w) => w.workstreamId))].sort().slice(0, 40), [workstreams]);
+  const q = useQuery({
+    queryKey: ["dell-note-drafts", ids.join(",")],
+    queryFn: () => draftDellNotesFn({ data: { gids: ids } }),
+    enabled: ids.length > 0, staleTime: Infinity, gcTime: 30 * 60_000, retry: false,
+  });
+  const [extra, setExtra] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  return {
+    get: (gid) => extra[gid] ?? q.data?.drafts[gid],
+    loading: (gid) => busy.has(gid) || (q.isFetching && ids.includes(gid)),
+    error: q.data?.error || (q.isError ? "V.I.C. couldn't draft notes right now." : ""),
+    redraft: (gid) => {
+      setBusy((b) => new Set(b).add(gid));
+      void draftDellNotesFn({ data: { gids: [gid] } })
+        .then((r) => { if (r.drafts[gid]) setExtra((e) => ({ ...e, [gid]: r.drafts[gid]! })); else toast.error(r.error || "V.I.C. had nothing to suggest for this workstream."); })
+        .catch(() => toast.error("V.I.C. couldn't draft a note right now."))
+        .finally(() => setBusy((b) => { const n = new Set(b); n.delete(gid); return n; }));
+    },
+  };
+}
+
+function NotesBox({ ws, drafts, onSaved }: { ws: DellWorkstream; drafts: Drafts; onSaved: () => void }) {
+  const [saved, setSaved] = useState(ws.engagementNotes);
+  const draft = drafts.get(ws.workstreamId);
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setSaved(ws.engagementNotes), [ws.engagementNotes]);
+  const showDraft = !saved && !editing && !!draft;
+  // A fresh V.I.C. draft (or redraft) opens in the edit box so it can be changed before saving.
+  useEffect(() => { if (draft && (editing || !saved)) setText(draft); }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async (value: string) => {
+    setSaving(true);
+    try {
+      const r = await updateWorkstreamFn({ data: { gid: ws.workstreamId, changes: [{ gid: DELL_NOTES_FIELD, type: "text", original: saved, value: value.trim() }] } });
+      if (!r.ok) { toast.error(r.error); return; }
+      setSaved(value.trim()); setEditing(false); toast.success(value.trim() ? "Engagement notes saved" : "Engagement notes cleared"); onSaved();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't save the notes."); } finally { setSaving(false); }
+  };
+
+  if (editing || showDraft) return <div className="mt-2 space-y-1.5">
+    {showDraft && <p className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground"><Sparkles className="h-3 w-3" />V.I.C. draft — not saved yet</p>}
+    <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} className="text-xs" aria-label={`Engagement notes for ${ws.name}`} />
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Button size="sm" className="h-7 text-xs" disabled={saving || (!text.trim() && !saved)} onClick={() => void save(text)}>{saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Save</Button>
+      <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={saving || drafts.loading(ws.workstreamId)} onClick={() => drafts.redraft(ws.workstreamId)}>
+        {drafts.loading(ws.workstreamId) ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}Redraft</Button>
+      {editing && <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={saving} onClick={() => setEditing(false)}>Cancel</Button>}
+    </div>
+  </div>;
+
+  return <div className="mt-2">
+    {saved ? <p className="whitespace-pre-line text-xs text-foreground">{saved}</p>
+      : drafts.loading(ws.workstreamId) ? <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />V.I.C. is drafting notes…</p>
+      : <p className="text-[11px] text-muted-foreground">No engagement notes yet.</p>}
+    <button type="button" onClick={() => { setText(saved); setEditing(true); }} className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+      <Pencil className="h-3 w-3" />{saved ? "Edit notes" : "Write notes"}</button>
+  </div>;
+}
+
+function MotionStatus({ ws }: { ws: DellWorkstream }) {
+  return <span className="flex flex-wrap gap-x-3 gap-y-0.5">
+    {ws.motions.map((m) => <span key={m.motion} className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <span className="h-2 w-2 shrink-0 rounded-sm" style={{ background: MOTION_COLOR[m.motion] }} />{m.motion}: <span className="text-foreground">{m.statuses.join(", ") || "Not set"}</span>
+    </span>)}
+  </span>;
+}
+
+function People({ people, empty = "No Dell stakeholders named yet." }: { people: StakeholderPerson[]; empty?: string }) {
+  if (!people.length) return <p className="text-[11px] text-hot-foreground">{empty}</p>;
+  return <span className="flex flex-wrap gap-1">{people.map((p) => (
+    <span key={`${p.linked}:${p.name}`} title={p.title || undefined} className={cn("rounded-full border px-2 py-0.5 text-[11px]", p.linked ? "border-border bg-muted text-foreground" : "border-dashed border-muted-foreground/50 text-muted-foreground")}>
+      {p.name}{p.title && <span className="text-muted-foreground"> · {p.title}</span>}
+    </span>
+  ))}</span>;
+}
+
+function PanelShell({ title, sub, logo, onClose, children }: { title: string; sub?: string; logo?: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
+  return <Card className="border-primary/40 shadow-md"><CardContent className="p-5">
+    <div className="flex items-start gap-3">
+      {logo}
+      <div className="min-w-0 flex-1">
+        <h2 className="font-display text-lg font-semibold text-foreground">{title}</h2>
+        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      </div>
+      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose} aria-label="Close"><X className="h-4 w-4" /></Button>
+    </div>
+    <div className="mt-4">{children}</div>
+  </CardContent></Card>;
+}
+
+/** Status pop-up: every company at the status, where it is, its Dell people and engagement notes. */
+function StagePanel({ rows, stage, websites, onCompany, onClose, onSaved }: { rows: DellRow[]; stage: DellStage; websites: Record<string, string>; onCompany: (c: string) => void; onClose: () => void; onSaved: () => void }) {
+  const list = useMemo(() => companiesAtStage(rows, stage), [rows, stage]);
+  const drafts = useNoteDrafts(useMemo(() => list.flatMap((c) => c.workstreams), [list]));
+  return <PanelShell title={stage} sub={`${list.length} ${list.length === 1 ? "company" : "companies"} · notes are Dell-facing, drafted by V.I.C. and saved only when you click Save`} onClose={onClose}>
+    {drafts.error && <p className="mb-3 text-xs text-muted-foreground">{drafts.error}</p>}
+    {list.length ? <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+      {list.map((c) => <div key={c.company} className="rounded-lg border border-border p-3">
+        <button type="button" onClick={() => onCompany(c.company)} className="flex w-full items-center gap-2.5 text-left hover:underline">
+          <RingLogo company={c.company} website={websites[c.company]} motions={DELL_MOTIONS.filter((m) => c.workstreams.some((w) => w.motions.some((x) => x.motion === m)))} size="sm" />
+          <span className="text-sm font-semibold text-foreground">{c.company}</span>
+        </button>
+        <div className="mt-2"><People people={c.people} /></div>
+        <ul className="mt-2 divide-y divide-border">
+          {c.workstreams.map((w) => <li key={w.workstreamId} className="py-2">
+            <p className="text-xs font-medium text-foreground">{w.name}<span className="font-normal text-muted-foreground"> · {w.bu}</span></p>
+            <MotionStatus ws={w} />
+            <NotesBox ws={w} drafts={drafts} onSaved={onSaved} />
+          </li>)}
+        </ul>
+      </div>)}
+    </div> : <p className="text-xs text-muted-foreground">No companies at this status with the current filters.</p>}
+  </PanelShell>;
+}
+
+/** Company pop-up: Dell relationships by BU, movement since last QBR, stakeholders and workstreams. */
+function CompanyPanel({ rows, company, website, domain, moves, since, onOpen, onClose, onSaved }: {
+  rows: DellRow[]; company: string; website?: string; domain: string; moves: Movement[]; since: string;
+  onOpen: (gid: string) => void; onClose: () => void; onSaved: () => void;
+}) {
+  const mine = useMemo(() => rows.filter((r) => r.company === company), [rows, company]);
+  const relationships = useMemo(() => companyRelationships(mine, company), [mine, company]);
+  const workstreams = useMemo(() => workstreamsOf(mine), [mine]);
+  const people = useMemo(() => peopleOf(mine), [mine]);
+  const drafts = useNoteDrafts(workstreams);
+  const motions = DELL_MOTIONS.filter((m) => mine.some((r) => r.motion === m));
+  const myMoves = moves.filter((m) => m.company === company);
+  return <PanelShell title={company} onClose={onClose}
+    sub={`${domain} · ${workstreams.length} Dell workstream${workstreams.length === 1 ? "" : "s"} · ${motions.join(" + ") || "No Dell motion"}`}
+    logo={<RingLogo company={company} website={website} motions={motions} size="lg" />}>
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dell relationships</h3>
+        <ul className="mt-2 space-y-2">
+          {relationships.map((r) => <li key={r.bu} className="rounded-md border border-border p-2">
+            <p className="text-xs font-semibold text-foreground">{r.bu}</p>
+            {r.workstreams.map((w) => <div key={w.workstreamId} className="mt-1">
+              <p className="truncate text-[11px] text-foreground">{w.name}</p>
+              <MotionStatus ws={w} />
+            </div>)}
+          </li>)}
+        </ul>
+      </div>
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Movement since {since}</h3>
+        {myMoves.length ? <ul className="mt-2 space-y-1.5">
+          {myMoves.map((m) => <li key={`${m.workstreamId}:${m.motion}`} className="text-xs">
+            <span className={cn("mr-1.5 rounded px-1.5 py-0.5 text-[10px] font-semibold", MOVE_TONE[m.kind])}>{MOVE_LABEL[m.kind]}</span>
+            <span className="text-foreground">{m.name}</span>
+            <span className="block text-[11px] text-muted-foreground">{m.motion} · {m.kind === "new" ? m.to : `${m.from} → ${m.kind === "closed" && m.to === "Not set" ? "Cleared" : m.to}`} · {m.at}</span>
+          </li>)}
+        </ul> : <p className="mt-2 text-xs text-muted-foreground">No Dell status changes in this window.</p>}
+      </div>
+      <div>
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dell stakeholders</h3>
+        {people.length ? <ul className="mt-2 space-y-1.5">
+          {people.map((p) => <li key={`${p.linked}:${p.name}`} className="text-xs">
+            <span className={cn("rounded-full border px-2 py-0.5", p.linked ? "border-border bg-muted text-foreground" : "border-dashed border-muted-foreground/50 text-muted-foreground")}>{p.name}</span>
+            <span className="ml-1.5 text-[11px] text-muted-foreground">{p.title ? `${p.title} · ` : ""}{p.workstreams.map((w) => w.name).join(", ")}</span>
+          </li>)}
+        </ul> : <p className="mt-2 text-xs text-hot-foreground">No Dell stakeholders named yet.</p>}
+      </div>
+    </div>
+    <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workstreams</h3>
+    {drafts.error && <p className="mt-1 text-xs text-muted-foreground">{drafts.error}</p>}
+    <div className="mt-2 grid grid-cols-1 gap-3 lg:grid-cols-2">
+      {workstreams.map((w) => <div key={w.workstreamId} className="rounded-lg border border-border p-3">
+        <div className="flex items-start gap-2">
+          <p className="min-w-0 flex-1 text-sm font-medium text-foreground">{w.name}{w.completed && <span className="ml-1.5 text-[10px] text-muted-foreground">(completed)</span>}</p>
+          <button type="button" onClick={() => onOpen(w.workstreamId)} className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"><ExternalLink className="h-3 w-3" />Open</button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">{w.bu}{w.products.length ? ` · ${w.products.map((p) => p.replace(/^Dell /, "")).join(", ")}` : ""}</p>
+        <MotionStatus ws={w} />
+        <div className="mt-1.5"><People people={peopleOf(mine.filter((r) => r.workstreamId === w.workstreamId))} /></div>
+        <NotesBox ws={w} drafts={drafts} onSaved={onSaved} />
+      </div>)}
+    </div>
+  </PanelShell>;
+}
+
 export function DellLeverageDashboard() {
   const q = useDellLeverage();
   const qc = useQueryClient();
@@ -126,8 +339,13 @@ export function DellLeverageDashboard() {
   const [since, setSince] = useState(() => isoDaysAgo(90));
   const [moveKind, setMoveKind] = useState<MovementKind | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const set = (patch: Partial<DellFilter>) => setFilter((f) => ({ ...f, ...patch }));
   const toggle = <K extends keyof DellFilter>(k: K, v: DellFilter[K]) => setFilter((f) => ({ ...f, [k]: f[k] === v ? DEFAULT_DELL_FILTER[k] : v }));
+  // Status and company are the two ways into a pop-up; picking one replaces the other.
+  const pickStage = (st: DellStage) => setFilter((f) => ({ ...f, company: null, stage: f.stage === st && !f.company ? null : st }));
+  const pickCompany = (c: string) => setFilter((f) => ({ ...f, stage: null, company: f.company === c ? null : c }));
+  const refresh = () => void qc.invalidateQueries({ queryKey: ["dell-leverage"] });
 
   const all = useMemo(() => q.data?.rows ?? [], [q.data]);
   const rows = useMemo(() => filterDellRows(all, filter), [all, filter]);
@@ -142,10 +360,14 @@ export function DellLeverageDashboard() {
   const moves = useMemo(() => movementInWindow(q.data?.changes ?? [], all, since, todayIso()), [q.data, all, since]);
   const visibleIds = useMemo(() => new Set(rows.map((r) => `${r.workstreamId}:${r.motion}`)), [rows]);
   const shownMoves = moves.filter((m) => visibleIds.has(`${m.workstreamId}:${m.motion}`));
+  const boardIds = useMemo(() => new Set(boardRows.map((r) => `${r.workstreamId}:${r.motion}`)), [boardRows]);
   const tableRows = moveKind ? rows.filter((r) => shownMoves.some((m) => m.kind === moveKind && m.workstreamId === r.workstreamId && m.motion === r.motion)) : rows;
   const buOptions = useMemo(() => [...new Set(all.map((r) => r.bu))].sort((a, b) => (a === NO_BU ? 1 : b === NO_BU ? -1 : a.localeCompare(b))), [all]);
   const domainOptions = useMemo(() => [...new Set(all.map((r) => r.domain))].sort(), [all]);
   const filtered = JSON.stringify(filter) !== JSON.stringify(DEFAULT_DELL_FILTER) || !!moveKind;
+  const panelKey = filter.company ? `c:${filter.company}` : filter.stage ? `s:${filter.stage}` : "";
+
+  useEffect(() => { if (panelKey) panelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [panelKey]);
 
   if (!q.data && !q.isError) return <p className="flex items-center gap-2 py-16 justify-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Loading Dell workstreams…</p>;
   if (!q.data || q.data.error) return <Card className="border-border"><CardContent className="p-8 text-center text-sm text-muted-foreground">Dell workstream data is unavailable right now. Try again in a minute.</CardContent></Card>;
@@ -155,55 +377,69 @@ export function DellLeverageDashboard() {
   const maxProduct = Math.max(1, ...products.map((p) => p.count));
   const maxOutcome = Math.max(1, ...outcomes.sellWith.map((o) => o.count), ...outcomes.sellIn.map((o) => o.count));
   const moveCounts = (k: MovementKind) => shownMoves.filter((m) => m.kind === k).length;
+  const websites = q.data.websites ?? {};
+  const boardSummary = summarizeDell(boardRows);
 
   return <div className="space-y-5">
-    {/* Filters */}
-    <div className="flex flex-wrap items-center gap-2">
-      <Select value={filter.bu ?? ALL} onValueChange={(v) => set({ bu: v === ALL ? null : v })}>
-        <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Dell BU" /></SelectTrigger>
-        <SelectContent><SelectItem value={ALL}>All Dell BUs</SelectItem>{buOptions.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
-      </Select>
-      <Select value={filter.domain ?? ALL} onValueChange={(v) => set({ domain: v === ALL ? null : v })}>
-        <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="Domain" /></SelectTrigger>
-        <SelectContent><SelectItem value={ALL}>All domains</SelectItem>{domainOptions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-      </Select>
-      <Select value={filter.stage ?? ALL} onValueChange={(v) => set({ stage: v === ALL ? null : (v as DellStage) })}>
-        <SelectTrigger className="h-8 w-48 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
-        <SelectContent><SelectItem value={ALL}>All statuses</SelectItem>{ALL_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-      </Select>
-      {filter.company && <button type="button" onClick={() => set({ company: null })} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-primary bg-primary px-3 text-xs text-primary-foreground">{filter.company}<X className="h-3 w-3" /></button>}
-      <label className="inline-flex items-center gap-2 text-xs text-muted-foreground"><Switch checked={filter.includeCompleted} onCheckedChange={(v) => set({ includeCompleted: v })} />Include completed</label>
-      {filtered && <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilter(DEFAULT_DELL_FILTER); setMoveKind(null); }}><X className="h-3.5 w-3.5 mr-1" />Clear filters</Button>}
-    </div>
+    {/* Top row: motion tiles | company status board (main navigation) | filters */}
+    <Card className="border-border"><CardContent className="p-4">
+      <div className="flex flex-col gap-4 2xl:flex-row">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 2xl:w-48 2xl:shrink-0 2xl:grid-cols-1 2xl:content-start">
+          {DELL_MOTIONS.map((m) => {
+            const mine = motionRows.filter((r) => r.motion === m);
+            const engaged = mine.filter((r) => r.stage === "Engaged / Progressing" || r.stage === "Engaged / Stalled").length;
+            const live = mine.filter((r) => r.stage === "Existing").length;
+            return <Stat key={m} label={m} dot={MOTION_COLOR[m]} value={String(new Set(mine.map((r) => r.workstreamId)).size)} sub={`${engaged} engaged · ${live} live`}
+              onClick={() => set({ motion: filter.motion === m ? "Both" : m })} active={filter.motion === m} dim={filter.motion !== "Both" && filter.motion !== m} />;
+          })}
+          <MiniStat label="Active workstreams" value={String(boardSummary.active)} sub={boardSummary.workstreams !== boardSummary.active ? `+ ${boardSummary.workstreams - boardSummary.active} completed` : undefined} />
+          <MiniStat label="Companies" value={String(boardSummary.companies)} sub={`${boardSummary.stakeholderReach} Dell people engaged`} />
+          <MiniStat label="Stakeholder coverage" value={pct(boardSummary.coverage.covered, boardSummary.coverage.total)}
+            sub={`Sell-In ${pct(boardSummary.coverageByMotion["Sell-In"].covered, boardSummary.coverageByMotion["Sell-In"].total)} · Sell-With ${pct(boardSummary.coverageByMotion["Sell-With"].covered, boardSummary.coverageByMotion["Sell-With"].total)}`} />
+        </div>
 
-    {/* KPIs */}
-    <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
-      {DELL_MOTIONS.map((m) => {
-        const mine = motionRows.filter((r) => r.motion === m);
-        const engaged = mine.filter((r) => r.stage === "Engaged / Progressing" || r.stage === "Engaged / Stalled").length;
-        const live = mine.filter((r) => r.stage === "Existing").length;
-        return <Stat key={m} label={m} dot={MOTION_COLOR[m]} value={String(new Set(mine.map((r) => r.workstreamId)).size)} sub={`${engaged} engaged · ${live} live`}
-          onClick={() => set({ motion: filter.motion === m ? "Both" : m })} active={filter.motion === m} dim={filter.motion !== "Both" && filter.motion !== m} />;
-      })}
-      <Stat label="Active Dell workstreams" value={String(summary.active)} sub={`${summary.byMotion["Sell-In"]} Sell-In · ${summary.byMotion["Sell-With"]} Sell-With${summary.workstreams !== summary.active ? ` · ${summary.workstreams - summary.active} completed` : ""}`} />
-      <Stat label="Engaged & progressing" value={String(summary.progressing)} onClick={() => toggle("stage", "Engaged / Progressing")} active={filter.stage === "Engaged / Progressing"} />
-      <Stat label="Stalled" value={String(summary.stalled)} sub={summary.stalledShare == null ? "No engaged workstreams" : `${Math.round(summary.stalledShare * 100)}% of engaged`} onClick={() => toggle("stage", "Engaged / Stalled")} active={filter.stage === "Engaged / Stalled"} />
-      <Stat label="Live with Dell" value={String(summary.existing)} sub="Existing outcomes" onClick={() => toggle("stage", "Existing")} active={filter.stage === "Existing"} />
-      <Stat label="Companies" value={String(summary.companies)} sub={`${summary.stakeholderReach} Dell people engaged`} />
-      <Stat label="Stakeholder coverage" value={pct(summary.coverage.covered, summary.coverage.total)}
-        sub={`Sell-In ${pct(summary.coverageByMotion["Sell-In"].covered, summary.coverageByMotion["Sell-In"].total)} · Sell-With ${pct(summary.coverageByMotion["Sell-With"].covered, summary.coverageByMotion["Sell-With"].total)}`} />
-    </div>
-    {!q.data.stakeholdersLinked && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5" />Network people couldn't be read, so stakeholder names aren't linked and coverage reads low.</p>}
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-display text-base font-semibold text-foreground">Companies by Dell status</h2>
+            <span className="text-xs text-muted-foreground">Click a status for its summary, or a company for its relationships.</span>
+          </div>
+          <div className="overflow-x-auto pb-1">
+            <CompanyBoard rows={boardRows} websites={websites} stage={filter.company ? null : filter.stage} company={filter.company} onStage={pickStage} onCompany={pickCompany} />
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-4">
+            <MotionLegend />
+            <span className="text-xs text-muted-foreground">Split ring = both · number = workstreams at that status</span>
+          </div>
+        </div>
 
-    {/* Company board */}
-    <Section title="Companies by Dell status" sub="Each PortCo in every status it has Dell work in. Click a status or a company to filter the page.">
-      <CompanyBoard rows={boardRows} websites={q.data.websites ?? {}} stage={filter.stage} company={filter.company}
-        onStage={(st) => toggle("stage", st)} onCompany={(c) => toggle("company", c)} />
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <MotionLegend />
-        <span className="text-xs text-muted-foreground">Split ring = both · number = workstreams at that status</span>
+        <div className="flex flex-wrap items-center gap-2 2xl:w-52 2xl:shrink-0 2xl:flex-col 2xl:items-stretch">
+          <Select value={filter.bu ?? ALL} onValueChange={(v) => set({ bu: v === ALL ? null : v })}>
+            <SelectTrigger className="h-8 w-44 text-xs 2xl:w-full"><SelectValue placeholder="Dell BU" /></SelectTrigger>
+            <SelectContent><SelectItem value={ALL}>All Dell BUs</SelectItem>{buOptions.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filter.domain ?? ALL} onValueChange={(v) => set({ domain: v === ALL ? null : v })}>
+            <SelectTrigger className="h-8 w-36 text-xs 2xl:w-full"><SelectValue placeholder="Domain" /></SelectTrigger>
+            <SelectContent><SelectItem value={ALL}>All domains</SelectItem>{domainOptions.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+          </Select>
+          <Select value={filter.stage ?? ALL} onValueChange={(v) => v === ALL ? set({ stage: null }) : pickStage(v as DellStage)}>
+            <SelectTrigger className="h-8 w-48 text-xs 2xl:w-full"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent><SelectItem value={ALL}>All statuses</SelectItem>{ALL_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+          </Select>
+          {filter.company && <button type="button" onClick={() => set({ company: null })} className="inline-flex h-8 items-center justify-between gap-1.5 rounded-full border border-primary bg-primary px-3 text-xs text-primary-foreground"><span className="truncate">{filter.company}</span><X className="h-3 w-3 shrink-0" /></button>}
+          <label className="inline-flex items-center gap-2 text-xs text-muted-foreground"><Switch checked={filter.includeCompleted} onCheckedChange={(v) => set({ includeCompleted: v })} />Include completed</label>
+          {filtered && <Button variant="ghost" size="sm" className="h-8 justify-start text-xs" onClick={() => { setFilter(DEFAULT_DELL_FILTER); setMoveKind(null); }}><X className="h-3.5 w-3.5 mr-1" />Clear filters</Button>}
+        </div>
       </div>
-    </Section>
+      {!q.data.stakeholdersLinked && <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5" />Network people couldn't be read, so stakeholder names aren't linked and coverage reads low.</p>}
+    </CardContent></Card>
+
+    {/* Pop-up for the selected status or company */}
+    <div ref={panelRef} className="scroll-mt-4">
+      {filter.company ? <CompanyPanel key={panelKey} rows={boardRows} company={filter.company} website={websites[filter.company]} domain={boardRows.find((r) => r.company === filter.company)?.domain || "Other"}
+          moves={moves.filter((m) => boardIds.has(`${m.workstreamId}:${m.motion}`))} since={since} onOpen={setOpenId} onClose={() => set({ company: null })} onSaved={refresh} />
+        : filter.stage ? <StagePanel key={panelKey} rows={boardRows} stage={filter.stage} websites={websites} onCompany={pickCompany} onClose={() => set({ stage: null })} onSaved={refresh} />
+        : null}
+    </div>
 
     {/* BU heatmap */}
     <Section title="Dell business units" sub="Workstreams per Dell BU and stage. Click a BU or a cell to filter.">
@@ -341,7 +577,7 @@ export function DellLeverageDashboard() {
       </div>
     </Section>
 
-    <WorkstreamEditorSheet gid={openId} onClose={() => setOpenId(null)} onSaved={() => void qc.invalidateQueries({ queryKey: ["dell-leverage"] })} />
+    <WorkstreamEditorSheet gid={openId} onClose={() => setOpenId(null)} onSaved={refresh} />
   </div>;
 }
 
