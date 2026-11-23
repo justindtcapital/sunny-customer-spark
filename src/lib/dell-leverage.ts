@@ -440,3 +440,26 @@ export function sanitizeDellNote(text: string): string {
   }
   return out;
 }
+
+// ─── Engagement list (the table under the company board) ────────────
+
+/**
+ * Rows → the engagement list: companies alphabetical, each with its workstreams (Sell-In and
+ * Sell-With merged), furthest stage first. Only the motions present in `rows` are kept, so a status
+ * or motion filter shows just the matching side of each workstream.
+ */
+export function engagementList(rows: DellRow[]): Array<{ company: string; workstreams: DellWorkstream[] }> {
+  const companies = [...new Set(rows.map((r) => r.company))].sort((a, b) => a.localeCompare(b));
+  return companies.map((company) => ({ company, workstreams: workstreamsOf(rows.filter((r) => r.company === company)) }));
+}
+
+/** Position on the stage track (0 = Interested … 4 = Existing); -1 for "Not Moving Forward" / "Not set". */
+export const trackIndex = (stage: DellStage) => (PIPELINE_STAGES as DellStage[]).indexOf(stage);
+
+/** A V.I.C. draft in two parts → one Dell-facing note: current state, then "Next steps: …" on its own line. */
+export function composeDellNote(current: string, next: string): string {
+  const c = sanitizeDellNote(current);
+  const n = sanitizeDellNote(next.replace(/^\s*next steps?\s*:\s*/i, ""));
+  if (!c) return n ? `Next steps: ${n}` : "";
+  return n ? `${c}\nNext steps: ${n}` : c;
+}

@@ -7,16 +7,17 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayRunIdFetch } from "./morning-brief-run-id.server";
 
-const Schema = z.object({ notes: z.array(z.object({ n: z.number().int(), note: z.string() })) });
+const Schema = z.object({ notes: z.array(z.object({ n: z.number().int(), current: z.string(), next: z.string() })) });
 
 const SYSTEM = [
   "You are V.I.C., writing short engagement notes for a dashboard that is shown to Dell in a quarterly business review.",
-  "For each numbered workstream write 1-3 plain sentences (max 60 words) on where the engagement with Dell stands:",
-  "what has happened, who at Dell is involved, and the next concrete step or what help is needed from Dell.",
+  "For each numbered workstream return two parts.",
+  "current: 1-2 plain sentences (max 45 words) summarizing where the engagement with Dell stands — what has happened and who at Dell is involved.",
+  "next: one short sentence (max 25 words) with the next concrete step or what help is needed from Dell; do not prefix it with 'Next steps'.",
   "Use only facts given. Write neutrally and professionally, as something Dell may read.",
   "Lead with concrete facts from the background notes and status changes; do not just restate the status labels, and never contradict them.",
   "Never mention internal priorities, ROI, rankings, investment amounts, ownership, valuations, internal opinions of people, or how important the work is to us.",
-  "If there is too little information, write one sentence stating the current status and that next steps are being defined.",
+  "If there is too little information, state the current status in current and write 'Being defined.' in next.",
 ].join(" ");
 
 const g = (s: string | undefined) => (s || "").replace(/\s+/g, " ").trim();
@@ -26,7 +27,7 @@ export async function draftDellEngagementNotes(gids: string[]): Promise<Record<s
   if (!apiKey) throw new Error("V.I.C. isn't connected right now.");
   const { readWorkstreams, CHANGE_LOG_TAB } = await import("./portco-store.server");
   const { fetchSheetTabIfExists } = await import("./sheets.server");
-  const { statusChangesFromLog, sanitizeDellNote } = await import("@/lib/dell-leverage");
+  const { statusChangesFromLog, composeDellNote } = await import("@/lib/dell-leverage");
   const [all, log] = await Promise.all([readWorkstreams(), fetchSheetTabIfExists(CHANGE_LOG_TAB).catch(() => null)]);
   const want = new Set(gids);
   const items = all.filter((w) => want.has(w.gid));
@@ -52,9 +53,9 @@ export async function draftDellEngagementNotes(gids: string[]): Promise<Record<s
     providerOptions: { openai: { store: false } },
   });
   const out: Record<string, string> = {};
-  for (const { n, note } of (res.output as z.infer<typeof Schema>).notes) {
+  for (const { n, current, next } of (res.output as z.infer<typeof Schema>).notes) {
     const w = items[n - 1];
-    const clean = w ? sanitizeDellNote(note) : "";
+    const clean = w ? composeDellNote(current, next) : "";
     if (w && clean) out[w.gid] = clean;
   }
   return out;

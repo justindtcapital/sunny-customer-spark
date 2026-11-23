@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DELL_FILTER, DELL_NOTES_FIELD, EXCLUDED_FIELDS, buHeatmap, companiesAtStage, companyRelationships, sanitizeDellNote, workstreamsOf, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
+  DEFAULT_DELL_FILTER, composeDellNote, engagementList, trackIndex, DELL_NOTES_FIELD, EXCLUDED_FIELDS, buHeatmap, companiesAtStage, companyRelationships, sanitizeDellNote, workstreamsOf, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
   primaryStage, productCounts, stakeholderMap, statusChangesFromLog, summarizeDell, type DellWorkstreamInput,
 } from "./dell-leverage";
 import type { Contact } from "./types";
@@ -165,5 +165,34 @@ describe("dell status and company pop-ups", () => {
     expect(sanitizeDellNote("Pilot with Dell IT is live. This is a Needle Mover with High ROI for us. Next step is a joint review in Q1."))
       .toBe("Pilot with Dell IT is live. Next step is a joint review in Q1.");
     expect(sanitizeDellNote("Our investment and ownership grew.")).toBe("");
+  });
+});
+
+describe("engagement list", () => {
+  const base = { domain: "AI", outcomes: [], bu: "Dell IT", stakeholders: [], products: [], engagementNotes: "", completed: false, updatedAt: "" };
+  const row = (company: string, gid: string, motion: "Sell-In" | "Sell-With", stage: import("./dell-leverage").DellStage, name = gid) =>
+    ({ ...base, id: `${gid}:${motion}`, workstreamId: gid, company, name, motion, statuses: [stage], stage });
+
+  it("groups by company alphabetically and merges both motions of a workstream", () => {
+    const list = engagementList([
+      row("Zeta", "z1", "Sell-In", "Trying to Engage"),
+      row("Acme", "a1", "Sell-In", "Engaged / Stalled"),
+      row("Acme", "a1", "Sell-With", "Existing"),
+      row("Acme", "a2", "Sell-In", "Interested / Not Engaged"),
+    ]);
+    expect(list.map((c) => c.company)).toEqual(["Acme", "Zeta"]);
+    expect(list[0]!.workstreams.map((w) => w.workstreamId)).toEqual(["a1", "a2"]);
+    expect(list[0]!.workstreams[0]!.motions.map((m) => m.motion)).toEqual(["Sell-In", "Sell-With"]);
+  });
+
+  it("places stages on the five-step track and keeps closed work off it", () => {
+    expect(trackIndex("Interested / Not Engaged")).toBe(0);
+    expect(trackIndex("Existing")).toBe(4);
+    expect(trackIndex("Not Moving Forward")).toBe(-1);
+  });
+
+  it("composes current state and next steps, dropping internal sentences", () => {
+    expect(composeDellNote("Pilot running with Dell IT.", "Next steps: agree success criteria.")).toBe("Pilot running with Dell IT.\nNext steps: agree success criteria.");
+    expect(composeDellNote("This is a must do for us. Pilot running.", "")).toBe("Pilot running.");
   });
 });

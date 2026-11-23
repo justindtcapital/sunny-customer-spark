@@ -13,12 +13,8 @@ export const Route = createFileRoute("/dashboards/dell")({
     ],
   }),
   component: () => (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-4">
-      <div>
-        <Link to="/dashboards" className="text-xs text-muted-foreground hover:text-foreground">← Dashboards</Link>
-        <h1 className="font-display text-2xl font-semibold text-foreground tracking-tight">Dell Leverage Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Where each Sell-In and Sell-With workstream stands with Dell.</p>
-      </div>
+    <div className="p-6 space-y-1">
+      <Link to="/dashboards" className="text-xs text-muted-foreground hover:text-foreground">← Dashboards</Link>
       <DellLeverageDashboard />
     </div>
   ),
