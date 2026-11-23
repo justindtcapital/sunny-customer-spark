@@ -737,7 +737,7 @@ function PortfolioPage() {
           }}
         />
       ) : view === "workstreams" ? (
-        <WorkstreamsTableView companyNames={companies.map((c) => c.name)} />
+        <WorkstreamsTableView companyNames={companies.map((c) => c.name)} contacts={contacts} onContactsChanged={refreshContacts} />
       ) : showContactsBySector ? (
         <div className="space-y-8">
           {sectorGroups.map(({ sector, companies: comps, people }) => (

@@ -12,6 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EditableCell, type CellKind } from "@/components/portfolio/table/EditableCell";
 import { ColumnChooser, useColumnChoice, type ColumnOption } from "@/components/portfolio/table/ColumnChooser";
 import { ColumnHeaderMenu } from "@/components/portfolio/table/ColumnHeaderMenu";
+import { StakeholdersCell } from "@/components/portfolio/table/StakeholdersCell";
+import { joinStakeholders, splitStakeholders } from "@/lib/workstream-stakeholders";
+import type { Contact } from "@/lib/types";
 import { applyColumns, filterActive, valueCounts, type ColumnFilter, type ColumnFilters, type ColumnSort } from "@/lib/table-filter";
 import { createWorkstreamFn, updateWorkstreamFn } from "@/utils/asana.functions";
 import { fetchPortcoTableFn } from "@/utils/portco-store.functions";
@@ -27,6 +30,7 @@ const renderPriority = (v: string) => <span className={cn("inline-block rounded-
 
 const DEFAULT_COLUMNS = ["Segment", "Owner", "Workstream Status", "Workstream Priority", "Sell-In Status", "Dell Targets", "Dell Stakeholders", "Completed"];
 const ARCHIVED = "archived:";
+const STAKEHOLDERS = "Dell Stakeholders";
 
 function kindOf(key: string): { kind: CellKind; options?: readonly string[] } {
   if (key === "Owner") return { kind: "enum", options: OWNER_OPTIONS };
@@ -36,7 +40,12 @@ function kindOf(key: string): { kind: CellKind; options?: readonly string[] } {
   return d ? { kind: d.type, options: d.options } : { kind: "readonly" };
 }
 
-export function WorkstreamsTableView({ companyNames }: { companyNames: string[] }) {
+export function WorkstreamsTableView({ companyNames, contacts = [], onContactsChanged }: {
+  companyNames: string[];
+  /** Saved Network people, so Dell Stakeholders names link to real records. */
+  contacts?: Contact[];
+  onContactsChanged?: () => Promise<void> | void;
+}) {
   const { workstreams, loading, refresh } = useWorkstreams();
   const loadArchives = useServerFn(fetchPortcoTableFn);
   const { data: archiveData } = useQuery({ queryKey: ["portco-table"], queryFn: () => loadArchives(), staleTime: 60_000 });
@@ -73,13 +82,15 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
     if (key === "Notes") return w.notes;
     if (key === "Completed") return isWorkstreamCompleted(w) ? "Yes" : "No";
     if (key.startsWith(ARCHIVED)) return archives[w.gid]?.[key.slice(ARCHIVED.length)] || "";
+    // One comma-separated list so each stakeholder is its own filter value.
+    if (key === STAKEHOLDERS) return joinStakeholders(splitStakeholders(w.fields[key] || ""));
     return w.fields[key] || "";
   };
 
-  const isMulti = (key: string) => kindOf(key).kind === "multi_enum";
+  const isMulti = (key: string) => key === STAKEHOLDERS || kindOf(key).kind === "multi_enum";
   const isNumeric = (key: string) => kindOf(key).kind === "number";
   const modeOf = (key: string): "values" | "text" => {
-    if (key === "Company" || key === "Segment" || key === "Owner" || key === "Completed") return "values";
+    if (key === "Company" || key === "Segment" || key === "Owner" || key === "Completed" || key === STAKEHOLDERS) return "values";
     const k = kindOf(key).kind;
     return k === "enum" || k === "multi_enum" || key.startsWith(ARCHIVED) ? "values" : "text";
   };
@@ -200,6 +211,11 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
                   const k = kindOf(o.key);
                   const v = valueOf(w, o.key);
                   const editable = k.kind !== "readonly" && o.key !== "Segment";
+                  if (o.key === STAKEHOLDERS) return (
+                    <td key={o.key} className="min-w-[160px] max-w-[280px] border-r border-border p-0 last:border-r-0">
+                      <StakeholdersCell value={v} contacts={contacts} onSave={(next) => saveCell(w, o.key, w.fields[o.key] || "", next)} onContactsChanged={() => onContactsChanged?.()} />
+                    </td>
+                  );
                   return (
                     <td key={o.key} className="min-w-[130px] max-w-[260px] border-r border-border p-0 last:border-r-0">
                       <EditableCell kind={editable ? k.kind : "readonly"} options={k.options} value={v} render={o.key === "Workstream Priority" ? renderPriority : undefined} onSave={editable ? (next) => saveCell(w, o.key, v, next) : undefined} />

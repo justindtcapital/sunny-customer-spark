@@ -1,3 +1,4 @@
 # Portfolio component rules
 
 - Edit tables filter and sort from their column headers (table/ColumnHeaderMenu + pure src/lib/table-filter.ts): pick-list columns tick values (multi-select cells match any value, blanks filterable), free-text columns use "contains", and each column's value list reflects the other active filters — no separate filter dropdowns above the table.
+- Workstream Dell Stakeholders stay a comma-separated name list (every other reader parses that text); the edit table links names to Network people at read time via src/lib/workstream-stakeholders.ts (exact full name or email only, Dell record wins a same-name tie, anything else stays unlinked for a human to pick) and person edits go through the shared people-finder/updatePersonFn paths — no stored IDs to drift from the sheet.

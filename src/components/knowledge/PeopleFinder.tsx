@@ -20,7 +20,7 @@ import { MergeContactsDialog } from "@/components/crm/MergeContactsDialog";
 
 type Draft = { name: string; title: string; company: string; email: string };
 
-export function PeopleFinder({ initialQuery, heard, hints, onPick, onAddNew, onClose }: {
+export function PeopleFinder({ initialQuery, heard, hints, onPick, onAddNew, onClose, allowNoEmail = false }: {
   initialQuery: string;
   /** The name as heard in the note, shown as context. */
   heard?: string;
@@ -29,6 +29,8 @@ export function PeopleFinder({ initialQuery, heard, hints, onPick, onAddNew, onC
   onPick: (m: PersonMatch) => void;
   onAddNew?: (query: string) => void;
   onClose: () => void;
+  /** Allow picking saved people without an email (name-only lists such as workstream stakeholders). */
+  allowNoEmail?: boolean;
 }) {
   const [q, setQ] = useState(initialQuery);
   const [results, setResults] = useState<PersonMatch[]>([]);
@@ -108,9 +110,9 @@ export function PeopleFinder({ initialQuery, heard, hints, onPick, onAddNew, onC
             return (
               <li key={key} className={cn("rounded", inCluster.has(m.urid || "") && "bg-warning/5")}>
                 <div className="flex items-center gap-1">
-                  <button type="button" disabled={!m.email}
+                  <button type="button" disabled={!m.email && !allowNoEmail}
                     className="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
-                    onClick={() => onPick(m)} title={m.email ? `Use ${m.name}` : "No email saved — edit to add one"}>
+                    onClick={() => onPick(m)} title={m.email || allowNoEmail ? `Use ${m.name}` : "No email saved — edit to add one"}>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{m.name || m.email}</span>
                       <span className="block truncate text-[11px] text-muted-foreground">
