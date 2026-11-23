@@ -181,7 +181,7 @@ function EventsPage() {
   const { event: openEventName } = Route.useSearch();
 
   return (
-    <div className="p-6 max-w-[2200px] mx-auto">
+    <div className="w-full min-w-0 p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-lg font-bold text-foreground">Events</h1>

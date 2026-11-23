@@ -25,7 +25,7 @@ function HomePage() {
   useEffect(() => setToday(reportingDay(new Date())), []);
   const profile = teamProfile(email);
   const loaded = ready && !!email && !!today;
-  return <div className="mx-auto max-w-[1400px] space-y-3 p-4">
+  return <div className="w-full min-w-0 space-y-3 p-4">
     <header className="flex items-baseline gap-3">
       <h1 className="font-display text-2xl font-semibold text-foreground">Hello, {profile?.firstName || "there"}</h1>
       {today && <p className="text-sm text-muted-foreground">{new Date(`${today}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>}

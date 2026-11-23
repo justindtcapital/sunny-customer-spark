@@ -1721,7 +1721,7 @@ function TargetingPage() {
     : [];
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
+    <div className="w-full min-w-0 p-6">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between">

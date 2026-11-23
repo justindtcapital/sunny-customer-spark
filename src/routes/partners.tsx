@@ -58,7 +58,7 @@ function PartnersPage() {
     (cat === "all" || p.category === cat) && (!search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()))), [partners, cat, search]);
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-4">
+    <div className="w-full min-w-0 p-6 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-lg font-bold text-foreground"><Handshake className="h-5 w-5 text-primary" />Partners</h1>
         <Button size="sm" onClick={() => setAdding(true)}><Plus className="h-4 w-4 mr-1" />Add partner</Button>

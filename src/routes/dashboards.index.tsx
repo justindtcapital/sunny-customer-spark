@@ -86,7 +86,7 @@ function DashboardsHub() {
   const dell = useDellLeverage();
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-5">
+    <div className="w-full min-w-0 p-6 space-y-5">
       <div>
         <h1 className="font-display text-2xl font-semibold text-foreground tracking-tight">Dashboards</h1>
         <p className="text-sm text-muted-foreground mt-1">Pick a dashboard to open it.</p>

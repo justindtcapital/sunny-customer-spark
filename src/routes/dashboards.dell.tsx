@@ -13,7 +13,7 @@ export const Route = createFileRoute("/dashboards/dell")({
     ],
   }),
   component: () => (
-    <div className="p-6 space-y-1">
+    <div className="w-full min-w-0 p-6 space-y-1">
       <Link to="/dashboards" className="text-xs text-muted-foreground hover:text-foreground">← Dashboards</Link>
       <DellLeverageDashboard />
     </div>

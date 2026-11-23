@@ -222,7 +222,7 @@ function DashboardPage() {
   const scopeKeys = useMemo(() => scope.map((p) => p.key), [scope]);
 
   return (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-6">
+    <div className="w-full min-w-0 p-6 space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold text-foreground tracking-tight">

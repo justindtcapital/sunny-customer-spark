@@ -13,7 +13,7 @@ export const Route = createFileRoute("/dashboards/events")({
     ],
   }),
   component: () => (
-    <div className="p-6 max-w-[1600px] mx-auto space-y-5">
+    <div className="w-full min-w-0 p-6 space-y-5">
       <div>
         <Link to="/dashboards" className="text-xs text-muted-foreground hover:text-foreground">← Dashboards</Link>
         <h1 className="font-display text-2xl font-semibold text-foreground tracking-tight">Events Dashboard</h1>

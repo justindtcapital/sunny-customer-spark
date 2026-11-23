@@ -165,7 +165,7 @@ function ActivityPage() {
   const errorCount = entries.filter((e) => e.status === "error").length;
 
   return (
-    <div className="p-6 max-w-[1200px] mx-auto">
+    <div className="w-full min-w-0 p-6">
       <h1 className="text-lg font-bold text-foreground mb-4">Admin</h1>
       <AdminWorkspace activity={activityContext} activityMode={activityMode} onActivityHandled={()=>setActivityContext(null)} />
       <details className="mt-8 rounded-xl border bg-card p-4">

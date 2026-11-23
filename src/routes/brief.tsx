@@ -20,7 +20,7 @@ export const Route = createFileRoute("/brief")({
 
 function BriefPage() {
   const { date, add } = Route.useSearch();
-  return <div className="mx-auto max-w-[1100px] space-y-3 p-4">
+  return <div className="w-full min-w-0 space-y-3 p-4">
     <h1 className="font-display text-2xl font-semibold text-foreground">Morning Brief</h1>
     <MorningBriefView date={date} add={add} />
   </div>;

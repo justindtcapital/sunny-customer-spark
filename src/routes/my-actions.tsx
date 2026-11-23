@@ -112,7 +112,7 @@ function MyActionsPage() {
   const hiddenPriorities = picked.length ? priorities.filter((p) => !picked.includes(p)) : [];
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-4 p-6">
+    <div className="w-full min-w-0 space-y-4 p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-semibold">My Actions</h1>

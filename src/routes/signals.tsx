@@ -110,7 +110,7 @@ function SignalsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1200px] p-4">
+    <div className="w-full min-w-0 p-4">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <Radar className="h-5 w-5 text-primary" />

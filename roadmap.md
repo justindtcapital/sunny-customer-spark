@@ -37,3 +37,6 @@
 - [x] Dell dashboard: full-width status board, Sell-In/Sell-With pills by the title, BU picker top right, workstream list (company, engagement, stage track, stakeholders, current state & next steps) replaces pop-ups
 - [x] Dell dashboard: remove BU chart, editable Asks of Dell column (V.I.C. suggestions), Movement right under the list
 - [x] Dell dashboard: lower boxes confirmed (outcomes, products, stakeholders by BU all stay)
+
+## Layout
+- [x] All pages left-aligned and stretch to the window width

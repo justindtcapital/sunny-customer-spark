@@ -427,7 +427,7 @@ function CrmPage() {
   );
 
   return (
-    <div className="min-w-0 p-4 sm:p-6 max-w-[1400px] mx-auto">
+    <div className="w-full min-w-0 p-4 sm:p-6">
       <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="text-lg font-bold text-foreground">Network CRM</h1>

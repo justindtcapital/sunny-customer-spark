@@ -223,7 +223,7 @@ function CampaignBuilderPage() {
   };
 
   return (
-    <div className="p-6 max-w-[1440px] mx-auto">
+    <div className="w-full min-w-0 p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="flex items-center gap-2 text-lg font-bold text-foreground">
           <Megaphone className="h-5 w-5 text-primary" />
