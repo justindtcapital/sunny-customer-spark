@@ -30,4 +30,4 @@
 
 ## Dell statuses
 - [x] Sell-In Status: new choices (Existing - Growing / Static / Concerned), one per workstream, synced to the company
-- [ ] Dell Leverage Dashboard — waits on plan approval
+- [x] Dell Leverage Dashboard (Dashboards → Dell Leverage)

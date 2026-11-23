@@ -16,14 +16,15 @@ import { matchSheetToAsanaKeys } from "@/lib/portco-names";
 import { MonthlyEventBars, BroadLegend, plannerDashboardQuery } from "@/components/dashboards/EventsDashboard";
 import { monthlyByBroad } from "@/lib/events-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
+import { DellFunnel, MotionLegend, useDellLeverage } from "@/components/dashboards/DellLeverageDashboard";
 
 export const Route = createFileRoute("/dashboards/")({
   head: () => ({
     meta: [
       { title: "Dashboards — VenturePulse" },
-      { name: "description", content: "PortCo, Events and Network dashboards for the DTC team." },
+      { name: "description", content: "PortCo, Events, Network and Dell Leverage dashboards for the DTC team." },
       { property: "og:title", content: "Dashboards — VenturePulse" },
-      { property: "og:description", content: "PortCo, Events and Network dashboards for the DTC team." },
+      { property: "og:description", content: "PortCo, Events, Network and Dell Leverage dashboards for the DTC team." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/dashboards/")({
   component: DashboardsHub,
 });
 
-function Tile({ to, title, sub, children, className = "" }: { to: "/dashboards/portco" | "/dashboards/events" | "/dashboards/network"; title: string; sub: string; children: ReactNode; className?: string }) {
+function Tile({ to, title, sub, children, className = "" }: { to: "/dashboards/portco" | "/dashboards/events" | "/dashboards/network" | "/dashboards/dell"; title: string; sub: string; children: ReactNode; className?: string }) {
   return (
     <Link to={to} className={`group block ${className}`}>
       <Card className="border-border h-full transition-shadow group-hover:shadow-md">
@@ -82,6 +83,8 @@ function DashboardsHub() {
     return counts;
   }, [contacts, targets, companies]);
 
+  const dell = useDellLeverage();
+
   return (
     <div className="p-6 max-w-[1600px] mx-auto space-y-5">
       <div>
@@ -107,6 +110,12 @@ function DashboardsHub() {
               <TierChart counts={tierCounts} active={null} onTier={() => {}} />
             </div>
           ) : <Unavailable text={contactsLoading ? "Loading…" : "Network data unavailable"} />}
+        </Tile>
+        <Tile to="/dashboards/dell" title="Dell Leverage Dashboard" sub="Sell-In and Sell-With pipeline with Dell">
+          {dell.data?.rows.length ? <div className="w-full space-y-2">
+            <DellFunnel rows={dell.data.rows} compact />
+            <MotionLegend small />
+          </div> : <Unavailable text={!dell.data && !dell.isError ? "Loading…" : "Dell workstream data unavailable"} />}
         </Tile>
       </div>
     </div>
