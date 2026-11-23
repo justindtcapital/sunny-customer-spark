@@ -30,6 +30,8 @@ const renderPriority = (v: string) => <span className={cn("inline-block rounded-
 
 const DEFAULT_COLUMNS = ["Segment", "Owner", "Workstream Status", "Workstream Priority", "Sell-In Status", "Dell Targets", "Dell Stakeholders", "Completed"];
 const ARCHIVED = "archived:";
+/** Saved column choices from before the Sell With Dell rename. */
+const RENAMED_COLUMNS = { "Sell With Dell - Maturity": "Sell With Dell Status" };
 const STAKEHOLDERS = "Dell Stakeholders";
 
 function kindOf(key: string): { kind: CellKind; options?: readonly string[] } {
@@ -53,7 +55,7 @@ export function WorkstreamsTableView({ companyNames, contacts = [], onContactsCh
   const update = useServerFn(updateWorkstreamFn);
   const create = useServerFn(createWorkstreamFn);
   const [patched, setPatched] = useState<Record<string, Workstream>>({});
-  const [cols, setCols, resetCols] = useColumnChoice("workstreams", DEFAULT_COLUMNS);
+  const [cols, setCols, resetCols] = useColumnChoice("workstreams", DEFAULT_COLUMNS, RENAMED_COLUMNS);
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<ColumnFilters>({});
   const [sort, setSort] = useState<ColumnSort | null>(null);

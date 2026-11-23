@@ -8,14 +8,15 @@ import { useAuth } from "@/lib/auth-context";
 
 export interface ColumnOption { key: string; label: string; archived?: boolean }
 
-export function useColumnChoice(table: string, defaults: string[]) {
+/** `renamed` maps retired column keys to their new keys so saved choices survive a rename. */
+export function useColumnChoice(table: string, defaults: string[], renamed: Record<string, string> = {}) {
   const { email } = useAuth();
   const storageKey = `vp.table-columns.${table}.${email || "me"}`;
   const [cols, setCols] = useState<string[]>(defaults);
   useEffect(() => {
     try {
       const raw = localStorage.getItem(storageKey);
-      if (raw) { const v = JSON.parse(raw); if (Array.isArray(v)) setCols(v.filter((x) => typeof x === "string")); }
+      if (raw) { const v = JSON.parse(raw); if (Array.isArray(v)) setCols([...new Set(v.filter((x): x is string => typeof x === "string").map((x) => renamed[x] ?? x))]); }
     } catch { /* keep defaults */ }
   }, [storageKey]);
   const save = (next: string[]) => {

@@ -7,6 +7,7 @@ import { appendSheetRows, colLetters, ensureTab, fetchSheetTab, updateSheetCells
 import type { Workstream, WorkstreamSegment } from "@/lib/workstream-parse";
 import type { FieldChange } from "@/lib/asana-field-payload";
 import { PORTDEV_OPS } from "@/lib/portco-import";
+import { SWD_STATUS_FIELD, normalizeSellWithDell, type SwdMigration } from "@/lib/sell-with-dell-status";
 import { PROFILE_FIELD_DEFS, WORKSTREAM_FIELD_DEFS, cellChangesFromFieldChanges, fieldMeta, planRowEdit, storedOwner, type CellChange } from "@/lib/portco-fields-schema";
 
 export const PROFILES_TAB = "PortCo Profiles";
@@ -125,7 +126,7 @@ export async function saveProfileFields(input: { urid?: string; company: string;
 const FIELD_FOR: Array<[keyof Workstream, string]> = [
   ["workstreamStatus", "Workstream Status"], ["workstreamPriority", "Workstream Priority"],
   ["category", "GTM Strategy Category"], ["sellInStatus", "Sell-In Status"],
-  ["maturity", "Sell With Dell - Maturity"], ["gtmMaturity", "Sell With Dell - Maturity"],
+  ["maturity", SWD_STATUS_FIELD], ["gtmMaturity", SWD_STATUS_FIELD],
   ["dellTargets", "Dell Targets"], ["targets", "Dell Targets"],
   ["dellStakeholders", "Dell Stakeholders"], ["sageTapStatus", "SageTap Status"],
 ];
@@ -153,7 +154,7 @@ function toWorkstream(x: SheetRow): Workstream {
     workstreamPriority: value("Workstream Priority"),
     category: value("GTM Strategy Category"),
     sellInStatus: value("Sell-In Status"),
-    maturity: value("Sell With Dell - Maturity"),
+    maturity: value(SWD_STATUS_FIELD),
     dellTargets: value("Dell Targets"),
     dellStakeholders: value("Dell Stakeholders"),
     nextSteps: "",
@@ -163,7 +164,7 @@ function toWorkstream(x: SheetRow): Workstream {
     targets: value("Dell Targets"),
     sageTapStatus: value("SageTap Status"),
     lastPitchReviewed: "",
-    gtmMaturity: value("Sell With Dell - Maturity"),
+    gtmMaturity: value(SWD_STATUS_FIELD),
     salesMaturity: "",
     notes: c["Notes"] || "",
     fields,
@@ -181,7 +182,20 @@ async function workstreamRows(fresh: boolean) {
     if (/Unable to parse range/i.test(String(e))) return [] as string[][];
     throw e;
   });
-  return parseTab(rows);
+  const { headers, items } = parseTab(rows);
+  // The old "Sell With Dell - Maturity" column reads as "Sell With Dell Status" with new values.
+  return normalizeSellWithDell(headers, items);
+}
+
+/** One-time sheet rewrite: rename the old column header and its legacy values, logged per row. */
+async function applySellWithDellMigration(m: SwdMigration, items: SheetRow[], by: string) {
+  const col = colLetters(m.column);
+  await updateSheetCells(WORKSTREAMS_TAB, [{ range: `${col}1`, value: SWD_STATUS_FIELD }, ...m.cells.map((c) => ({ range: `${col}${c.row}`, value: c.after }))], true);
+  const byRow = new Map(items.map((x) => [x.row, x.cells]));
+  for (const c of m.cells) {
+    const cells = byRow.get(c.row) || {};
+    await logChanges("workstream", cells["Workstream ID"] || "", cells["Company"] || "", by, [{ field: SWD_STATUS_FIELD, before: c.before, after: c.after }]);
+  }
 }
 
 export async function readWorkstreams(fresh = false): Promise<Workstream[]> {
@@ -208,7 +222,8 @@ export interface WorkstreamUpdate {
 }
 
 export async function updateWorkstream(input: WorkstreamUpdate, by: string): Promise<Workstream> {
-  const { headers, items } = await workstreamRows(true);
+  const { headers, items, migration } = await workstreamRows(true);
+  if (migration) await applySellWithDellMigration(migration, items, by);
   const hit = items.find((x) => x.cells["Workstream ID"] === input.gid);
   if (!hit) throw new Error("That workstream no longer exists — refresh and try again.");
   const cellChanges = cellChangesFromFieldChanges(input.changes);

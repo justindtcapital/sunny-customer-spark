@@ -116,11 +116,11 @@ export const PROGRAM_FIELDS: Record<WorkstreamSegment, Array<[string, keyof Work
     ["Dell targets", "targets"],
     ["Stakeholders", "dellStakeholders"],
     ["Sell-in status", "sellInStatus"],
-    ["Sell With Dell maturity", "maturity"],
+    ["Sell With Dell status", "maturity"],
   ],
   GTM: [
     ["SageTap status", "sageTapStatus"],
-    ["Sell With Dell maturity", "gtmMaturity"],
+    ["Sell With Dell status", "gtmMaturity"],
     ["GTM category", "category"],
   ],
   Other: [

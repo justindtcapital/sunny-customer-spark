@@ -5,6 +5,7 @@
 import type { FieldChange, WorkstreamFieldMeta } from "./asana-field-payload";
 import { LEAD_INVESTORS } from "./portco-import";
 import { teamMemberFor, CORE_TEAM } from "./user-ownership";
+import { SWD_STATUS_FIELD, SWD_STATUS_OPTIONS } from "./sell-with-dell-status";
 
 export type PortcoFieldType = "enum" | "multi_enum" | "number" | "date" | "text";
 export interface PortcoFieldDef { name: string; type: PortcoFieldType; options?: readonly string[] }
@@ -36,7 +37,7 @@ export const WORKSTREAM_FIELD_DEFS: readonly PortcoFieldDef[] = [
   { name: "GTM Strategy Category", type: "enum", options: ["Dell Leverage - Sell Through", "Other Partner - Sell Through", "Strategy Work - General", "PMF / Messaging Work"] },
   { name: "Dell Stakeholders", type: "text" },
   { name: "Dell Targets", type: "enum", options: ["Dell - A/P", "Dell - Edge BU", "Dell - UDS", "Dell - IT", "Dell - Rev Ops", "Dell - CSG", "Dell - CSS", "Dell - Services", "Dell - ISG", "Dell - DFS", "Dell - ARB", "Dell - Supply Chain", "Dell - Execs", "Dell - Finance", "Dell - Sales", "Dell - OEM"] },
-  { name: "Sell With Dell - Maturity", type: "enum", options: SWD_MATURITY },
+  { name: SWD_STATUS_FIELD, type: "enum", options: SWD_STATUS_OPTIONS },
   { name: "DTC - Dell Leverage Opportunity", type: "enum", options: ["Immediate - Active", "Potentially - Evaluating", "Feasable - No Activity"] },
   { name: "DTC Dell Leverage Priority", type: "enum", options: ["High ROI", "Moderate ROI", "Low ROI"] },
   { name: "SageTap Status", type: "enum", options: SAGETAP },
