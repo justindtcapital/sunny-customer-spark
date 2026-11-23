@@ -54,12 +54,12 @@ export interface SwdMigration {
 export function normalizeSellWithDell<T extends { row: number; cells: Record<string, string> }>(
   headers: string[],
   items: T[],
-): { headers: string[]; items: T[]; migration: SwdMigration | null } {
+): { headers: string[]; items: Array<T & { cells: Record<string, string> }>; migration: SwdMigration | null } {
   const column = headers.indexOf(LEGACY_SWD_FIELD);
   if (column < 0 || headers.includes(SWD_STATUS_FIELD)) return { headers, items, migration: null };
   const nextHeaders = headers.map((h, i) => (i === column ? SWD_STATUS_FIELD : h));
   const cells: SwdCellRewrite[] = [];
-  const nextItems = items.map((x) => {
+  const nextItems = items.map((x): T & { cells: Record<string, string> } => {
     const { [LEGACY_SWD_FIELD]: legacy = "", ...rest } = x.cells;
     const after = sellWithDellStatusFrom(legacy);
     if (after !== legacy) cells.push({ row: x.row, before: legacy, after });
