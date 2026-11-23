@@ -77,7 +77,7 @@ export function BroadcastDialog({ open, onOpenChange, card, onEmailTarget }: Bro
     setPostBusy(true);
     try {
       const res = await draftLinkedInPost({
-        data: { company: card.company, headline: card.headline, summary: card.summary, sourceUrl: card.sourceUrl },
+        data: { company: card.company, headline: card.headline, summary: card.summary, sourceUrl: realSource },
       });
       if (!res.ok || !res.post) {
         toast.error(res.error || "Could not draft the post.");
@@ -164,7 +164,7 @@ export function BroadcastDialog({ open, onOpenChange, card, onEmailTarget }: Bro
           <div className="space-y-3 py-1">
             {!post && !postBusy && (
               <p className="text-xs text-muted-foreground">
-                Draft a LinkedIn post in DTC's voice about this signal — with #DellTechCapital and relevant hashtags.
+                Draft a LinkedIn post in DTC's voice about this signal — with a link to the article, #DTC and relevant hashtags.
               </p>
             )}
             {postBusy && (
