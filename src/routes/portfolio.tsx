@@ -638,7 +638,8 @@ function PortfolioPage() {
   };
 
   return (
-    <div className="p-6 max-w-[1400px] mx-auto">
+    // The edit tables use the full window width (left-aligned) so wider windows show more columns.
+    <div className={view === "list" ? "p-6 max-w-[1400px] mx-auto" : "p-6 w-full"}>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-lg font-bold text-foreground">Portfolio Companies</h1>
