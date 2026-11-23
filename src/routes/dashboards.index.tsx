@@ -111,7 +111,7 @@ function DashboardsHub() {
             </div>
           ) : <Unavailable text={contactsLoading ? "Loading…" : "Network data unavailable"} />}
         </Tile>
-        <Tile to="/dashboards/dell" title="Dell Leverage Dashboard" sub="Sell-In and Sell-With pipeline with Dell">
+        <Tile to="/dashboards/dell" title="Dell Leverage Dashboard" sub="Sell-In and Sell-With status with Dell">
           {dell.data?.rows.length ? <div className="w-full space-y-2">
             <DellFunnel rows={dell.data.rows} compact />
             <MotionLegend small />

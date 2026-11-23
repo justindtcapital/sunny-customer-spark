@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DELL_FILTER, EXCLUDED_FIELDS, buHeatmap, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
+  DEFAULT_DELL_FILTER, EXCLUDED_FIELDS, buHeatmap, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
   primaryStage, productCounts, stakeholderMap, statusChangesFromLog, summarizeDell, type DellWorkstreamInput,
 } from "./dell-leverage";
 import type { Contact } from "./types";
@@ -70,6 +70,20 @@ describe("dell leverage summary", () => {
     expect(filterDellRows(rows, { ...DEFAULT_DELL_FILTER, missingStakeholders: true }).map((r) => r.workstreamId).sort()).toEqual(["b", "d", "e", "g"]);
     expect(filterDellRows(rows, { ...DEFAULT_DELL_FILTER, includeCompleted: false }).some((r) => r.completed)).toBe(false);
     expect(filterDellRows(rows, { ...DEFAULT_DELL_FILTER, stage: "Existing" }).map((r) => r.id).sort()).toEqual(["b:Sell-With", "g:Sell-In"]);
+  });
+
+  it("filters to one company picked on the board", () => {
+    expect(filterDellRows(rows, { ...DEFAULT_DELL_FILTER, company: "Redis" }).map((r) => r.id)).toEqual(["a:Sell-In", "b:Sell-With"]);
+  });
+
+  it("company board puts each company in every status it has work in, with its motions", () => {
+    const board = companyStageBoard(rows);
+    expect(board.map((c) => c.stage)).toEqual(["Interested / Not Engaged", "Trying to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing", "Not set"]);
+    const col = (s: string) => board.find((c) => c.stage === s)!;
+    expect(col("Engaged / Progressing").companies).toEqual([{ company: "Alation", motions: ["Sell-In"], workstreams: 1 }, { company: "Redis", motions: ["Sell-In"], workstreams: 1 }]);
+    expect(col("Existing").companies.map((c) => c.company)).toEqual(["Druva", "Redis"]);
+    expect(col("Trying to Engage").companies).toEqual([{ company: "Alation", motions: ["Sell-With"], workstreams: 1 }]);
+    expect(col("Interested / Not Engaged").companies).toEqual([]);
   });
 
   it("BU heatmap is alphabetical with BU not set last", () => {

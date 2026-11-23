@@ -4,10 +4,11 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Loader2, UserRoundX, X } from "lucide-react";
+import { PortcoLogo } from "@/components/portfolio/PortcoLogo";
 import { fetchDellLeverageFn, type DellLeverageData } from "@/utils/dell-leverage.functions";
 import { useAuth } from "@/lib/auth-context";
 import {
-  ALL_STAGES, DEFAULT_DELL_FILTER, DELL_MOTIONS, NO_BU, PIPELINE_STAGES, buHeatmap, existingOutcomes, filterDellRows, hasLinkedStakeholder,
+  ALL_STAGES, DEFAULT_DELL_FILTER, DELL_MOTIONS, NO_BU, PIPELINE_STAGES, buHeatmap, companyStageBoard, existingOutcomes, filterDellRows, hasLinkedStakeholder,
   movementInWindow, productCounts, stageCounts, stakeholderMap, summarizeDell,
   type DellFilter, type DellMotion, type DellRow, type DellStage, type Movement, type MovementKind,
 } from "@/lib/dell-leverage";
@@ -33,13 +34,13 @@ export function useDellLeverage() {
   return useQuery<DellLeverageData>({ queryKey: ["dell-leverage"], queryFn: () => fetchDellLeverageFn(), enabled: ready && !!email, staleTime: 5 * 60_000 });
 }
 
-function Stat({ label, value, sub, onClick, active }: { label: string; value: string; sub?: string; onClick?: () => void; active?: boolean }) {
+function Stat({ label, value, sub, onClick, active, dot, dim }: { label: string; value: string; sub?: string; onClick?: () => void; active?: boolean; dot?: string; dim?: boolean }) {
   const body = <CardContent className="p-4">
-    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+    <p className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">{dot && <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: dot }} />}{label}</p>
     <p className="font-display text-2xl font-semibold tabular-nums text-foreground mt-1">{value}</p>
     {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
   </CardContent>;
-  return <Card className={cn("border-border", active && "ring-2 ring-primary", onClick && "cursor-pointer transition-shadow hover:shadow-md")} onClick={onClick}>{body}</Card>;
+  return <Card className={cn("border-border", active && "ring-2 ring-primary", dim && "opacity-50", onClick && "cursor-pointer transition-shadow hover:shadow-md")} onClick={onClick}>{body}</Card>;
 }
 
 function Section({ title, sub, children, className = "" }: { title: string; sub?: string; children: React.ReactNode; className?: string }) {
@@ -74,6 +75,45 @@ export function MotionLegend({ small = false }: { small?: boolean }) {
   </div>;
 }
 
+/** Ring colour for a company circle: one motion's colour, or split when it holds both. */
+const motionRing = (motions: DellMotion[]) => motions.length > 1
+  ? `linear-gradient(90deg, ${MOTION_COLOR["Sell-In"]} 50%, ${MOTION_COLOR["Sell-With"]} 50%)`
+  : MOTION_COLOR[motions[0] ?? "Sell-In"];
+
+/** Company logos laid out by Dell status column. Click a column to filter by status, a logo by company. */
+function CompanyBoard({ rows, websites, stage, company, onStage, onCompany }: {
+  rows: DellRow[]; websites: Record<string, string>; stage: DellStage | null; company: string | null;
+  onStage: (s: DellStage) => void; onCompany: (c: string) => void;
+}) {
+  const board = companyStageBoard(rows);
+  return <div className="overflow-x-auto">
+    <div className="grid min-w-[900px] gap-3" style={{ gridTemplateColumns: `repeat(${board.length}, minmax(0, 1fr))` }}>
+      {board.map((col) => (
+        <div key={col.stage} className={cn("rounded-lg border p-2 transition-opacity", stage === col.stage ? "border-primary bg-muted/40" : "border-border", stage && stage !== col.stage && "opacity-50")}>
+          <button type="button" onClick={() => onStage(col.stage)} className="flex w-full items-baseline justify-between gap-2 rounded px-1 py-0.5 text-left hover:bg-muted/60">
+            <span className="text-xs font-semibold text-foreground">{col.stage}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">{col.companies.length}</span>
+          </button>
+          <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(3.5rem,1fr))] gap-x-1 gap-y-2">
+            {col.companies.map((c) => (
+              <button key={c.company} type="button" onClick={() => onCompany(c.company)}
+                title={`${c.company} · ${c.motions.join(" + ")} · ${c.workstreams} workstream${c.workstreams === 1 ? "" : "s"}`}
+                className={cn("flex min-w-0 flex-col items-center gap-1 rounded-md p-1 hover:bg-muted/60", company === c.company && "bg-muted ring-1 ring-primary", company && company !== c.company && "opacity-40")}>
+                <span className="relative rounded-full p-[2px]" style={{ background: motionRing(c.motions) }}>
+                  <span className="block rounded-full bg-card"><PortcoLogo name={c.company} website={websites[c.company]} /></span>
+                  {c.workstreams > 1 && <span className="absolute -right-1.5 -top-1 rounded-full bg-foreground px-1 text-[9px] font-semibold leading-4 text-background">{c.workstreams}</span>}
+                </span>
+                <span className="w-full truncate text-center text-[10px] leading-tight text-foreground">{c.company}</span>
+              </button>
+            ))}
+          </div>
+          {!col.companies.length && <p className="px-1 py-2 text-[11px] text-muted-foreground">None yet</p>}
+        </div>
+      ))}
+    </div>
+  </div>;
+}
+
 const MOVE_LABEL: Record<MovementKind, string> = { advanced: "Advanced", slipped: "Slipped", new: "New", closed: "Closed" };
 const MOVE_TONE: Record<MovementKind, string> = {
   advanced: "bg-good text-good-foreground", slipped: "bg-hot text-hot-foreground", new: "bg-cold text-cold-foreground", closed: "bg-muted text-muted-foreground",
@@ -91,7 +131,8 @@ export function DellLeverageDashboard() {
 
   const all = useMemo(() => q.data?.rows ?? [], [q.data]);
   const rows = useMemo(() => filterDellRows(all, filter), [all, filter]);
-  const funnelRows = useMemo(() => filterDellRows(all, filter, ["stage"]), [all, filter]);
+  const boardRows = useMemo(() => filterDellRows(all, filter, ["stage", "company"]), [all, filter]);
+  const motionRows = useMemo(() => filterDellRows(all, filter, ["motion"]), [all, filter]);
   const heatRows = useMemo(() => filterDellRows(all, filter, ["bu", "stage"]), [all, filter]);
   const summary = useMemo(() => summarizeDell(rows), [rows]);
   const heat = useMemo(() => buHeatmap(heatRows), [heatRows]);
@@ -118,12 +159,6 @@ export function DellLeverageDashboard() {
   return <div className="space-y-5">
     {/* Filters */}
     <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex rounded-md border border-border bg-card p-0.5">
-        {(["Both", ...DELL_MOTIONS] as const).map((m) => (
-          <button key={m} type="button" onClick={() => set({ motion: m })}
-            className={cn("rounded px-3 py-1 text-xs font-medium", filter.motion === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>{m}</button>
-        ))}
-      </div>
       <Select value={filter.bu ?? ALL} onValueChange={(v) => set({ bu: v === ALL ? null : v })}>
         <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Dell BU" /></SelectTrigger>
         <SelectContent><SelectItem value={ALL}>All Dell BUs</SelectItem>{buOptions.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}</SelectContent>
@@ -136,56 +171,39 @@ export function DellLeverageDashboard() {
         <SelectTrigger className="h-8 w-48 text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
         <SelectContent><SelectItem value={ALL}>All statuses</SelectItem>{ALL_STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
       </Select>
-      <button type="button" onClick={() => toggle("missingStakeholders", true)}
-        className={cn("inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs", filter.missingStakeholders ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-muted-foreground hover:text-foreground")}>
-        <UserRoundX className="h-3.5 w-3.5" />Missing stakeholders
-      </button>
+      {filter.company && <button type="button" onClick={() => set({ company: null })} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-primary bg-primary px-3 text-xs text-primary-foreground">{filter.company}<X className="h-3 w-3" /></button>}
       <label className="inline-flex items-center gap-2 text-xs text-muted-foreground"><Switch checked={filter.includeCompleted} onCheckedChange={(v) => set({ includeCompleted: v })} />Include completed</label>
       {filtered && <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setFilter(DEFAULT_DELL_FILTER); setMoveKind(null); }}><X className="h-3.5 w-3.5 mr-1" />Clear filters</Button>}
     </div>
 
     {/* KPIs */}
-    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3">
+      {DELL_MOTIONS.map((m) => {
+        const mine = motionRows.filter((r) => r.motion === m);
+        const engaged = mine.filter((r) => r.stage === "Engaged / Progressing" || r.stage === "Engaged / Stalled").length;
+        const live = mine.filter((r) => r.stage === "Existing").length;
+        return <Stat key={m} label={m} dot={MOTION_COLOR[m]} value={String(new Set(mine.map((r) => r.workstreamId)).size)} sub={`${engaged} engaged · ${live} live`}
+          onClick={() => set({ motion: filter.motion === m ? "Both" : m })} active={filter.motion === m} dim={filter.motion !== "Both" && filter.motion !== m} />;
+      })}
       <Stat label="Active Dell workstreams" value={String(summary.active)} sub={`${summary.byMotion["Sell-In"]} Sell-In · ${summary.byMotion["Sell-With"]} Sell-With${summary.workstreams !== summary.active ? ` · ${summary.workstreams - summary.active} completed` : ""}`} />
       <Stat label="Engaged & progressing" value={String(summary.progressing)} onClick={() => toggle("stage", "Engaged / Progressing")} active={filter.stage === "Engaged / Progressing"} />
       <Stat label="Stalled" value={String(summary.stalled)} sub={summary.stalledShare == null ? "No engaged workstreams" : `${Math.round(summary.stalledShare * 100)}% of engaged`} onClick={() => toggle("stage", "Engaged / Stalled")} active={filter.stage === "Engaged / Stalled"} />
       <Stat label="Live with Dell" value={String(summary.existing)} sub="Existing outcomes" onClick={() => toggle("stage", "Existing")} active={filter.stage === "Existing"} />
       <Stat label="Companies" value={String(summary.companies)} sub={`${summary.stakeholderReach} Dell people engaged`} />
       <Stat label="Stakeholder coverage" value={pct(summary.coverage.covered, summary.coverage.total)}
-        sub={`Sell-In ${pct(summary.coverageByMotion["Sell-In"].covered, summary.coverageByMotion["Sell-In"].total)} · Sell-With ${pct(summary.coverageByMotion["Sell-With"].covered, summary.coverageByMotion["Sell-With"].total)}`}
-        onClick={() => toggle("missingStakeholders", true)} active={filter.missingStakeholders} />
+        sub={`Sell-In ${pct(summary.coverageByMotion["Sell-In"].covered, summary.coverageByMotion["Sell-In"].total)} · Sell-With ${pct(summary.coverageByMotion["Sell-With"].covered, summary.coverageByMotion["Sell-With"].total)}`} />
     </div>
     {!q.data.stakeholdersLinked && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5" />Network people couldn't be read, so stakeholder names aren't linked and coverage reads low.</p>}
 
-    {/* Funnel + motion split */}
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-      <Section title="Pipeline" sub="From first interest to live with Dell. Click a stage to filter." className="lg:col-span-2">
-        <DellFunnel rows={funnelRows} selected={filter.stage} onStage={(s) => toggle("stage", s)} />
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <MotionLegend />
-          <span className="text-xs text-muted-foreground">
-            {stageCounts(funnelRows).filter((c) => c.stage === "Not Moving Forward" || c.stage === "Not set").map((c) => (
-              <button key={c.stage} type="button" onClick={() => toggle("stage", c.stage)} className={cn("ml-3 hover:text-foreground", filter.stage === c.stage && "font-semibold text-foreground")}>{c.stage}: {c.total}</button>
-            ))}
-          </span>
-        </div>
-      </Section>
-      <Section title="Sell-In vs Sell-With" sub="Selling to Dell as a customer, and selling with Dell to its customers.">
-        <div className="grid grid-cols-2 gap-3">
-          {DELL_MOTIONS.map((m) => {
-            const mine = funnelRows.filter((r) => r.motion === m);
-            const live = mine.filter((r) => r.stage === "Existing").length;
-            const engaged = mine.filter((r) => r.stage === "Engaged / Progressing" || r.stage === "Engaged / Stalled").length;
-            return <button key={m} type="button" onClick={() => set({ motion: filter.motion === m ? "Both" : m })}
-              className={cn("rounded-lg border p-3 text-left hover:shadow-sm", filter.motion === m ? "border-primary" : "border-border")}>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-foreground"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: MOTION_COLOR[m] }} />{m}</span>
-              <span className="mt-2 block font-display text-3xl font-semibold tabular-nums text-foreground">{new Set(mine.map((r) => r.workstreamId)).size}</span>
-              <span className="block text-[11px] text-muted-foreground">{engaged} engaged · {live} live</span>
-            </button>;
-          })}
-        </div>
-      </Section>
-    </div>
+    {/* Company board */}
+    <Section title="Companies by Dell status" sub="Each PortCo in every status it has Dell work in. Click a status or a company to filter the page.">
+      <CompanyBoard rows={boardRows} websites={q.data.websites ?? {}} stage={filter.stage} company={filter.company}
+        onStage={(st) => toggle("stage", st)} onCompany={(c) => toggle("company", c)} />
+      <div className="mt-3 flex flex-wrap items-center gap-4">
+        <MotionLegend />
+        <span className="text-xs text-muted-foreground">Split ring = both · number = workstreams at that status</span>
+      </div>
+    </Section>
 
     {/* BU heatmap */}
     <Section title="Dell business units" sub="Workstreams per Dell BU and stage. Click a BU or a cell to filter.">
@@ -287,9 +305,9 @@ export function DellLeverageDashboard() {
               </span>
             </li>)}
           </ul> : <p className="mt-2 text-xs text-muted-foreground">No stakeholders named yet.</p>}
-          {b.gaps > 0 && <button type="button" onClick={() => set({ bu: b.bu, missingStakeholders: true })} className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-hot-foreground hover:underline">
+          {b.gaps > 0 && <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-hot-foreground">
             <UserRoundX className="h-3 w-3" />{b.gaps} without a linked stakeholder
-          </button>}
+          </p>}
         </div>)}
       </div>
     </Section>

@@ -155,10 +155,12 @@ export interface DellFilter {
   bu: string | null;
   domain: string | null;
   stage: DellStage | null;
+  /** One company, picked from the company board. */
+  company: string | null;
   missingStakeholders: boolean;
   includeCompleted: boolean;
 }
-export const DEFAULT_DELL_FILTER: DellFilter = { motion: "Both", bu: null, domain: null, stage: null, missingStakeholders: false, includeCompleted: true };
+export const DEFAULT_DELL_FILTER: DellFilter = { motion: "Both", bu: null, domain: null, stage: null, company: null, missingStakeholders: false, includeCompleted: true };
 
 export const hasLinkedStakeholder = (r: DellRow) => r.stakeholders.some((s) => s.status === "linked");
 
@@ -169,6 +171,7 @@ export function filterDellRows(rows: DellRow[], f: DellFilter, skip: Array<keyof
     && (!on("bu") || !f.bu || r.bu === f.bu)
     && (!on("domain") || !f.domain || r.domain === f.domain)
     && (!on("stage") || !f.stage || r.stage === f.stage)
+    && (!on("company") || !f.company || r.company === f.company)
     && (!on("missingStakeholders") || !f.missingStakeholders || !hasLinkedStakeholder(r))
     && (!on("includeCompleted") || f.includeCompleted || !r.completed));
 }
@@ -229,6 +232,27 @@ export function stageCounts(rows: DellRow[]): Array<{ stage: DellStage; "Sell-In
     const sw = rows.filter((r) => r.stage === stage && r.motion === "Sell-With").length;
     return { stage, "Sell-In": si, "Sell-With": sw, total: si + sw };
   });
+}
+
+export interface BoardCompany { company: string; motions: DellMotion[]; workstreams: number }
+
+/**
+ * Company board: each status column lists the companies with a workstream at that status (a company
+ * shows in every column it has work in), alphabetical, with the motions it holds there. Empty
+ * "Not Moving Forward" / "Not set" columns are left out; the pipeline columns always show.
+ */
+export function companyStageBoard(rows: DellRow[]): Array<{ stage: DellStage; companies: BoardCompany[]; workstreams: number }> {
+  return ALL_STAGES.map((stage) => {
+    const mine = rows.filter((r) => r.stage === stage);
+    const by = new Map<string, { motions: Set<DellMotion>; ids: Set<string> }>();
+    for (const r of mine) {
+      const e = by.get(r.company) ?? { motions: new Set<DellMotion>(), ids: new Set<string>() };
+      e.motions.add(r.motion); e.ids.add(r.workstreamId); by.set(r.company, e);
+    }
+    const companies = [...by.entries()].map(([company, e]) => ({ company, motions: DELL_MOTIONS.filter((m) => e.motions.has(m)), workstreams: e.ids.size }))
+      .sort((a, b) => a.company.localeCompare(b.company));
+    return { stage, companies, workstreams: new Set(mine.map((r) => r.workstreamId)).size };
+  }).filter((c) => (PIPELINE_STAGES as DellStage[]).includes(c.stage) || c.companies.length > 0);
 }
 
 /** BU × stage counts; BUs alphabetical with "BU not set" last (never ordered by importance). */

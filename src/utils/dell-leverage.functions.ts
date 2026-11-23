@@ -7,6 +7,8 @@ export interface DellLeverageData {
   changes: StatusChange[];
   /** False when Network people couldn't be read, so stakeholder names show unlinked. */
   stakeholdersLinked: boolean;
+  /** Company website per row company name, for logos. */
+  websites: Record<string, string>;
   /** False when the PortCo Change Log couldn't be read. */
   movementAvailable: boolean;
   error: string;
@@ -33,9 +35,12 @@ export const fetchDellLeverageFn = createServerFn({ method: "GET" })
       ]);
       const domains = new Map(companies.map((c) => [portCoKey(c.name || ""), domainCategory(c.domain)]));
       const rows = dellRowsFrom(workstreams, { contacts, domainOf: (company) => domains.get(portCoKey(company)) || "Other" });
-      return { rows, changes: log ? statusChangesFromLog(log) : [], stakeholdersLinked: !!contacts, movementAvailable: !!log, error: "" };
+      const sites = new Map(companies.map((c) => [portCoKey(c.name || ""), c.website || ""]));
+      const websites: Record<string, string> = {};
+      for (const r of rows) { const w = sites.get(portCoKey(r.company)); if (w) websites[r.company] = w; }
+      return { rows, websites, changes: log ? statusChangesFromLog(log) : [], stakeholdersLinked: !!contacts, movementAvailable: !!log, error: "" };
     } catch (e) {
       console.error("[dell-leverage] read failed", e);
-      return { rows: [], changes: [], stakeholdersLinked: false, movementAvailable: false, error: e instanceof Error ? e.message : String(e) };
+      return { rows: [], websites: {}, changes: [], stakeholdersLinked: false, movementAvailable: false, error: e instanceof Error ? e.message : String(e) };
     }
   });
