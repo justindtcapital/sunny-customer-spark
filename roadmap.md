@@ -36,4 +36,4 @@
 - [x] Dell engagement notes: drafted by V.I.C., editable, saved only when approved
 - [x] Dell dashboard: full-width status board, Sell-In/Sell-With pills by the title, BU picker top right, workstream list (company, engagement, stage track, stakeholders, current state & next steps) replaces pop-ups
 - [x] Dell dashboard: remove BU chart, editable Asks of Dell column (V.I.C. suggestions), Movement right under the list
-- [ ] Dell dashboard: confirm which lower boxes stay (outcomes, products, stakeholders by BU) — waiting on Chris
+- [x] Dell dashboard: lower boxes confirmed (outcomes, products, stakeholders by BU all stay)
