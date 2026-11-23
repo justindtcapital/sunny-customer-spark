@@ -20,7 +20,7 @@ import { emailMatchesName, extractEmails, isNetworkTitle, matchesQuery, personIn
 import { suggestPeople } from "@/lib/meeting-roster";
 import { CORE_TEAM, teamMemberFor } from "@/lib/user-ownership";
 import { coreAssignee, normalizeAssignedStep } from "@/lib/team-next-steps";
-import { meetingTitleDefaults, reviewPeopleFromRows, uniqueReviewPerson } from "@/lib/review-tagging";
+import { exactPersonCandidates, meetingTitleDefaults, reviewPeopleFromRows, uniqueReviewPerson } from "@/lib/review-tagging";
 
 const REVIEW_PREFIX = "review:";
 const NOTE_SOURCES = new Set(["granola", "upload", "drive-doc"]);
@@ -68,6 +68,8 @@ export interface NotePerson {
   status: string;
   /** Likely CRM contacts for first-name-only or unrecognized people. */
   suggestions: PersonMatch[];
+  /** Two or more saved records that are exactly this person (merge or pick one). */
+  duplicates?: PersonMatch[];
 }
 
 export interface NoteInboxItem {
@@ -238,7 +240,12 @@ export async function listNotesInbox(history: boolean, owner?: string, kind: Inb
           else map.set(hit, { ...p, key: hit, email: hit, where: whereOf(hit, p.name) });
         }
         const hints = [r.portco, ...[...map.values()].map((p) => p.company), ...[...map.values()].map((p) => p.email.split("@")[1] || "")].filter(Boolean);
-        for (const p of map.values()) if (p.where === "New") p.suggestions = suggestPeople(p, people, hints) as PersonMatch[];
+        for (const p of map.values()) {
+          if (p.where !== "New") continue;
+          const same = exactPersonCandidates(p, people);
+          if (same.length >= 2) { p.duplicates = same; p.suggestions = same; }
+          else p.suggestions = suggestPeople(p, people, hints) as PersonMatch[];
+        }
         return [...map.values()];
       })(),
       review,
@@ -272,19 +279,21 @@ export interface ReviewNoteInput {
   partners?: string[];
 }
 
-export interface PersonMatch { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" | "Team" }
+export interface PersonMatch { name: string; email: string; company: string; title?: string; where: "Network" | "Prospecting" | "Team"; urid?: string }
 
 /** Read one canonical Contacts list; status flags distinguish Network and Prospecting. */
-export async function peopleDirectory(): Promise<Array<PersonMatch & { where: "Network" | "Prospecting" }>> {
+export async function peopleDirectory(): Promise<Array<PersonMatch & { where: "Network" | "Prospecting"; urid: string }>> {
   return reviewPeopleFromRows(await fetchSheetTab("Contacts"));
 }
 
-/** Contact search for the review cards. */
-export async function searchPeople(q: string): Promise<PersonMatch[]> {
+/** Contact search for the review cards: teammates first, then ranked saved people (meeting companies boosted). */
+export async function searchPeople(q: string, hints: string[] = []): Promise<PersonMatch[]> {
   if (q.trim().length < 2) return [];
   const all = await peopleDirectory();
+  const { rankPeopleMatches } = await import("@/lib/people-finder");
   const team = CORE_TEAM.filter((p) => matchesQuery(q, p.searchTerms)).map(({ searchTerms: _terms, ...p }) => p);
-  return [...team, ...all.filter((p) => !coreAssignee(p.email) && !coreAssignee(p.name) && matchesQuery(q, [p.name, p.email, p.company]))].slice(0, 12);
+  const saved = rankPeopleMatches(q, all.filter((p) => !coreAssignee(p.email) && !coreAssignee(p.name)), hints, 20);
+  return [...team, ...saved];
 }
 
 export interface PersonContextItem {
@@ -364,13 +373,15 @@ export async function reviewNote(input: ReviewNoteInput, step: (name: string) =>
     const { addContactRow } = await import("./sheets.server");
     for (const c of input.addPeople) {
       try {
-        await addContactRow({
+        const res = await addContactRow({
           name: c.name || c.email, role: "", company: c.company, email: c.email, phone: "", location: "",
           prime: input.reviewer, sector: "", temperature: "Cold", source: "Meeting Notes",
           sourceContext: r.title,
         } as Parameters<typeof addContactRow>[0]);
         if (c.suggestionId) await reviewSuggestedContact(c.suggestionId, "approved-network");
-        added++;
+        // Already saved: no new row — tag the note to the saved record's email instead.
+        if (!res.created && res.existing.email) c.email = res.existing.email;
+        if (res.created) added++;
       } catch (e) {
         console.error("[notes-inbox] add contact failed:", e);
       }

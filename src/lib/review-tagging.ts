@@ -66,6 +66,21 @@ export function uniqueReviewPerson<T extends DirPerson>(person: { name: string; 
   return { ...hit, email: primary };
 }
 
+/**
+ * Every saved record that is exactly this person (same email, or the same full
+ * name when there is no email). Two or more means the CRM holds duplicates —
+ * the review card offers merge-or-pick instead of "Add to contacts".
+ */
+export function exactPersonCandidates<T extends DirPerson>(person: { name: string; email?: string }, directory: T[]): T[] {
+  const index = dirIndex(directory);
+  const emails = extractEmails(person.email || "");
+  const name = nameKey(person.name);
+  const hits = emails.length
+    ? emails.flatMap((e) => index.byEmail.get(e) || [])
+    : name.split(" ").length >= 2 && !isPlaceholderName(name) ? index.byName.get(name) || [] : [];
+  return [...new Set(hits)];
+}
+
 /** Formatting/suffix variants only, not substring/fuzzy guesses; ties stay separate. */
 export function reviewCompanyName(name: string, canonicalNames: string[]): string {
   const scored = canonicalNames.map((canonical) => ({ canonical, score: scorePortcoNameMatch(name, canonical) }))
@@ -84,16 +99,19 @@ export function reviewCompanyOptions(canonical: string[], others: string[]): str
 }
 
 /** One canonical Contacts table, status decides the view, never a second Targets read. */
-export function reviewPeopleFromRows(rows: string[][]): Array<DirPerson & { where: "Network" | "Prospecting" }> {
+export function reviewPeopleFromRows(rows: string[][]): Array<DirPerson & { where: "Network" | "Prospecting"; urid: string; title: string }> {
   const headers = (rows[0] || []).map((h) => h.trim().toLowerCase());
   const col = (re: RegExp) => headers.findIndex((h) => re.test(h));
   const n = col(/^(full )?name$|^contact name$/), e = col(/^e-?mail(?: address)?$/), c = col(/^company|organization|employer/);
   const f = col(/^first name$/), l = col(/^last name$/), t = col(/^(job )?title$|^position$|^role$/);
-  const status = col(/^relationship status$/);
+  const status = col(/^relationship status$/), u = col(/^urid$/);
   return rows.slice(1).flatMap((r) => {
+    // Archived merge copies are history, not people: counting them made every
+    // merged person look "ambiguous" and re-offered as new.
+    if ((r[status] || "").trim().toLowerCase() === "merged") return [];
     const name = (n >= 0 ? r[n] || "" : `${r[f] || ""} ${r[l] || ""}`).trim();
     const email = (r[e] || "").trim().toLowerCase();
-    return name || email ? [{ name, email, company: (r[c] || "").trim(), title: (r[t] || "").trim(),
+    return name || email ? [{ name, email, company: (r[c] || "").trim(), title: (r[t] || "").trim(), urid: u >= 0 ? (r[u] || "").trim() : "",
       where: (r[status] || "").trim().toLowerCase() === "prospecting" ? "Prospecting" as const : "Network" as const }] : [];
   });
 }

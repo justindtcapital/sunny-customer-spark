@@ -21,3 +21,9 @@
 - [x] Database copy of Sheets tabs; reads from copy, saves write-through
 - [x] Scheduled check every 15 minutes (user choice) + Refresh from Sheets button
 - [x] First copy run + verify pages load from copy
+
+## Duplicate people
+- [x] One duplicate check on every "add person" path (email, LinkedIn, full name + company; Network and Prospecting)
+- [x] Promote to CRM moves the same Prospecting record instead of copying it
+- [x] My Actions people finder: opens under the name, better ranking, merge or edit duplicates in place
+- [ ] Clean up the ~89 existing duplicates — via Network → Import → Find duplicates (user reviews each merge)

@@ -530,11 +530,15 @@ export const addContact = createServerFn({ method: "POST" })
     await ensureColumn(TAB_NAMES.contacts, "Source");
     if (data.followUp) await ensureColumn(TAB_NAMES.contacts, "Follow Up Flag");
     if (data.sourceContext) await ensureColumn(TAB_NAMES.contacts, "Source Context");
-    await addContactRow({
+    const res = await addContactRow({
       ...data,
       linkedin: data.linkedinUrl,
       source: data.source || "Manual Entry",
     });
+    if (!res.created) {
+      const where = res.existing.status.trim().toLowerCase() === "prospecting" ? "Prospecting" : "the Network";
+      throw new Error(`${res.existing.name || "This person"} is already in ${where}${res.existing.reason === "email" ? " with this email" : res.existing.reason === "linkedin" ? " with this LinkedIn" : " at this company"} — open that person instead.`);
+    }
     return { success: true };
   });
 

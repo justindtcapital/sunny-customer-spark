@@ -190,7 +190,7 @@ export async function applyQueryWrite(
         const name = str(d.name);
         const email = str(d.email);
         if (!name && !email) return { ok: false, error: "Missing name/email" };
-        await addContactRow({
+        const res = await addContactRow({
           name,
           role: str(d.title),
           company: str(d.company),
@@ -204,7 +204,9 @@ export async function applyQueryWrite(
         });
         return {
           ok: true,
-          summary: `Approved & applied (sheets_add_contact): ${name || email}`,
+          summary: res.created
+            ? `Approved & applied (sheets_add_contact): ${name || email}`
+            : `Already in contacts as ${res.existing.name || res.existing.email} — nothing added (sheets_add_contact)`,
         };
       }
 

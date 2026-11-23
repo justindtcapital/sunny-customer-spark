@@ -310,7 +310,7 @@ export const addPortcoPeopleFromApollo = createServerFn({ method: "POST" })
         if (!email) result.noEmail++;
 
         try {
-          await addContactRow({
+          const res = await addContactRow({
             name: name.trim() || p.firstName,
             role: title || "",
             company: companyName,
@@ -324,6 +324,7 @@ export const addPortcoPeopleFromApollo = createServerFn({ method: "POST" })
             source: "Apollo",
             sourceContext: `PortCo Key People · ${companyName}`,
           });
+          if (!res.created) { result.duplicates++; continue; }
           result.added++;
           const label = `${name.trim()}${email ? ` <${email}>` : linkedinUrl ? ` · ${linkedinUrl}` : ""}`;
           result.created.push(label);

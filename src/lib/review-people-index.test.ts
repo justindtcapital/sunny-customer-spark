@@ -30,3 +30,22 @@ describe("review people matching (indexed)", () => {
     expect(suggestPeople({ name: "Speaker B" }, dir)).toEqual([]);
   });
 });
+
+describe("review card duplicate detection", () => {
+  it("lists every saved record for one email so the card offers merge-or-pick instead of 'new'", async () => {
+    const { exactPersonCandidates } = await import("./review-tagging");
+    expect(exactPersonCandidates({ name: "", email: "team@shared.com" }, dir).map((p) => p.name)).toEqual(["Pat Shared", "Pia Shared"]);
+    expect(exactPersonCandidates({ name: "Sam Lee" }, dir)).toHaveLength(2);
+    expect(exactPersonCandidates({ name: "Sam" }, dir)).toEqual([]);
+  });
+  it("leaves archived merge copies out of the people directory, so a merged person matches uniquely", async () => {
+    const { reviewPeopleFromRows } = await import("./review-tagging");
+    const people = reviewPeopleFromRows([
+      ["URID", "Name", "Company", "Email", "Relationship Status"],
+      ["k1", "Jill Targonski", "Wells Fargo", "jill@wf.com", "Cold"],
+      ["m1", "Jill Targonski", "Wells Fargo", "", "Merged"],
+    ]);
+    expect(people.map((p) => p.urid)).toEqual(["k1"]);
+    expect(uniqueReviewPerson({ name: "Jill Targonski" }, people)?.urid).toBe("k1");
+  });
+});

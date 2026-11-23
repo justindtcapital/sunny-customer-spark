@@ -37,6 +37,9 @@ import { coreAssignee, normalizeAssignedStep } from "@/lib/team-next-steps";
 import { usePartners } from "@/lib/use-partners";
 import { detectPartners } from "@/lib/partners";
 import { meetingTitleDefaults, reviewCompanyName, reviewCompanyOptions } from "@/lib/review-tagging";
+import { MAX_MERGE } from "@/lib/contact-merge";
+import { MergeContactsDialog } from "@/components/crm/MergeContactsDialog";
+import { PeopleFinder } from "./PeopleFinder";
 
 function Tick({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -349,10 +352,10 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
   const [wsChoice, setWsChoice] = useState<string>(suggestedGid || (sugg && !sugg.workstreamGid ? "__suggested_new" : ""));
   const [newName, setNewName] = useState(sugg && !sugg.workstreamGid ? sugg.workstreamName : "");
   const [newSegment, setNewSegment] = useState<"GTM" | "BD">("GTM");
-  type RosterRow = { key: string; heard: string; where: string; suggestionId: string; status: "linked" | "add" | "guest" | "skip" | "pending" | "team"; match?: PersonMatch; suggestions: PersonMatch[]; edit: { name: string; email: string; company: string }; editing?: boolean };
+  type RosterRow = { key: string; heard: string; where: string; suggestionId: string; status: "linked" | "add" | "guest" | "skip" | "pending" | "team"; match?: PersonMatch; suggestions: PersonMatch[]; duplicates: PersonMatch[]; edit: { name: string; email: string; company: string }; editing?: boolean };
   const [roster, setRoster] = useState<RosterRow[]>(() => item.people.map((p) => {
     const known = !!p.email && (p.where === "Network" || p.where === "Prospecting");
-    return { key: p.key, heard: p.name || p.email, where: p.where, suggestionId: p.suggestionId, suggestions: p.suggestions || [],
+    return { key: p.key, heard: p.name || p.email, where: p.where, suggestionId: p.suggestionId, suggestions: p.suggestions || [], duplicates: p.duplicates || [],
       status: p.where === "Team" ? "team" : known || p.status.startsWith("approved") ? "linked" : "pending",
       match: known ? { name: p.name, email: p.email, company: p.company, where: p.where as PersonMatch["where"] } : undefined,
       edit: { name: p.name, email: p.email, company: p.company } };
@@ -361,6 +364,17 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
   const label = (r: RosterRow) => r.match?.name || r.edit.name || r.heard;
   const patch = (key: string, v: Partial<RosterRow>) => setRoster((rs) => rs.map((r) => (r.key === key ? { ...r, ...v } : r)));
   const [linking, setLinking] = useState<string | null>(null);
+  const [finderQ, setFinderQ] = useState("");
+  const [mergeFor, setMergeFor] = useState<{ key: string; urids: string[] } | null>(null);
+  const hints = useMemo(() => [...new Set([item.portco, ...item.people.map((p) => p.company), ...item.people.map((p) => p.email.split("@")[1] || "")]
+    .flatMap((h) => (h || "").split(",")).map((h) => h.trim()).filter((h) => h.length >= 2))], [item.portco, item.people]);
+  const openFinder = (key: string, q: string) => { setLinking(linking === key ? null : key); setFinderQ(q); };
+  const pickFor = (key: string, m: PersonMatch) => {
+    if (key === "__new") {
+      if (!roster.some((x) => (x.match?.email || x.edit.email) === m.email)) setRoster((rs) => [...rs, { key: `added:${m.email}`, heard: m.name, where: m.where, suggestionId: "", suggestions: [], duplicates: [], status: m.where === "Team" ? "team" : "linked", match: m, edit: { name: m.name, email: m.email, company: m.company } }]);
+    } else patch(key, { status: m.where === "Team" ? "team" : "linked", match: m, edit: { name: m.name, email: m.email, company: m.company }, editing: false });
+    setLinking(null);
+  };
   const partnerList = usePartners();
   const detectedPartners = useMemo(() => detectPartners(`${item.title} ${item.summary}`, partnerList), [item.title, item.summary, partnerList]);
   const [partnerSel, setPartnerSel] = useState<string[] | null>(null);
@@ -396,16 +410,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
     const t = setTimeout(() => { void searchPeopleFn({ data: { q } }).then((r) => { if (live) setInvResults(r); }).catch(() => {}); }, 250);
     return () => { live = false; clearTimeout(t); };
   }, [invQ]);
-  const [pq, setPq] = useState("");
-  const [results, setResults] = useState<PersonMatch[]>([]);
   const [companySearch, setCompanySearch] = useState("");
-  useEffect(() => {
-    const q = pq.trim();
-    if (q.length < 2) { setResults([]); return; }
-    let live = true;
-    const t = setTimeout(() => { void searchPeopleFn({ data: { q } }).then((r) => { if (live) setResults(r); }).catch(() => {}); }, 250);
-    return () => { live = false; clearTimeout(t); };
-  }, [pq]);
 
 
   async function save() {
@@ -675,7 +680,7 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
                 {roster.map((r) => (
                   <div key={r.key} className={`space-y-1 rounded border border-border px-2 py-1.5 text-xs ${r.status === "skip" ? "opacity-50" : ""}`}>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="flex-1">
+                      <span className="min-w-[12rem] flex-1">
                         <span className="font-medium">{label(r)}</span>
                         {r.match ? <span className="text-muted-foreground"> {r.match.company && `· ${r.match.company}`}</span> : r.edit.email && <span className="text-muted-foreground"> {r.edit.email}</span>}
                         {r.match && r.heard && r.heard.toLowerCase() !== r.match.name.toLowerCase() && <span className="text-muted-foreground"> (heard as "{r.heard}")</span>}
@@ -688,17 +693,30 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
                       {r.status === "guest" && <Badge variant="outline" className="text-[10px]">Guest</Badge>}
                       {r.status === "skip" && <Badge variant="outline" className="text-[10px]">Skipped</Badge>}
                       {r.status === "pending" && <Badge variant="outline" className="text-[10px]">Not matched</Badge>}
-                      {r.status !== "team" && <><Button size="sm" variant={linking === r.key ? "secondary" : "outline"} onClick={() => { setLinking(linking === r.key ? null : r.key); setPq(r.status === "pending" && !/^speaker/i.test(r.heard) ? r.heard : ""); }}>{r.status === "linked" ? "Change" : "Search"}</Button>
+                      {r.status !== "team" && <><Button size="sm" variant={linking === r.key ? "secondary" : "outline"} aria-expanded={linking === r.key} onClick={() => openFinder(r.key, r.status === "linked" ? label(r) : !/^speaker/i.test(r.heard) ? r.edit.name || r.heard : "")}>{linking === r.key ? <ChevronDown className="mr-1 h-3 w-3" /> : null}{r.status === "linked" ? "Change" : "Find"}</Button>
                       {r.status !== "linked" && <Button size="sm" variant={r.status === "add" ? "secondary" : "outline"} onClick={() => patch(r.key, { status: r.status === "add" ? "pending" : "add", editing: r.status !== "add" })}>Add to contacts</Button>}
                       <Button size="sm" variant={r.editing ? "secondary" : "ghost"} onClick={() => patch(r.key, { editing: !r.editing })}>Edit</Button>
                       {r.status !== "guest" && <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: "guest", match: undefined, editing: false })}>Guest</Button>}
                       <Button size="sm" variant="ghost" onClick={() => patch(r.key, { status: r.status === "skip" ? "pending" : "skip", editing: false })}>{r.status === "skip" ? "Undo" : "Skip"}</Button></>}
                     </div>
-                    {r.status === "pending" && r.suggestions.length > 0 && (
+                    {r.status === "pending" && r.duplicates.length >= 2 && (
+                      <div className="flex flex-wrap items-center gap-1.5 rounded border border-warning/50 bg-warning/10 px-2 py-1.5">
+                        <span className="text-[11px]">{r.duplicates.length} saved records for this person — pick one, or merge them first:</span>
+                        {r.duplicates.map((s) => (
+                          <Button key={s.urid || s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => pickFor(r.key, s)}>
+                            {s.name}{s.company && ` · ${s.company}`} <span className="text-muted-foreground">({s.where})</span>
+                          </Button>
+                        ))}
+                        {r.duplicates.filter((s) => s.urid).length >= 2 && (
+                          <Button size="sm" className="h-6 text-[11px]" onClick={() => setMergeFor({ key: r.key, urids: r.duplicates.flatMap((s) => (s.urid ? [s.urid] : [])).slice(0, MAX_MERGE) })}>Review &amp; merge</Button>
+                        )}
+                      </div>
+                    )}
+                    {r.status === "pending" && r.duplicates.length < 2 && r.suggestions.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 pl-2">
                         <span className="text-muted-foreground">Did you mean</span>
                         {r.suggestions.map((s) => (
-                          <Button key={s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => patch(r.key, { status: s.where === "Team" ? "team" : "linked", match: s, edit: { name: s.name, email: s.email, company: s.company } })}>
+                          <Button key={s.urid || s.email || s.name} size="sm" variant="outline" className="h-6 text-[11px]" onClick={() => pickFor(r.key, s)}>
                             <HelpCircle className="h-3 w-3 text-yellow-500" /> {s.name}{s.company && ` · ${s.company}`}
                           </Button>
                         ))}
@@ -710,31 +728,31 @@ function NoteRow({ item, open, onToggle, reviewer, onDone, kind, onActionNow, ca
                           <Input key={f} className="h-7 w-44 text-xs" placeholder={f[0]!.toUpperCase() + f.slice(1)} value={r.edit[f]}
                             onChange={(e) => patch(r.key, { edit: { ...r.edit, [f]: e.target.value } })} />
                         ))}
-                        <Button size="sm" variant="outline" className="h-7" disabled={!r.edit.name.trim()}
-                          onClick={() => { setLinking(r.key); setPq(r.edit.name.trim()); }}>Search this name</Button>
+                        <Button size="sm" variant="outline" className="h-7" disabled={!r.edit.name.trim() && !r.edit.email.trim()}
+                          onClick={() => { setLinking(r.key); setFinderQ(r.edit.email.trim() || r.edit.name.trim()); }}>Check if already saved</Button>
                       </div>
+                    )}
+                    {linking === r.key && (
+                      <PeopleFinder key={`${r.key}:${finderQ}`} initialQuery={finderQ} heard={r.heard !== label(r) || r.status !== "linked" ? r.heard : undefined} hints={hints}
+                        onPick={(m) => pickFor(r.key, m)} onClose={() => setLinking(null)}
+                        onAddNew={r.status === "linked" ? undefined : (q) => { patch(r.key, { status: "add", editing: true, edit: { ...r.edit, name: r.edit.name || q } }); setLinking(null); }} />
                     )}
                   </div>
                 ))}
-                <div className="relative w-80">
-                  <Input className="h-8 text-xs" aria-label="Search people and teammates" placeholder={linking ? `Find who "${roster.find((x) => x.key === linking)?.heard}" is…` : "Search team, Network & Prospecting"} value={pq} onChange={(e) => setPq(e.target.value)} />
-                  {results.length > 0 && (
-                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md">
-                      {results.map((m) => (
-                        <button key={`${m.where}:${m.email || m.name}`} type="button" disabled={!m.email}
-                          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-50"
-                          onClick={() => {
-                            if (linking) patch(linking, { status: m.where === "Team" ? "team" : "linked", match: m, edit: { name: m.name, email: m.email, company: m.company }, editing: false });
-                            else if (!roster.some((x) => (x.match?.email || x.edit.email) === m.email)) setRoster((rs) => [...rs, { key: `added:${m.email}`, heard: m.name, where: m.where, suggestionId: "", suggestions: [], status: m.where === "Team" ? "team" : "linked", match: m, edit: { name: m.name, email: m.email, company: m.company } }]);
-                            setLinking(null); setPq(""); setResults([]);
-                          }}>
-                          <span className="flex-1 truncate">{m.name || m.email} <span className="text-muted-foreground">{m.company}</span></span>
-                          <Badge variant="outline" className="text-[10px]">{m.email ? m.where : "No email"}</Badge>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {linking === "__new" ? (
+                  <PeopleFinder key="__new" initialQuery={finderQ} hints={hints} onPick={(m) => pickFor("__new", m)} onClose={() => setLinking(null)}
+                    onAddNew={(q) => {
+                      const isEmail = q.includes("@");
+                      setRoster((rs) => [...rs, { key: `new:${q.toLowerCase()}`, heard: q, where: "New", suggestionId: "", suggestions: [], duplicates: [], status: "add", editing: true, edit: { name: isEmail ? "" : q, email: isEmail ? q : "", company: "" } }]);
+                      setLinking(null);
+                    }} />
+                ) : (
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openFinder("__new", "")}>+ Add someone else</Button>
+                )}
+                {mergeFor && (
+                  <MergeContactsDialog open urids={mergeFor.urids} onOpenChange={(o) => { if (!o) setMergeFor(null); }}
+                    onMerged={() => { const key = mergeFor.key; const row = roster.find((x) => x.key === key); patch(key, { duplicates: [], suggestions: [] }); setLinking(key); setFinderQ(row?.edit.email || row?.heard || ""); }} />
+                )}
               </section>}
 
               {!isNews && <section className="space-y-1.5">

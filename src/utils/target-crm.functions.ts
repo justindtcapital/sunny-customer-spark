@@ -6,6 +6,7 @@ import {
   buildContacts,
   bulkUpdateTargetFields,
   ensureColumn,
+  fetchSheetTab,
   logOpsEvent,
   TAB_NAMES,
   type InteractionRowInput,
@@ -13,6 +14,7 @@ import {
 import { normalizeSource, type OutreachAttempt, type RecordSource } from "@/lib/types";
 import { creationRating } from "@/lib/relationship-rating";
 import { todayIso } from "@/lib/sheet-date";
+import { isProspectStatus } from "@/lib/unified-contacts";
 
 export interface PromoteTargetInput {
   urid?: string;
@@ -113,6 +115,18 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
         /* proceed without full dedupe */
       }
 
+      // Prospects already live on the unified Contacts list: promoting one flips
+      // that same row to Cold in place (same record, same ID) instead of
+      // appending a second copy and deleting the first.
+      const prospectUrids = new Set<string>();
+      try {
+        const live = await fetchSheetTab(TAB_NAMES.contacts, true);
+        const lh = (live[0] || []).map((x) => x.trim().toLowerCase());
+        const iu = lh.indexOf("urid"), is = lh.indexOf("relationship status");
+        if (iu >= 0 && is >= 0) for (const r of live.slice(1)) if (isProspectStatus(r[is] || "") && r[iu]) prospectUrids.add(r[iu]!.trim());
+      } catch { /* fall back to the add path, which has its own duplicate gate */ }
+      const inPlace: PromoteTargetInput[] = [];
+
       await ensureColumn(TAB_NAMES.contacts, "Source");
       await ensureColumn(TAB_NAMES.contacts, "Source Context");
       // Provenance columns so campaign/event history survives the promote.
@@ -175,6 +189,12 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
           continue;
         }
 
+        if (t.urid && prospectUrids.has(t.urid.trim())) {
+          pushNote();
+          inPlace.push(t);
+          continue;
+        }
+
         const source = recordSourceFromOrigin(t.originSource);
         const sourceContext = [
           t.campaign?.trim() ? `Campaign: ${t.campaign.trim()}` : "",
@@ -190,7 +210,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
           .slice(0, email ? 500 : 2000);
 
         try {
-          await addContactRow({
+          const res = await addContactRow({
             name: name || email,
             role: t.title || "",
             company,
@@ -208,6 +228,13 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
             portcoTags: t.portcoTags || [],
             followUp: t.followUp === true,
           });
+          if (!res.created) {
+            // Already saved elsewhere (gate matched): carry history, no new row.
+            result.duplicates++;
+            pushNote();
+            candidates.push({ t, keys });
+            continue;
+          }
           keys.forEach((k) => {
             seen.add(k);
             existing.add(k);
@@ -235,6 +262,27 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
         }
       }
 
+      const movedInPlace = new Set<string>();
+      if (notesOk && inPlace.length > 0) {
+        try {
+          const { changeRelationshipLevels } = await import("./relationship-levels.server");
+          const moved = await changeRelationshipLevels({
+            contacts: inPlace.map((t) => ({ urid: t.urid!.trim(), email: t.email || "", name: t.name, temperature: "Prospect" as const, destination: "Cold" as const })),
+            change: "promote",
+          });
+          for (const o of moved.outcomes) {
+            if (o.status !== "moved" && o.status !== "already_complete") continue;
+            movedInPlace.add(o.key);
+            result.added++;
+            result.removedFromProspecting++;
+            const t = inPlace.find((x) => x.urid?.trim() === o.key);
+            if (t) result.created.push(`${t.name || t.email}${t.email ? ` <${t.email}>` : ""}${t.company ? ` · ${t.company}` : ""}`);
+          }
+        } catch (e) {
+          console.error("[targets-crm] in-place promote failed — kept in Prospecting:", e);
+        }
+      }
+
       // Verify against a fresh CRM read, then remove only confirmed targets.
       // Outreach / strategy tabs are left intact so history stays queryable.
       const toRemove: { urid?: string; key?: string }[] = [];
@@ -256,7 +304,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
       if (toRemove.length > 0) {
         try {
           const del = await bulkDeleteTargets(toRemove);
-          result.removedFromProspecting = del.deleted;
+          result.removedFromProspecting += del.deleted;
         } catch (e) {
           console.error("[targets-crm] prospect removal failed:", e);
         }
@@ -266,7 +314,7 @@ export const promoteTargetsToCrm = createServerFn({ method: "POST" })
       // Anything not removed stays visible as Ready to Promote.
       const removedSet = new Set(toRemove.map((r) => r.urid || r.key));
       const stageEntries = targets
-        .filter((t) => (t.urid || t.key) && !(result.removedFromProspecting > 0 && removedSet.has(t.urid || t.key)))
+        .filter((t) => (t.urid || t.key) && !movedInPlace.has((t.urid || "").trim()) && !(result.removedFromProspecting > 0 && removedSet.has(t.urid || t.key)))
         .map((t) => ({
           urid: t.urid,
           key: t.key,

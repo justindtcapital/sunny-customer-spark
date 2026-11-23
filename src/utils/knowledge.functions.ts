@@ -136,10 +136,38 @@ export const reviewNoteFn = createServerFn({ method: "POST" })
 
 /** Contact search (Network + Prospecting) for tagging notes and activity. */
 export const searchPeopleFn = createServerFn({ method: "POST" })
-  .inputValidator((input: { q: string }) => ({ q: String(input?.q || "").slice(0, 100) }))
+  .inputValidator((input: { q: string; hints?: string[] }) => ({
+    q: String(input?.q || "").slice(0, 100),
+    hints: (Array.isArray(input?.hints) ? input.hints : []).map((h) => String(h || "").slice(0, 120)).filter(Boolean).slice(0, 20),
+  }))
   .handler(async ({ data }) => {
     const { searchPeople } = await import("./notes-inbox.server");
-    return searchPeople(data.q);
+    return searchPeople(data.q, data.hints);
+  });
+
+/** People finder "Edit": fix a saved person's name/title/company/email by record ID (human edit). */
+export const updatePersonFn = createServerFn({ method: "POST" })
+  .middleware([requireTeamAuth])
+  .inputValidator((input: { urid: string; name?: string; title?: string; company?: string; email?: string }) => {
+    const urid = String(input?.urid || "").trim();
+    if (!urid || urid.length > 100) throw new Error("Missing record ID");
+    const field = (v: unknown, max: number) => (v === undefined ? undefined : String(v).trim().slice(0, max));
+    const out = { urid, name: field(input.name, 200), title: field(input.title, 200), company: field(input.company, 200), email: field(input.email, 400) };
+    if (out.name !== undefined && !out.name) throw new Error("Name can't be empty");
+    if (out.email && !/^[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+(\s*[;,]\s*[^\s@;,]+@[^\s@;,]+\.[^\s@;,]+)*$/.test(out.email)) throw new Error("That email doesn't look right");
+    return out;
+  })
+  .handler(async ({ data }) => {
+    const { mergeContactFields } = await import("./sheets.server");
+    const { urid, ...rest } = data;
+    const fields = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) as Record<string, string>;
+    if (fields["email"] !== undefined) {
+      const { normalizeEmails } = await import("@/lib/email");
+      fields["email"] = normalizeEmails(fields["email"]);
+    }
+    const res = await mergeContactFields("", fields, "user", urid);
+    if (!res.success) throw new Error("That person wasn't found — they may have been merged or removed. Search again.");
+    return { ok: true, written: res.written };
   });
 
 /** Notes, emails and workstreams connected to one person (contact/prospect panels). */

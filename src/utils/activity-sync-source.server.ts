@@ -196,7 +196,7 @@ export async function sourceMissingContactsFromActivities(
       }
     }
 
-    await addContactRow({
+    const res = await addContactRow({
       name,
       role,
       company,
@@ -214,7 +214,7 @@ export async function sourceMissingContactsFromActivities(
       skipPortfolioSector: true,
     });
     existing.add(p.email);
-    created.push(`${name} (${p.email})`);
+    if (res.created) created.push(`${name} (${p.email})`);
   }
 
   if (created.length > 0) {

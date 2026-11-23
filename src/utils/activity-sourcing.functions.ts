@@ -193,7 +193,7 @@ export const sourceContactsFromActivities = createServerFn({ method: "POST" })
           }
         }
 
-        await addContactRow({
+        const res = await addContactRow({
           name,
           role,
           company,
@@ -208,7 +208,7 @@ export const sourceContactsFromActivities = createServerFn({ method: "POST" })
           sourceContext: "Sourced from Asana BD/GTM activity",
         });
         existing.add(p.email); // guard against the same new email recurring in the batch
-        created.push(`${name} (${p.email})`);
+        if (res.created) created.push(`${name} (${p.email})`);
       }
 
       // Log each activity onto every person in it (new + existing). One batched

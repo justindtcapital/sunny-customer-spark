@@ -325,7 +325,7 @@ export const addProspectsToContacts = createServerFn({ method: "POST" })
       if (key) seen.add(key);
 
       try {
-        await addContactRow({
+        const res = await addContactRow({
           name: revealedName || p.name,
           role: title,
           company,
@@ -339,6 +339,7 @@ export const addProspectsToContacts = createServerFn({ method: "POST" })
           // Engine-based attribution: Apollo-sourced prospects carry an apolloId.
           source: p.apolloId ? "Apollo" : "Sumble",
         });
+        if (!res.created) { result.duplicates++; continue; }
         result.added++;
         logRows.push(prospectLogRow(p, data.focus || "", "Added", email));
       } catch (e) {

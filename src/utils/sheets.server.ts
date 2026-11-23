@@ -1369,10 +1369,19 @@ export async function resolvePortfolioSector(company: string): Promise<string> {
   return "";
 }
 
+export type AddContactResult =
+  | { created: true; urid: string }
+  | { created: false; urid: string; existing: import("@/lib/contact-identity").ExistingContact };
+
 // Header-aware append to the Contacts tab: place each value in the column whose
 // header matches, so the row aligns with WHATEVER order the columns are in.
 // Shared by the addContact server fn and the prospect-importer.
-export async function addContactRow(data: AddContactInput): Promise<void> {
+//
+// Duplicate gate: every caller goes through here, so before appending we read
+// Contacts fresh and reuse anyone already saved with the same email, LinkedIn,
+// or full name + company (Network or Prospecting). Nothing is appended or
+// edited in that case — the caller gets the existing record back.
+export async function addContactRow(data: AddContactInput): Promise<AddContactResult> {
   const { contactImportRejectReason } = await import("@/lib/contact-noise");
   const reject = contactImportRejectReason({
     name: data.name,
@@ -1440,8 +1449,14 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
     "employment history": data.employmentHistory ?? "",
   };
 
-  const rows = await fetchSheetTab(TAB_NAMES.contacts);
+  const rows = await fetchSheetTab(TAB_NAMES.contacts, true);
   const headers = (rows[0] || []).map((h) => h.trim().toLowerCase());
+  const { findExistingContact } = await import("@/lib/contact-identity");
+  const existing = findExistingContact(rows, { name: data.name, email, company: data.company, linkedin: data.linkedin });
+  if (existing) {
+    console.info(`[contacts] add skipped — already saved (${existing.reason})`, existing.urid || `row ${existing.row}`);
+    return { created: false, urid: existing.urid, existing };
+  }
 
   if (headers.length === 0) {
     await appendSheetRow(TAB_NAMES.contacts, [
@@ -1463,6 +1478,7 @@ export async function addContactRow(data: AddContactInput): Promise<void> {
       headers.map((h) => valueByHeader[h] ?? ""),
     );
   }
+  return { created: true, urid: valueByHeader["urid"] || "" };
 }
 
 // Column order for the PortCo Intel cache tab (Sumble results, cached to avoid
