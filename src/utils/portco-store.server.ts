@@ -7,7 +7,7 @@ import { appendSheetRows, colLetters, ensureTab, fetchSheetTab, updateSheetCells
 import type { Workstream, WorkstreamSegment } from "@/lib/workstream-parse";
 import type { FieldChange } from "@/lib/asana-field-payload";
 import { PORTDEV_OPS } from "@/lib/portco-import";
-import { SWD_STATUS_FIELD, normalizeSellWithDell, type SwdMigration } from "@/lib/sell-with-dell-status";
+import { SWD_STATUS_FIELD, normalizeSellWithDell } from "@/lib/sell-with-dell-status";
 import { PROFILE_FIELD_DEFS, WORKSTREAM_FIELD_DEFS, cellChangesFromFieldChanges, fieldMeta, planRowEdit, storedOwner, type CellChange } from "@/lib/portco-fields-schema";
 
 export const PROFILES_TAB = "PortCo Profiles";
@@ -183,19 +183,8 @@ async function workstreamRows(fresh: boolean) {
     throw e;
   });
   const { headers, items } = parseTab(rows);
-  // The old "Sell With Dell - Maturity" column reads as "Sell With Dell Status" with new values.
+  // Guard: an old "Sell With Dell - Maturity" column or value still reads as "Sell With Dell Status".
   return normalizeSellWithDell(headers, items);
-}
-
-/** One-time sheet rewrite: rename the old column header and its legacy values, logged per row. */
-async function applySellWithDellMigration(m: SwdMigration, items: SheetRow[], by: string) {
-  const col = colLetters(m.column);
-  await updateSheetCells(WORKSTREAMS_TAB, [{ range: `${col}1`, value: SWD_STATUS_FIELD }, ...m.cells.map((c) => ({ range: `${col}${c.row}`, value: c.after }))], true);
-  const byRow = new Map(items.map((x) => [x.row, x.cells]));
-  for (const c of m.cells) {
-    const cells = byRow.get(c.row) || {};
-    await logChanges("workstream", cells["Workstream ID"] || "", cells["Company"] || "", by, [{ field: SWD_STATUS_FIELD, before: c.before, after: c.after }]);
-  }
 }
 
 export async function readWorkstreams(fresh = false): Promise<Workstream[]> {
@@ -222,8 +211,7 @@ export interface WorkstreamUpdate {
 }
 
 export async function updateWorkstream(input: WorkstreamUpdate, by: string): Promise<Workstream> {
-  const { headers, items, migration } = await workstreamRows(true);
-  if (migration) await applySellWithDellMigration(migration, items, by);
+  const { headers, items } = await workstreamRows(true);
   const hit = items.find((x) => x.cells["Workstream ID"] === input.gid);
   if (!hit) throw new Error("That workstream no longer exists — refresh and try again.");
   const cellChanges = cellChangesFromFieldChanges(input.changes);

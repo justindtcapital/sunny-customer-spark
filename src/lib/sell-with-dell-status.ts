@@ -1,7 +1,7 @@
 /**
- * Workstream "Sell With Dell Status" (renamed from "Sell With Dell - Maturity").
- * Browser-safe and pure: the option list, the legacy-value mapping, and the one-time plan that
- * renames the Workstreams sheet column and rewrites legacy values in place.
+ * Workstream "Sell With Dell Status" (renamed from "Sell With Dell - Maturity"; the Workstreams sheet
+ * column and its values were rewritten once on 2026-11-23). Multi-choice. Browser-safe and pure:
+ * the option list plus a read-time guard that maps any old column name or value to the new one.
  */
 
 export const SWD_STATUS_FIELD = "Sell With Dell Status";
@@ -18,7 +18,6 @@ export const SWD_STATUS_OPTIONS = [
   "Existing - On Dell Paper / Revenue Generating",
   "Existing - Reference Architecture / Joint Solution",
   "Existing - Services Enabled / Dell Delivered",
-  "Existing - DTC Partner",
 ] as const;
 
 /** Old maturity choice → new status (lower-cased keys). */
@@ -34,36 +33,28 @@ const LEGACY_TO_STATUS: Record<string, string> = {
 
 const clean = (s: string) => (s || "").replace(/\s+/g, " ").trim();
 
-/** Any stored value → the new status; values already on the new list (or unknown) pass through. */
+/** Any stored value (one choice or a comma list) → new statuses; current or unknown values pass through. */
 export function sellWithDellStatusFrom(raw: string): string {
-  const v = clean(raw);
-  return LEGACY_TO_STATUS[v.toLowerCase()] ?? v;
-}
-
-export interface SwdCellRewrite { row: number; before: string; after: string }
-export interface SwdMigration {
-  /** 0-based column index of the old header, renamed in place. */
-  column: number;
-  cells: SwdCellRewrite[];
+  const parts = clean(raw).split(/\s*,\s*/).filter(Boolean).map((v) => LEGACY_TO_STATUS[v.toLowerCase()] ?? v);
+  return [...new Set(parts)].join(", ");
 }
 
 /**
- * Normalize a parsed Workstreams tab so every reader sees "Sell With Dell Status" with new values,
- * and return the one-time sheet rewrite still needed (null once the sheet is already migrated).
+ * Guard for a parsed Workstreams tab: if the old column name or old values ever reappear (an
+ * old backup pasted back, a stale cache), readers still see "Sell With Dell Status" with new values.
  */
 export function normalizeSellWithDell<T extends { row: number; cells: Record<string, string> }>(
   headers: string[],
   items: T[],
-): { headers: string[]; items: Array<T & { cells: Record<string, string> }>; migration: SwdMigration | null } {
-  const column = headers.indexOf(LEGACY_SWD_FIELD);
-  if (column < 0 || headers.includes(SWD_STATUS_FIELD)) return { headers, items, migration: null };
-  const nextHeaders = headers.map((h, i) => (i === column ? SWD_STATUS_FIELD : h));
-  const cells: SwdCellRewrite[] = [];
+): { headers: string[]; items: Array<T & { cells: Record<string, string> }> } {
+  const legacyColumn = headers.indexOf(LEGACY_SWD_FIELD);
+  const renamed = legacyColumn >= 0 && !headers.includes(SWD_STATUS_FIELD);
+  const nextHeaders = renamed ? headers.map((h, i) => (i === legacyColumn ? SWD_STATUS_FIELD : h)) : headers;
   const nextItems = items.map((x): T & { cells: Record<string, string> } => {
-    const { [LEGACY_SWD_FIELD]: legacy = "", ...rest } = x.cells;
-    const after = sellWithDellStatusFrom(legacy);
-    if (after !== legacy) cells.push({ row: x.row, before: legacy, after });
-    return { ...x, cells: { ...rest, [SWD_STATUS_FIELD]: after } };
+    const cells = { ...x.cells };
+    if (renamed) { cells[SWD_STATUS_FIELD] = cells[LEGACY_SWD_FIELD] ?? ""; delete cells[LEGACY_SWD_FIELD]; }
+    if (cells[SWD_STATUS_FIELD]) cells[SWD_STATUS_FIELD] = sellWithDellStatusFrom(cells[SWD_STATUS_FIELD]);
+    return { ...x, cells };
   });
-  return { headers: nextHeaders, items: nextItems, migration: { column, cells } };
+  return { headers: nextHeaders, items: nextItems };
 }
