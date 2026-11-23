@@ -16,6 +16,7 @@ import { cleanPriority } from "@/lib/portco-matrix";
 import { displayProfileValue, editDraftValue, storedFromDraft } from "@/lib/portco-table-format";
 import { cn } from "@/lib/utils";
 import { LEGACY_SWD_FIELD, SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
+import { SELL_IN_FIELD } from "@/lib/sell-in-status";
 import { reloadWorkstreams } from "@/lib/use-workstreams";
 
 const DEFAULT_COLUMNS = ["Owner", "DTC Priority", "Lead Investor", "Company Stage", "DTC Investment ($M)", "DTC Ownership", "GTM Marketing/PMF", "Sales Maturity", "Help / Influence"];
@@ -94,7 +95,7 @@ export function PortcoTableView({ companies, onOpenCompany, onProfileSaved }: {
     const stored = field === "Owner" ? res.profile.owner : res.profile.fields[field] || "";
     onProfileSaved(c, field, stored);
     // Statuses removed on the company are removed from its workstreams too.
-    if (field === SWD_STATUS_FIELD) void reloadWorkstreams();
+    if (field === SWD_STATUS_FIELD || field === SELL_IN_FIELD) void reloadWorkstreams();
     if (!undo) toast.success(`${c.name}: ${field} saved`, { action: { label: "Undo", onClick: () => void saveCell(c, field, stored, original, true) } });
     return true;
   };

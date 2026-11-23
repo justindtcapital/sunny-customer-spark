@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
+import { SELL_IN_FIELD } from "@/lib/sell-in-status";
 import { toast } from "sonner";
 import { updateWorkstreamFn } from "@/utils/asana.functions";
 import { patchWorkstreamCache } from "@/lib/use-workstreams";
@@ -118,8 +119,8 @@ function EditView({ w, onSaved, onCancel, inline = false }: { w: Workstream; onS
       return;
     }
     patchWorkstreamCache(res.workstream);
-    // The company keeps a synced copy of Sell With Dell Status; show it fresh in Edit PortCos.
-    if (changes.some((c) => c.gid === SWD_STATUS_FIELD)) void qc.invalidateQueries({ queryKey: ["portco-table"] });
+    // The company keeps synced copies of the Dell statuses; show them fresh in Edit PortCos.
+    if (changes.some((c) => c.gid === SWD_STATUS_FIELD || c.gid === SELL_IN_FIELD)) void qc.invalidateQueries({ queryKey: ["portco-table"] });
     toast.success("Saved");
     setDraft({});
     setEditingTitle(false);

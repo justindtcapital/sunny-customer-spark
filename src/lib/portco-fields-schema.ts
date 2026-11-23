@@ -6,6 +6,7 @@ import type { FieldChange, WorkstreamFieldMeta } from "./asana-field-payload";
 import { LEAD_INVESTORS } from "./portco-import";
 import { teamMemberFor, CORE_TEAM } from "./user-ownership";
 import { SWD_STATUS_FIELD, SWD_STATUS_OPTIONS } from "./sell-with-dell-status";
+import { SELL_IN_FIELD, SELL_IN_OPTIONS } from "./sell-in-status";
 
 export type PortcoFieldType = "enum" | "multi_enum" | "number" | "date" | "text";
 export interface PortcoFieldDef { name: string; type: PortcoFieldType; options?: readonly string[] }
@@ -23,6 +24,8 @@ export const PROFILE_FIELD_DEFS: readonly PortcoFieldDef[] = [
   { name: "Help / Influence", type: "enum", options: ["Needs", "Wants", "Accepts", "Resists", "n/a"] },
   { name: "SageTap Status", type: "enum", options: SAGETAP },
   { name: SWD_STATUS_FIELD, type: "multi_enum", options: SWD_STATUS_OPTIONS },
+  // The company holds every Sell-In stage its workstreams are at (each workstream has one).
+  { name: SELL_IN_FIELD, type: "multi_enum", options: SELL_IN_OPTIONS },
   { name: "Dell Channel Aligned", type: "multi_enum", options: ["Dell OEM", "Dell CSS", "Dell ETC", "Dell Services", "Dell DP3", "Dell GTO"] },
   { name: "Last Pitch Reviewed", type: "date" },
   { name: "Sales Momentum", type: "text" },
@@ -32,7 +35,7 @@ export const PROFILE_FIELD_DEFS: readonly PortcoFieldDef[] = [
 export const WORKSTREAM_FIELD_DEFS: readonly PortcoFieldDef[] = [
   { name: "Workstream Status", type: "multi_enum", options: ["Complete", "Stalled", "Working to Complete", "Early Conversations", "No Success"] },
   { name: "Workstream Priority", type: "enum", options: ["1: High - Must Do", "2: Med - Should Do", "3: Low - Could Do"] },
-  { name: "Sell-In Status", type: "enum", options: ["1 - Engaged /Progressing", "2 - Engaged / Stalled", "3 - Trying to Engage", "Not Moving Forward", "Interested / Not Engaged"] },
+  { name: SELL_IN_FIELD, type: "enum", options: SELL_IN_OPTIONS },
   { name: "GTM Strategy Category", type: "enum", options: ["Dell Leverage - Sell Through", "Other Partner - Sell Through", "Strategy Work - General", "PMF / Messaging Work"] },
   { name: "Dell Stakeholders", type: "text" },
   { name: "Dell Targets", type: "enum", options: ["Dell - A/P", "Dell - Edge BU", "Dell - UDS", "Dell - IT", "Dell - Rev Ops", "Dell - CSG", "Dell - CSS", "Dell - Services", "Dell - ISG", "Dell - DFS", "Dell - ARB", "Dell - Supply Chain", "Dell - Execs", "Dell - Finance", "Dell - Sales", "Dell - OEM"] },

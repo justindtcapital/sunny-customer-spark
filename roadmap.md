@@ -27,3 +27,7 @@
 - [x] Promote to CRM moves the same Prospecting record instead of copying it
 - [x] My Actions people finder: opens under the name, better ranking, merge or edit duplicates in place
 - [ ] Clean up the ~89 existing duplicates — via Network → Import → Find duplicates (user reviews each merge)
+
+## Dell statuses
+- [x] Sell-In Status: new choices (Existing - Growing / Static / Concerned), one per workstream, synced to the company
+- [ ] Dell Leverage Dashboard — waits on plan approval

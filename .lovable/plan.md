@@ -14,15 +14,15 @@ A new dashboard at Dashboards → **Dell Leverage**, built for running a QBR wit
 [ KPI strip: Active workstreams | Engaged & progressing | Stalled | Existing (live with Dell) | Companies | Stakeholder coverage % ]
 [ Pipeline funnel: Trying to Engage -> Engaged/Stalled -> Engaged/Progressing -> Existing ]   [ Sell-In vs Sell-With split ]
 [ BU heatmap: rows = Dell BU, columns = stage, cells = count (click to filter) ]
-[ Existing outcomes: Embedded / On Dell Paper / Ref Arch / Services Enabled ]
+[ Existing outcomes: Sell-With (Embedded / On Dell Paper / Ref Arch / Services) | Sell-In (Growing / Static / Concerned) ]
 [ Stakeholder map: per BU, Dell people engaged and the workstreams they sponsor; gaps flagged ]
 [ Workstream table: Company, Motion, Dell BU, Status, Dell Stakeholders, Products aligned, Last updated ]
 ```
 
 ## KPIs
 1. **Active Dell workstreams** — total, split Sell-In / Sell-With.
-2. **Stage mix** — counts per status (1 Engaged/Progressing, 2 Stalled, 3 Trying to Engage, Interested/Not Engaged).
-3. **Live with Dell** — Existing outcomes count (Embedded, On Dell Paper, Ref Arch/Joint Solution, Services Enabled).
+2. **Stage mix** — counts per status (1 Engaged/Progressing, 2 Stalled, 3 Trying to Engage, Interested/Not Engaged, Not Moving Forward).
+3. **Live with Dell** — Sell-With Existing outcomes (Embedded, On Dell Paper, Ref Arch/Joint Solution, Services Enabled) and Sell-In account health (Existing - Growing / Static / Concerned).
 4. **Stalled share** — stalled / engaged, to drive "where do we need your help" asks.
 5. **BU coverage** — workstreams and companies per Dell BU (Dell Targets / Channel Aligned).
 6. **Stakeholder coverage** — % of workstreams with at least one linked Dell person; separately for Sell-In and Sell-With since stakeholders differ. This also becomes your cleanup checklist.

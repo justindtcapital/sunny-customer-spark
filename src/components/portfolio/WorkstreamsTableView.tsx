@@ -25,6 +25,7 @@ import { PORTDEV_OPS } from "@/lib/portco-import";
 import { priorityTone } from "@/components/portfolio/WorkstreamsPanel";
 import { cn } from "@/lib/utils";
 import { SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
+import { SELL_IN_FIELD } from "@/lib/sell-in-status";
 
 /** Workstream Priority as the same colored pill used on the company page. */
 const renderPriority = (v: string) => <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", priorityTone(v))}>{v}</span>;
@@ -144,8 +145,8 @@ export function WorkstreamsTableView({ companyNames, contacts = [], onContactsCh
     if (!res.ok) { toast.error(res.error); return false; }
     patchWorkstreamCache(res.workstream);
     setPatched((p) => ({ ...p, [w.gid]: res.workstream }));
-    // The company keeps a synced copy of Sell With Dell Status; show it fresh in Edit PortCos.
-    if (key === SWD_STATUS_FIELD) void qc.invalidateQueries({ queryKey: ["portco-table"] });
+    // The company keeps synced copies of the Dell statuses; show them fresh in Edit PortCos.
+    if (key === SWD_STATUS_FIELD || key === SELL_IN_FIELD) void qc.invalidateQueries({ queryKey: ["portco-table"] });
     const stored = valueOf(res.workstream, key);
     if (!undo) toast.success(`${w.name}: ${key} saved`, { action: { label: "Undo", onClick: () => void saveCell(res.workstream, key, stored, original, true) } });
     return true;

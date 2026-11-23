@@ -15,7 +15,7 @@ describe("Sell With Dell Status", () => {
   });
   it("offers the Sell-In choices first and the Existing choices at the bottom, without DTC Partner", () => {
     const sellIn = WORKSTREAM_FIELD_DEFS.find((d) => d.name === "Sell-In Status")!.options!;
-    for (const o of sellIn) expect(SWD_STATUS_OPTIONS).toContain(o);
+    for (const o of sellIn.filter((x) => !x.startsWith("Existing - "))) expect(SWD_STATUS_OPTIONS).toContain(o);
     expect(SWD_STATUS_OPTIONS.slice(0, 3)).toEqual(["1 - Engaged /Progressing", "2 - Engaged / Stalled", "3 - Trying to Engage"]);
     const firstExisting = SWD_STATUS_OPTIONS.findIndex((o) => o.startsWith("Existing - "));
     expect(SWD_STATUS_OPTIONS.slice(firstExisting)).toEqual([

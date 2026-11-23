@@ -7,7 +7,9 @@ import { appendSheetRows, colLetters, ensureTab, fetchSheetTab, updateSheetCells
 import type { Workstream, WorkstreamSegment } from "@/lib/workstream-parse";
 import type { FieldChange } from "@/lib/asana-field-payload";
 import { PORTDEV_OPS } from "@/lib/portco-import";
-import { SWD_STATUS_FIELD, applyStatusEdit, companyStatusAfterWorkstreamEdit, effectiveCompanyStatus, normalizeSellWithDell, workstreamStatusesAfterCompanyEdit } from "@/lib/sell-with-dell-status";
+import { SWD_STATUS_FIELD, normalizeSellWithDell, swdSync } from "@/lib/sell-with-dell-status";
+import { SELL_IN_FIELD, sellInSync } from "@/lib/sell-in-status";
+import type { StatusSync } from "@/lib/status-sync";
 import { PROFILE_FIELD_DEFS, WORKSTREAM_FIELD_DEFS, cellChangesFromFieldChanges, fieldMeta, planRowEdit, storedOwner, type CellChange } from "@/lib/portco-fields-schema";
 
 export const PROFILES_TAB = "PortCo Profiles";
@@ -17,6 +19,12 @@ export const CHANGE_LOG_TAB = "PortCo Change Log";
 export const PROFILE_HEADERS = ["PortCo URID", "Company", "Owner", ...PROFILE_FIELD_DEFS.map((d) => d.name), "Archived Fields", "Asana GID", "Updated At", "Updated By"];
 export const WORKSTREAM_HEADERS = ["Workstream ID", "PortCo URID", "Company", "Segment", "Name", "Owner", "Completed", "Completed At", "Created At", "Due Date", "Notes", ...WORKSTREAM_FIELD_DEFS.map((d) => d.name), "Archived Fields", "Asana GID", "Asana Name", "Updated At", "Updated By"];
 export const CHANGE_LOG_HEADERS = ["At", "By", "Kind", "Record ID", "Company", "Field", "Before", "After"];
+
+/** Dell status fields stored on each workstream AND on its company profile, kept in sync. */
+const SYNCED_STATUS: ReadonlyArray<{ field: string; sync: StatusSync }> = [
+  { field: SWD_STATUS_FIELD, sync: swdSync },
+  { field: SELL_IN_FIELD, sync: sellInSync },
+];
 
 interface SheetRow { row: number; cells: Record<string, string> }
 
@@ -96,9 +104,12 @@ export async function readProfiles(fresh = false): Promise<PortcoProfile[]> {
   return items.map((x) => {
     const p = toProfile(x);
     if (!ws) return p;
-    // Sell With Dell Status shows everything the company's workstreams carry, even if a sync was missed.
-    const value = effectiveCompanyStatus(p.fields[SWD_STATUS_FIELD] || "", workstreamsOfCompany(ws.items, p.urid, p.company).map((w) => w.cells[SWD_STATUS_FIELD] || ""));
-    if (value) p.fields[SWD_STATUS_FIELD] = value;
+    // Dell statuses show everything the company's workstreams carry, even if a sync was missed.
+    const mine = workstreamsOfCompany(ws.items, p.urid, p.company);
+    for (const { field, sync } of SYNCED_STATUS) {
+      const value = sync.effectiveCompanyStatus(p.fields[field] || "", mine.map((w) => w.cells[field] || ""));
+      if (value) p.fields[field] = value;
+    }
     return p;
   }).filter((p) => p.company);
 }
@@ -135,67 +146,81 @@ async function profileRowFor(input: { urid?: string; company: string }): Promise
 }
 
 /**
- * Save profile edits for one PortCo; creates its profile row the first time. A Sell With Dell Status
- * edit is checked against what the company shows (its value plus its workstreams'), and statuses
- * removed here are also removed from the workstreams that carry them — both copies stay in sync.
+ * Save profile edits for one PortCo; creates its profile row the first time. A synced Dell status
+ * edit (Sell With Dell / Sell-In) is checked against what the company shows (its value plus its
+ * workstreams'), and statuses removed here are also removed from the workstreams that carry them.
  */
 export async function saveProfileFields(input: { urid?: string; company: string; changes: CellChange[] }, by: string): Promise<PortcoProfile> {
   const { headers, hit } = await profileRowFor(input);
-  const swdEdit = input.changes.some((c) => c.field === SWD_STATUS_FIELD);
-  const ws = swdEdit ? await workstreamRows(true) : null;
+  const edited = SYNCED_STATUS.filter((s) => input.changes.some((c) => c.field === s.field));
+  const ws = edited.length ? await workstreamRows(true) : null;
   const mine = ws ? workstreamsOfCompany(ws.items, hit.cells["PortCo URID"] || input.urid || "", hit.cells["Company"] || input.company) : [];
-  const stored = hit.cells[SWD_STATUS_FIELD] || "";
-  const shown = effectiveCompanyStatus(stored, mine.map((w) => w.cells[SWD_STATUS_FIELD] || ""));
-  // Sell With Dell Status merges as a change (added/removed statuses) onto what the company shows now,
+  const stored: Record<string, string> = {}, shown: Record<string, string> = {};
+  for (const { field, sync } of edited) {
+    stored[field] = hit.cells[field] || "";
+    shown[field] = sync.effectiveCompanyStatus(stored[field], mine.map((w) => w.cells[field] || ""));
+  }
+  const syncFor = (field: string) => edited.find((s) => s.field === field)?.sync;
+  // Synced statuses merge as a change (added/removed statuses) onto what the company shows now,
   // so a workstream saved since the editor opened never makes this a conflict or gets undone.
-  const changes = input.changes.map((c) => (c.field === SWD_STATUS_FIELD ? { field: c.field, original: shown, value: applyStatusEdit(shown, c.original, c.value) } : c));
-  const plan = planRowEdit(swdEdit ? { ...hit.cells, [SWD_STATUS_FIELD]: shown } : hit.cells, changes, PROFILE_FIELD_DEFS);
-  const swd = plan.find((p) => p.field === SWD_STATUS_FIELD);
-  if (swd) swd.before = stored;
-  else if (swdEdit && shown !== stored) plan.push({ field: SWD_STATUS_FIELD, before: stored, after: shown });
+  const changes = input.changes.map((c) => {
+    const sync = syncFor(c.field);
+    return sync ? { field: c.field, original: shown[c.field]!, value: sync.applyStatusEdit(shown[c.field]!, c.original, c.value) } : c;
+  });
+  const plan = planRowEdit({ ...hit.cells, ...shown }, changes, PROFILE_FIELD_DEFS);
+  for (const { field } of edited) {
+    const p = plan.find((x) => x.field === field);
+    if (p) p.before = stored[field]!;
+    else if (shown[field] !== stored[field]) plan.push({ field, before: stored[field]!, after: shown[field]! });
+  }
   if (plan.length) {
     await writeCells(PROFILES_TAB, headers, hit.row, { ...Object.fromEntries(plan.map((p) => [p.field, p.after])), "Updated At": nowIso(), "Updated By": by });
     await logChanges("profile", hit.cells["PortCo URID"] || hit.cells["Company"] || "", hit.cells["Company"] || "", by, plan);
   }
   for (const p of plan) hit.cells[p.field] = p.after;
-  if (swd && ws) {
-    const next = workstreamStatusesAfterCompanyEdit(shown, swd.after, mine.map((w) => w.cells[SWD_STATUS_FIELD] || ""));
+  if (ws) {
     const at = nowIso();
-    const edits = mine.map((w, i) => ({ w, before: w.cells[SWD_STATUS_FIELD] || "", after: next[i] ?? "" })).filter((e) => e.after !== e.before);
+    const edits: { w: SheetRow; field: string; before: string; after: string }[] = [];
+    for (const { field, sync } of edited) {
+      const p = plan.find((x) => x.field === field);
+      if (!p) continue;
+      const next = sync.workstreamStatusesAfterCompanyEdit(shown[field]!, p.after, mine.map((w) => w.cells[field] || ""));
+      mine.forEach((w, i) => { const before = w.cells[field] || "", after = next[i] ?? ""; if (after !== before) edits.push({ w, field, before, after }); });
+    }
     if (edits.length) {
       const col = (h: string) => { const i = ws.headers.indexOf(h); if (i < 0) throw new Error(`The "${WORKSTREAMS_TAB}" tab is missing the "${h}" column.`); return colLetters(i); };
       try {
         await updateSheetCells(WORKSTREAMS_TAB, edits.flatMap((e) => [
-          { range: `${col(SWD_STATUS_FIELD)}${e.w.row}`, value: e.after },
+          { range: `${col(e.field)}${e.w.row}`, value: e.after },
           { range: `${col("Updated At")}${e.w.row}`, value: at },
           { range: `${col("Updated By")}${e.w.row}`, value: by },
         ]), true);
       } catch (e) {
         throw new Error(`Saved on the company, but its workstreams couldn't be updated (${e instanceof Error ? e.message : String(e)}) — save again to finish.`);
       }
-      for (const e of edits) await logChanges("workstream", e.w.cells["Workstream ID"] || "", e.w.cells["Company"] || "", by, [{ field: SWD_STATUS_FIELD, before: e.before, after: e.after }]);
+      for (const e of edits) await logChanges("workstream", e.w.cells["Workstream ID"] || "", e.w.cells["Company"] || "", by, [{ field: e.field, before: e.before, after: e.after }]);
     }
   }
   return toProfile(hit);
 }
 
 /**
- * After a workstream's Sell With Dell Status changed, update its company's copy: added statuses are
+ * After a workstream's synced Dell statuses changed, update its company's copy: added statuses are
  * added, removed ones leave only when no other workstream of the company still has them.
  */
-async function syncCompanyFromWorkstream(ws: SheetRow, others: SheetRow[], before: string, after: string, by: string): Promise<void> {
+async function syncCompanyFromWorkstream(ws: SheetRow, others: SheetRow[], edits: { field: string; sync: StatusSync; before: string; after: string }[], by: string): Promise<void> {
   const company = ws.cells["Company"] || "";
-  if (!company || company.toLowerCase() === PORTDEV_OPS.toLowerCase()) return;
+  if (!edits.length || !company || company.toLowerCase() === PORTDEV_OPS.toLowerCase()) return;
   const urid = ws.cells["PortCo URID"] || "";
   const { headers, items } = await profileRows(true);
   const existing = items.find((x) => (urid && x.cells["PortCo URID"] === urid) || (x.cells["Company"] || "").toLowerCase() === company.toLowerCase());
-  const stored = existing?.cells[SWD_STATUS_FIELD] || "";
-  const next = companyStatusAfterWorkstreamEdit({ company: stored, before, after, otherWorkstreams: others.map((w) => w.cells[SWD_STATUS_FIELD] || "") });
-  if (next === stored) return;
+  const next = edits.map((e) => ({ field: e.field, value: e.sync.companyStatusAfterWorkstreamEdit({ company: existing?.cells[e.field] || "", before: e.before, after: e.after, otherWorkstreams: others.map((w) => w.cells[e.field] || "") }) }))
+    .filter((n) => n.value !== (existing?.cells[n.field] || ""));
+  if (!next.length) return;
   const row = existing ? { headers: headers.length ? headers : PROFILE_HEADERS, hit: existing } : await profileRowFor({ urid, company });
-  const current = row.hit.cells[SWD_STATUS_FIELD] || "";
-  await writeCells(PROFILES_TAB, row.headers, row.hit.row, { [SWD_STATUS_FIELD]: next, "Updated At": nowIso(), "Updated By": by });
-  await logChanges("profile", row.hit.cells["PortCo URID"] || company, row.hit.cells["Company"] || company, by, [{ field: SWD_STATUS_FIELD, before: current, after: next }]);
+  const log = next.map((n) => ({ field: n.field, before: row.hit.cells[n.field] || "", after: n.value }));
+  await writeCells(PROFILES_TAB, row.headers, row.hit.row, { ...Object.fromEntries(next.map((n) => [n.field, n.value])), "Updated At": nowIso(), "Updated By": by });
+  await logChanges("profile", row.hit.cells["PortCo URID"] || company, row.hit.cells["Company"] || company, by, log);
 }
 
 // ─── Workstreams ────────────────────────────────────────────────────
@@ -317,11 +342,11 @@ export async function updateWorkstream(input: WorkstreamUpdate, by: string): Pro
     await logChanges("workstream", input.gid, hit.cells["Company"] || "", by, plan);
     for (const p of plan) hit.cells[p.field] = p.after;
     hit.cells["Updated At"] = nowIso();
-    const swd = plan.find((p) => p.field === SWD_STATUS_FIELD);
-    if (swd) {
+    const synced = SYNCED_STATUS.flatMap(({ field, sync }) => plan.filter((p) => p.field === field).map((p) => ({ field, sync, before: p.before, after: p.after })));
+    if (synced.length) {
       const others = workstreamsOfCompany(items, hit.cells["PortCo URID"] || "", hit.cells["Company"] || "").filter((w) => w !== hit);
       // The workstream is saved; a failed company update is repaired on read (the company shows its workstreams' statuses).
-      await syncCompanyFromWorkstream(hit, others, swd.before, swd.after, by).catch((e) => console.error("[portco-store] Sell With Dell company sync failed", e));
+      await syncCompanyFromWorkstream(hit, others, synced, by).catch((e) => console.error("[portco-store] Dell status company sync failed", e));
     }
   }
   return toWorkstream(hit);
