@@ -57,6 +57,20 @@
       "when": 1794511220382,
       "tag": "0007_team_only_shared_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795449831588,
+      "tag": "0008_sheet_mirror",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795450988323,
+      "tag": "0009_sheet_mirror_snapshot",
+      "breakpoints": true
     }
   ]
 }

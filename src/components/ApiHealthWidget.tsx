@@ -1,4 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import {
   Activity,
   RefreshCw,
@@ -8,6 +10,8 @@ import {
   CircleDashed,
 } from "lucide-react";
 import { checkApiHealth, type HealthStatus, type ServiceHealth } from "@/utils/health.functions";
+import { refreshSheetMirrorFn } from "@/utils/sheet-mirror.functions";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +65,17 @@ export function ApiHealthWidget({ collapsed }: { collapsed?: boolean }) {
     queryFn: () => checkApiHealth(),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+  });
+
+  const refreshCopy = useServerFn(refreshSheetMirrorFn);
+  const refresh = useMutation({
+    mutationFn: () => refreshCopy(),
+    onSuccess: (r) => {
+      if (r.ok) toast.success(`Refreshed from Google Sheets — ${r.updated} of ${r.tabs} tabs had changes.`);
+      else toast.error(`Refresh partly failed: ${r.errors[0] || "try again in a minute"}`);
+      void refetch();
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Refresh failed"),
   });
 
   const services = data?.services ?? [];
@@ -159,6 +174,13 @@ export function ApiHealthWidget({ collapsed }: { collapsed?: boolean }) {
               );
             })}
           </ul>
+        </div>
+        <div className="flex items-center justify-between gap-2 border-t border-border px-3.5 py-2">
+          <span className="text-xs text-muted-foreground">Edited the spreadsheet directly?</span>
+          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={refresh.isPending} onClick={() => refresh.mutate()}>
+            {refresh.isPending ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
+            Refresh from Sheets
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

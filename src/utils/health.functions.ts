@@ -252,11 +252,29 @@ async function checkLinkedIn(): Promise<ServiceHealth> {
   return { service: "LinkedIn", status: "ok", detail: "Configured" };
 }
 
+// Database copy of the spreadsheet (pages read from it instead of Google).
+async function checkSheetMirror(): Promise<ServiceHealth> {
+  const service = "Spreadsheet copy";
+  try {
+    const { sheetMirrorStatus } = await import("./sheet-mirror-sync.server");
+    const s = await sheetMirrorStatus();
+    if (!s.enabled) return { service, status: "unconfigured", detail: "Off — pages read Google Sheets directly" };
+    const ago = s.lastCheck ? Math.round((Date.now() - Date.parse(s.lastCheck)) / 60_000) : null;
+    const detail = `${s.tabs} tabs copied · ${ago == null ? "not checked yet" : `checked ${ago} min ago`}`;
+    if (s.lastError) return { service, status: "error", detail: `${detail} · ${s.lastError.slice(0, 120)}` };
+    if (ago == null || ago > 35) return { service, status: "error", detail: `${detail} · scheduled check isn't running` };
+    return { service, status: "ok", detail };
+  } catch (e) {
+    return { service, status: "error", detail: msg(e) };
+  }
+}
+
 // Live probes for Sheets/Drive/Asana/Apollo/Sumble/News/Gemini (+ LinkedIn config).
 export const checkApiHealth = createServerFn({ method: "GET" }).handler(
   async (): Promise<ApiHealthResult> => {
     const services = await Promise.all([
       checkGoogleSheets(),
+      checkSheetMirror(),
       checkGoogleDrive(),
       checkAsana(),
       checkApollo(),

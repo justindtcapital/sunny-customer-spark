@@ -236,6 +236,101 @@ export type Database = {
         }
         Relationships: []
       }
+      sheet_mirror_rows: {
+        Row: {
+          cells: Json
+          row_no: number
+          spreadsheet_id: string
+          tab: string
+        }
+        Insert: {
+          cells?: Json
+          row_no: number
+          spreadsheet_id: string
+          tab: string
+        }
+        Update: {
+          cells?: Json
+          row_no?: number
+          spreadsheet_id?: string
+          tab?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_mirror_rows_spreadsheet_id_tab_fkey"
+            columns: ["spreadsheet_id", "tab"]
+            isOneToOne: false
+            referencedRelation: "sheet_mirror_tabs"
+            referencedColumns: ["spreadsheet_id", "tab"]
+          },
+        ]
+      }
+      sheet_mirror_state: {
+        Row: {
+          checked_at: string | null
+          drive_modified_at: string
+          last_error: string
+          last_result: Json
+          spreadsheet_id: string
+          synced_at: string | null
+        }
+        Insert: {
+          checked_at?: string | null
+          drive_modified_at?: string
+          last_error?: string
+          last_result?: Json
+          spreadsheet_id: string
+          synced_at?: string | null
+        }
+        Update: {
+          checked_at?: string | null
+          drive_modified_at?: string
+          last_error?: string
+          last_result?: Json
+          spreadsheet_id?: string
+          synced_at?: string | null
+        }
+        Relationships: []
+      }
+      sheet_mirror_tabs: {
+        Row: {
+          content_hash: string
+          created_at: string
+          dirty: boolean
+          patched_at: string | null
+          row_count: number
+          snapshot: Json | null
+          spreadsheet_id: string
+          stale: boolean
+          synced_at: string | null
+          tab: string
+        }
+        Insert: {
+          content_hash?: string
+          created_at?: string
+          dirty?: boolean
+          patched_at?: string | null
+          row_count?: number
+          snapshot?: Json | null
+          spreadsheet_id: string
+          stale?: boolean
+          synced_at?: string | null
+          tab: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          dirty?: boolean
+          patched_at?: string | null
+          row_count?: number
+          snapshot?: Json | null
+          spreadsheet_id?: string
+          stale?: boolean
+          synced_at?: string | null
+          tab?: string
+        }
+        Relationships: []
+      }
       vic_messages: {
         Row: {
           created_at: string
@@ -327,6 +422,55 @@ export type Database = {
         Returns: boolean
       }
       is_team_member: { Args: never; Returns: boolean }
+      mirror_append_rows: {
+        Args: {
+          p_rows: Json
+          p_sheet: string
+          p_start_row: number
+          p_tab: string
+        }
+        Returns: boolean
+      }
+      mirror_confirm_current: {
+        Args: { p_checked_at: string; p_sheet: string }
+        Returns: number
+      }
+      mirror_mark_stale: {
+        Args: { p_sheet: string; p_tab: string }
+        Returns: undefined
+      }
+      mirror_patch_cells: {
+        Args: { p_cells: Json; p_sheet: string; p_tab: string }
+        Returns: boolean
+      }
+      mirror_put_rows: {
+        Args: {
+          p_col: number
+          p_rows: Json
+          p_sheet: string
+          p_start_row: number
+          p_tab: string
+        }
+        Returns: boolean
+      }
+      mirror_read_tab: {
+        Args: { p_sheet: string; p_tab: string }
+        Returns: Json
+      }
+      mirror_replace_tab: {
+        Args: {
+          p_hash: string
+          p_rows: Json
+          p_sheet: string
+          p_started_at: string
+          p_tab: string
+        }
+        Returns: string
+      }
+      mirror_splice: {
+        Args: { p_col: number; p_old: Json; p_vals: Json }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

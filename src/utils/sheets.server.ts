@@ -43,6 +43,7 @@ import {
 } from "@/lib/engagement-source";
 import { getGoogleOAuthCreds, requireSpreadsheetId } from "./google.server";
 import { createRequestState } from "./request-state.server";
+import { applyMirrorWrite, memoryTtlMs, mirrorReplace, readThroughMirror } from "./sheet-mirror.server";
 import { assertBulkWrite, bulkExecutionSignal, recordBulkRequest } from "./bulk-execution.server";
 import {
   compareIsoDatesDesc,
@@ -52,16 +53,17 @@ import {
 } from "@/lib/sheet-date";
 
 // ── Cache ────────────────────────────────────────────────────
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
-const cache = new Map<string, { data: string[][]; ts: number }>();
+// Per-Worker memory cache in front of the database copy (sheet-mirror.server):
+// short-lived while the copy is healthy so other Workers' saves show up quickly.
+const cache = new Map<string, { data: string[][]; ts: number; ttl: number }>();
 
 function getCached(key: string): string[][] | null {
   const entry = cache.get(key);
-  if (entry && Date.now() - entry.ts < TTL_MS) return entry.data;
+  if (entry && Date.now() - entry.ts < entry.ttl) return entry.data;
   return null;
 }
 function setCache(key: string, data: string[][]) {
-  cache.set(key, { data, ts: Date.now() });
+  cache.set(key, { data, ts: Date.now(), ttl: memoryTtlMs(key) });
 }
 
 // ── Google Auth (OAuth2 Refresh Token → access token) ────────
@@ -157,7 +159,7 @@ async function runSheetsRequest(url: string, init: RequestInit): Promise<Respons
 
 
 /** Fetch a Sheets API URL with retry; write methods are additionally throttled. */
-export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<Response> {
+export async function sheetsFetch(url: string, init: RequestInit = {}, opts: { mirrorTab?: string } = {}): Promise<Response> {
   const method = (init.method || "GET").toUpperCase();
   if (method === "GET") return runSheetsRequest(url, init);
 
@@ -176,7 +178,10 @@ export async function sheetsFetch(url: string, init: RequestInit = {}): Promise<
   });
   // Keep the chain alive even if this request rejects.
   state.writeChain = run.catch(() => undefined);
-  return run;
+  const res = await run;
+  // Saved in Google — now apply the same change to the database copy.
+  if (res.ok) await applyMirrorWrite(method, url, init.body, res, opts.mirrorTab).catch((e) => console.warn("[sheet-mirror] copy skipped:", e));
+  return res;
 }
 
 
@@ -254,20 +259,23 @@ export async function fetchSheetTab(tabName: string, fresh = false): Promise<str
 
   const run = (async () => {
     const spreadsheetId = requireSpreadsheetId();
-    const token = await getAccessToken();
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
-
-    const res = await sheetsFetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
+    const startedAt = new Date();
+    const { rows } = await readThroughMirror(spreadsheetId, tabName, fresh, async () => {
+      const token = await getAccessToken();
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(tabName)}`;
+      const res = await sheetsFetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        // Remember "no such tab yet" as an empty copy so later reads don't ask Google
+        // again (they read it as empty); creating the tab later writes its header into it.
+        if (res.status === 400 && /Unable to parse range/i.test(body)) await mirrorReplace(spreadsheetId, tabName, [], startedAt);
+        throw new Error(`Sheets API error for tab "${tabName}" [${res.status}]: ${body}`);
+      }
+      const json = (await res.json()) as { values?: string[][] };
+      return json.values || [];
     });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Sheets API error for tab "${tabName}" [${res.status}]: ${body}`);
-    }
-
-    const json = (await res.json()) as { values?: string[][] };
-    const rows = json.values || [];
     setCache(tabName, rows);
     return rows;
   })().finally(() => {
@@ -283,7 +291,10 @@ export async function fetchSheetTab(tabName: string, fresh = false): Promise<str
 export async function fetchSheetTabIfExists(tabName: string, fresh = false): Promise<string[][]> {
   try { return await fetchSheetTab(tabName, fresh); }
   catch (e) {
-    if (/\[400\]/.test(String((e as Error)?.message)) && /Unable to parse range/i.test(String((e as Error)?.message))) return [];
+    if (/\[400\]/.test(String((e as Error)?.message)) && /Unable to parse range/i.test(String((e as Error)?.message))) {
+      setCache(tabName, []);
+      return [];
+    }
     throw e;
   }
 }
@@ -483,7 +494,7 @@ export async function ensureHeaderRow(tabName: string, headers: string[]): Promi
         },
       ],
     }),
-  });
+  }, { mirrorTab: tabName });
   if (!ins.ok) return; // best-effort
   const headerUrl = `${base}/values/${encodeURIComponent(`${tabName}!A1`)}?valueInputOption=USER_ENTERED`;
   await sheetsFetch(headerUrl, {
@@ -3820,7 +3831,7 @@ export async function deleteSheetRows(tabName: string, rowNumbers: number[]): Pr
         },
       })),
     }),
-  });
+  }, { mirrorTab: tabName });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Sheets deleteDimension error for "${tabName}" [${res.status}]: ${body}`);

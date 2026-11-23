@@ -2,6 +2,7 @@
 // database. VP-managed rows live in the "Events DB" tab (seeded once from the
 // FY tabs, which stay untouched); attendance lives in "Event Attendees".
 import { getAccessToken, sheetsFetch, colLetters, buildPortfolioCompanies } from "./sheets.server";
+import { readThroughMirror } from "./sheet-mirror.server";
 import { canonicalEventPortcos } from "@/lib/event-portcos";
 import { canonicalOwnerName } from "@/lib/user-ownership";
 import {
@@ -58,12 +59,15 @@ const TTL = 30_000;
 async function readTab(tab: string, fresh = false): Promise<string[][]> {
   const c = cache.get(tab);
   if (!fresh && c && Date.now() - c.at < TTL) return c.rows;
-  const token = await getAccessToken();
-  const res = await sheetsFetch(`${base()}/values/${encodeURIComponent(tab + "!A1:AZ5000")}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  // Served from the database copy of the tracker when it is current (sheet-mirror.server).
+  const { rows } = await readThroughMirror(sheetId(), tab, fresh, async () => {
+    const token = await getAccessToken();
+    const res = await sheetsFetch(`${base()}/values/${encodeURIComponent(tab + "!A1:AZ5000")}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Event tracker read failed for "${tab}" [${res.status}]: ${await res.text()}`);
+    return ((await res.json()) as { values?: string[][] }).values || [];
   });
-  if (!res.ok) throw new Error(`Event tracker read failed for "${tab}" [${res.status}]: ${await res.text()}`);
-  const rows = ((await res.json()) as { values?: string[][] }).values || [];
   cache.set(tab, { at: Date.now(), rows });
   return rows;
 }

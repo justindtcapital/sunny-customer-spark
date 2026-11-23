@@ -16,3 +16,8 @@
 - [x] Manual signal scan run (Nov 20)
 - [x] Signals: backfill from news@ email history
 - [x] Signals: enterprise watch — Hot/Warm network companies, technology and major business announcements
+
+## Sheets read mirror (Option A)
+- [x] Database copy of Sheets tabs; reads from copy, saves write-through
+- [x] Scheduled check every 15 minutes (user choice) + Refresh from Sheets button
+- [x] First copy run + verify pages load from copy
