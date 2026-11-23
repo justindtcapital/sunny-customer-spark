@@ -48,6 +48,8 @@ export const WORKSTREAM_FIELD_DEFS: readonly PortcoFieldDef[] = [
   { name: "Dell Products Aligned", type: "multi_enum", options: ["Dell Laptops", "Dell Ai Factory", "Dell Ai PC", "Dell UDS - Powerscale", "Dell UDS - ObjectScale", "Dell ISG - PowerEdge", "Dell ISG - PowerFlex", "Dell ISG - PowerProtect", "Dell ISG - DAP", "Dell ISG - AIDP", "Dell OEM", "Dell DFS - FlexOnDemand", "Dell DFS - Utility"] },
   // Dell-facing engagement notes (shown on the Dell Leverage Dashboard; internal notes stay in "Notes").
   { name: "Dell Engagement Notes", type: "text" },
+  // Dell-facing asks of Dell leaders (one per line, shown as bullets on the Dell Leverage Dashboard).
+  { name: "Dell Asks", type: "text" },
 ];
 
 /** Owner choices: the Venture Pulse team only, by full name. */

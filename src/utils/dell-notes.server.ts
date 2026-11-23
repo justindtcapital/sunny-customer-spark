@@ -7,7 +7,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayRunIdFetch } from "./morning-brief-run-id.server";
 
-const Schema = z.object({ notes: z.array(z.object({ n: z.number().int(), current: z.string(), next: z.string() })) });
+const Schema = z.object({ notes: z.array(z.object({ n: z.number().int(), current: z.string(), next: z.string(), asks: z.array(z.string()) })) });
 
 const SYSTEM = [
   "You are V.I.C., writing short engagement notes for a dashboard that is shown to Dell in a quarterly business review.",
@@ -17,21 +17,22 @@ const SYSTEM = [
   "Use only facts given. Write neutrally and professionally, as something Dell may read.",
   "Lead with concrete facts from the background notes and status changes; do not just restate the status labels, and never contradict them.",
   "Never mention internal priorities, ROI, rankings, investment amounts, ownership, valuations, internal opinions of people, or how important the work is to us.",
+  "asks: 0-3 short, specific requests we could make of Dell leaders to move this forward (max 20 words each), e.g. an introduction to the right Dell stakeholder when none is named, a decision, a sponsor, or a next meeting. Phrase them as asks of Dell, not tasks for us.",
   "If there is too little information, state the current status in current and write 'Being defined.' in next.",
 ].join(" ");
 
 const g = (s: string | undefined) => (s || "").replace(/\s+/g, " ").trim();
 
-export async function draftDellEngagementNotes(gids: string[]): Promise<Record<string, string>> {
+export async function draftDellEngagementNotes(gids: string[]): Promise<{ notes: Record<string, string>; asks: Record<string, string[]> }> {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new Error("V.I.C. isn't connected right now.");
   const { readWorkstreams, CHANGE_LOG_TAB } = await import("./portco-store.server");
   const { fetchSheetTabIfExists } = await import("./sheets.server");
-  const { statusChangesFromLog, composeDellNote } = await import("@/lib/dell-leverage");
+  const { statusChangesFromLog, composeDellNote, sanitizeDellAsks } = await import("@/lib/dell-leverage");
   const [all, log] = await Promise.all([readWorkstreams(), fetchSheetTabIfExists(CHANGE_LOG_TAB).catch(() => null)]);
   const want = new Set(gids);
   const items = all.filter((w) => want.has(w.gid));
-  if (!items.length) return {};
+  if (!items.length) return { notes: {}, asks: {} };
   const changes = log ? statusChangesFromLog(log) : [];
   const lines = items.map((w, i) => {
     const history = changes.filter((c) => c.recordId === w.gid).slice(-5).map((c) => `${c.at.slice(0, 10)} ${c.field}: ${c.before || "none"} → ${c.after || "none"}`);
@@ -52,11 +53,15 @@ export async function draftDellEngagementNotes(gids: string[]): Promise<Record<s
     output: Output.object({ schema: Schema }),
     providerOptions: { openai: { store: false } },
   });
-  const out: Record<string, string> = {};
-  for (const { n, current, next } of (res.output as z.infer<typeof Schema>).notes) {
+  const notes: Record<string, string> = {};
+  const asks: Record<string, string[]> = {};
+  for (const { n, current, next, asks: suggested } of (res.output as z.infer<typeof Schema>).notes) {
     const w = items[n - 1];
-    const clean = w ? composeDellNote(current, next) : "";
-    if (w && clean) out[w.gid] = clean;
+    if (!w) continue;
+    const clean = composeDellNote(current, next);
+    if (clean) notes[w.gid] = clean;
+    const a = sanitizeDellAsks(suggested || []);
+    if (a.length) asks[w.gid] = a;
   }
-  return out;
+  return { notes, asks };
 }

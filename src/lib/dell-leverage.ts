@@ -36,6 +36,8 @@ export const SELL_IN_OUTCOMES = ["Existing - Growing", "Existing - Static", "Exi
 export const NO_BU = "BU not set";
 /** Dell-facing engagement notes on a workstream (drafted by V.I.C., approved by a person). Internal "Notes" never reach a DellRow. */
 export const DELL_NOTES_FIELD = "Dell Engagement Notes";
+/** Dell-facing asks of Dell leaders, stored one per line ("• …"). */
+export const DELL_ASKS_FIELD = "Dell Asks";
 export const DELL_LEVERAGE_CATEGORY = "Dell Leverage - Sell Through";
 
 /** Workstream fields that must never appear on the Dell Leverage Dashboard. */
@@ -63,6 +65,8 @@ export interface DellRow {
   products: string[];
   /** Dell-facing notes (DELL_NOTES_FIELD), safe to show Dell. */
   engagementNotes: string;
+  /** Dell-facing asks (DELL_ASKS_FIELD), one per item. */
+  asks: string[];
   completed: boolean;
   updatedAt: string;
 }
@@ -145,6 +149,7 @@ export function dellRowsFrom(
         stakeholders,
         products,
         engagementNotes: (w.fields?.[DELL_NOTES_FIELD] || "").trim(),
+        asks: parseAsks(w.fields?.[DELL_ASKS_FIELD] || ""),
         completed: !!w.completed,
         updatedAt: clean(w.lastActivity).slice(0, 10),
       });
@@ -387,6 +392,7 @@ export interface DellWorkstream {
   stakeholders: DellStakeholder[];
   products: string[];
   engagementNotes: string;
+  asks: string[];
   completed: boolean;
   updatedAt: string;
 }
@@ -397,7 +403,7 @@ export function workstreamsOf(rows: DellRow[]): DellWorkstream[] {
   for (const r of rows) {
     const w = by.get(r.workstreamId) ?? {
       workstreamId: r.workstreamId, company: r.company, name: r.name, bu: r.bu, motions: [], stakeholders: r.stakeholders,
-      products: r.products, engagementNotes: r.engagementNotes, completed: r.completed, updatedAt: r.updatedAt,
+      products: r.products, engagementNotes: r.engagementNotes, asks: r.asks, completed: r.completed, updatedAt: r.updatedAt,
     };
     if (!w.motions.some((m) => m.motion === r.motion)) w.motions.push({ motion: r.motion, statuses: r.statuses, stage: r.stage });
     by.set(r.workstreamId, w);
@@ -463,3 +469,16 @@ export function composeDellNote(current: string, next: string): string {
   if (!c) return n ? `Next steps: ${n}` : "";
   return n ? `${c}\nNext steps: ${n}` : c;
 }
+
+/** Stored asks → items: one per line or "•" bullet, bullet marks and blanks dropped, repeats removed. */
+export function parseAsks(text: string): string[] {
+  const seen = new Set<string>();
+  return (text || "").split(/\n|•/).map((x) => x.replace(/^\s*[-*\u2022]\s*/, "").replace(/\s+/g, " ").trim())
+    .filter((x) => x && !seen.has(x.toLowerCase()) && !!seen.add(x.toLowerCase()));
+}
+
+/** Items → the stored "Dell Asks" text, one "• ask" per line. */
+export const formatAsks = (asks: string[]) => parseAsks(asks.join("\n")).map((a) => `• ${a}`).join("\n");
+
+/** V.I.C.-suggested asks made Dell-safe: internal sentences dropped, at most 3, each capped at 160 characters. */
+export const sanitizeDellAsks = (asks: string[]) => parseAsks(asks.map((a) => sanitizeDellNote(a).slice(0, 160)).join("\n")).slice(0, 3);

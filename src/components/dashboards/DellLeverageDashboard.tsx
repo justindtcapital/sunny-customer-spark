@@ -10,7 +10,7 @@ import { draftDellNotesFn, fetchDellLeverageFn, type DellLeverageData } from "@/
 import { updateWorkstreamFn } from "@/utils/asana.functions";
 import { useAuth } from "@/lib/auth-context";
 import {
-  ALL_STAGES, DEFAULT_DELL_FILTER, DELL_MOTIONS, DELL_NOTES_FIELD, NO_BU, PIPELINE_STAGES, buHeatmap, companyStageBoard, engagementList,
+  ALL_STAGES, DEFAULT_DELL_FILTER, DELL_MOTIONS, DELL_ASKS_FIELD, DELL_NOTES_FIELD, NO_BU, PIPELINE_STAGES, companyStageBoard, engagementList, formatAsks, parseAsks,
   existingOutcomes, filterDellRows, movementInWindow, peopleOf, productCounts, stageCounts, stakeholderMap, summarizeDell, trackIndex,
   type DellFilter, type DellMotion, type DellRow, type DellStage, type DellWorkstream, type Movement, type MovementKind, type StakeholderPerson,
 } from "@/lib/dell-leverage";
@@ -132,25 +132,29 @@ const MOVE_TONE: Record<MovementKind, string> = {
 
 // ─── Engagement notes (V.I.C. drafts, saved only when approved) ─────
 
-type Drafts = { get: (gid: string) => string | undefined; loading: (gid: string) => boolean; redraft: (gid: string) => void; error: string };
+type Drafts = {
+  get: (gid: string) => string | undefined; asks: (gid: string) => string[] | undefined;
+  loading: (gid: string) => boolean; redraft: (gid: string) => void; error: string;
+};
 
 /**
- * V.I.C. drafts for the listed workstreams that have no saved notes, ten per request. Each
- * workstream is drafted once per visit, however the list is filtered; drafts are never saved here.
+ * V.I.C. drafts (notes + suggested asks) for listed workstreams missing either, ten per request.
+ * Each workstream is drafted once per visit, however the list is filtered; drafts are never saved here.
  */
 function useNoteDrafts(workstreams: DellWorkstream[], enabled: boolean): Drafts {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [asks, setAsks] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const tried = useRef(new Set<string>());
   const run = useCallback((ids: string[]) => {
     setBusy((b) => { const n = new Set(b); ids.forEach((i) => n.add(i)); return n; });
     return draftDellNotesFn({ data: { gids: ids } })
-      .then((r) => { setDrafts((d) => ({ ...d, ...r.drafts })); if (r.error) setError(r.error); return r; })
+      .then((r) => { setDrafts((d) => ({ ...d, ...r.drafts })); setAsks((d) => ({ ...d, ...r.asks })); if (r.error) setError(r.error); return r; })
       .catch(() => { setError("V.I.C. couldn't draft notes right now."); return null; })
       .finally(() => setBusy((b) => { const n = new Set(b); ids.forEach((i) => n.delete(i)); return n; }));
   }, []);
-  const wanted = useMemo(() => [...new Set(workstreams.filter((w) => !w.engagementNotes).map((w) => w.workstreamId))].sort().join("\n"), [workstreams]);
+  const wanted = useMemo(() => [...new Set(workstreams.filter((w) => !w.engagementNotes || !w.asks.length).map((w) => w.workstreamId))].sort().join("\n"), [workstreams]);
   useEffect(() => {
     if (!enabled || !wanted) return;
     const ids = wanted.split("\n").filter((id) => !tried.current.has(id));
@@ -160,36 +164,57 @@ function useNoteDrafts(workstreams: DellWorkstream[], enabled: boolean): Drafts 
   }, [wanted, enabled, run]);
   return {
     get: (gid) => drafts[gid],
+    asks: (gid) => asks[gid],
     loading: (gid) => busy.has(gid),
     error,
-    redraft: (gid) => { void run([gid]).then((r) => { if (r && !r.drafts[gid]) toast.error(r.error || "V.I.C. had nothing to suggest for this workstream."); }); },
+    redraft: (gid) => { void run([gid]).then((r) => { if (r && !r.drafts[gid] && !r.asks[gid]) toast.error(r.error || "V.I.C. had nothing to suggest for this workstream."); }); },
   };
 }
 
-function NotesBox({ ws, drafts, onSaved }: { ws: DellWorkstream; drafts: Drafts; onSaved: () => void }) {
-  const [saved, setSaved] = useState(ws.engagementNotes);
-  const draft = drafts.get(ws.workstreamId);
+type BoxKind = "notes" | "asks";
+const BOX: Record<BoxKind, { field: string; noun: string; empty: string; drafting: string; saved: string; cleared: string; placeholder: string; draftLabel: string }> = {
+  notes: { field: DELL_NOTES_FIELD, noun: "Engagement notes", empty: "No engagement notes yet.", drafting: "V.I.C. is drafting notes…", saved: "Engagement notes saved", cleared: "Engagement notes cleared", placeholder: "Where it stands, then Next steps: …", draftLabel: "V.I.C. draft — not saved" },
+  asks: { field: DELL_ASKS_FIELD, noun: "Asks", empty: "No asks yet.", drafting: "V.I.C. is suggesting asks…", saved: "Asks saved", cleared: "Asks cleared", placeholder: "One ask per line, e.g. Introduction to the ISG storage lead", draftLabel: "V.I.C. suggestions — not saved" },
+};
+
+/** Bullet list of asks. */
+function AskList({ items, muted }: { items: string[]; muted?: boolean }) {
+  return <ul className={cn("list-disc space-y-0.5 pl-4 text-xs", muted ? "text-muted-foreground" : "text-foreground")}>{items.map((a) => <li key={a}>{a}</li>)}</ul>;
+}
+
+/** One Dell-facing text field on a workstream (notes or asks): shows the saved value, else V.I.C.'s draft; saves only on click. */
+function DellTextBox({ ws, kind, drafts, onSaved }: { ws: DellWorkstream; kind: BoxKind; drafts: Drafts; onSaved: () => void }) {
+  const cfg = BOX[kind];
+  const stored = kind === "notes" ? ws.engagementNotes : formatAsks(ws.asks);
+  const [saved, setSaved] = useState(stored);
+  const suggested = kind === "notes" ? drafts.get(ws.workstreamId) : drafts.asks(ws.workstreamId);
+  const draft = Array.isArray(suggested) ? formatAsks(suggested) : suggested;
   const loading = drafts.loading(ws.workstreamId);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
-  useEffect(() => setSaved(ws.engagementNotes), [ws.engagementNotes]);
+  useEffect(() => setSaved(stored), [stored]);
   // A redraft while editing replaces the text in the edit box.
   useEffect(() => { if (draft && editing) setText(draft); }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toEdit = (v: string) => kind === "asks" ? parseAsks(v).join("\n") : v;
+  const fromEdit = (v: string) => kind === "asks" ? formatAsks(v.split("\n")) : v.trim();
+  const show = (v: string, muted?: boolean) => kind === "asks" ? <AskList items={parseAsks(v)} muted={muted} />
+    : <p className={cn("whitespace-pre-line text-xs", muted ? "text-muted-foreground" : "text-foreground")}>{v}</p>;
 
-  const save = async (value: string) => {
+  const save = async (raw: string) => {
+    const value = fromEdit(raw);
     setSaving(true);
     try {
-      const r = await updateWorkstreamFn({ data: { gid: ws.workstreamId, changes: [{ gid: DELL_NOTES_FIELD, type: "text", original: saved, value: value.trim() }] } });
+      const r = await updateWorkstreamFn({ data: { gid: ws.workstreamId, changes: [{ gid: cfg.field, type: "text", original: saved, value }] } });
       if (!r.ok) { toast.error(r.error); return; }
-      setSaved(value.trim()); setEditing(false); toast.success(value.trim() ? "Engagement notes saved" : "Engagement notes cleared"); onSaved();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't save the notes."); } finally { setSaving(false); }
+      setSaved(value); setEditing(false); toast.success(value ? cfg.saved : cfg.cleared); onSaved();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't save."); } finally { setSaving(false); }
   };
   const redraftBtn = <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" disabled={saving || loading} onClick={() => drafts.redraft(ws.workstreamId)}>
-    {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}{draft || saved ? "Redraft" : "Draft with V.I.C."}</Button>;
+    {loading ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}{draft || saved ? (kind === "asks" ? "Suggest again" : "Redraft") : (kind === "asks" ? "Suggest with V.I.C." : "Draft with V.I.C.")}</Button>;
 
   if (editing) return <div className="space-y-1.5">
-    <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} className="text-xs" aria-label={`Engagement notes for ${ws.name}`} />
+    <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} className="text-xs" placeholder={cfg.placeholder} aria-label={`${cfg.noun} for ${ws.name}`} />
     <div className="flex flex-wrap items-center gap-1">
       <Button size="sm" className="h-6 px-2 text-[11px]" disabled={saving || (!text.trim() && !saved)} onClick={() => void save(text)}>{saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Save</Button>
       {redraftBtn}
@@ -198,23 +223,23 @@ function NotesBox({ ws, drafts, onSaved }: { ws: DellWorkstream; drafts: Drafts;
   </div>;
 
   if (saved) return <div>
-    <p className="whitespace-pre-line text-xs text-foreground">{saved}</p>
-    <button type="button" onClick={() => { setText(saved); setEditing(true); }} className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"><Pencil className="h-3 w-3" />Edit</button>
+    {show(saved)}
+    <button type="button" onClick={() => { setText(toEdit(saved)); setEditing(true); }} className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"><Pencil className="h-3 w-3" />Edit</button>
   </div>;
 
   if (draft) return <div>
-    <p className="whitespace-pre-line text-xs text-muted-foreground">{draft}</p>
+    {show(draft, true)}
     <div className="mt-1 flex flex-wrap items-center gap-1">
-      <span className="mr-1 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground"><Sparkles className="h-3 w-3" />V.I.C. draft — not saved</span>
+      <span className="mr-1 inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground"><Sparkles className="h-3 w-3" />{cfg.draftLabel}</span>
       <Button size="sm" variant="outline" className="h-6 px-2 text-[11px]" disabled={saving} onClick={() => void save(draft)}>{saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Save</Button>
-      <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" disabled={saving} onClick={() => { setText(draft); setEditing(true); }}><Pencil className="mr-1 h-3 w-3" />Edit</Button>
+      <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" disabled={saving} onClick={() => { setText(toEdit(draft)); setEditing(true); }}><Pencil className="mr-1 h-3 w-3" />Edit</Button>
       {redraftBtn}
     </div>
   </div>;
 
-  if (loading) return <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />V.I.C. is drafting notes…</p>;
+  if (loading) return <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />{cfg.drafting}</p>;
   return <div className="flex flex-wrap items-center gap-1">
-    <span className="mr-1 text-[11px] text-muted-foreground">No engagement notes yet.</span>
+    <span className="mr-1 text-[11px] text-muted-foreground">{cfg.empty}</span>
     <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => { setText(""); setEditing(true); }}><Pencil className="mr-1 h-3 w-3" />Write</Button>
     {redraftBtn}
   </div>;
@@ -251,8 +276,8 @@ function EngagementList({ rows, websites, drafts, company, onCompany, onOpen, on
   const groups = useMemo(() => engagementList(rows), [rows]);
   if (!groups.length) return <p className="py-6 text-center text-xs text-muted-foreground">No workstreams match these filters.</p>;
   return <div className="overflow-x-auto">
-    <table className="w-full min-w-[1100px] table-fixed text-xs">
-      <colgroup><col className="w-[13rem]" /><col className="w-[17rem]" /><col className="w-[14rem]" /><col className="w-[15rem]" /><col /></colgroup>
+    <table className="w-full min-w-[1280px] table-fixed text-xs">
+      <colgroup><col className="w-[13rem]" /><col className="w-[17rem]" /><col className="w-[14rem]" /><col className="w-[15rem]" /><col className="w-[24rem]" /><col /></colgroup>
       <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
         <th className="py-2 pr-3 font-medium">Company</th>
         <th className="py-2 pr-3 font-medium">Engagement</th>
@@ -261,7 +286,8 @@ function EngagementList({ rows, websites, drafts, company, onCompany, onOpen, on
           <span className="mt-0.5 flex justify-between text-[9px] normal-case tracking-normal">{TRACK_LABELS.map((l) => <span key={l}>{l}</span>)}</span>
         </th>
         <th className="py-2 pr-3 font-medium">Key Dell stakeholders</th>
-        <th className="py-2 font-medium">Current state &amp; next steps</th>
+        <th className="py-2 pr-4 font-medium">Current state &amp; next steps</th>
+        <th className="py-2 font-medium">Asks of Dell</th>
       </tr></thead>
       <tbody>
         {groups.flatMap((g) => g.workstreams.map((w, i) => (
@@ -280,7 +306,8 @@ function EngagementList({ rows, websites, drafts, company, onCompany, onOpen, on
             </td>
             <td className="space-y-2 py-3 pr-3">{w.motions.map((m) => <StageTrack key={m.motion} motion={m.motion} stage={m.stage} statuses={m.statuses} />)}</td>
             <td className="py-3 pr-3"><People people={peopleOf(rows.filter((r) => r.workstreamId === w.workstreamId))} empty="None named yet" /></td>
-            <td className="py-3"><NotesBox ws={w} drafts={drafts} onSaved={onSaved} /></td>
+            <td className="py-3 pr-4"><DellTextBox ws={w} kind="notes" drafts={drafts} onSaved={onSaved} /></td>
+            <td className="py-3"><DellTextBox ws={w} kind="asks" drafts={drafts} onSaved={onSaved} /></td>
           </tr>
         )))}
       </tbody>
@@ -307,8 +334,6 @@ export function DellLeverageDashboard() {
   const rows = useMemo(() => filterDellRows(all, filter), [all, filter]);
   const boardRows = useMemo(() => filterDellRows(all, filter, ["stage", "company"]), [all, filter]);
   const motionRows = useMemo(() => filterDellRows(all, filter, ["motion", "stage", "company"]), [all, filter]);
-  const heatRows = useMemo(() => filterDellRows(all, filter, ["bu", "stage"]), [all, filter]);
-  const heat = useMemo(() => buHeatmap(heatRows), [heatRows]);
   const outcomes = useMemo(() => existingOutcomes(rows), [rows]);
   const products = useMemo(() => productCounts(rows), [rows]);
   const people = useMemo(() => stakeholderMap(rows), [rows]);
@@ -352,7 +377,6 @@ export function DellLeverageDashboard() {
   if (!q.data || q.data.error) return <div className="space-y-4">{header}<Card className="border-border"><CardContent className="p-8 text-center text-sm text-muted-foreground">Dell workstream data is unavailable right now. Try again in a minute.</CardContent></Card></div>;
   if (!all.length) return <div className="space-y-4">{header}<Card className="border-border"><CardContent className="p-8 text-center text-sm text-muted-foreground">No workstreams have a Sell-In or Sell With Dell Status yet.</CardContent></Card></div>;
 
-  const maxHeat = Math.max(1, ...heat.flatMap((h) => ALL_STAGES.map((s) => h.cells[s])));
   const maxProduct = Math.max(1, ...products.map((p) => p.count));
   const maxOutcome = Math.max(1, ...outcomes.sellWith.map((o) => o.count), ...outcomes.sellIn.map((o) => o.count));
   const moveCounts = (k: MovementKind) => shownMoves.filter((m) => m.kind === k).length;
@@ -391,66 +415,12 @@ export function DellLeverageDashboard() {
     {/* Workstream list, narrowed by anything clicked above */}
     <div ref={listRef} className="scroll-mt-4">
       <Section title={`Workstreams · ${listWorkstreams.length}`}
-        sub="Click a status, a company or Sell-In / Sell-With above to narrow the list. Notes are Dell-facing: V.I.C. drafts them and nothing is saved until you click Save."
+        sub="Click a status, a company or Sell-In / Sell-With above to narrow the list. Notes and asks are Dell-facing: V.I.C. drafts them and nothing is saved until you click Save."
         right={chips.length ? <div className="flex flex-wrap items-center gap-1.5">{chips.map((c) => (
           <button key={c.label} type="button" onClick={c.clear} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-primary bg-primary px-3 text-xs text-primary-foreground"><span className="max-w-[14rem] truncate">{c.label}</span><X className="h-3 w-3 shrink-0" /></button>
         ))}</div> : undefined}>
         {drafts.error && <p className="mb-2 text-xs text-muted-foreground">{drafts.error}</p>}
         <EngagementList rows={listRows} websites={websites} drafts={drafts} company={filter.company} onCompany={pickCompany} onOpen={setOpenId} onSaved={refresh} />
-      </Section>
-    </div>
-
-    {/* BU heatmap */}
-    <Section title="Dell business units" sub="Workstreams per Dell BU and stage. Click a BU or a cell to filter.">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-xs">
-          <thead><tr className="text-muted-foreground">
-            <th className="py-1.5 pr-3 text-left font-medium">Dell BU</th>
-            {ALL_STAGES.map((s) => <th key={s} className="px-1 py-1.5 text-center font-medium">{s}</th>)}
-            <th className="px-2 py-1.5 text-right font-medium">Total</th>
-            <th className="pl-2 py-1.5 text-right font-medium">Companies</th>
-          </tr></thead>
-          <tbody>
-            {heat.map((h) => <tr key={h.bu} className={cn("border-t border-border", filter.bu === h.bu && "bg-muted/50")}>
-              <td className="py-1 pr-3"><button type="button" onClick={() => toggle("bu", h.bu)} className="font-medium text-foreground hover:underline">{h.bu}</button></td>
-              {ALL_STAGES.map((s) => {
-                const n = h.cells[s];
-                const on = filter.bu === h.bu && filter.stage === s;
-                return <td key={s} className="p-0.5">
-                  <button type="button" disabled={!n} onClick={() => on ? set({ bu: null, stage: null }) : set({ bu: h.bu, stage: s })}
-                    className={cn("h-8 w-full rounded tabular-nums", n ? "text-foreground hover:ring-1 hover:ring-primary" : "text-muted-foreground/40", on && "ring-2 ring-primary")}
-                    style={n ? { background: `color-mix(in oklab, var(--chart-1) ${12 + (n / maxHeat) * 55}%, transparent)` } : undefined}>{n || "·"}</button>
-                </td>;
-              })}
-              <td className="px-2 text-right tabular-nums font-medium text-foreground">{h.total}</td>
-              <td className="pl-2 text-right tabular-nums text-muted-foreground">{h.companies}</td>
-            </tr>)}
-          </tbody>
-        </table>
-      </div>
-    </Section>
-
-    {/* Outcomes + products */}
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-      {([["Live with Dell — Sell-With", outcomes.sellWith, "Sell-With"], ["Sell-In account health", outcomes.sellIn, "Sell-In"]] as const).map(([title, list, motion]) => (
-        <Section key={title} title={title} sub={motion === "Sell-With" ? "How companies already go to market with Dell." : "Where Dell is already a customer."}>
-          <div className="space-y-2">
-            {list.map((o) => <div key={o.outcome} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
-              <span className="text-xs text-foreground">{shortStatus(o.outcome)}</span>
-              <span className="text-xs tabular-nums font-medium text-foreground">{o.count}</span>
-              <span className="col-span-2 h-1.5 rounded-full bg-muted"><span className="block h-full rounded-full" style={{ width: `${(o.count / maxOutcome) * 100}%`, background: MOTION_COLOR[motion] }} /></span>
-            </div>)}
-          </div>
-        </Section>
-      ))}
-      <Section title="Dell products aligned" sub="Workstreams naming each Dell product.">
-        {products.length ? <div className="space-y-2">
-          {products.map((p) => <div key={p.product} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
-            <span className="truncate text-xs text-foreground">{p.product.replace(/^Dell /, "")}</span>
-            <span className="text-xs tabular-nums font-medium text-foreground">{p.count}</span>
-            <span className="col-span-2 h-1.5 rounded-full bg-muted"><span className="block h-full rounded-full bg-primary" style={{ width: `${(p.count / maxProduct) * 100}%` }} /></span>
-          </div>)}
-        </div> : <p className="text-xs text-muted-foreground">No products aligned on these workstreams yet.</p>}
       </Section>
     </div>
 
@@ -483,6 +453,30 @@ export function DellLeverageDashboard() {
         </ul> : <p className="mt-3 text-xs text-muted-foreground">No Dell status changes since {since}.</p>}
       </> : <p className="text-xs text-muted-foreground">The PortCo Change Log is unavailable right now, so movement can't be shown.</p>}
     </Section>
+
+    {/* Outcomes + products */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {([["Live with Dell — Sell-With", outcomes.sellWith, "Sell-With"], ["Sell-In account health", outcomes.sellIn, "Sell-In"]] as const).map(([title, list, motion]) => (
+        <Section key={title} title={title} sub={motion === "Sell-With" ? "How companies already go to market with Dell." : "Where Dell is already a customer."}>
+          <div className="space-y-2">
+            {list.map((o) => <div key={o.outcome} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
+              <span className="text-xs text-foreground">{shortStatus(o.outcome)}</span>
+              <span className="text-xs tabular-nums font-medium text-foreground">{o.count}</span>
+              <span className="col-span-2 h-1.5 rounded-full bg-muted"><span className="block h-full rounded-full" style={{ width: `${(o.count / maxOutcome) * 100}%`, background: MOTION_COLOR[motion] }} /></span>
+            </div>)}
+          </div>
+        </Section>
+      ))}
+      <Section title="Dell products aligned" sub="Workstreams naming each Dell product.">
+        {products.length ? <div className="space-y-2">
+          {products.map((p) => <div key={p.product} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
+            <span className="truncate text-xs text-foreground">{p.product.replace(/^Dell /, "")}</span>
+            <span className="text-xs tabular-nums font-medium text-foreground">{p.count}</span>
+            <span className="col-span-2 h-1.5 rounded-full bg-muted"><span className="block h-full rounded-full bg-primary" style={{ width: `${(p.count / maxProduct) * 100}%` }} /></span>
+          </div>)}
+        </div> : <p className="text-xs text-muted-foreground">No products aligned on these workstreams yet.</p>}
+      </Section>
+    </div>
 
     {/* Stakeholder map */}
     <Section title="Dell stakeholders" sub="Dell people named on each BU's workstreams. Dashed names aren't linked to a Network person yet.">

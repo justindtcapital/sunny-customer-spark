@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_DELL_FILTER, composeDellNote, engagementList, trackIndex, DELL_NOTES_FIELD, EXCLUDED_FIELDS, buHeatmap, companiesAtStage, companyRelationships, sanitizeDellNote, workstreamsOf, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
+  DEFAULT_DELL_FILTER, composeDellNote, formatAsks, parseAsks, sanitizeDellAsks, engagementList, trackIndex, DELL_NOTES_FIELD, EXCLUDED_FIELDS, buHeatmap, companiesAtStage, companyRelationships, sanitizeDellNote, workstreamsOf, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
   primaryStage, productCounts, stakeholderMap, statusChangesFromLog, summarizeDell, type DellWorkstreamInput,
 } from "./dell-leverage";
 import type { Contact } from "./types";
@@ -32,7 +32,7 @@ describe("dell leverage rows", () => {
     const text = JSON.stringify(leaked);
     for (const f of EXCLUDED_FIELDS) expect(text).not.toContain(JSON.stringify(f));
     for (const v of ["Needle Mover", "High - Must Do", "High ROI", "Immediate - Active"]) expect(text).not.toContain(v);
-    expect(Object.keys(leaked[0]!).sort()).toEqual(["bu", "company", "completed", "domain", "engagementNotes", "id", "motion", "name", "outcomes", "products", "stage", "stakeholders", "statuses", "updatedAt", "workstreamId"]);
+    expect(Object.keys(leaked[0]!).sort()).toEqual(["asks", "bu", "company", "completed", "domain", "engagementNotes", "id", "motion", "name", "outcomes", "products", "stage", "stakeholders", "statuses", "updatedAt", "workstreamId"]);
   });
 
   it("Existing beats any pipeline stage; Dell Leverage category without a status is Not set", () => {
@@ -169,7 +169,7 @@ describe("dell status and company pop-ups", () => {
 });
 
 describe("engagement list", () => {
-  const base = { domain: "AI", outcomes: [], bu: "Dell IT", stakeholders: [], products: [], engagementNotes: "", completed: false, updatedAt: "" };
+  const base = { domain: "AI", outcomes: [], bu: "Dell IT", stakeholders: [], products: [], engagementNotes: "", asks: [] as string[], completed: false, updatedAt: "" };
   const row = (company: string, gid: string, motion: "Sell-In" | "Sell-With", stage: import("./dell-leverage").DellStage, name = gid) =>
     ({ ...base, id: `${gid}:${motion}`, workstreamId: gid, company, name, motion, statuses: [stage], stage });
 
@@ -194,5 +194,22 @@ describe("engagement list", () => {
   it("composes current state and next steps, dropping internal sentences", () => {
     expect(composeDellNote("Pilot running with Dell IT.", "Next steps: agree success criteria.")).toBe("Pilot running with Dell IT.\nNext steps: agree success criteria.");
     expect(composeDellNote("This is a must do for us. Pilot running.", "")).toBe("Pilot running.");
+  });
+});
+
+describe("Dell asks", () => {
+  it("reads one ask per line or bullet and writes them back as bullets", () => {
+    expect(parseAsks("• Intro to ISG storage lead\n- Confirm pilot budget\n\n• intro to ISG storage lead")).toEqual(["Intro to ISG storage lead", "Confirm pilot budget"]);
+    expect(parseAsks("• One • Two")).toEqual(["One", "Two"]);
+    expect(formatAsks(["One", " Two "])).toBe("• One\n• Two");
+  });
+
+  it("keeps V.I.C. suggestions Dell-safe and to three", () => {
+    expect(sanitizeDellAsks(["This is a must do for us.", "Intro to the Dell IT CIO office.", "Pilot sponsor.", "Budget owner.", "Timeline."])).toEqual(["Intro to the Dell IT CIO office.", "Pilot sponsor.", "Budget owner."]);
+  });
+
+  it("carries saved asks onto each Dell row", () => {
+    const [row] = dellRowsFrom([{ gid: "g1", company: "Acme", name: "WS", sellInStatus: "3 - Trying to Engage", maturity: "", category: "", dellTargets: "Dell - IT", dellStakeholders: "", fields: { "Dell Asks": "• Intro to CIO" }, completed: false, lastActivity: "" }]);
+    expect(row!.asks).toEqual(["Intro to CIO"]);
   });
 });

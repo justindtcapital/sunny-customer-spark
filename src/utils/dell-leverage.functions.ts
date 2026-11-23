@@ -47,19 +47,20 @@ export const fetchDellLeverageFn = createServerFn({ method: "GET" })
   });
 
 /**
- * V.I.C. drafts Dell-facing engagement notes for the given workstreams. It reads the workstream's
+ * V.I.C. drafts Dell-facing engagement notes and suggested asks of Dell for the given workstreams. It reads the workstream's
  * internal notes, statuses and recent Dell status changes as background only; the output is
  * sanitized (sanitizeDellNote) and returned as a draft — nothing is saved until a person approves it.
  */
 export const draftDellNotesFn = createServerFn({ method: "POST" })
   .middleware([requireTeamAuth])
   .inputValidator((data) => z.object({ gids: z.array(z.string().min(1).max(80)).min(1).max(40) }).parse(data))
-  .handler(async ({ data }): Promise<{ drafts: Record<string, string>; error: string }> => {
+  .handler(async ({ data }): Promise<{ drafts: Record<string, string>; asks: Record<string, string[]>; error: string }> => {
     const { draftDellEngagementNotes } = await import("./dell-notes.server");
     try {
-      return { drafts: await draftDellEngagementNotes(data.gids), error: "" };
+      const r = await draftDellEngagementNotes(data.gids);
+      return { drafts: r.notes, asks: r.asks, error: "" };
     } catch (e) {
       console.error("[dell-leverage] note drafts failed", e);
-      return { drafts: {}, error: e instanceof Error ? e.message : String(e) };
+      return { drafts: {}, asks: {}, error: e instanceof Error ? e.message : String(e) };
     }
   });
