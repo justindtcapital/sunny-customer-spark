@@ -24,18 +24,31 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * Order: tagged people, the follow-up's own person, then one full name written in the title.
  * Teammates are skipped, and a name matching more than one person is left unresolved.
  */
-export function resolveActionContact(
-  r: GroupableReminder,
-  directory: DirectoryPerson[],
-  isTeammate: (nameOrEmail: string) => boolean,
-): { name: string; company: string } | null {
+// Built once per directory array: every follow-up row used to rebuild it from all contacts.
+const directoryIndexes = new WeakMap<object, { byEmail: Map<string, DirectoryPerson>; byName: Map<string, DirectoryPerson[]> }>();
+function directoryIndex(directory: DirectoryPerson[]) {
+  const cached = directoryIndexes.get(directory);
+  if (cached) return cached;
   const byEmail = new Map<string, DirectoryPerson>();
   const byName = new Map<string, DirectoryPerson[]>();
   for (const p of directory) {
     if (p.email) byEmail.set(p.email.toLowerCase(), p);
     const k = nameKey(p.name);
-    if (k.includes(" ")) byName.set(k, [...(byName.get(k) || []), p]);
+    if (!k.includes(" ")) continue;
+    const list = byName.get(k);
+    if (list) list.push(p); else byName.set(k, [p]);
   }
+  const index = { byEmail, byName };
+  directoryIndexes.set(directory, index);
+  return index;
+}
+
+export function resolveActionContact(
+  r: GroupableReminder,
+  directory: DirectoryPerson[],
+  isTeammate: (nameOrEmail: string) => boolean,
+): { name: string; company: string } | null {
+  const { byEmail, byName } = directoryIndex(directory);
   const unique = (list?: DirectoryPerson[]) => {
     const withCo = (list || []).filter((p) => p.company.trim());
     const cos = new Set(withCo.map((p) => p.company.trim().toLowerCase()));
