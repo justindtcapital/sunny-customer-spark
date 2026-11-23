@@ -25,6 +25,7 @@ export function EditableCell({ kind, value, options = [], onSave, className, ren
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(kind === "multi_enum" ? value : toDraft(value));
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (!editing) setDraft(kind === "multi_enum" ? value : toDraft(value)); }, [value, editing]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
@@ -61,7 +62,7 @@ export function EditableCell({ kind, value, options = [], onSave, className, ren
   if (kind === "multi_enum") {
     const sel = value ? value.split(/\s*,\s*/).filter(Boolean) : [];
     return (
-      <Popover onOpenChange={(open) => { if (!open) { const next = draft ? draft.split(/\s*,\s*/).filter(Boolean) : []; void commit(next); } else setDraft(value); }}>
+      <Popover open={pickerOpen} onOpenChange={(open) => { setPickerOpen(open); if (!open) { const next = draft ? draft.split(/\s*,\s*/).filter(Boolean) : []; void commit(next); } else setDraft(value); }}>
         <PopoverTrigger asChild>
           <button type="button" className={cn("w-full px-2 py-1.5 text-left text-xs hover:bg-accent/40", className)} title={value}>{display}</button>
         </PopoverTrigger>
@@ -76,6 +77,14 @@ export function EditableCell({ kind, value, options = [], onSave, className, ren
             );
           })}
           {sel.filter((s) => !options.includes(s)).map((s) => <p key={s} className="text-[11px] text-muted-foreground">Also set: {s}</p>)}
+          <button
+            type="button"
+            disabled={!draft}
+            onClick={() => { setDraft(""); setPickerOpen(false); void commit([]); }}
+            className="mt-1 w-full border-t border-border pt-1.5 text-left text-xs italic text-muted-foreground hover:text-foreground disabled:opacity-40"
+          >
+            Clear all
+          </button>
         </PopoverContent>
       </Popover>
     );

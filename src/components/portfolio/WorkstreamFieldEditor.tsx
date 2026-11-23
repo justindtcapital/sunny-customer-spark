@@ -58,6 +58,9 @@ export function WorkstreamFieldEditor({
         {(meta.options || []).length === 0 && (
           <span className="text-[11px] italic text-muted-foreground">No choices set up</span>
         )}
+        {sel.length > 0 && (
+          <button type="button" onClick={() => onChange([])} className="ml-auto text-[11px] italic text-muted-foreground hover:text-foreground">Clear all</button>
+        )}
       </div>
     );
   }

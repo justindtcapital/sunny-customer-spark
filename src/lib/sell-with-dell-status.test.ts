@@ -78,3 +78,20 @@ describe("Sell With Dell Status on companies and workstreams", () => {
     expect(mergeStatuses(`${EMB}, ${TRY}`, TRY)).toBe(`${TRY}, ${EMB}`);
   });
 });
+
+describe("clearing Sell With Dell Status", () => {
+  it("clearing a workstream removes its statuses from the company unless another workstream keeps them", () => {
+    expect(companyStatusAfterWorkstreamEdit({
+      company: "1 - Engaged /Progressing, 3 - Trying to Engage",
+      before: "1 - Engaged /Progressing, 3 - Trying to Engage",
+      after: "",
+      otherWorkstreams: ["3 - Trying to Engage"],
+    })).toBe("3 - Trying to Engage");
+  });
+  it("clearing the company clears every workstream status", () => {
+    expect(workstreamStatusesAfterCompanyEdit("1 - Engaged /Progressing, 3 - Trying to Engage", "", ["1 - Engaged /Progressing", "3 - Trying to Engage"])).toEqual(["", ""]);
+  });
+  it("clearing one editor's whole selection empties the value", () => {
+    expect(applyStatusEdit("3 - Trying to Engage", ["3 - Trying to Engage"], [])).toBe("");
+  });
+});

@@ -66,6 +66,10 @@ function ProfileInput({ def, value, onChange }: { def: PortcoFieldDef; value: st
             {o}
           </label>
         ))}
+        {cur.filter((x) => !(def.options || []).includes(x)).map((x) => <span key={x} className="text-[11px] text-muted-foreground">Also set: {x}</span>)}
+        {cur.length > 0 && (
+          <button type="button" onClick={() => onChange("")} className="ml-auto text-xs italic text-muted-foreground hover:text-foreground">Clear all</button>
+        )}
       </div>
     );
   }
