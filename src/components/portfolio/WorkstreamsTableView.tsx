@@ -1,8 +1,9 @@
-// Spreadsheet view of every workstream: filter, edit cells inline, add a workstream, choose columns.
+// Spreadsheet view of every workstream: click any column header to sort or
+// filter by it, edit cells inline, add a workstream, choose columns.
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Plus, Search } from "lucide-react";
+import { Loader2, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EditableCell, type CellKind } from "@/components/portfolio/table/EditableCell";
 import { ColumnChooser, useColumnChoice, type ColumnOption } from "@/components/portfolio/table/ColumnChooser";
+import { ColumnHeaderMenu } from "@/components/portfolio/table/ColumnHeaderMenu";
+import { applyColumns, filterActive, valueCounts, type ColumnFilter, type ColumnFilters, type ColumnSort } from "@/lib/table-filter";
 import { createWorkstreamFn, updateWorkstreamFn } from "@/utils/asana.functions";
 import { fetchPortcoTableFn } from "@/utils/portco-store.functions";
 import { patchWorkstreamCache, useWorkstreams } from "@/lib/use-workstreams";
@@ -24,7 +27,6 @@ const renderPriority = (v: string) => <span className={cn("inline-block rounded-
 
 const DEFAULT_COLUMNS = ["Segment", "Owner", "Workstream Status", "Workstream Priority", "Sell-In Status", "Dell Targets", "Dell Stakeholders", "Completed"];
 const ARCHIVED = "archived:";
-const ALL = "__all__";
 
 function kindOf(key: string): { kind: CellKind; options?: readonly string[] } {
   if (key === "Owner") return { kind: "enum", options: OWNER_OPTIONS };
@@ -44,10 +46,8 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
   const [patched, setPatched] = useState<Record<string, Workstream>>({});
   const [cols, setCols, resetCols] = useColumnChoice("workstreams", DEFAULT_COLUMNS);
   const [q, setQ] = useState("");
-  const [company, setCompany] = useState(ALL);
-  const [segment, setSegment] = useState(ALL);
-  const [owner, setOwner] = useState(ALL);
-  const [status, setStatus] = useState(ALL);
+  const [filters, setFilters] = useState<ColumnFilters>({});
+  const [sort, setSort] = useState<ColumnSort | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ company: "", segment: "GTM" as "GTM" | "BD", name: "" });
@@ -76,17 +76,43 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
     return w.fields[key] || "";
   };
 
-  const rows = useMemo(() => {
+  const isMulti = (key: string) => kindOf(key).kind === "multi_enum";
+  const isNumeric = (key: string) => kindOf(key).kind === "number";
+  const modeOf = (key: string): "values" | "text" => {
+    if (key === "Company" || key === "Segment" || key === "Owner" || key === "Completed") return "values";
+    const k = kindOf(key).kind;
+    return k === "enum" || k === "multi_enum" || key.startsWith(ARCHIVED) ? "values" : "text";
+  };
+  // Completed rows hide unless "Show completed" is ticked or the Completed column is being filtered.
+  const base = useMemo(() => {
     const term = q.trim().toLowerCase();
+    const doneFiltered = filterActive(filters["Completed"]);
     return list
-      .filter((w) => showDone || !isWorkstreamCompleted(w))
-      .filter((w) => company === ALL || w.company === company)
-      .filter((w) => segment === ALL || w.segment === segment)
-      .filter((w) => owner === ALL || (owner === "" ? !w.owner : w.owner === owner))
-      .filter((w) => status === ALL || (w.workstreamStatus || "").split(/\s*,\s*/).includes(status))
-      .filter((w) => !term || [w.company, w.name, w.notes, ...Object.values(w.fields)].some((v) => (v || "").toLowerCase().includes(term)))
-      .sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name));
-  }, [list, q, company, segment, owner, status, showDone]);
+      .filter((w) => showDone || doneFiltered || !isWorkstreamCompleted(w))
+      .filter((w) => !term || [w.company, w.name, w.notes, ...Object.values(w.fields)].some((v) => (v || "").toLowerCase().includes(term)));
+  }, [list, q, showDone, filters]);
+  const rows = useMemo(() => applyColumns(base, {
+    filters, sort, get: valueOf, isMulti, isNumeric,
+    tieBreak: (a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name),
+  }), [base, filters, sort, archives]); // eslint-disable-line react-hooks/exhaustive-deps
+  const activeCount = Object.values(filters).filter(filterActive).length;
+  const setFilter = (key: string, f: ColumnFilter | undefined) => setFilters((all) => {
+    const next = { ...all };
+    if (f) next[key] = f; else delete next[key];
+    return next;
+  });
+  // Filter list values come from rows matching every OTHER column's filter, like a spreadsheet.
+  const countsFor = (key: string) => () => {
+    const others = { ...filters };
+    delete others[key];
+    return valueCounts(applyColumns(base, { filters: others, sort: null, get: valueOf, isMulti }), (w) => valueOf(w, key), isMulti(key));
+  };
+  const header = (key: string, label: string, extra = "") => (
+    <th key={key} className={cn("whitespace-nowrap border-b border-border bg-muted/60 px-1.5 py-1.5 text-left text-[11px] font-semibold text-muted-foreground", extra)}>
+      <ColumnHeaderMenu label={label} mode={modeOf(key)} sortDir={sort?.key === key ? sort.dir : null}
+        onSort={(dir) => setSort(dir ? { key, dir } : null)} filter={filters[key]} onFilter={(f) => setFilter(key, f)} counts={countsFor(key)} />
+    </th>
+  );
 
   const saveCell = async (w: Workstream, key: string, original: string, next: string | string[], undo = false): Promise<boolean> => {
     const value = Array.isArray(next) ? next : next.trim();
@@ -120,18 +146,6 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
     await refresh();
   };
 
-  const owners = [...OWNER_OPTIONS];
-  const statuses = WORKSTREAM_FIELD_DEFS.find((d) => d.name === "Workstream Status")!.options!;
-  const filterSelect = (value: string, set: (v: string) => void, label: string, items: { value: string; label: string }[], width = "w-40") => (
-    <Select value={value} onValueChange={set}>
-      <SelectTrigger className={`h-8 ${width} text-xs`} aria-label={label}><SelectValue /></SelectTrigger>
-      <SelectContent>
-        <SelectItem value={ALL} className="text-xs">{label}: all</SelectItem>
-        {items.map((i) => <SelectItem key={i.value || "none"} value={i.value || "__unassigned__"} className="text-xs">{i.label}</SelectItem>)}
-      </SelectContent>
-    </Select>
-  );
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -139,10 +153,9 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
           <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input className="h-8 pl-7 text-sm" placeholder="Search workstreams" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        {filterSelect(company, setCompany, "Company", companies.map((c) => ({ value: c, label: c })), "w-48")}
-        {filterSelect(segment, setSegment, "GTM / BD", [{ value: "GTM", label: "GTM" }, { value: "BD", label: "BD" }, { value: "Other", label: "Other" }], "w-32")}
-        {filterSelect(owner === "" ? "__unassigned__" : owner, (v) => setOwner(v === "__unassigned__" ? "" : v), "Owner", [...owners.map((o) => ({ value: o, label: o })), { value: "", label: "Unassigned" }])}
-        {filterSelect(status, setStatus, "Status", statuses.map((s) => ({ value: s, label: s })), "w-44")}
+        {activeCount > 0 && (
+          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setFilters({})}><X className="mr-1 h-3.5 w-3.5" />Clear {activeCount} filter{activeCount === 1 ? "" : "s"}</Button>
+        )}
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Checkbox checked={showDone} onCheckedChange={(v) => setShowDone(v === true)} /> Show completed
         </label>
@@ -166,18 +179,19 @@ export function WorkstreamsTableView({ companyNames }: { companyNames: string[] 
           <Button size="sm" className="h-8 text-xs" disabled={busy || !draft.company || !draft.name.trim()} onClick={() => void addWorkstream()}>{busy && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}Add</Button>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">{rows.length} workstream{rows.length === 1 ? "" : "s"} · click a cell to edit</p>
+      <p className="text-xs text-muted-foreground">{rows.length} workstream{rows.length === 1 ? "" : "s"} · click a column name to sort or filter · click a cell to edit</p>
       <div className="overflow-x-auto rounded-lg border border-border bg-card">
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 whitespace-nowrap border-b border-border bg-muted/60 px-2 py-2 text-left text-[11px] font-semibold text-muted-foreground">Company</th>
-              <th className="whitespace-nowrap border-b border-border bg-muted/60 px-2 py-2 text-left text-[11px] font-semibold text-muted-foreground">Workstream</th>
-              {shown.map((o) => <th key={o.key} className="whitespace-nowrap border-b border-border bg-muted/60 px-2 py-2 text-left text-[11px] font-semibold text-muted-foreground">{o.label}</th>)}
+              {header("Company", "Company", "sticky left-0 z-20")}
+              {header("Name", "Workstream")}
+              {shown.map((o) => header(o.key, o.label))}
             </tr>
           </thead>
           <tbody>
             {loading && <tr><td colSpan={shown.length + 2} className="p-6 text-center text-muted-foreground"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></td></tr>}
+            {!loading && rows.length === 0 && <tr><td colSpan={shown.length + 2} className="p-6 text-center text-muted-foreground">No workstreams match these filters.</td></tr>}
             {!loading && rows.map((w) => (
               <tr key={w.gid} className="border-b border-border last:border-0 hover:bg-accent/20">
                 <td className="sticky left-0 z-10 min-w-[150px] border-r border-border bg-card px-2 py-1.5 font-medium text-foreground">{w.company}</td>
