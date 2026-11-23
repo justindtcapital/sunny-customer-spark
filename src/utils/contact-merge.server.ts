@@ -201,7 +201,7 @@ export interface MergeHistoryEntry { mergeId: string; keeperUrid: string; keeper
 export async function listMerges(): Promise<MergeHistoryEntry[]> {
   const log = await readLog();
   const undone = new Set(log.filter((e) => e.action === "undone").map((e) => e.mergeId));
-  return log.filter((e) => e.action === "merged").reverse().slice(0, 50)
+  return log.filter((e) => e.action === "merged").reverse().slice(0, 150)
     .map((e) => ({ mergeId: e.mergeId, keeperUrid: e.keeperUrid, keeperName: e.keeperName, otherNames: e.otherNames, by: e.by, at: e.at, undone: undone.has(e.mergeId) }));
 }
 
