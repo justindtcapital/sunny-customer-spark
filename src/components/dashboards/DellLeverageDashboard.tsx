@@ -11,7 +11,7 @@ import { updateWorkstreamFn } from "@/utils/asana.functions";
 import { useAuth } from "@/lib/auth-context";
 import {
   ALL_STAGES, DEFAULT_DELL_FILTER, DELL_MOTIONS, DELL_ASKS_FIELD, DELL_NOTES_FIELD, NO_BU, PIPELINE_STAGES, companyStageBoard, engagementList, formatAsks, parseAsks,
-  existingOutcomes, filterDellRows, movementInWindow, peopleOf, productCounts, stageCounts, stakeholderMap, summarizeDell, trackIndex,
+  existingOutcomes, filterDellRows, movementInWindow, peopleOf, productCounts, stageCounts, stakeholderMap, summarizeDell, trackIndex, workstreamsMissingDellText,
   type DellFilter, type DellMotion, type DellRow, type DellStage, type DellWorkstream, type Movement, type MovementKind, type StakeholderPerson,
 } from "@/lib/dell-leverage";
 import { useWorkstreams } from "@/lib/use-workstreams";
@@ -148,38 +148,43 @@ const MOVE_TONE: Record<MovementKind, string> = {
 type Drafts = {
   get: (gid: string) => string | undefined; asks: (gid: string) => string[] | undefined;
   loading: (gid: string) => boolean; redraft: (gid: string) => void; error: string;
+  /** Listed workstreams still missing saved notes or asks and not drafted this visit. */
+  missing: string[]; drafting: boolean; draftMissing: () => void;
 };
 
 /**
- * V.I.C. drafts (notes + suggested asks) for listed workstreams missing either, ten per request.
- * Each workstream is drafted once per visit, however the list is filtered; drafts are never saved here.
+ * V.I.C. drafts (notes + suggested asks) only when a person asks: one workstream at a time, or the
+ * "Draft missing" batch (ten per request). Opening or filtering the page never calls V.I.C.; drafts are never saved here.
  */
-function useNoteDrafts(workstreams: DellWorkstream[], enabled: boolean): Drafts {
+function useNoteDrafts(workstreams: DellWorkstream[]): Drafts {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [asks, setAsks] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [drafted, setDrafted] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
-  const tried = useRef(new Set<string>());
   const run = useCallback((ids: string[]) => {
     setBusy((b) => { const n = new Set(b); ids.forEach((i) => n.add(i)); return n; });
     return draftDellNotesFn({ data: { gids: ids } })
-      .then((r) => { setDrafts((d) => ({ ...d, ...r.drafts })); setAsks((d) => ({ ...d, ...r.asks })); if (r.error) setError(r.error); return r; })
+      .then((r) => {
+        setDrafts((d) => ({ ...d, ...r.drafts })); setAsks((d) => ({ ...d, ...r.asks }));
+        setDrafted((d) => { const n = new Set(d); ids.forEach((i) => n.add(i)); return n; });
+        setError(r.error || ""); return r;
+      })
       .catch(() => { setError("V.I.C. couldn't draft notes right now."); return null; })
       .finally(() => setBusy((b) => { const n = new Set(b); ids.forEach((i) => n.delete(i)); return n; }));
   }, []);
-  const wanted = useMemo(() => [...new Set(workstreams.filter((w) => !w.engagementNotes || !w.asks.length).map((w) => w.workstreamId))].sort().join("\n"), [workstreams]);
-  useEffect(() => {
-    if (!enabled || !wanted) return;
-    const ids = wanted.split("\n").filter((id) => !tried.current.has(id));
-    if (!ids.length) return;
-    ids.forEach((id) => tried.current.add(id));
-    for (let i = 0; i < ids.length; i += 10) void run(ids.slice(i, i + 10));
-  }, [wanted, enabled, run]);
+  const missing = useMemo(() => workstreamsMissingDellText(workstreams, drafted), [workstreams, drafted]);
   return {
     get: (gid) => drafts[gid],
     asks: (gid) => asks[gid],
     loading: (gid) => busy.has(gid),
     error,
+    missing,
+    drafting: missing.some((id) => busy.has(id)),
+    draftMissing: () => {
+      const ids = missing.filter((id) => !busy.has(id));
+      for (let i = 0; i < ids.length; i += 10) void run(ids.slice(i, i + 10));
+    },
     redraft: (gid) => { void run([gid]).then((r) => { if (r && !r.drafts[gid] && !r.asks[gid]) toast.error(r.error || "V.I.C. had nothing to suggest for this workstream."); }); },
   };
 }
@@ -251,10 +256,12 @@ function DellTextBox({ ws, kind, drafts, onSaved }: { ws: DellWorkstream; kind: 
   </div>;
 
   if (loading) return <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />{cfg.drafting}</p>;
-  return <div className="flex flex-wrap items-center gap-1">
-    <span className="mr-1 text-[11px] text-muted-foreground">{cfg.empty}</span>
+  return <div className="space-y-1">
+    <p className="text-[11px] text-muted-foreground">{cfg.empty}</p>
+    <div className="flex flex-wrap items-center gap-1">
     <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px]" onClick={() => { setText(""); setEditing(true); }}><Pencil className="mr-1 h-3 w-3" />Write</Button>
     {redraftBtn}
+    </div>
   </div>;
 }
 
@@ -355,7 +362,7 @@ export function DellLeverageDashboard() {
   const shownMoves = moves.filter((m) => visibleIds.has(`${m.workstreamId}:${m.motion}`));
   const listRows = useMemo(() => moveKind ? rows.filter((r) => shownMoves.some((m) => m.kind === moveKind && m.workstreamId === r.workstreamId && m.motion === r.motion)) : rows, [rows, moveKind, shownMoves]);
   const listWorkstreams = useMemo(() => engagementList(listRows).flatMap((g) => g.workstreams), [listRows]);
-  const drafts = useNoteDrafts(listWorkstreams, !!q.data && !q.data.error);
+  const drafts = useNoteDrafts(listWorkstreams);
   const buOptions = useMemo(() => [...new Set(all.map((r) => r.bu))].sort((a, b) => (a === NO_BU ? 1 : b === NO_BU ? -1 : a.localeCompare(b))), [all]);
   const filtered = JSON.stringify(filter) !== JSON.stringify(DEFAULT_DELL_FILTER) || !!moveKind;
   const listKey = `${filter.motion}|${filter.stage}|${filter.company}|${moveKind}`;
@@ -428,10 +435,16 @@ export function DellLeverageDashboard() {
     {/* Workstream list, narrowed by anything clicked above */}
     <div ref={listRef} className="scroll-mt-4">
       <Section title={`Workstreams · ${listWorkstreams.length}`}
-        sub="Click a status, a company or Sell-In / Sell-With above to narrow the list. Notes and asks are Dell-facing: V.I.C. drafts them and nothing is saved until you click Save."
-        right={chips.length ? <div className="flex flex-wrap items-center gap-1.5">{chips.map((c) => (
-          <button key={c.label} type="button" onClick={c.clear} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-primary bg-primary px-3 text-xs text-primary-foreground"><span className="max-w-[14rem] truncate">{c.label}</span><X className="h-3 w-3 shrink-0" /></button>
-        ))}</div> : undefined}>
+        sub="Click a status, a company or Sell-In / Sell-With above to narrow the list. Notes and asks are Dell-facing: V.I.C. drafts them only when you ask, and nothing is saved until you click Save."
+        right={<div className="flex flex-wrap items-center gap-1.5">
+          {chips.map((c) => (
+            <button key={c.label} type="button" onClick={c.clear} className="inline-flex h-7 items-center gap-1.5 rounded-full border border-primary bg-primary px-3 text-xs text-primary-foreground"><span className="max-w-[14rem] truncate">{c.label}</span><X className="h-3 w-3 shrink-0" /></button>
+          ))}
+          {(drafts.missing.length > 0 || drafts.drafting) && <Button size="sm" variant="outline" className="h-7 text-xs" disabled={drafts.drafting} onClick={drafts.draftMissing}>
+            {drafts.drafting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
+            {drafts.drafting ? "V.I.C. is drafting…" : `Draft missing with V.I.C. · ${drafts.missing.length}`}
+          </Button>}
+        </div>}>
         {drafts.error && <p className="mb-2 text-xs text-muted-foreground">{drafts.error}</p>}
         <EngagementList rows={listRows} websites={websites} drafts={drafts} company={filter.company} onCompany={pickCompany} onOpen={setOpenId} onSaved={refresh} />
       </Section>

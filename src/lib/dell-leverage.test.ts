@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_DELL_FILTER, composeDellNote, formatAsks, parseAsks, sanitizeDellAsks, engagementList, trackIndex, DELL_NOTES_FIELD, EXCLUDED_FIELDS, buHeatmap, companiesAtStage, companyRelationships, sanitizeDellNote, workstreamsOf, companyStageBoard, dellRowsFrom, existingOutcomes, filterDellRows, movementInWindow,
-  primaryStage, productCounts, stakeholderMap, statusChangesFromLog, summarizeDell, type DellWorkstreamInput,
+  primaryStage, productCounts, workstreamsMissingDellText, stakeholderMap, statusChangesFromLog, summarizeDell, type DellWorkstreamInput,
 } from "./dell-leverage";
 import type { Contact } from "./types";
 
@@ -211,5 +211,15 @@ describe("Dell asks", () => {
   it("carries saved asks onto each Dell row", () => {
     const [row] = dellRowsFrom([{ gid: "g1", company: "Acme", name: "WS", sellInStatus: "Working to Engage", maturity: "", category: "", dellTargets: "Dell - IT", dellStakeholders: "", fields: { "Dell Asks": "• Intro to CIO" }, completed: false, lastActivity: "" }]);
     expect(row!.asks).toEqual(["Intro to CIO"]);
+  });
+});
+
+describe("V.I.C. drafting is on demand", () => {
+  const w = (workstreamId: string, engagementNotes: string, asks: string[]) => ({ workstreamId, engagementNotes, asks });
+  it("offers only workstreams missing saved notes or asks", () => {
+    expect(workstreamsMissingDellText([w("b", "", ["Ask"]), w("a", "Note", []), w("c", "Note", ["Ask"]), w("b", "", ["Ask"])])).toEqual(["a", "b"]);
+  });
+  it("skips workstreams already drafted this visit", () => {
+    expect(workstreamsMissingDellText([w("a", "", []), w("b", "", [])], new Set(["a"]))).toEqual(["b"]);
   });
 });

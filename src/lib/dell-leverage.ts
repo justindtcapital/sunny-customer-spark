@@ -479,3 +479,14 @@ export const formatAsks = (asks: string[]) => parseAsks(asks.join("\n")).map((a)
 
 /** V.I.C.-suggested asks made Dell-safe: internal sentences dropped, at most 3, each capped at 160 characters. */
 export const sanitizeDellAsks = (asks: string[]) => parseAsks(asks.map((a) => sanitizeDellNote(a).slice(0, 160)).join("\n")).slice(0, 3);
+
+/**
+ * Workstreams still missing saved notes or asks and without a draft from this visit, sorted and unique.
+ * V.I.C. only drafts these when a person asks (one workstream, or the batch button) — never on page load.
+ */
+export function workstreamsMissingDellText(
+  workstreams: Array<Pick<DellWorkstream, "workstreamId" | "engagementNotes" | "asks">>,
+  drafted: ReadonlySet<string> = new Set(),
+): string[] {
+  return [...new Set(workstreams.filter((w) => (!w.engagementNotes || !w.asks.length) && !drafted.has(w.workstreamId)).map((w) => w.workstreamId))].sort();
+}
