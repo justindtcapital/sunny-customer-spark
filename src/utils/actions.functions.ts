@@ -165,6 +165,7 @@ const interpretInput = z.object({
   senderName: z.string().max(100).optional(),
   currentDraft: z.string().max(8000).optional(),
   focusCompany: z.string().max(200).optional(),
+  stakeholders: z.string().max(4000).optional(),
   conversation: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(10000) })).max(40).optional(),
   tone: z.enum(["formal", "informal"]).optional(),
   length: z.enum(["short", "long"]).optional(),
@@ -176,16 +177,19 @@ export const interpretActionRequestFn = createServerFn({ method: "POST" }).middl
   .handler(async ({ data }) => {
     const { callGeminiJSON } = await import("./gemini.server");
     const { peopleDirectory } = await import("./notes-inbox.server");
-    const { resolvePersonQuery, portcosMentioned } = await import("@/lib/action-people");
+    const { portcosMentioned } = await import("@/lib/action-people");
+    const { contextPeople, resolveInContext } = await import("@/lib/action-context-people");
     const { actionStyle, canonicalActionNames, stripActionPortcoBullets } = await import("@/lib/action-drafting");
     const dir = (await peopleDirectory()).map((p) => ({ name: p.name, email: p.email, company: p.company, title: p.title || "", where: p.where }));
     const confirmed = dir.filter((p) => data.people.includes(p.name) || data.people.includes(p.email));
+    const onRecord = contextPeople(dir, { company: data.focusCompany, stakeholders: data.stakeholders });
     const canonicalNames = [...new Set([...data.portcos, ...confirmed.map((p) => p.company).filter(Boolean)])];
     const system = `You are V.I.C., assistant to a venture investor at DT Capital (Dell Technologies Capital).
 Interpret the user's request about an action. Output ONLY JSON:
 {"mode":"email"|"log","people":[{"phrase":"exact words used","name":"full name if given","company":"company if given","role":"title like CEO if given","count":number if a count was given}],"portcos":["PortCo names mentioned"],"subject":"...","body":"email body or log notes","reply":"Conversational response explaining changes or asking a clarification question"}
 - mode "log" when they describe something already done (called, met, introduced, logged); otherwise "email".
 - people: only people newly described in the request; omit the people already listed as current recipients unless re-described.${data.focusCompany ? ` "their"/"them" refers to ${data.focusCompany}.` : ""}
+- "People on this source" are the Dell stakeholders and PortCo contacts already tied to what is being actioned. When a first name, role, "they", "the stakeholders" or "the team" could mean one of them, assume it does and put their FULL name in people[].name (company "Dell" for Dell stakeholders). Only look beyond them when nobody there fits.
 - Email style: ${actionStyle(data.tone || "informal", data.length || "short")} No placeholders, never invent facts; refer to unresolved people by role. Sign off with the sender's first name if given.
 - This is a continuing conversation. Interpret refinements in light of earlier messages and the current draft, not as unrelated requests. When a detail is unclear, ask a focused question in reply; leave subject/body empty if you cannot safely draft yet.
 - Use the EXACT canonical spelling of confirmed people and companies, even when dictation misspells them. PortCo tags must come from the provided canonical options. Never silently resolve an ambiguous company or person: ask for confirmation.
@@ -194,6 +198,7 @@ Interpret the user's request about an action. Output ONLY JSON:
       `Request: ${data.request}`,
       `Source (${data.sourceKind}): ${data.sourceTitle}`, data.sourceText.slice(0, 6000),
       `Current recipients: ${data.people.join(", ") || "none"}`,
+      onRecord.length ? `People on this source: ${JSON.stringify(onRecord.map((p) => ({ name: p.name, company: p.company, title: p.title || undefined, role: p.why })))}` : "",
       `Confirmed people and companies: ${JSON.stringify(confirmed.map((p) => ({ name: p.name, company: p.company })))}`,
       `Canonical PortCo options: ${data.portcoOptions.join(", ")}`,
       data.conversation?.length ? `Conversation so far:\n${data.conversation.map((m) => `${m.role}: ${m.text}`).join("\n")}` : "",
@@ -203,10 +208,10 @@ Interpret the user's request about an action. Output ONLY JSON:
     ].filter(Boolean).join("\n\n");
     const r = await callGeminiJSON<{ mode?: string; people?: Array<{ phrase?: string; name?: string; company?: string; role?: string; count?: number }>; portcos?: string[]; subject?: string; body?: string; reply?: string }>(system, user, 2000);
     if (!r.ok || !r.data) return { ok: false as const, error: r.error || "V.I.C. couldn't read that request." };
-    const people = (r.data.people || []).slice(0, 10).map((q) => resolvePersonQuery({
+    const people = (r.data.people || []).slice(0, 10).map((q) => resolveInContext({
       phrase: String(q.phrase || ""), name: q.name || undefined, company: q.company || (q.name ? undefined : data.focusCompany), role: q.role || undefined,
       count: typeof q.count === "number" && q.count > 0 ? Math.round(q.count) : undefined,
-    }, dir));
+    }, dir, onRecord));
     const lower = new Map(data.portcoOptions.map((o) => [o.toLowerCase(), o]));
     const portcos = [...new Set([
       ...(r.data.portcos || []).map((p) => lower.get(String(p).toLowerCase())).filter((p): p is string => !!p),
@@ -214,4 +219,14 @@ Interpret the user's request about an action. Output ONLY JSON:
     ])];
     const names = [...canonicalNames, ...portcos];
     return { ok: true as const, mode: r.data.mode === "log" ? "log" as const : "email" as const, people, portcos, subject: canonicalActionNames(String(r.data.subject || ""), names), body: stripActionPortcoBullets(canonicalActionNames(String(r.data.body || ""), names), data.portcoOptions), reply: String(r.data.reply || "") };
+  });
+
+/** People already tied to an action's source (workstream Dell stakeholders + PortCo contacts) for one-click recipients. Read-only. */
+export const actionContextPeopleFn = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .inputValidator((d: { company?: string; stakeholders?: string }) => z.object({ company: z.string().max(200).optional(), stakeholders: z.string().max(4000).optional() }).parse(d))
+  .handler(async ({ data }) => {
+    const { peopleDirectory } = await import("./notes-inbox.server");
+    const { contextPeople } = await import("@/lib/action-context-people");
+    const dir = (await peopleDirectory()).map((p) => ({ name: p.name, email: p.email, company: p.company, title: p.title || "", where: p.where }));
+    return contextPeople(dir, data);
   });

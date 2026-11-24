@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 import { teamMemberFor } from "@/lib/user-ownership";
 import { useWorkstreams } from "@/lib/use-workstreams";
 import { appendPortcoList } from "@/lib/portco-list";
-import { completeActionFn, interpretActionRequestFn, fetchPortcoListFn } from "@/utils/actions.functions";
+import { completeActionFn, interpretActionRequestFn, fetchPortcoListFn, actionContextPeopleFn } from "@/utils/actions.functions";
 import { fetchReviewCompaniesFn } from "@/utils/knowledge.functions";
 import { useQuery } from "@tanstack/react-query";
 import { reviewCompanyOptions } from "@/lib/review-tagging";
@@ -41,6 +41,8 @@ export interface ActionContext {
   followUpActivityId?: string;
   /** Contact/PortCo pages: company that "their"/"them" refers to. */
   focusCompany?: string;
+  /** Workstream Dell stakeholders (stored name list); V.I.C. resolves names against them first. */
+  stakeholders?: string;
 }
 
 const LABEL = "text-[10px] uppercase tracking-wider font-semibold text-muted-foreground";
@@ -54,6 +56,12 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
   const { workstreams } = useWorkstreams();
   const interpret = useServerFn(interpretActionRequestFn);
   const fetchCompanies = useServerFn(fetchReviewCompaniesFn);
+  const fetchContextPeople = useServerFn(actionContextPeopleFn);
+  const contextQuery = useQuery({
+    queryKey: ["action-context-people", ctx?.focusCompany || "", ctx?.stakeholders || ""],
+    queryFn: () => fetchContextPeople({ data: { company: ctx?.focusCompany, stakeholders: ctx?.stakeholders } }),
+    enabled: !!ctx && !!(ctx.focusCompany || ctx.stakeholders), staleTime: 60_000,
+  });
   const companyQuery = useQuery({ queryKey: ["review-company-names"], queryFn: () => fetchCompanies(), staleTime: 60_000, enabled: !!ctx });
   const portcoOptions = useMemo(() => reviewCompanyOptions(companyQuery.data || [], workstreams.map((w) => w.company).filter(Boolean)), [companyQuery.data, workstreams]);
   const [request, setRequest] = useState("");
@@ -271,7 +279,7 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
       const r = await interpret({ data: {
         request: text.slice(0, 4000), sourceKind: ctx.sourceKind, sourceTitle: ctx.title, sourceText: ctx.text.slice(0, 12000),
         people: to.map((t) => t.name || t.email), portcos, portcoOptions: portcoOptions.slice(0, 400),
-        senderName: me?.displayName, currentDraft: (mode === "log" ? logNote : body).slice(0, 8000) || undefined, focusCompany: ctx.focusCompany,
+        senderName: me?.displayName, currentDraft: (mode === "log" ? logNote : body).slice(0, 8000) || undefined, focusCompany: ctx.focusCompany, stakeholders: ctx.stakeholders?.slice(0, 4000) || undefined,
         conversation: previous.slice(-40), tone, length,
       } });
       if (currentSession !== session.current) return;
@@ -395,6 +403,20 @@ export function ActionComposer({ ctx, onClose, onDone }: { ctx: ActionContext | 
             <div className="flex flex-wrap gap-1">
               {to.map((t) => <Badge key={t.email || t.name} variant="secondary" className="gap-1 font-normal">{t.name || t.email}<button type="button" aria-label={`Remove ${t.email || t.name}`} onClick={() => setTo((x) => x.filter((y) => y !== t))}><X className="h-3 w-3" /></button></Badge>)}
             </div>
+            {(() => {
+              const onSource = (contextQuery.data || []).filter((p) => !teamMemberFor(p.email) && !to.some((t) => (p.email && t.email === p.email) || (!p.email && t.name === p.name)));
+              if (!onSource.length) return null;
+              return <div className="space-y-1 rounded-md border border-dashed border-border p-2" aria-label="People on this workstream">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{ctx?.sourceKind === "portco" ? "People at this company" : "On this workstream"} — click to add</div>
+                <div className="flex flex-wrap gap-1">
+                  {onSource.slice(0, 24).map((p) => <button key={p.email || p.name} type="button" title={[p.title, p.company, p.email || "No email on file"].filter(Boolean).join(" · ")}
+                    onClick={() => { setTo((x) => [...x, { name: p.name, email: p.email }]); if (!p.email) toast.warning(`No email on file for ${p.name}`); }}
+                    className="rounded-md border border-border px-2 py-0.5 text-left text-[11px] text-muted-foreground hover:border-primary hover:text-foreground">
+                    <Plus className="mr-0.5 inline h-3 w-3" />{p.name}<span className="opacity-70"> · {p.why === "Dell stakeholder" ? "Dell" : p.title || p.company}</span>{!p.email && " (no email)"}
+                  </button>)}
+                </div>
+              </div>;
+            })()}
             <div className="relative">
               <Input className="h-8 text-sm" placeholder="Search Network & Prospecting by name, company or email…" value={personQ} onChange={(e) => setPersonQ(e.target.value)} />
               {searching && <Loader2 className="absolute right-2 top-2 h-4 w-4 animate-spin text-muted-foreground" />}

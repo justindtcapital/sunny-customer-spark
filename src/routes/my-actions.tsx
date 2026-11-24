@@ -530,6 +530,12 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
           sourceKind: "followup", sourceId: x.activityId || x.id, title: x.summary || `Follow-up with ${x.person}`,
           text: x.details || x.originalNote || x.summary, people: x.people || [{ name: x.person, email: x.email || "" }],
           portcos: x.company ? x.company.split(/\s*,\s*/) : [], tracks: x.tracks, followUpActivityId: x.activityId,
+          ...(() => {
+            // A follow-up under a workstream inherits its PortCo and Dell stakeholders so names resolve in context.
+            const gid = x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "");
+            const parent = gid ? workstreams.find((w) => w.gid === gid) : undefined;
+            return parent ? { focusCompany: parent.company, stakeholders: parent.dellStakeholders || undefined } : {};
+          })(),
         })}><Sparkles className="mr-1 h-3.5 w-3.5" />Action with V.I.C.</Button>
         <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => completeNow(x)}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
         <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
@@ -583,7 +589,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
             <Button size="sm" className="h-8 shrink-0" onClick={() => onAction({
               sourceKind: "workstream", sourceId: `ws:${ws.gid}`, title: `${ws.company} – ${ws.name}`,
               text: [ws.notes, ws.traction, ws.dellStakeholders && `Dell stakeholders: ${ws.dellStakeholders}`, ws.lastActivity && `Last activity: ${ws.lastActivity}`].filter(Boolean).join("\n"),
-              people: [], portcos: [ws.company],
+              people: [], portcos: [ws.company], focusCompany: ws.company, stakeholders: ws.dellStakeholders || undefined,
               tracks: ws.segment === "BD" || ws.segment === "GTM" ? [ws.segment] : [],
             })}><Sparkles className="h-3.5 w-3.5 mr-1" />Action with V.I.C.</Button>
           </div>
