@@ -11,10 +11,10 @@ const ws = (o: Partial<DellWorkstreamInput> & { gid: string }): DellWorkstreamIn
 const person = (name: string, email: string): Contact => ({ name, email, company: "Dell Technologies", title: "VP", urid: email } as unknown as Contact);
 
 const SAMPLE = [
-  ws({ gid: "a", company: "Redis", sellInStatus: "1 - Engaged /Progressing", dellTargets: "Dell - IT", dellStakeholders: "Ward Williams" }),
+  ws({ gid: "a", company: "Redis", sellInStatus: "Engaged / Progressing", dellTargets: "Dell - IT", dellStakeholders: "Ward Williams" }),
   ws({ gid: "b", company: "Redis", name: "Offer", maturity: "Existing - Reference Architecture / Joint Solution", dellTargets: "Dell - UDS", fields: { "Dell Products Aligned": "Dell Ai Factory, Dell UDS - Powerscale" } }),
-  ws({ gid: "c", company: "Alation", sellInStatus: "1 - Engaged /Progressing", maturity: "3 - Trying to Engage", dellStakeholders: "Selene Wong" }),
-  ws({ gid: "d", company: "Twine", sellInStatus: "2 - Engaged / Stalled", dellTargets: "Dell - IT", dellStakeholders: "Addy", completed: true }),
+  ws({ gid: "c", company: "Alation", sellInStatus: "Engaged / Progressing", maturity: "Working to Engage", dellStakeholders: "Selene Wong" }),
+  ws({ gid: "d", company: "Twine", sellInStatus: "Engaged / Stalled", dellTargets: "Dell - IT", dellStakeholders: "Addy", completed: true }),
   ws({ gid: "e", company: "Akka", category: "Dell Leverage - Sell Through" }),
   ws({ gid: "f", company: "Other Co", name: "PMF work", category: "PMF / Messaging Work" }),
   ws({ gid: "g", company: "Druva", sellInStatus: "Existing - Growing", dellTargets: "Dell - ISG", fields: { "Dell Products Aligned": "Dell Ai Factory" } }),
@@ -28,7 +28,7 @@ describe("dell leverage rows", () => {
   });
 
   it("never carries DTC priorities, ROI ratings, owners or notes", () => {
-    const leaked = dellRowsFrom([ws({ gid: "x", sellInStatus: "3 - Trying to Engage", fields: { "DTC Priority": "1 - Needle Mover", "Workstream Priority": "1: High - Must Do", "DTC Dell Leverage Priority": "High ROI", "DTC - Dell Leverage Opportunity": "Immediate - Active" } })]);
+    const leaked = dellRowsFrom([ws({ gid: "x", sellInStatus: "Working to Engage", fields: { "DTC Priority": "1 - Needle Mover", "Workstream Priority": "1: High - Must Do", "DTC Dell Leverage Priority": "High ROI", "DTC - Dell Leverage Opportunity": "Immediate - Active" } })]);
     const text = JSON.stringify(leaked);
     for (const f of EXCLUDED_FIELDS) expect(text).not.toContain(JSON.stringify(f));
     for (const v of ["Needle Mover", "High - Must Do", "High ROI", "Immediate - Active"]) expect(text).not.toContain(v);
@@ -36,7 +36,7 @@ describe("dell leverage rows", () => {
   });
 
   it("Existing beats any pipeline stage; Dell Leverage category without a status is Not set", () => {
-    expect(primaryStage(["3 - Trying to Engage", "Existing - Embedded in Dell Offering"])).toBe("Existing");
+    expect(primaryStage(["Working to Engage", "Existing - Embedded in Dell Offering"])).toBe("Existing");
     expect(rows.find((r) => r.id === "e:Sell-With")!.stage).toBe("Not set");
     expect(rows.find((r) => r.id === "a:Sell-In")!.bu).toBe("Dell - IT");
     expect(rows.find((r) => r.id === "c:Sell-In")!.bu).toBe("BU not set");
@@ -78,12 +78,12 @@ describe("dell leverage summary", () => {
 
   it("company board puts each company in every status it has work in, with its motions", () => {
     const board = companyStageBoard(rows);
-    expect(board.map((c) => c.stage)).toEqual(["Interested / Not Engaged", "Trying to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing", "Not set"]);
+    expect(board.map((c) => c.stage)).toEqual(["Interested", "Working to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing", "Not set"]);
     const col = (s: string) => board.find((c) => c.stage === s)!;
     expect(col("Engaged / Progressing").companies).toEqual([{ company: "Alation", motions: ["Sell-In"], workstreams: 1 }, { company: "Redis", motions: ["Sell-In"], workstreams: 1 }]);
     expect(col("Existing").companies.map((c) => c.company)).toEqual(["Druva", "Redis"]);
-    expect(col("Trying to Engage").companies).toEqual([{ company: "Alation", motions: ["Sell-With"], workstreams: 1 }]);
-    expect(col("Interested / Not Engaged").companies).toEqual([]);
+    expect(col("Working to Engage").companies).toEqual([{ company: "Alation", motions: ["Sell-With"], workstreams: 1 }]);
+    expect(col("Interested").companies).toEqual([]);
   });
 
   it("BU heatmap is alphabetical with BU not set last", () => {
@@ -94,7 +94,7 @@ describe("dell leverage summary", () => {
   it("existing outcomes split Sell-With outcomes from Sell-In account health", () => {
     const o = existingOutcomes(rows);
     expect(o.sellWith.find((x) => x.outcome.includes("Reference"))!.count).toBe(1);
-    expect(o.sellIn.map((x) => [x.outcome, x.count])).toEqual([["Existing - Growing", 1], ["Existing - Static", 0], ["Existing - Concerned", 0]]);
+    expect(o.sellIn.map((x) => [x.outcome, x.count])).toEqual([["Existing - New", 0], ["Existing - Static", 0], ["Existing - Growing", 1]]);
   });
 
   it("stakeholder map flags BUs with workstreams nobody is linked to", () => {
@@ -111,17 +111,17 @@ describe("dell leverage summary", () => {
 describe("movement since last QBR", () => {
   const log = [
     ["At", "By", "Kind", "Record ID", "Company", "Field", "Before", "After"],
-    ["2026-10-01T10:00:00Z", "x", "workstream", "a", "Redis", "Sell-In Status", "3 - Trying to Engage", "2 - Engaged / Stalled"],
-    ["2026-10-20T10:00:00Z", "x", "workstream", "a", "Redis", "Sell-In Status", "2 - Engaged / Stalled", "1 - Engaged /Progressing"],
-    ["2026-10-05T10:00:00Z", "x", "workstream", "d", "Twine", "Sell-In Status", "1 - Engaged /Progressing", "2 - Engaged / Stalled"],
-    ["2026-10-06T10:00:00Z", "x", "workstream", "e", "Akka", "Sell With Dell Status", "", "3 - Trying to Engage"],
+    ["2026-10-01T10:00:00Z", "x", "workstream", "a", "Redis", "Sell-In Status", "Working to Engage", "Engaged / Stalled"],
+    ["2026-10-20T10:00:00Z", "x", "workstream", "a", "Redis", "Sell-In Status", "Engaged / Stalled", "Engaged / Progressing"],
+    ["2026-10-05T10:00:00Z", "x", "workstream", "d", "Twine", "Sell-In Status", "Engaged / Progressing", "Engaged / Stalled"],
+    ["2026-10-06T10:00:00Z", "x", "workstream", "e", "Akka", "Sell With Dell Status", "", "Working to Engage"],
     ["2026-10-07T10:00:00Z", "x", "workstream", "b", "Redis", "Sell With Dell - Maturity", "Reference Architecture / Joint Solution", "Existing - Reference Architecture / Joint Solution"],
-    ["2026-10-08T10:00:00Z", "x", "workstream", "g", "Druva", "Sell-In Status", "1 - Engaged /Progressing", "Not Moving Forward"],
-    ["2026-10-09T10:00:00Z", "x", "workstream", "c", "Alation", "Sell-In Status", "1 - Engaged /Progressing", "3 - Trying to Engage"],
-    ["2026-10-10T10:00:00Z", "x", "workstream", "c", "Alation", "Sell-In Status", "3 - Trying to Engage", "1 - Engaged /Progressing"],
-    ["2026-10-11T10:00:00Z", "x", "profile", "Redis", "Redis", "Sell-In Status", "", "1 - Engaged /Progressing"],
+    ["2026-10-08T10:00:00Z", "x", "workstream", "g", "Druva", "Sell-In Status", "Engaged / Progressing", "Not Moving Forward"],
+    ["2026-10-09T10:00:00Z", "x", "workstream", "c", "Alation", "Sell-In Status", "Engaged / Progressing", "Working to Engage"],
+    ["2026-10-10T10:00:00Z", "x", "workstream", "c", "Alation", "Sell-In Status", "Working to Engage", "Engaged / Progressing"],
+    ["2026-10-11T10:00:00Z", "x", "profile", "Redis", "Redis", "Sell-In Status", "", "Engaged / Progressing"],
     ["2026-10-12T10:00:00Z", "x", "workstream", "a", "Redis", "Workstream Priority", "", "1: High - Must Do"],
-    ["2026-08-01T10:00:00Z", "x", "workstream", "d", "Twine", "Sell-In Status", "", "1 - Engaged /Progressing"],
+    ["2026-08-01T10:00:00Z", "x", "workstream", "d", "Twine", "Sell-In Status", "", "Engaged / Progressing"],
   ];
   const moves = movementInWindow(statusChangesFromLog(log), rows, "2026-09-01", "2026-11-30");
   const kinds = Object.fromEntries(moves.map((m) => [`${m.workstreamId}:${m.motion}`, m.kind]));
@@ -139,7 +139,7 @@ describe("movement since last QBR", () => {
 
 describe("dell status and company pop-ups", () => {
   it("carries the Dell-facing engagement notes, never the internal Notes", () => {
-    const r = dellRowsFrom([ws({ gid: "n", sellInStatus: "3 - Trying to Engage", fields: { [DELL_NOTES_FIELD]: "Intro call booked with Dell IT.", Notes: "internal only" } })]);
+    const r = dellRowsFrom([ws({ gid: "n", sellInStatus: "Working to Engage", fields: { [DELL_NOTES_FIELD]: "Intro call booked with Dell IT.", Notes: "internal only" } })]);
     expect(r[0]!.engagementNotes).toBe("Intro call booked with Dell IT.");
     expect(JSON.stringify(r)).not.toContain("internal only");
   });
@@ -147,7 +147,7 @@ describe("dell status and company pop-ups", () => {
   it("merges a workstream's Sell-In and Sell-With rows into one entry", () => {
     const c = workstreamsOf(rows.filter((r) => r.workstreamId === "c"));
     expect(c).toHaveLength(1);
-    expect(c[0]!.motions.map((m) => `${m.motion}:${m.stage}`)).toEqual(["Sell-In:Engaged / Progressing", "Sell-With:Trying to Engage"]);
+    expect(c[0]!.motions.map((m) => `${m.motion}:${m.stage}`)).toEqual(["Sell-In:Engaged / Progressing", "Sell-With:Working to Engage"]);
   });
 
   it("status pop-up lists each company at that status with only its workstreams there", () => {
@@ -175,10 +175,10 @@ describe("engagement list", () => {
 
   it("groups by company alphabetically and merges both motions of a workstream", () => {
     const list = engagementList([
-      row("Zeta", "z1", "Sell-In", "Trying to Engage"),
+      row("Zeta", "z1", "Sell-In", "Working to Engage"),
       row("Acme", "a1", "Sell-In", "Engaged / Stalled"),
       row("Acme", "a1", "Sell-With", "Existing"),
-      row("Acme", "a2", "Sell-In", "Interested / Not Engaged"),
+      row("Acme", "a2", "Sell-In", "Interested"),
     ]);
     expect(list.map((c) => c.company)).toEqual(["Acme", "Zeta"]);
     expect(list[0]!.workstreams.map((w) => w.workstreamId)).toEqual(["a1", "a2"]);
@@ -186,7 +186,7 @@ describe("engagement list", () => {
   });
 
   it("places stages on the five-step track and keeps closed work off it", () => {
-    expect(trackIndex("Interested / Not Engaged")).toBe(0);
+    expect(trackIndex("Interested")).toBe(0);
     expect(trackIndex("Existing")).toBe(4);
     expect(trackIndex("Not Moving Forward")).toBe(-1);
   });
@@ -209,7 +209,7 @@ describe("Dell asks", () => {
   });
 
   it("carries saved asks onto each Dell row", () => {
-    const [row] = dellRowsFrom([{ gid: "g1", company: "Acme", name: "WS", sellInStatus: "3 - Trying to Engage", maturity: "", category: "", dellTargets: "Dell - IT", dellStakeholders: "", fields: { "Dell Asks": "• Intro to CIO" }, completed: false, lastActivity: "" }]);
+    const [row] = dellRowsFrom([{ gid: "g1", company: "Acme", name: "WS", sellInStatus: "Working to Engage", maturity: "", category: "", dellTargets: "Dell - IT", dellStakeholders: "", fields: { "Dell Asks": "• Intro to CIO" }, completed: false, lastActivity: "" }]);
     expect(row!.asks).toEqual(["Intro to CIO"]);
   });
 });

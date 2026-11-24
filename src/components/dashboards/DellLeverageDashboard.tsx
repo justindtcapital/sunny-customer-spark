@@ -29,7 +29,7 @@ const ALL = "__all";
 const isoDaysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const shortStatus = (s: string) => s.replace(/^Existing - /, "");
-const TRACK_LABELS = ["Interested", "Trying", "Stalled", "Progressing", "Existing"];
+const TRACK_LABELS = ["Interested", "Working", "Stalled", "Progressing", "Existing"];
 
 export function useDellLeverage() {
   const { email, ready } = useAuth();

@@ -6,32 +6,29 @@
  * never copied into a DellRow, so nothing internal can reach the page or a shared screen.
  */
 import { resolveStakeholders } from "./workstream-stakeholders";
-import { sellWithDellStatusFrom } from "./sell-with-dell-status";
+import { SWD_STATUS_OPTIONS, sellWithDellStatusFrom } from "./sell-with-dell-status";
+import { SELL_IN_OPTIONS, sellInStatusFrom } from "./sell-in-status";
 import type { Contact } from "./types";
 
 export type DellMotion = "Sell-In" | "Sell-With";
 export const DELL_MOTIONS: readonly DellMotion[] = ["Sell-In", "Sell-With"];
 
 export type DellStage =
-  | "Interested / Not Engaged"
-  | "Trying to Engage"
+  | "Interested"
+  | "Working to Engage"
   | "Engaged / Stalled"
   | "Engaged / Progressing"
   | "Existing"
   | "Not Moving Forward"
   | "Not set";
 
-/** Funnel order, earliest first. "Not Moving Forward" and "Not set" sit outside the funnel. */
-export const PIPELINE_STAGES: readonly DellStage[] = ["Interested / Not Engaged", "Trying to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing"];
+/** Funnel order, earliest first. "Not Moving Forward" (old wording, shown only while used) and "Not set" sit outside the funnel. */
+export const PIPELINE_STAGES: readonly DellStage[] = ["Interested", "Working to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing"];
 export const ALL_STAGES: readonly DellStage[] = [...PIPELINE_STAGES, "Not Moving Forward", "Not set"];
 
-export const SELL_WITH_OUTCOMES = [
-  "Existing - Embedded in Dell Offering",
-  "Existing - On Dell Paper / Revenue Generating",
-  "Existing - Reference Architecture / Joint Solution",
-  "Existing - Services Enabled / Dell Delivered",
-] as const;
-export const SELL_IN_OUTCOMES = ["Existing - Growing", "Existing - Static", "Existing - Concerned"] as const;
+/** "Existing - …" choices, in the same order as the status lists. */
+export const SELL_WITH_OUTCOMES = SWD_STATUS_OPTIONS.filter((o) => o.startsWith("Existing"));
+export const SELL_IN_OUTCOMES = SELL_IN_OPTIONS.filter((o) => o.startsWith("Existing"));
 
 export const NO_BU = "BU not set";
 /** Dell-facing engagement notes on a workstream (drafted by V.I.C., approved by a person). Internal "Notes" never reach a DellRow. */
@@ -96,14 +93,15 @@ export function stageOf(status: string): DellStage {
   if (s.startsWith("existing")) return "Existing";
   if (s.startsWith("1") || s.includes("progressing")) return "Engaged / Progressing";
   if (s.startsWith("2") || s.includes("stalled")) return "Engaged / Stalled";
-  if (s.startsWith("3") || s.includes("trying")) return "Trying to Engage";
-  if (s.includes("interested")) return "Interested / Not Engaged";
+  // "3 - Trying to Engage" is the old wording, still found in the change log.
+  if (s.startsWith("3") || s.includes("trying") || s.includes("working to engage")) return "Working to Engage";
+  if (s.includes("interested")) return "Interested";
   if (s.includes("not moving")) return "Not Moving Forward";
   return "Not set";
 }
 
 const RANK: Record<DellStage, number> = {
-  "Not set": -1, "Not Moving Forward": 0, "Interested / Not Engaged": 1, "Trying to Engage": 2, "Engaged / Stalled": 3, "Engaged / Progressing": 4, Existing: 5,
+  "Not set": -1, "Not Moving Forward": 0, Interested: 1, "Working to Engage": 2, "Engaged / Stalled": 3, "Engaged / Progressing": 4, Existing: 5,
 };
 export const stageRank = (s: DellStage) => RANK[s];
 
@@ -122,7 +120,7 @@ export function dellRowsFrom(
   const out: DellRow[] = [];
   for (const w of workstreams) {
     if (!w.gid) continue;
-    const si = list(w.sellInStatus);
+    const si = list(sellInStatusFrom(w.sellInStatus));
     const swd = list(sellWithDellStatusFrom(w.maturity));
     const motions: Array<[DellMotion, string[]]> = [];
     if (si.length) motions.push(["Sell-In", si]);
@@ -353,7 +351,7 @@ export function movementInWindow(changes: StatusChange[], rows: DellRow[], from:
     entries.sort((a, b) => a.at.localeCompare(b.at));
     const first = entries[0]!;
     const last = entries[entries.length - 1]!;
-    const norm = (v: string) => list(motion === "Sell-With" ? sellWithDellStatusFrom(v) : v);
+    const norm = (v: string) => list(motion === "Sell-With" ? sellWithDellStatusFrom(v) : sellInStatusFrom(v));
     const before = norm(first.before);
     const after = norm(last.after);
     const fromStage = primaryStage(before);

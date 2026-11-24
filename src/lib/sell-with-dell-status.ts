@@ -5,41 +5,39 @@
  * its workstreams hold, and may also hold company-wide statuses no workstream carries.
  * Browser-safe and pure: options, a read-time guard for old names/values, and the sync rules.
  */
-import { createStatusSync } from "./status-sync";
+import { SELL_IN_FIELD, sellInStatusFrom } from "./sell-in-status";
+import { LEGACY_PIPELINE_STATUS, createStatusSync, renameStatuses } from "./status-sync";
 
 export const SWD_STATUS_FIELD = "Sell With Dell Status";
 export const LEGACY_SWD_FIELD = "Sell With Dell - Maturity";
 
-/** Progress choices (same wording as Sell-In Status), then established "Existing - …" outcomes. */
+/** Stages (same wording as Sell-In Status), then established "Existing - …" outcomes. */
 export const SWD_STATUS_OPTIONS = [
-  "1 - Engaged /Progressing",
-  "2 - Engaged / Stalled",
-  "3 - Trying to Engage",
-  "Interested / Not Engaged",
-  "Not Moving Forward",
-  "Existing - Embedded in Dell Offering",
-  "Existing - On Dell Paper / Revenue Generating",
+  "Interested",
+  "Working to Engage",
+  "Engaged / Stalled",
+  "Engaged / Progressing",
   "Existing - Reference Architecture / Joint Solution",
+  "Existing - On Dell Paper / Revenue Generating",
+  "Existing - Embedded in Dell Offering",
   "Existing - Services Enabled / Dell Delivered",
 ] as const;
 
 /** Old maturity choice → new status (lower-cased keys). */
 const LEGACY_TO_STATUS: Record<string, string> = {
-  "preliminary discussions": "3 - Trying to Engage",
-  "formally engaged": "1 - Engaged /Progressing",
+  ...LEGACY_PIPELINE_STATUS,
+  "preliminary discussions": "Working to Engage",
+  "formally engaged": "Engaged / Progressing",
   "reference architecture / joint solution": "Existing - Reference Architecture / Joint Solution",
   "on dell paper / revenue generating": "Existing - On Dell Paper / Revenue Generating",
   "services enabled / dell delivered": "Existing - Services Enabled / Dell Delivered",
   "embedded in dell offering": "Existing - Embedded in Dell Offering",
-  "none: field collaboration only": "Interested / Not Engaged",
+  "none: field collaboration only": "Interested",
 };
-
-const clean = (s: string) => (s || "").replace(/\s+/g, " ").trim();
 
 /** Any stored value (one choice or a comma list) → new statuses; current or unknown values pass through. */
 export function sellWithDellStatusFrom(raw: string): string {
-  const parts = clean(raw).split(/\s*,\s*/).filter(Boolean).map((v) => LEGACY_TO_STATUS[v.toLowerCase()] ?? v);
-  return [...new Set(parts)].join(", ");
+  return renameStatuses(raw, LEGACY_TO_STATUS);
 }
 
 /**
@@ -57,6 +55,7 @@ export function normalizeSellWithDell<T extends { row: number; cells: Record<str
     const cells = { ...x.cells };
     if (renamed) { cells[SWD_STATUS_FIELD] = cells[LEGACY_SWD_FIELD] ?? ""; delete cells[LEGACY_SWD_FIELD]; }
     if (cells[SWD_STATUS_FIELD]) cells[SWD_STATUS_FIELD] = sellWithDellStatusFrom(cells[SWD_STATUS_FIELD]);
+    if (cells[SELL_IN_FIELD]) cells[SELL_IN_FIELD] = sellInStatusFrom(cells[SELL_IN_FIELD]);
     return { ...x, cells };
   });
   return { headers: nextHeaders, items: nextItems };

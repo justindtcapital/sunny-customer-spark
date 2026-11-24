@@ -1,25 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { SELL_IN_FIELD, SELL_IN_OPTIONS, sellInSync } from "./sell-in-status";
+import { SELL_IN_FIELD, SELL_IN_OPTIONS, sellInStatusFrom, sellInSync } from "./sell-in-status";
 import { PROFILE_FIELD_DEFS, WORKSTREAM_FIELD_DEFS, storedValueFor } from "./portco-fields-schema";
 
 const onWorkstream = () => WORKSTREAM_FIELD_DEFS.find((d) => d.name === SELL_IN_FIELD)!;
 const onCompany = () => PROFILE_FIELD_DEFS.find((d) => d.name === SELL_IN_FIELD)!;
-const PROG = "1 - Engaged /Progressing";
-const TRY = "3 - Trying to Engage";
+const PROG = "Engaged / Progressing";
+const WORK = "Working to Engage";
 const GROW = "Existing - Growing";
 
 describe("Sell-In Status choices", () => {
-  it("lists the pipeline stages first, then Existing - Growing / Static / Concerned at the bottom", () => {
+  it("lists the seven choices in Chris's order: four stages, then Existing - New / Static / Growing", () => {
     expect(SELL_IN_OPTIONS).toEqual([
-      "1 - Engaged /Progressing",
-      "2 - Engaged / Stalled",
-      "3 - Trying to Engage",
-      "Interested / Not Engaged",
-      "Not Moving Forward",
-      "Existing - Growing",
+      "Interested",
+      "Working to Engage",
+      "Engaged / Stalled",
+      "Engaged / Progressing",
+      "Existing - New",
       "Existing - Static",
-      "Existing - Concerned",
+      "Existing - Growing",
     ]);
+  });
+  it("old wording reads as the new choices", () => {
+    expect(sellInStatusFrom("1 - Engaged /Progressing")).toBe(PROG);
+    expect(sellInStatusFrom("2 - Engaged / Stalled")).toBe("Engaged / Stalled");
+    expect(sellInStatusFrom("3 - Trying to Engage")).toBe(WORK);
+    expect(sellInStatusFrom("Interested / Not Engaged")).toBe("Interested");
+    expect(sellInStatusFrom("Existing – Growing")).toBe(GROW);
   });
   it("a workstream takes one choice", () => {
     expect(onWorkstream().type).toBe("enum");
@@ -35,16 +41,19 @@ describe("Sell-In Status choices", () => {
 
 describe("Sell-In Status company ↔ workstream sync", () => {
   it("the company shows each workstream's stage once, in choice order", () => {
-    expect(sellInSync.effectiveCompanyStatus("", [GROW, TRY, PROG, PROG])).toBe(`${PROG}, ${TRY}, ${GROW}`);
+    expect(sellInSync.effectiveCompanyStatus("", [GROW, WORK, PROG, PROG])).toBe(`${WORK}, ${PROG}, ${GROW}`);
+  });
+  it("old wording on the company merges with the new wording on workstreams", () => {
+    expect(sellInSync.effectiveCompanyStatus("3 - Trying to Engage", [WORK])).toBe(WORK);
   });
   it("changing a workstream's stage moves the company off the old one unless another workstream is still there", () => {
-    expect(sellInSync.companyStatusAfterWorkstreamEdit({ company: `${PROG}, ${TRY}`, before: TRY, after: GROW, otherWorkstreams: [PROG] })).toBe(`${PROG}, ${GROW}`);
-    expect(sellInSync.companyStatusAfterWorkstreamEdit({ company: `${PROG}, ${TRY}`, before: TRY, after: GROW, otherWorkstreams: [TRY] })).toBe(`${PROG}, ${TRY}, ${GROW}`);
+    expect(sellInSync.companyStatusAfterWorkstreamEdit({ company: `${PROG}, ${WORK}`, before: WORK, after: GROW, otherWorkstreams: [PROG] })).toBe(`${PROG}, ${GROW}`);
+    expect(sellInSync.companyStatusAfterWorkstreamEdit({ company: `${PROG}, ${WORK}`, before: WORK, after: GROW, otherWorkstreams: [WORK] })).toBe(`${WORK}, ${PROG}, ${GROW}`);
   });
   it("removing a stage on the company clears it from workstreams at that stage", () => {
     expect(sellInSync.workstreamStatusesAfterCompanyEdit(`${PROG}, ${GROW}`, PROG, [GROW, PROG])).toEqual(["", PROG]);
   });
   it("a company-wide stage with no workstream survives workstream edits", () => {
-    expect(sellInSync.companyStatusAfterWorkstreamEdit({ company: GROW, before: "", after: TRY, otherWorkstreams: [] })).toBe(`${TRY}, ${GROW}`);
+    expect(sellInSync.companyStatusAfterWorkstreamEdit({ company: GROW, before: "", after: WORK, otherWorkstreams: [] })).toBe(`${WORK}, ${GROW}`);
   });
 });

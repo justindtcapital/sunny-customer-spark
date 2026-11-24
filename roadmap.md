@@ -40,3 +40,7 @@
 
 ## Layout
 - [x] All pages left-aligned and stretch to the window width
+
+## Dell statuses
+- [x] New Sell-In (7) and Sell-With (8) choices; sheet values renamed with backups
+- [ ] Distyl Services / Exotec OEM "Not Moving Forward": waiting on Chris's choice
