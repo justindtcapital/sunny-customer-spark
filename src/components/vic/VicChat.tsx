@@ -9,6 +9,8 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputSubmit, PromptInputTextarea } from "@/components/ai-elements/prompt-input";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { AttendeesReview, CompleteFollowUpsReview, EmailReview, FollowUpReview, LogActionReview, RelationshipReview, WorkstreamReview } from "./VicReviewCards";
+import { AddCampaignMembersReview, AddContactReview, CampaignResultsReview, CreateCampaignReview, EditContactReview, MergeContactsReview } from "./VicContactCampaignReviews";
+import { CreateEventReview, CreateWorkstreamReview, UpdateEventReview } from "./VicPortfolioEventReviews";
 import { useAuth } from "@/lib/auth-context";
 import { VicMark } from "./VicMark";
 import { VicSkillPicker } from "./VicSkillPicker";
@@ -116,6 +118,15 @@ function VicChatWindow({ threadId, initial, page, pageLabel }: { threadId: strin
                     if (out?.status === "awaiting_review" && name === "proposeLogAction") return <LogActionReview key={i} p={out as never} me={me} threadId={threadId} />;
                     if (out?.status === "awaiting_review" && name === "proposeWorkstreamUpdate") return <WorkstreamReview key={i} p={out as never} />;
                     if (out?.status === "awaiting_review" && name === "proposeEventAttendees") return <AttendeesReview key={i} p={out as never} />;
+                    if (out?.status === "awaiting_review" && name === "proposeAddContact") return <AddContactReview key={i} p={out as never} />;
+                    if (out?.status === "awaiting_review" && name === "proposeEditContact") return <EditContactReview key={i} p={out as never} />;
+                    if (out?.status === "awaiting_review" && name === "proposeMergeContacts") return <MergeContactsReview key={i} p={out as never} />;
+                    if (out?.status === "awaiting_review" && name === "proposeCreateCampaign") return <CreateCampaignReview key={i} p={out as never} me={me} />;
+                    if (out?.status === "awaiting_review" && name === "proposeAddCampaignMembers") return <AddCampaignMembersReview key={i} p={out as never} me={me} />;
+                    if (out?.status === "awaiting_review" && name === "proposeCampaignResults") return <CampaignResultsReview key={i} p={out as never} me={me} />;
+                    if (out?.status === "awaiting_review" && name === "proposeCreateWorkstream") return <CreateWorkstreamReview key={i} p={out as never} />;
+                    if (out?.status === "awaiting_review" && name === "proposeCreateEvent") return <CreateEventReview key={i} p={out as never} me={me} />;
+                    if (out?.status === "awaiting_review" && name === "proposeUpdateEvent") return <UpdateEventReview key={i} p={out as never} />;
                     return (
                       <Tool key={i} defaultOpen={false}>
                         <ToolHeader type={p.type as never} state={p.state} title={name.replace(/([A-Z])/g, " $1").toLowerCase()} />

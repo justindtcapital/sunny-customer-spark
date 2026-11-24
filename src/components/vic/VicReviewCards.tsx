@@ -11,6 +11,8 @@ import { completeActionFn } from "@/utils/actions.functions";
 import { addPlannerAttendeesFn } from "@/utils/event-planner.functions";
 import { updateWorkstreamFn } from "@/utils/asana.functions";
 import { WORKSTREAM_FIELD_DEFS } from "@/lib/portco-fields-schema";
+import { SWD_STATUS_OPTIONS } from "@/lib/sell-with-dell-status";
+import { SELL_IN_OPTIONS } from "@/lib/sell-in-status";
 import { workstreamEditPlan } from "@/lib/vic-workstream-update";
 
 type Temp = "Council" | "Hot" | "Warm" | "Cold";
@@ -84,7 +86,7 @@ export function EmailReview({ draft }: { draft: { to: string[]; subject: string;
   return (
     <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2">
       <div className="font-medium">Review email draft</div>
-      <div className="text-xs text-muted-foreground">To: {draft.to.join(", ") || "(add recipients in Outlook)"}</div>
+      <div className="text-xs text-muted-foreground">To: {draft.to.join("; ") || "(add recipients in Outlook)"}</div>
       <input className="w-full rounded border border-input bg-background px-2 py-1 text-xs" value={subject} onChange={(e) => setSubject(e.target.value)} />
       <textarea className="w-full min-h-[120px] rounded border border-input bg-background px-2 py-1 text-xs" value={body} onChange={(e) => setBody(e.target.value)} />
       <Button size="sm" asChild><a href={href}>Open in Outlook</a></Button>
@@ -92,10 +94,10 @@ export function EmailReview({ draft }: { draft: { to: string[]; subject: string;
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+export function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return <div className="rounded-lg border border-border bg-card p-3 text-sm space-y-2"><div className="font-medium">{title}</div>{children}</div>;
 }
-function useApprove() {
+export function useApprove() {
   const [state, setState] = useState<"idle" | "busy" | "done">("idle");
   const [note, setNote] = useState("");
   const go = async (fn: () => Promise<string>) => {
@@ -105,12 +107,12 @@ function useApprove() {
   };
   return { state, note, go };
 }
-function ApproveRow({ a, run, label }: { a: ReturnType<typeof useApprove>; run: () => Promise<string>; label: string }) {
+export function ApproveRow({ a, run, label }: { a: ReturnType<typeof useApprove>; run: () => Promise<string>; label: string }) {
   return a.state === "done"
     ? <div className="text-xs text-muted-foreground">✓ {a.note}</div>
     : <Button size="sm" disabled={a.state === "busy"} onClick={() => void a.go(run)}>{a.state === "busy" ? "Saving…" : label}</Button>;
 }
-const field = "w-full rounded border border-input bg-background px-2 py-1 text-xs";
+export const field = "w-full rounded border border-input bg-background px-2 py-1 text-xs";
 
 export function FollowUpReview({ p, me }: { p: { title: string; date: string; owner: string; portco: string; person: string; details: string }; me: string }) {
   const create = useServerFn(createVicFollowUpFn);
@@ -205,20 +207,29 @@ const PRIORITY_OPTS = WORKSTREAM_FIELD_DEFS.find((d) => d.name === "Workstream P
 
 interface WsProposal {
   gid: string; company: string; track: string; name: string;
-  current: { status: string; priority: string; notes: string; completed: boolean };
-  proposed: { status: string; priority: string; note: string; completed: boolean };
+  current: { status: string; priority: string; sellWithDellStatus?: string; sellInStatus?: string; dellStakeholders?: string; notes: string; completed: boolean };
+  proposed: { status: string; priority: string; sellWithDellStatus?: string; sellInStatus?: string; dellStakeholders?: string; note: string; completed: boolean };
 }
 /** Review card for a workstream update. Saves to Venture Pulse only after Approve. */
 export function WorkstreamReview({ p }: { p: WsProposal }) {
   const save = useServerFn(updateWorkstreamFn);
   const [status, setStatus] = useState(p.proposed.status || p.current.status);
   const [priority, setPriority] = useState(p.proposed.priority || p.current.priority);
+  const [swd, setSwd] = useState(p.proposed.sellWithDellStatus || p.current.sellWithDellStatus || "");
+  const [sellIn, setSellIn] = useState(p.proposed.sellInStatus || p.current.sellInStatus || "");
+  const [stakeholders, setStakeholders] = useState(p.proposed.dellStakeholders || p.current.dellStakeholders || "");
   const [note, setNote] = useState(p.proposed.note);
   const [completed, setCompleted] = useState(p.proposed.completed);
+  const showDell = Boolean(p.proposed.sellWithDellStatus || p.proposed.sellInStatus || p.proposed.dellStakeholders || p.current.sellWithDellStatus || p.current.sellInStatus || p.current.dellStakeholders);
   const a = useApprove();
   const done = a.state === "done";
   const run = async () => {
-    const edit = workstreamEditPlan(p.gid, p.current, { status, priority, note, completed }, new Date().toISOString().slice(0, 10));
+    const edit = workstreamEditPlan(
+      p.gid,
+      p.current,
+      { status, priority, ...(showDell ? { sellWithDellStatus: swd, sellInStatus: sellIn, dellStakeholders: stakeholders } : {}), note, completed },
+      new Date().toISOString().slice(0, 10),
+    );
     if (!edit) return "Nothing to change";
     const r = await save({ data: edit });
     if (!r.ok) throw new Error(r.error);
@@ -238,6 +249,21 @@ export function WorkstreamReview({ p }: { p: WsProposal }) {
             <option value="">—</option>{PRIORITY_OPTS.map((o) => <option key={o} value={o}>{o}</option>)}
           </select></label>
       </div>
+      {showDell && (
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-[11px] text-muted-foreground space-y-0.5"><span>Sell With Dell</span>
+            <select className={field} disabled={done} value={swd} onChange={(e) => setSwd(e.target.value)}>
+              <option value="">—</option>{!SWD_STATUS_OPTIONS.includes(swd as never) && swd && <option value={swd}>{swd}</option>}
+              {SWD_STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select></label>
+          <label className="text-[11px] text-muted-foreground space-y-0.5"><span>Sell-In Status</span>
+            <select className={field} disabled={done} value={sellIn} onChange={(e) => setSellIn(e.target.value)}>
+              <option value="">—</option>{SELL_IN_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select></label>
+          <label className="col-span-2 text-[11px] text-muted-foreground space-y-0.5"><span>Dell Stakeholders</span>
+            <input className={field} disabled={done} value={stakeholders} onChange={(e) => setStakeholders(e.target.value)} placeholder="Comma-separated Dell names" /></label>
+        </div>
+      )}
       <textarea className={`${field} min-h-[60px]`} disabled={done} value={note} placeholder="Progress note (added to the workstream notes with today's date)" onChange={(e) => setNote(e.target.value)} />
       <label className="flex items-center gap-2 text-xs"><Checkbox checked={completed} disabled={done} onCheckedChange={(v) => setCompleted(v === true)} />Mark workstream complete</label>
       <ApproveRow a={a} run={run} label="Save update" />

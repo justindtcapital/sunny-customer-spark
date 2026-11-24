@@ -17,4 +17,18 @@ describe("workstreamEditPlan", () => {
     const c = { ...cur, status: "Stalled, Early Conversations" };
     expect(workstreamEditPlan("ws-1", c, { ...c, status: "Early Conversations, Stalled", note: "" }, "2026-11-15")).toBeNull();
   });
+  it("includes changed Sell With Dell, Sell-In, and Dell Stakeholders fields", () => {
+    const c = { ...cur, sellWithDellStatus: "Interested", sellInStatus: "", dellStakeholders: "" };
+    const r = workstreamEditPlan(
+      "ws-1",
+      c,
+      { ...c, sellWithDellStatus: "Engaged / Progressing", sellInStatus: "Working to Engage", dellStakeholders: "Alex Smith", note: "" },
+      "2026-11-15",
+    );
+    expect(r?.changes).toEqual([
+      { gid: "Sell With Dell Status", type: "multi_enum", original: "Interested", value: ["Engaged / Progressing"] },
+      { gid: "Sell-In Status", type: "enum", original: "", value: "Working to Engage" },
+      { gid: "Dell Stakeholders", type: "text", original: "", value: "Alex Smith" },
+    ]);
+  });
 });
