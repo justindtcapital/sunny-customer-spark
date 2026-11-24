@@ -94,6 +94,66 @@ export const completeActionFn = createServerFn({ method: "POST" })
     return { ok: true, actionId: `action:${base}`, resolved };
   });
 
+const nextStepInput = z.object({
+  /** The follow-up that was just completed (its activity id, else its list id). */
+  priorId: z.string().min(1).max(200),
+  priorTitle: z.string().max(500),
+  /** What happened — logged as an action on the completed follow-up. */
+  note: z.string().max(4000).default(""),
+  next: z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), title: z.string().min(1).max(300) }).optional(),
+  actor: z.string().max(200),
+  people: z.array(z.string().max(200)).max(30),
+  portcos: z.array(z.string().max(200)).max(30),
+  tracks: z.array(z.enum(["BD", "GTM"])).max(2),
+  /** Set when the completed follow-up was a Notes follow-up (its row can be reopened by Undo). */
+  priorActivityId: z.string().max(100).optional(),
+});
+
+/**
+ * After a one-click completion in My Actions: optionally log what happened and
+ * schedule the next follow-up, chained to the completed one (recordId = its id)
+ * so "previous step" and the workstream carry forward. One append; stable ids.
+ */
+export const scheduleNextStepFn = createServerFn({ method: "POST" }).middleware([requireTeamAuth])
+  .inputValidator((d: z.input<typeof nextStepInput>) => nextStepInput.parse(d))
+  .handler(async ({ data }) => {
+    if (!data.note.trim() && !data.next) return { ok: true, nextId: "", logged: false };
+    const k = await import("./knowledge.server");
+    const { sha256Hex } = await import("./sha256");
+    const { teamMemberFor } = await import("@/lib/user-ownership");
+    const { nextStepSummary } = await import("@/lib/action-thread");
+    const { withDeadline } = await import("./request-deadline.server");
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+    const owner = teamMemberFor(data.actor)?.displayName || data.actor;
+    const people = data.people.filter(Boolean).join(", ");
+    const subject = data.priorTitle || "Follow-up";
+    // Same id scheme as completeActionFn, so logging the same completion twice is one row.
+    const base = sha256Hex(`${data.priorId}:${today}:${subject}`).slice(0, 16);
+    const nextId = data.next ? `followup:next:${sha256Hex(`${data.priorId}:${data.next.date}:${data.next.title}`).slice(0, 16)}` : "";
+    const note = data.note.trim();
+    const tracks = data.tracks.length ? data.tracks : [""];
+    await withDeadline("schedule-next-step", 25_000, async (step) => {
+      step("saving next step");
+      await k.saveHarvestedActivities([
+        ...(note ? tracks.map((track) => ({
+          activityId: `action:${base}${track ? `:${track}` : ""}`,
+          recordId: data.priorActivityId || data.priorId, date: today, track, type: "logged-action",
+          title: subject, portco: data.portcos.join(", "), person: people, owner,
+          // "(followup)" lets Completed → Undo reopen the follow-up this note belongs to.
+          summary: `Completed in My Actions (followup)${people ? ` with ${people}` : ""} — ${note}`,
+          sourceUrl: "", createdAt: now,
+        })) : []),
+        ...(data.next ? [{
+          activityId: nextId, recordId: data.priorId, date: data.next.date, track: "Follow-up", type: "follow-up",
+          title: data.next.title, portco: data.portcos.join(", "), person: people, owner,
+          summary: nextStepSummary(subject, note), sourceUrl: "", createdAt: now,
+        }] : []),
+      ]);
+    });
+    return { ok: true, nextId, logged: !!note };
+  });
+
 /** All recorded completions for the selected owner; undone actions stay hidden. */
 export const listDoneActionsFn = createServerFn({ method: "POST" })
   .inputValidator((d: { owner: string }) => z.object({ owner: z.string().max(200) }).parse(d))

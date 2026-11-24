@@ -6,6 +6,7 @@ import { ownerMatches, teamMemberFor, teamProfile } from "@/lib/user-ownership";
 import { resolveActionContact } from "@/lib/action-grouping";
 import { coreAssignee } from "@/lib/team-next-steps";
 import { applyFollowUpEdit } from "@/lib/follow-up-edit";
+import { followUpOrigin, inheritedWorkstream } from "@/lib/action-thread";
 
 const input = z.object({ email: z.string().email(), scope: z.enum(["mine", "team"]) });
 
@@ -80,17 +81,24 @@ export const fetchHomeMomentum = createServerFn({ method: "POST" })
       reminders.push({ id: `campaign:${m.campaignId}:${m.personKey}`, person: m.name, company: m.company, email: m.email, targetKey: target ? targetKeyOf(target) : undefined, campaignId: m.campaignId, owner: m.followUpOwner, due: m.followUpDue, source: "Campaign", summary: campaign.name });
     }
     const sources = new Map(records.map((r) => [r.recordId, r.sourceType]));
+    const recordById = new Map(records.map((r) => [r.recordId, r]));
+    const activityById = new Map(activities.map((a) => [a.activityId, a]));
     for (const a of activities) {
       const assignedOwner = coreAssignee(a.person)?.email || a.owner;
       if (a.track !== "Follow-up" || a.type !== "follow-up" || a.resolved) continue;
       if (!inbox.isRegisteredActivity(sources.get(a.recordId) || "", reviews.get(a.recordId))) continue;
-      reminders.push({ id: a.activityId, activityId: a.activityId, recordId: a.recordId, person: a.person || a.title, company: a.portco, owner: assignedOwner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl });
+      reminders.push({ id: a.activityId, activityId: a.activityId, recordId: a.recordId, person: a.person || a.title, company: a.portco, owner: assignedOwner, due: a.date || "", source: "Notes", summary: a.title, sourceUrl: a.sourceUrl, date: a.createdAt || undefined,
+        origin: followUpOrigin(a, recordById.get(a.recordId), activityById.get(a.recordId)) });
     }
     const recordDates = new Map(records.map((r) => [r.recordId, r.createdAt]));
     const { readFollowUpEdits } = await import("./follow-up-edit.server");
     const edits = await read("Task edits", readFollowUpEdits, new Map());
     const directory = [...contacts, ...targets].map((p) => ({ name: p.name || "", email: p.email || "", company: p.company || "" }));
-    const editedReminders = dedupeReminders(reminders).map((r) => applyFollowUpEdit(r, edits.get(r.id))).filter((r) => matches(r.owner))
+    // A follow-up scheduled from an earlier step stays on that step's workstream (read-time, never written).
+    const priorStep = (id: string) => { const p = activityById.get(id); return p ? { recordId: p.recordId, workstreamGid: edits.get(id)?.workstreamGid || undefined } : undefined; };
+    const editedReminders = dedupeReminders(reminders).map((r) => applyFollowUpEdit(r, edits.get(r.id)))
+      .map((r) => r.workstreamGid || !r.recordId || r.recordId.startsWith("ws:") ? r : (() => { const gid = inheritedWorkstream(r.recordId!, priorStep); return gid ? { ...r, workstreamGid: gid } : r; })())
+      .filter((r) => matches(r.owner))
       .map((r) => {
         // Read-time grouping only: the outside person's company, never written back.
         const hit = resolveActionContact(r, directory, (x) => !!teamMemberFor(x));

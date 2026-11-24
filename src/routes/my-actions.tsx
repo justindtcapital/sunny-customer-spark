@@ -1,9 +1,9 @@
 import type React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, GitBranch, Merge, Pencil, Plus, Trash2, Undo2, Sparkles } from "lucide-react";
 import { ActionsFilterBar, DEFAULT_INBOX, priorityShort, priorityTone, type BannerView, type InboxKind, type InboxToggles } from "@/components/actions/ActionsBanner";
 import { useLogoColor } from "@/lib/logo-color";
 import { CompanyLogo } from "@/components/dashboard/WorkstreamSummary";
@@ -39,6 +39,10 @@ import { completeHomeNoteFollowUp, fetchHomeMomentum } from "@/utils/home.functi
 import { updateInteraction, clearContactFollowUpFlag } from "@/utils/sheets.functions";
 import { completeActionFn, listDoneActionsFn, undoActionFn } from "@/utils/actions.functions";
 import { WorkstreamTrail } from "@/components/actions/WorkstreamTrail";
+import { NextStepPanel } from "@/components/actions/NextStepPanel";
+import { ActionThread } from "@/components/actions/ActionThread";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { nextInThread, reminderBefore } from "@/lib/action-thread";
 import type { NoteInboxItem } from "@/utils/notes-inbox.server";
 
 const TABS = ["actions", "notes", "done"] as const;
@@ -164,12 +168,54 @@ function NotesTab({ owner, show, onAction, onCounts }: { owner: string; show: In
   );
 }
 
-/** PortCo-page layout: compact list left, detail right; on narrow screens the detail opens inline under its row. */
+const SPLIT_KEY = "my-actions:split";
+type SplitLayout = { [id: string]: number };
+/** Height that fills the window below the element, so list and detail scroll on their own and the page fits one screen. */
+function useFillHeight(ref: React.RefObject<HTMLDivElement | null>, on: boolean) {
+  const [h, setH] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (!on) { setH(undefined); return; }
+    const measure = () => {
+      const el = ref.current; if (!el) return;
+      // Distance from the top of the page, whichever element is scrolling.
+      const top = el.getBoundingClientRect().top + window.scrollY + (el.closest("main")?.scrollTop || 0);
+      setH(Math.max(460, Math.round(window.innerHeight - top - 24)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (ref.current?.parentElement) ro.observe(ref.current.parentElement);
+    window.addEventListener("resize", measure);
+    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
+  }, [on, ref]);
+  return h;
+}
+/**
+ * PortCo-page layout: list left, detail right with a draggable divider (width remembered
+ * on this device); on narrow screens the detail opens inline under its row.
+ */
 function SplitPane({ list, detail, wide }: { list: React.ReactNode; detail: React.ReactNode; wide: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const height = useFillHeight(ref, wide);
+  // Read after hydration so server and browser render the same first layout.
+  const [saved, setSaved] = useState<{ ready: boolean; layout?: SplitLayout }>({ ready: false });
+  useEffect(() => {
+    let layout: SplitLayout | undefined;
+    try { const v = JSON.parse(localStorage.getItem(SPLIT_KEY) || "null"); if (v && typeof v.list === "number" && typeof v.detail === "number") layout = v; } catch { /* ignore */ }
+    setSaved({ ready: true, layout });
+  }, []);
+  if (!wide) return <div className="min-w-0 space-y-1">{list}</div>;
   return (
-    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(340px,420px)_minmax(0,1fr)]">
-      <div className="min-w-0 space-y-1 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto lg:pr-1">{list}</div>
-      {wide && <Card className="min-w-0 self-start w-full"><CardContent className="lg:max-h-[calc(100vh-220px)] overflow-x-hidden overflow-y-auto p-4 [overflow-wrap:anywhere]">{detail}</CardContent></Card>}
+    <div ref={ref} className="min-w-0" style={height ? { height } : undefined}>
+      <ResizablePanelGroup key={saved.ready ? "saved" : "default"} orientation="horizontal" defaultLayout={saved.layout}
+        onLayoutChanged={(l) => { try { localStorage.setItem(SPLIT_KEY, JSON.stringify(l)); } catch { /* ignore */ } }}>
+        <ResizablePanel id="list" defaultSize="28%" minSize="260px" maxSize="75%">
+          <div className="h-full min-w-0 space-y-1 overflow-y-auto pr-2">{list}</div>
+        </ResizablePanel>
+        <ResizableHandle withHandle aria-label="Drag to resize the list" className="mx-1.5 w-1 rounded bg-border hover:bg-primary/40" />
+        <ResizablePanel id="detail" minSize="360px">
+          <Card className="h-full min-w-0"><CardContent className="@container h-full overflow-x-hidden overflow-y-auto p-4 [overflow-wrap:anywhere]">{detail}</CardContent></Card>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }
@@ -279,7 +325,8 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const [mergeSel, setMergeSel] = useState<string[]>([]);
   const [pick, setPick] = useState({ summary: "", person: "", due: "", company: "" });
   // The follow-up just marked complete: it leaves the list but stays open in the detail pane.
-  const [justDone, setJustDone] = useState<{ x: Reminder; status: "saving" | "saved" | "undoing" } | null>(null);
+  const [justDone, setJustDone] = useState<{ x: Reminder; status: "saving" | "saved" | "undoing"; index: number } | null>(null);
+  const [editingId, setEditingId] = useState("");
 
   const { data: homeData, isLoading: fuLoading } = useQuery({ queryKey: ["my-actions", "followups", ownerEmail], queryFn: () => fetchHome({ data: { email: ownerEmail, scope: "mine" } }), enabled: !!ownerEmail, staleTime: 60_000 });
   const { data: portcoList = [] } = useQuery({ queryKey: ["portfolio-companies"], queryFn: () => fetchPortfolioCompanies(), staleTime: 300_000 });
@@ -367,6 +414,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     ...g.general.map((x) => ({ key: `fu:${x.id}`, fu: x, company: g.company, title: x.summary || x.person, date: x.date, due: x.due, priority: "" })),
   ] as { key: string; ws?: Workstream; fu?: Reminder; company: string; title: string; date?: string; due?: string; priority?: string }[]), sort), [groups, sort]);
 
+  // Items in the order the list shows them (for "Next action" after completing one).
+  const order: Sel[] = useMemo(() => sort !== "portco"
+    ? flat.map((it): Sel => it.ws ? { kind: "ws", id: it.ws.gid } : { kind: "fu", id: it.fu!.id })
+    : (["portcos", "network", "ops"] as const).flatMap((k) => groups.filter((g) => g.kind === k).flatMap((g): Sel[] => [
+      ...g.ws.flatMap((w): Sel[] => [{ kind: "ws", id: w.gid }, ...(g.linked.get(w.gid) || []).map((x): Sel => ({ kind: "fu", id: x.id }))]),
+      ...g.general.map((x): Sel => ({ kind: "fu", id: x.id })),
+    ])), [flat, groups, sort]);
   const firstGroupFu = (g: (typeof groups)[number] | undefined) => g ? [...g.ws.flatMap((w) => g.linked.get(w.gid) || []), ...g.general][0] : undefined;
   const firstSel: Sel | null = flat[0] ? (flat[0].ws ? { kind: "ws", id: flat[0].ws.gid } : { kind: "fu", id: flat[0].fu!.id }) : groups[0]?.ws[0] ? { kind: "ws", id: groups[0].ws[0]!.gid } : firstGroupFu(groups[0]) ? { kind: "fu", id: firstGroupFu(groups[0])!.id } : null;
   const doneShown = sel?.kind === "fu" && justDone?.x.id === sel.id ? justDone : null;
@@ -424,12 +478,13 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   const completeNow = (x: Reminder) => {
     const title = x.summary || `Follow-up with ${x.person}`;
     setSel({ kind: "fu", id: x.id });
+    setEditingId("");
     setHidden((h) => new Set([...h, x.id]));
-    setJustDone({ x, status: "saving" });
+    setJustDone({ x, status: "saving", index: Math.max(0, order.findIndex((s) => s.kind === "fu" && s.id === x.id)) });
     void withRetry(() => closeOne(x, false)).then((ok) => {
       if (!ok) throw new Error("This follow-up couldn't be found to close here — open it on its own page.");
       settle([x.id]);
-      setJustDone((d) => d?.x.id === x.id ? { x, status: "saved" } : d);
+      setJustDone((d) => d?.x.id === x.id ? { ...d, status: "saved" } : d);
       toast.success(`Completed: ${title}`, canUndoCompletion(x) ? { action: { label: "Undo", onClick: () => void undoComplete(x) } } : undefined);
     }).catch((e: unknown) => {
       console.error(e);
@@ -440,7 +495,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
   };
   /** Reopens a just-completed follow-up and puts it back in the list. */
   const undoComplete = async (x: Reminder) => {
-    setJustDone((d) => d?.x.id === x.id ? { x, status: "undoing" } : d);
+    setJustDone((d) => d?.x.id === x.id ? { ...d, status: "undoing" } : d);
     try {
       const ok = await withRetry(async () => x.activityId
         ? (await completeNote({ data: { activityId: x.activityId, resolved: false } })).success
@@ -453,7 +508,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
       toast.success("Reopened");
     } catch (e) {
       console.error(e);
-      setJustDone((d) => d?.x.id === x.id ? { x, status: "saved" } : d);
+      setJustDone((d) => d?.x.id === x.id ? { ...d, status: "saved" } : d);
       toast.error("Couldn't reopen this follow-up — try again in a minute.");
     }
   };
@@ -508,51 +563,75 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
     </div>
   );
 
+  /** The new follow-up scheduled after completing one goes straight into the cached list. */
+  const onScheduled = (next: Reminder | null, logged: boolean) => {
+    if (next) qc.setQueryData<Awaited<ReturnType<typeof fetchHomeMomentum>>>(["my-actions", "followups", ownerEmail], (d) => restoreReminder(d, next));
+    if (next || logged) { void qc.invalidateQueries({ queryKey: ["my-actions", "done"] }); void qc.invalidateQueries({ queryKey: ["home-momentum"], refetchType: "none" }); }
+  };
+  const goNext = () => { const idx = justDone?.index ?? 0; const n = order[Math.min(idx, order.length - 1)]; setJustDone(null); if (n) setSel(n); };
+
   const fuDetail = (x: Reminder) => {
     const similar = similarFollowUps(x, fuList);
     const openLink = x.campaignId ? <Link to="/campaigns" search={{ campaign: x.campaignId } as never}>Open campaign <ExternalLink className="ml-1 h-3 w-3" /></Link>
       : x.source === "Prospecting" ? <Link to="/targeting" search={{ target: x.targetKey } as never}>Open in Prospecting <ExternalLink className="ml-1 h-3 w-3" /></Link>
       : x.email ? <Link to="/crm" search={{ contact: x.email } as never}>Open contact <ExternalLink className="ml-1 h-3 w-3" /></Link> : null;
-    return <div className="space-y-4">
-      <div className="flex items-start gap-3">
-        {(filingOf(x).group || x.company) && <Logo name={filingOf(x).group || x.company.split(/\s*,\s*/)[0]!} />}
+    const gid = x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "");
+    const parent = gid ? workstreams.find((w) => w.gid === gid) : undefined;
+    const due = actionDueLabel(x.due, today);
+    const next = nextInThread(x, fuAll);
+    const ownerName = teamMemberFor(x.owner)?.displayName || x.owner;
+    // The owner is shown once, on its own; teammates' emails show as names.
+    const people = (x.people?.length ? x.people.map((p) => p.name || p.email) : [x.contactName || x.person])
+      .filter(Boolean).map((n) => teamMemberFor(n)?.displayName || n).filter((n) => n !== ownerName);
+    const editing = !doneShown && editingId === x.id;
+    const company = filingOf(x).group || x.company.split(/\s*,\s*/)[0] || "";
+    return <div className="space-y-3">
+      <div className="flex flex-wrap items-start gap-3">
+        {company && <Logo name={company} />}
         <div className="min-w-0 flex-1">
           <div className="font-display text-base font-semibold">{x.summary || `Follow up with ${x.person}`}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+            {x.company && <span>{x.company}</span>}
+            {people.length > 0 && <span>· {people.join(", ")}</span>}
+            <span className={due.overdue ? "font-semibold text-destructive" : ""}>· {x.due ? `Due ${due.text}${due.overdue ? " (overdue)" : ""}` : "No due date"}</span>
+            <span>· Owner: {ownerName || "none"}</span>
+            <span>· {x.source}</span>
+          </div>
+        </div>
+        {!doneShown && <div className="flex flex-wrap items-center gap-1.5">
+          <Button size="sm" onClick={() => onAction({
+            sourceKind: "followup", sourceId: x.activityId || x.id, title: x.summary || `Follow-up with ${x.person}`,
+            text: x.details || x.originalNote || x.summary, people: x.people || [{ name: x.person, email: x.email || "" }],
+            portcos: x.company ? x.company.split(/\s*,\s*/) : [], tracks: x.tracks, followUpActivityId: x.activityId,
+            // A follow-up under a workstream inherits its PortCo and Dell stakeholders so names resolve in context.
+            ...(parent ? { focusCompany: parent.company, stakeholders: parent.dellStakeholders || undefined } : {}),
+          })}><Sparkles className="mr-1 h-3.5 w-3.5" />Action with V.I.C.</Button>
+          <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => completeNow(x)}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
+          <Button size="sm" variant={editing ? "secondary" : "outline"} aria-pressed={editing} onClick={() => setEditingId(editing ? "" : x.id)}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button>
+          <Button size="icon" variant="ghost" aria-label="Delete follow-up" title="Delete follow-up" className="h-8 w-8 text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+        </div>}
+      </div>
+      {!doneShown && !canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link below.</p>}
+      {doneShown && <NextStepPanel key={x.id} x={x} owner={owner} status={doneShown.status} canUndo={canUndoCompletion(x)} onUndo={() => void undoComplete(x)}
+        onScheduled={onScheduled} onNext={order.length ? goNext : undefined} />}
+      {editing && <FollowUpEditor key={x.id} reminder={x} onClose={() => setEditingId("")} />}
+      <ActionThread done={!!doneShown} before={reminderBefore(x)}
+        workstream={parent ? { gid: parent.gid, company: parent.company, segment: parent.segment, name: parent.name || parent.rawName } : undefined}
+        now={<div className="space-y-1">
+          {x.details && x.details !== x.summary ? <div className="whitespace-pre-wrap">{x.details}</div> : <div className="text-muted-foreground">{x.summary || `Follow up with ${x.person}`}</div>}
+          {parent && <div className="text-xs text-muted-foreground">Part of <button type="button" className="text-foreground hover:underline" onClick={() => setSel({ kind: "ws", id: parent.gid })}>{parent.company} – {parent.name || parent.rawName}</button></div>}
+          {!doneShown && !editing && <button type="button" className="text-xs text-primary hover:underline" onClick={() => setEditingId(x.id)}>{x.details ? "Edit details" : "Add details"}</button>}
+        </div>}
+        next={next ? { title: next.summary || `Follow up with ${next.person}`, due: next.due } : undefined}
+        onOpenNext={next ? () => { setJustDone(null); setSel({ kind: "fu", id: next.id }); } : undefined} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {!doneShown ? <FilingControl x={x} filing={filingOf(x)} /> : <span />}
+        <div className="flex flex-wrap gap-1">
+          {openLink && <Button asChild size="sm" variant="ghost" className="h-7">{openLink}</Button>}
+          {x.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost" className="h-7"><a href={x.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
         </div>
       </div>
-      {doneShown && <div role="status" className="flex flex-wrap items-center gap-2 rounded-md border border-good-foreground/30 bg-good/40 px-3 py-2 text-sm">
-        <Badge className="gap-1 border-transparent bg-good-foreground text-background hover:bg-good-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Completed</Badge>
-        <span className="text-muted-foreground">{doneShown.status === "saving" ? "Saving…" : doneShown.status === "undoing" ? "Reopening…" : "Saved — removed from your list."}</span>
-        {canUndoCompletion(x) && <Button size="sm" variant="ghost" className="ml-auto h-7" disabled={doneShown.status !== "saved"} onClick={() => void undoComplete(x)}><Undo2 className="mr-1 h-3.5 w-3.5" />Undo</Button>}
-      </div>}
-      {!doneShown && <div className="flex flex-wrap gap-2 border-y border-border py-3">
-        <Button size="sm" onClick={() => onAction({
-          sourceKind: "followup", sourceId: x.activityId || x.id, title: x.summary || `Follow-up with ${x.person}`,
-          text: x.details || x.originalNote || x.summary, people: x.people || [{ name: x.person, email: x.email || "" }],
-          portcos: x.company ? x.company.split(/\s*,\s*/) : [], tracks: x.tracks, followUpActivityId: x.activityId,
-          ...(() => {
-            // A follow-up under a workstream inherits its PortCo and Dell stakeholders so names resolve in context.
-            const gid = x.workstreamGid || (x.recordId?.startsWith("ws:") ? x.recordId.slice(3) : "");
-            const parent = gid ? workstreams.find((w) => w.gid === gid) : undefined;
-            return parent ? { focusCompany: parent.company, stakeholders: parent.dellStakeholders || undefined } : {};
-          })(),
-        })}><Sparkles className="mr-1 h-3.5 w-3.5" />Action with V.I.C.</Button>
-        <Button size="sm" variant="outline" disabled={!!busy || !canClose(x)} onClick={() => completeNow(x)}><CheckCircle2 className="mr-1 h-3.5 w-3.5" />Mark complete</Button>
-        <Button size="sm" variant="outline" className="text-destructive" disabled={!!busy || !canClose(x)} onClick={() => { if (confirm("Delete this follow-up? The original note or contact history stays.")) void act([x], true, "Follow-up deleted"); }}><Trash2 className="mr-1 h-3.5 w-3.5" />Delete</Button>
-        {openLink && <Button asChild size="sm" variant="ghost">{openLink}</Button>}
-        {x.sourceUrl?.startsWith("https://") && <Button asChild size="sm" variant="ghost"><a href={x.sourceUrl} target="_blank" rel="noreferrer">Source <ExternalLink className="ml-1 h-3 w-3" /></a></Button>}
-      </div>}
-      {!doneShown && !canClose(x) && <p className="text-xs text-muted-foreground">This {x.source.toLowerCase()} follow-up is completed from its own page — use the open link above.</p>}
-      {(x.details || (x.originalNote && x.originalNote !== x.summary)) && <div className="whitespace-pre-wrap rounded-md bg-muted/30 p-3 text-sm text-muted-foreground">{x.details || x.originalNote}</div>}
-      {!doneShown && <FilingControl x={x} filing={filingOf(x)} />}
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-md border border-border p-3 text-xs sm:grid-cols-4">
-        <div><dt className="text-muted-foreground">Source</dt><dd className="font-medium">{x.source}</dd></div>
-        <div><dt className="text-muted-foreground">Created</dt><dd className="font-medium tabular-nums">{x.date ? x.date.slice(0, 10) : "—"}</dd></div>
-        <div><dt className="text-muted-foreground">Due</dt><dd className="font-medium tabular-nums">{x.due ? x.due.slice(0, 10) : "No date"}</dd></div>
-        <div><dt className="text-muted-foreground">Owner</dt><dd className="font-medium">{teamMemberFor(x.owner)?.displayName || x.owner || "—"}</dd></div>
-      </dl>
-      {!doneShown && <FollowUpEditor inline key={x.id} reminder={x} />}
-      {similar.length > 0 && <div className="space-y-2 rounded-md border border-border p-3">
+      {similar.length > 0 && !doneShown && <div className="space-y-2 rounded-md border border-border p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground"><Merge className="h-3.5 w-3.5" />Similar actions · {similar.length}</div>
           <Button size="sm" variant="outline" className="h-7" disabled={!!busy || !similar.some(canClose)} onClick={() => void act(similar.filter(canClose), false, `Merged ${similar.filter(canClose).length} into this one`)}>Merge all into this</Button>
@@ -606,7 +685,7 @@ function ActionsTab({ owner, onAction, focusGid, focusFu, dateRange, toggles, hi
           </div>}
           <WorkstreamTrail gid={ws.gid} company={ws.company} segment={ws.segment} />
         </div> : r ? fuDetail(r) : <p className="text-sm text-muted-foreground">Select an action to see its details.</p>;
-  const inline = (on: boolean) => !wide && on ? <div className="mb-2 mt-1 rounded-lg border border-border bg-card p-4 [overflow-wrap:anywhere]">{detailNode}</div> : null;
+  const inline = (on: boolean) => !wide && on ? <div className="@container mb-2 mt-1 rounded-lg border border-border bg-card p-4 [overflow-wrap:anywhere]">{detailNode}</div> : null;
   const priChip = (p?: string) => p ? <span title={p} className={`shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold ${priorityTone(p)}`}>{priorityShort(p)}</span> : null;
 
   const fuRow = (x: Reminder, company: string, website: string, nested: boolean, showCompany: boolean, priority?: string) => {

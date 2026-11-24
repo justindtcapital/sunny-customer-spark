@@ -64,6 +64,8 @@ export interface HomeReminder {
   /** Saved PortCo/Network filing choice; absent means automatic. */
   filing?: "portco" | "network";
   contactName?: string;
+  /** Read-time only: what came before this follow-up (previous step, source note…). */
+  origin?: import("./action-thread").ThreadOrigin;
 }
 
 /** KB contact trails hold the update; assigned next steps are separate activities. */
