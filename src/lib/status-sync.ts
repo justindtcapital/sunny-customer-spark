@@ -83,17 +83,21 @@ export function createStatusSync(options: readonly string[], normalize: (raw: st
 // ─── Shared stage wording (2026-11-24 rename) ────────────────────────
 
 /**
- * Old pipeline wording → current wording, shared by Sell-In and Sell With Dell Status (lower-cased
- * keys). The sheets were rewritten once; this keeps old backups, change-log values and stale caches
- * reading as the current choices.
+ * Unnumbered and old-numbered wording → the current numbered choices, shared by Sell-In and Sell
+ * With Dell Status (lower-cased keys). The sheets were rewritten once; this keeps old backups,
+ * change-log values and stale caches reading as the current choices.
  */
 export const LEGACY_PIPELINE_STATUS: Readonly<Record<string, string>> = {
-  "1 - engaged /progressing": "Engaged / Progressing",
-  "1 - engaged / progressing": "Engaged / Progressing",
-  "2 - engaged / stalled": "Engaged / Stalled",
-  "3 - trying to engage": "Working to Engage",
-  "trying to engage": "Working to Engage",
-  "interested / not engaged": "Interested",
+  "interested": "1 - Interested",
+  "interested / not engaged": "1 - Interested",
+  "working to engage": "2 - Working to Engage",
+  "trying to engage": "2 - Working to Engage",
+  "3 - trying to engage": "2 - Working to Engage",
+  "engaged / stalled": "3 - Engaged / Stalled",
+  "2 - engaged / stalled": "3 - Engaged / Stalled",
+  "engaged / progressing": "4 - Engaged / Progressing",
+  "1 - engaged /progressing": "4 - Engaged / Progressing",
+  "1 - engaged / progressing": "4 - Engaged / Progressing",
 };
 
 /** Any stored value (one choice or a comma list) → current names via `renames`; en/em dashes read as "-"; unknown values pass through. */

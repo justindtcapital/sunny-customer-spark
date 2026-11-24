@@ -13,26 +13,30 @@ export const LEGACY_SWD_FIELD = "Sell With Dell - Maturity";
 
 /** Stages (same wording as Sell-In Status), then established "Existing - …" outcomes. */
 export const SWD_STATUS_OPTIONS = [
-  "Interested",
-  "Working to Engage",
-  "Engaged / Stalled",
-  "Engaged / Progressing",
-  "Existing - Reference Architecture / Joint Solution",
-  "Existing - On Dell Paper / Revenue Generating",
-  "Existing - Embedded in Dell Offering",
-  "Existing - Services Enabled / Dell Delivered",
+  "1 - Interested",
+  "2 - Working to Engage",
+  "3 - Engaged / Stalled",
+  "4 - Engaged / Progressing",
+  "5 - Existing - Reference Architecture / Joint Solution",
+  "6 - Existing - On Dell Paper / Revenue Generating",
+  "7 - Existing - Embedded in Dell Offering",
+  "8 - Existing - Services Enabled / Dell Delivered",
 ] as const;
 
-/** Old maturity choice → new status (lower-cased keys). */
+/** Old maturity choice or unnumbered status → numbered status (lower-cased keys). */
 const LEGACY_TO_STATUS: Record<string, string> = {
   ...LEGACY_PIPELINE_STATUS,
-  "preliminary discussions": "Working to Engage",
-  "formally engaged": "Engaged / Progressing",
-  "reference architecture / joint solution": "Existing - Reference Architecture / Joint Solution",
-  "on dell paper / revenue generating": "Existing - On Dell Paper / Revenue Generating",
-  "services enabled / dell delivered": "Existing - Services Enabled / Dell Delivered",
-  "embedded in dell offering": "Existing - Embedded in Dell Offering",
-  "none: field collaboration only": "Interested",
+  "preliminary discussions": "2 - Working to Engage",
+  "formally engaged": "4 - Engaged / Progressing",
+  "reference architecture / joint solution": "5 - Existing - Reference Architecture / Joint Solution",
+  "existing - reference architecture / joint solution": "5 - Existing - Reference Architecture / Joint Solution",
+  "on dell paper / revenue generating": "6 - Existing - On Dell Paper / Revenue Generating",
+  "existing - on dell paper / revenue generating": "6 - Existing - On Dell Paper / Revenue Generating",
+  "services enabled / dell delivered": "8 - Existing - Services Enabled / Dell Delivered",
+  "existing - services enabled / dell delivered": "8 - Existing - Services Enabled / Dell Delivered",
+  "embedded in dell offering": "7 - Existing - Embedded in Dell Offering",
+  "existing - embedded in dell offering": "7 - Existing - Embedded in Dell Offering",
+  "none: field collaboration only": "1 - Interested",
 };
 
 /** Any stored value (one choice or a comma list) → new statuses; current or unknown values pass through. */

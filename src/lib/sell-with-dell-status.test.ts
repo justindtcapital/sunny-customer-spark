@@ -11,34 +11,35 @@ describe("Sell With Dell Status", () => {
   });
   it("allows several choices at once", () => {
     expect(swd().type).toBe("multi_enum");
-    expect(storedValueFor(swd(), ["Engaged / Stalled", "Existing - Embedded in Dell Offering"])).toBe("Engaged / Stalled, Existing - Embedded in Dell Offering");
+    expect(storedValueFor(swd(), ["3 - Engaged / Stalled", "7 - Existing - Embedded in Dell Offering"])).toBe("3 - Engaged / Stalled, 7 - Existing - Embedded in Dell Offering");
   });
-  it("lists the eight choices in Chris's order: the Sell-In stages, then the four Existing outcomes, without DTC Partner", () => {
+  it("lists the eight numbered choices in Chris's order: the Sell-In stages, then the four Existing outcomes, without DTC Partner", () => {
     const sellIn = WORKSTREAM_FIELD_DEFS.find((d) => d.name === "Sell-In Status")!.options!;
-    expect(SWD_STATUS_OPTIONS.slice(0, 4)).toEqual(sellIn.filter((x) => !x.startsWith("Existing - ")));
+    expect(SWD_STATUS_OPTIONS.slice(0, 4)).toEqual(sellIn.filter((x) => !x.includes("Existing")));
     expect(SWD_STATUS_OPTIONS).toEqual([
-      "Interested",
-      "Working to Engage",
-      "Engaged / Stalled",
-      "Engaged / Progressing",
-      "Existing - Reference Architecture / Joint Solution",
-      "Existing - On Dell Paper / Revenue Generating",
-      "Existing - Embedded in Dell Offering",
-      "Existing - Services Enabled / Dell Delivered",
+      "1 - Interested",
+      "2 - Working to Engage",
+      "3 - Engaged / Stalled",
+      "4 - Engaged / Progressing",
+      "5 - Existing - Reference Architecture / Joint Solution",
+      "6 - Existing - On Dell Paper / Revenue Generating",
+      "7 - Existing - Embedded in Dell Offering",
+      "8 - Existing - Services Enabled / Dell Delivered",
     ]);
     expect(SWD_STATUS_OPTIONS.some((o) => /dtc partner/i.test(o))).toBe(false);
   });
-  it("maps old maturity values, including inside a list", () => {
-    expect(sellWithDellStatusFrom("Embedded in Dell Offering")).toBe("Existing - Embedded in Dell Offering");
-    expect(sellWithDellStatusFrom("Preliminary Discussions")).toBe("Working to Engage");
-    expect(sellWithDellStatusFrom("None: Field Collaboration Only")).toBe("Interested");
-    expect(sellWithDellStatusFrom("Formally Engaged, 1 - Engaged /Progressing")).toBe("Engaged / Progressing");
-    expect(sellWithDellStatusFrom("3 - Trying to Engage, Interested / Not Engaged")).toBe("Working to Engage, Interested");
+  it("maps old maturity and unnumbered values, including inside a list", () => {
+    expect(sellWithDellStatusFrom("Embedded in Dell Offering")).toBe("7 - Existing - Embedded in Dell Offering");
+    expect(sellWithDellStatusFrom("Existing - Embedded in Dell Offering")).toBe("7 - Existing - Embedded in Dell Offering");
+    expect(sellWithDellStatusFrom("Preliminary Discussions")).toBe("2 - Working to Engage");
+    expect(sellWithDellStatusFrom("None: Field Collaboration Only")).toBe("1 - Interested");
+    expect(sellWithDellStatusFrom("Formally Engaged, 1 - Engaged /Progressing")).toBe("4 - Engaged / Progressing");
+    expect(sellWithDellStatusFrom("3 - Trying to Engage, Interested / Not Engaged")).toBe("2 - Working to Engage, 1 - Interested");
   });
   it("still reads an old column name as the new field", () => {
     const out = normalizeSellWithDell(["Name", "Sell With Dell - Maturity"], [{ row: 2, cells: { Name: "A", "Sell With Dell - Maturity": "Embedded in Dell Offering" } }]);
     expect(out.headers).toEqual(["Name", "Sell With Dell Status"]);
-    expect(out.items[0]!.cells["Sell With Dell Status"]).toBe("Existing - Embedded in Dell Offering");
+    expect(out.items[0]!.cells["Sell With Dell Status"]).toBe("7 - Existing - Embedded in Dell Offering");
     expect("Sell With Dell - Maturity" in out.items[0]!.cells).toBe(false);
   });
 });
@@ -46,9 +47,9 @@ describe("Sell With Dell Status", () => {
 import { PROFILE_FIELD_DEFS } from "./portco-fields-schema";
 import { applyStatusEdit, companyStatusAfterWorkstreamEdit, effectiveCompanyStatus, mergeStatuses, workstreamStatusesAfterCompanyEdit } from "./sell-with-dell-status";
 
-const TRY = "Working to Engage";
-const REF = "Existing - Reference Architecture / Joint Solution";
-const EMB = "Existing - Embedded in Dell Offering";
+const TRY = "2 - Working to Engage";
+const REF = "5 - Existing - Reference Architecture / Joint Solution";
+const EMB = "7 - Existing - Embedded in Dell Offering";
 
 describe("Sell With Dell Status on companies and workstreams", () => {
   it("company profiles use the same multi-choice field and choices as workstreams", () => {
@@ -85,16 +86,16 @@ describe("Sell With Dell Status on companies and workstreams", () => {
 describe("clearing Sell With Dell Status", () => {
   it("clearing a workstream removes its statuses from the company unless another workstream keeps them", () => {
     expect(companyStatusAfterWorkstreamEdit({
-      company: "Working to Engage, Engaged / Progressing",
-      before: "Working to Engage, Engaged / Progressing",
+      company: "2 - Working to Engage, 4 - Engaged / Progressing",
+      before: "2 - Working to Engage, 4 - Engaged / Progressing",
       after: "",
-      otherWorkstreams: ["Working to Engage"],
-    })).toBe("Working to Engage");
+      otherWorkstreams: ["2 - Working to Engage"],
+    })).toBe("2 - Working to Engage");
   });
   it("clearing the company clears every workstream status", () => {
-    expect(workstreamStatusesAfterCompanyEdit("Working to Engage, Engaged / Progressing", "", ["Engaged / Progressing", "Working to Engage"])).toEqual(["", ""]);
+    expect(workstreamStatusesAfterCompanyEdit("2 - Working to Engage, 4 - Engaged / Progressing", "", ["4 - Engaged / Progressing", "2 - Working to Engage"])).toEqual(["", ""]);
   });
   it("clearing one editor's whole selection empties the value", () => {
-    expect(applyStatusEdit("Working to Engage", ["Working to Engage"], [])).toBe("");
+    expect(applyStatusEdit("2 - Working to Engage", ["2 - Working to Engage"], [])).toBe("");
   });
 });

@@ -4,27 +4,29 @@ import { PROFILE_FIELD_DEFS, WORKSTREAM_FIELD_DEFS, storedValueFor } from "./por
 
 const onWorkstream = () => WORKSTREAM_FIELD_DEFS.find((d) => d.name === SELL_IN_FIELD)!;
 const onCompany = () => PROFILE_FIELD_DEFS.find((d) => d.name === SELL_IN_FIELD)!;
-const PROG = "Engaged / Progressing";
-const WORK = "Working to Engage";
-const GROW = "Existing - Growing";
+const PROG = "4 - Engaged / Progressing";
+const WORK = "2 - Working to Engage";
+const GROW = "7 - Existing - Growing";
 
 describe("Sell-In Status choices", () => {
-  it("lists the seven choices in Chris's order: four stages, then Existing - New / Static / Growing", () => {
+  it("lists the seven numbered choices in Chris's order: four stages, then Existing - New / Static / Growing", () => {
     expect(SELL_IN_OPTIONS).toEqual([
-      "Interested",
-      "Working to Engage",
-      "Engaged / Stalled",
-      "Engaged / Progressing",
-      "Existing - New",
-      "Existing - Static",
-      "Existing - Growing",
+      "1 - Interested",
+      "2 - Working to Engage",
+      "3 - Engaged / Stalled",
+      "4 - Engaged / Progressing",
+      "5 - Existing - New",
+      "6 - Existing - Static",
+      "7 - Existing - Growing",
     ]);
   });
-  it("old wording reads as the new choices", () => {
+  it("old and unnumbered wording reads as the numbered choices", () => {
     expect(sellInStatusFrom("1 - Engaged /Progressing")).toBe(PROG);
-    expect(sellInStatusFrom("2 - Engaged / Stalled")).toBe("Engaged / Stalled");
+    expect(sellInStatusFrom("Engaged / Progressing")).toBe(PROG);
+    expect(sellInStatusFrom("2 - Engaged / Stalled")).toBe("3 - Engaged / Stalled");
     expect(sellInStatusFrom("3 - Trying to Engage")).toBe(WORK);
-    expect(sellInStatusFrom("Interested / Not Engaged")).toBe("Interested");
+    expect(sellInStatusFrom("Interested / Not Engaged")).toBe("1 - Interested");
+    expect(sellInStatusFrom("Interested")).toBe("1 - Interested");
     expect(sellInStatusFrom("Existing – Growing")).toBe(GROW);
   });
   it("a workstream takes one choice", () => {

@@ -26,9 +26,9 @@ export type DellStage =
 export const PIPELINE_STAGES: readonly DellStage[] = ["Interested", "Working to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing"];
 export const ALL_STAGES: readonly DellStage[] = [...PIPELINE_STAGES, "Not Moving Forward", "Not set"];
 
-/** "Existing - …" choices, in the same order as the status lists. */
-export const SELL_WITH_OUTCOMES = SWD_STATUS_OPTIONS.filter((o) => o.startsWith("Existing"));
-export const SELL_IN_OUTCOMES = SELL_IN_OPTIONS.filter((o) => o.startsWith("Existing"));
+/** "… Existing - …" choices, in the same order as the status lists. */
+export const SELL_WITH_OUTCOMES = SWD_STATUS_OPTIONS.filter((o) => o.includes("Existing"));
+export const SELL_IN_OUTCOMES = SELL_IN_OPTIONS.filter((o) => o.includes("Existing"));
 
 export const NO_BU = "BU not set";
 /** Dell-facing engagement notes on a workstream (drafted by V.I.C., approved by a person). Internal "Notes" never reach a DellRow. */
@@ -86,15 +86,14 @@ export interface DellWorkstreamInput {
 const clean = (s: string) => (s || "").replace(/\s+/g, " ").trim();
 const list = (s: string) => clean(s).split(/\s*,\s*/).filter(Boolean);
 
-/** One stored status → stage. */
+/** One stored status → stage. A leading "N - " number is ignored so old and new numbering both read. */
 export function stageOf(status: string): DellStage {
-  const s = clean(status).toLowerCase();
+  const s = clean(status).toLowerCase().replace(/^\d+\s*-\s*/, "");
   if (!s) return "Not set";
   if (s.startsWith("existing")) return "Existing";
-  if (s.startsWith("1") || s.includes("progressing")) return "Engaged / Progressing";
-  if (s.startsWith("2") || s.includes("stalled")) return "Engaged / Stalled";
-  // "3 - Trying to Engage" is the old wording, still found in the change log.
-  if (s.startsWith("3") || s.includes("trying") || s.includes("working to engage")) return "Working to Engage";
+  if (s.includes("progressing")) return "Engaged / Progressing";
+  if (s.includes("stalled")) return "Engaged / Stalled";
+  if (s.includes("trying") || s.includes("working to engage")) return "Working to Engage";
   if (s.includes("interested")) return "Interested";
   if (s.includes("not moving")) return "Not Moving Forward";
   return "Not set";

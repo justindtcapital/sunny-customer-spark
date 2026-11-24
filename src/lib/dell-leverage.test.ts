@@ -94,7 +94,7 @@ describe("dell leverage summary", () => {
   it("existing outcomes split Sell-With outcomes from Sell-In account health", () => {
     const o = existingOutcomes(rows);
     expect(o.sellWith.find((x) => x.outcome.includes("Reference"))!.count).toBe(1);
-    expect(o.sellIn.map((x) => [x.outcome, x.count])).toEqual([["Existing - New", 0], ["Existing - Static", 0], ["Existing - Growing", 1]]);
+    expect(o.sellIn.map((x) => [x.outcome, x.count])).toEqual([["5 - Existing - New", 0], ["6 - Existing - Static", 0], ["7 - Existing - Growing", 1]]);
   });
 
   it("stakeholder map flags BUs with workstreams nobody is linked to", () => {
