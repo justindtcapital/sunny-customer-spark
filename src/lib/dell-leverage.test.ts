@@ -78,7 +78,7 @@ describe("dell leverage summary", () => {
 
   it("company board puts each company in every status it has work in, with its motions", () => {
     const board = companyStageBoard(rows);
-    expect(board.map((c) => c.stage)).toEqual(["Interested", "Working to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing", "Not set"]);
+    expect(board.map((c) => c.stage)).toEqual(["Interested", "Working to Engage", "Engaged / Stalled", "Engaged / Progressing", "Existing"]);
     const col = (s: string) => board.find((c) => c.stage === s)!;
     expect(col("Engaged / Progressing").companies).toEqual([{ company: "Alation", motions: ["Sell-In"], workstreams: 1 }, { company: "Redis", motions: ["Sell-In"], workstreams: 1 }]);
     expect(col("Existing").companies.map((c) => c.company)).toEqual(["Druva", "Redis"]);

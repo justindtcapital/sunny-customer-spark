@@ -25,6 +25,16 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { cn } from "@/lib/utils";
 
 export const MOTION_COLOR: Record<DellMotion, string> = { "Sell-In": "var(--chart-1)", "Sell-With": "var(--chart-3)" };
+/** One colour per status, so progress reads left to right: gray → sky blue → amber → green → Dell blue. */
+export const STAGE_COLOR: Record<DellStage, string> = {
+  Interested: "var(--stage-interested)",
+  "Working to Engage": "var(--stage-working)",
+  "Engaged / Stalled": "var(--stage-stalled)",
+  "Engaged / Progressing": "var(--stage-progressing)",
+  Existing: "var(--stage-existing)",
+  "Not Moving Forward": "var(--muted-foreground)",
+  "Not set": "var(--muted-foreground)",
+};
 const ALL = "__all";
 const isoDaysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -49,7 +59,7 @@ function Section({ title, sub, children, className = "", right }: { title: strin
   </CardContent></Card>;
 }
 
-/** Stage bars, Sell-In and Sell-With stacked. Earliest stage on top. Also used on the hub tile. */
+/** Stage bars in each status's colour. Earliest stage on top. Also used on the hub tile. */
 export function DellFunnel({ rows, selected, onStage, compact = false }: { rows: DellRow[]; selected?: DellStage | null; onStage?: (s: DellStage) => void; compact?: boolean }) {
   const counts = stageCounts(rows).filter((c) => (PIPELINE_STAGES as DellStage[]).includes(c.stage));
   const max = Math.max(1, ...counts.map((c) => c.total));
@@ -59,7 +69,7 @@ export function DellFunnel({ rows, selected, onStage, compact = false }: { rows:
         className={cn("grid w-full items-center gap-3 rounded-md px-1.5 py-1 text-left", compact ? "grid-cols-[8.5rem_1fr_2rem]" : "grid-cols-[11rem_1fr_2.5rem]", onStage && "hover:bg-muted/50", selected === c.stage && "bg-muted")}>
         <span className={cn("truncate text-foreground", compact ? "text-[11px]" : "text-xs")}>{c.stage}</span>
         <span className={cn("flex overflow-hidden rounded-sm bg-muted/60", compact ? "h-3" : "h-5")}>
-          {DELL_MOTIONS.map((m) => c[m] > 0 && <span key={m} title={`${m}: ${c[m]}`} style={{ width: `${(c[m] / max) * 100}%`, background: MOTION_COLOR[m] }} />)}
+          {c.total > 0 && <span title={`Sell-In: ${c["Sell-In"]} · Sell-With: ${c["Sell-With"]}`} style={{ width: `${(c.total / max) * 100}%`, background: STAGE_COLOR[c.stage] }} />}
         </span>
         <span className={cn("text-right tabular-nums text-foreground", compact ? "text-[11px]" : "text-sm font-medium")}>{c.total}</span>
       </button>
@@ -99,12 +109,15 @@ function CompanyBoard({ rows, websites, stage, company, onStage, onCompany }: {
     {board.map((col) => {
       const on = stage === col.stage;
       const sub = col.stage === "Engaged / Stalled" && summary.stalledShare != null ? `${Math.round(summary.stalledShare * 100)}% of engaged` : STAGE_SUB[col.stage];
-      return <div key={col.stage} className={cn("flex min-w-0 flex-col rounded-lg border transition-opacity", on ? "border-primary bg-muted/40" : "border-border", stage && !on && "opacity-50")}>
+      return <div key={col.stage} className={cn("flex min-w-0 flex-col overflow-hidden rounded-lg border border-t-4 transition-opacity", on ? "border-primary bg-muted/40" : "border-border", stage && !on && "opacity-50")}
+        style={{ borderTopColor: STAGE_COLOR[col.stage] }}>
         <button type="button" onClick={() => onStage(col.stage)} aria-pressed={on} title={col.stage}
-          className={cn("flex h-[5.25rem] flex-col justify-between rounded-t-lg border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/60", on && "bg-muted")}>
-          <span className="block truncate text-[11px] uppercase leading-tight tracking-wide text-muted-foreground">{col.stage}</span>
+          className={cn("flex h-[5.25rem] flex-col justify-between border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-muted/60", on && "bg-muted")}>
+          <span className="flex min-w-0 items-center gap-1.5 text-[11px] uppercase leading-tight tracking-wide text-muted-foreground">
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STAGE_COLOR[col.stage] }} /><span className="truncate">{col.stage}</span>
+          </span>
           <span className="flex min-w-0 items-baseline gap-2">
-            <span className="font-display text-2xl font-semibold leading-none tabular-nums text-foreground">{col.companies.length}</span>
+            <span className="font-display text-2xl font-semibold leading-none tabular-nums" style={{ color: STAGE_COLOR[col.stage] }}>{col.companies.length}</span>
             <span className="truncate text-[11px] text-muted-foreground">{col.companies.length === 1 ? "company" : "companies"} · {col.workstreams} ws</span>
           </span>
           <span className="block truncate text-[11px] leading-tight text-muted-foreground">{sub ?? "\u00a0"}</span>
@@ -254,7 +267,7 @@ function People({ people, empty = "No Dell stakeholders named yet." }: { people:
   ))}</span>;
 }
 
-/** Gantt-style track: five steps from Interested to Existing, filled up to where this motion stands. */
+/** Gantt-style track: five steps from Interested to Existing, filled in the current status's colour up to where this motion stands. */
 function StageTrack({ motion, stage, statuses }: { motion: DellMotion; stage: DellStage; statuses: string[] }) {
   const at = trackIndex(stage);
   return <div className="min-w-0">
@@ -263,7 +276,7 @@ function StageTrack({ motion, stage, statuses }: { motion: DellMotion; stage: De
     </p>
     <div className="mt-1 flex gap-0.5" aria-label={`${motion}: ${stage}`}>
       {PIPELINE_STAGES.map((s, i) => <span key={s} className={cn("h-2 flex-1 rounded-sm", at < 0 || i > at ? "bg-muted" : "")}
-        style={at >= 0 && i <= at ? { background: MOTION_COLOR[motion], opacity: i === at ? 1 : 0.45 } : undefined} />)}
+        style={at >= 0 && i <= at ? { background: STAGE_COLOR[stage], opacity: i === at ? 1 : 0.45 } : undefined} />)}
     </div>
   </div>;
 }
@@ -462,7 +475,7 @@ export function DellLeverageDashboard() {
             {list.map((o) => <div key={o.outcome} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1">
               <span className="text-xs text-foreground">{shortStatus(o.outcome)}</span>
               <span className="text-xs tabular-nums font-medium text-foreground">{o.count}</span>
-              <span className="col-span-2 h-1.5 rounded-full bg-muted"><span className="block h-full rounded-full" style={{ width: `${(o.count / maxOutcome) * 100}%`, background: MOTION_COLOR[motion] }} /></span>
+              <span className="col-span-2 h-1.5 rounded-full bg-muted"><span className="block h-full rounded-full" style={{ width: `${(o.count / maxOutcome) * 100}%`, background: STAGE_COLOR.Existing }} /></span>
             </div>)}
           </div>
         </Section>

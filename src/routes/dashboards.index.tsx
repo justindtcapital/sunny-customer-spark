@@ -16,7 +16,7 @@ import { matchSheetToAsanaKeys } from "@/lib/portco-names";
 import { MonthlyEventBars, BroadLegend, plannerDashboardQuery } from "@/components/dashboards/EventsDashboard";
 import { monthlyByBroad } from "@/lib/events-dashboard";
 import { Card, CardContent } from "@/components/ui/card";
-import { DellFunnel, MotionLegend, useDellLeverage } from "@/components/dashboards/DellLeverageDashboard";
+import { DellFunnel, useDellLeverage } from "@/components/dashboards/DellLeverageDashboard";
 
 export const Route = createFileRoute("/dashboards/")({
   head: () => ({
@@ -114,7 +114,6 @@ function DashboardsHub() {
         <Tile to="/dashboards/dell" title="Dell Leverage Dashboard" sub="Sell-In and Sell-With status with Dell">
           {dell.data?.rows.length ? <div className="w-full space-y-2">
             <DellFunnel rows={dell.data.rows} compact />
-            <MotionLegend small />
           </div> : <Unavailable text={!dell.data && !dell.isError ? "Loading…" : "Dell workstream data unavailable"} />}
         </Tile>
       </div>

@@ -245,11 +245,11 @@ export interface BoardCompany { company: string; motions: DellMotion[]; workstre
 
 /**
  * Company board: each status column lists the companies with a workstream at that status (a company
- * shows in every column it has work in), alphabetical, with the motions it holds there. Empty
- * "Not Moving Forward" / "Not set" columns are left out; the pipeline columns always show.
+ * shows in every column it has work in), alphabetical, with the motions it holds there. Always exactly
+ * the five pipeline columns; workstreams without a status get no column (they still appear in the list).
  */
 export function companyStageBoard(rows: DellRow[]): Array<{ stage: DellStage; companies: BoardCompany[]; workstreams: number }> {
-  return ALL_STAGES.map((stage) => {
+  return PIPELINE_STAGES.map((stage) => {
     const mine = rows.filter((r) => r.stage === stage);
     const by = new Map<string, { motions: Set<DellMotion>; ids: Set<string> }>();
     for (const r of mine) {
@@ -259,7 +259,7 @@ export function companyStageBoard(rows: DellRow[]): Array<{ stage: DellStage; co
     const companies = [...by.entries()].map(([company, e]) => ({ company, motions: DELL_MOTIONS.filter((m) => e.motions.has(m)), workstreams: e.ids.size }))
       .sort((a, b) => a.company.localeCompare(b.company));
     return { stage, companies, workstreams: new Set(mine.map((r) => r.workstreamId)).size };
-  }).filter((c) => (PIPELINE_STAGES as DellStage[]).includes(c.stage) || c.companies.length > 0);
+  });
 }
 
 /** BU × stage counts; BUs alphabetical with "BU not set" last (never ordered by importance). */
