@@ -4,11 +4,11 @@
 import { stageOf } from "@/lib/dell-leverage";
 
 const TONE: Record<string, string> = {
-  Interested: "bg-stage-interested/15 text-stage-interested border-stage-interested/40",
-  "Working to Engage": "bg-stage-working/15 text-stage-working border-stage-working/40",
-  "Engaged / Stalled": "bg-stage-stalled/15 text-stage-stalled border-stage-stalled/40",
-  "Engaged / Progressing": "bg-stage-progressing/15 text-stage-progressing border-stage-progressing/40",
-  Existing: "bg-stage-existing/15 text-stage-existing border-stage-existing/40",
+  Interested: "bg-stage-interested/15 text-stage-interested-text border-stage-interested/40",
+  "Working to Engage": "bg-stage-working/15 text-stage-working-text border-stage-working/40",
+  "Engaged / Stalled": "bg-stage-stalled/15 text-stage-stalled-text border-stage-stalled/40",
+  "Engaged / Progressing": "bg-stage-progressing/15 text-stage-progressing-text border-stage-progressing/40",
+  Existing: "bg-stage-existing/15 text-stage-existing-text border-stage-existing/40",
 };
 const FALLBACK = "bg-muted text-muted-foreground border-border";
 

@@ -41,6 +41,11 @@
   --color-stage-stalled: var(--stage-stalled);
   --color-stage-progressing: var(--stage-progressing);
   --color-stage-existing: var(--stage-existing);
+  --color-stage-interested-text: var(--stage-interested-text);
+  --color-stage-working-text: var(--stage-working-text);
+  --color-stage-stalled-text: var(--stage-stalled-text);
+  --color-stage-progressing-text: var(--stage-progressing-text);
+  --color-stage-existing-text: var(--stage-existing-text);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -118,6 +123,12 @@
   --stage-stalled: oklch(0.769 0.165 70);
   --stage-progressing: oklch(0.696 0.17 162);
   --stage-existing: oklch(0.53 0.16 250);
+  /* darker text variants for status pills (contrast on tinted backgrounds) */
+  --stage-interested-text: oklch(0.4 0.05 257);
+  --stage-working-text: oklch(0.45 0.12 237);
+  --stage-stalled-text: oklch(0.45 0.11 70);
+  --stage-progressing-text: oklch(0.44 0.12 162);
+  --stage-existing-text: oklch(0.4 0.14 250);
   --motion-sell-in: oklch(0.52 0.2 300);
   --motion-sell-with: oklch(0.66 0.2 42);
   --border: oklch(0.91 0.006 250);
@@ -226,6 +237,11 @@
   --stage-stalled: oklch(0.79 0.16 70);
   --stage-progressing: oklch(0.72 0.16 162);
   --stage-existing: oklch(0.62 0.16 250);
+  --stage-interested-text: oklch(0.82 0.04 257);
+  --stage-working-text: oklch(0.85 0.1 237);
+  --stage-stalled-text: oklch(0.88 0.12 70);
+  --stage-progressing-text: oklch(0.86 0.12 162);
+  --stage-existing-text: oklch(0.82 0.1 250);
   --motion-sell-in: oklch(0.65 0.2 300);
   --motion-sell-with: oklch(0.72 0.18 45);
   --border: oklch(1 0 0 / 10%);
