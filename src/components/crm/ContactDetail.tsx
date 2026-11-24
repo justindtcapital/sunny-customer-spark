@@ -1,3 +1,4 @@
+import { QuickFollowUpPrompt } from "@/components/actions/QuickFollowUpPrompt";
 import { PartnerChip } from "@/components/crm/PartnerChip";
 import { TEAM_OWNER_NAMES } from "@/lib/user-ownership";
 import { useState } from "react";
@@ -333,6 +334,9 @@ export function ContactDetail({
   const [editData, setEditData] = useState<Partial<Contact>>({});
   const [addInteractionOpen, setAddInteractionOpen] = useState(false);
   const [editingInteractionId, setEditingInteractionId] = useState<string | null>(null);
+  // The follow-up just marked complete: offer to schedule the next one right under it.
+  const [nextAfterId, setNextAfterId] = useState<string | null>(null);
+  const [schedulingNext, setSchedulingNext] = useState(false);
   const [editInteractionData, setEditInteractionData] = useState({
     type: "" as InteractionType,
     summary: "",
@@ -883,6 +887,7 @@ export function ContactDetail({
     };
     updated.followUpPending = updated.interactions.some((i) => i.isFollowUp && !i.followUpComplete);
     if (onContactUpdate) onContactUpdate(updated);
+    setNextAfterId(newResolved ? interactionId : null);
 
     try {
       await resolveFollowUp({
@@ -895,6 +900,22 @@ export function ContactDetail({
     } catch (e) {
       console.error("Failed to update follow-up resolved in sheet:", e);
     }
+  };
+
+  /** Adds the next follow-up as a new note on this contact (same as Add interaction with a follow-up date). */
+  const scheduleNextFollowUp = async (after: Interaction, due: string) => {
+    const summary = `Follow up: ${after.summary.replace(/^follow[- ]?up:?\s*/i, "")}`.slice(0, 1000);
+    const interaction: Interaction = { id: `i-${Date.now()}`, date: localTodayIso(), type: "note", summary, isFollowUp: true, followUpDue: due, followUpComplete: false };
+    setSchedulingNext(true);
+    try {
+      await addNote({ data: { contactEmail: contact.email, noteContent: summary, requiresFollowUp: true, followUpDue: due, type: "note" } });
+      if (onContactUpdate) onContactUpdate({ ...contact, interactions: [interaction, ...contact.interactions], followUpPending: true });
+      toast.success(`Next follow-up set for ${formatIsoMdY(due) || due}`);
+      setNextAfterId(null);
+    } catch (e) {
+      console.error("Failed to add next follow-up:", e);
+      toast.error("Couldn't set the next follow-up — try again.");
+    } finally { setSchedulingNext(false); }
   };
 
   const addPortCoIntro = async () => {
@@ -1913,6 +1934,9 @@ export function ContactDetail({
                                 <p className="text-xs text-muted-foreground mt-0.5">
                                   {interaction.summary}
                                 </p>
+                                {nextAfterId === interaction.id && interaction.followUpComplete && (
+                                  <QuickFollowUpPrompt busy={schedulingNext} onSchedule={(d) => scheduleNextFollowUp(interaction, d)} onSkip={() => setNextAfterId(null)} />
+                                )}
                               </>
                             )}
                           </div>

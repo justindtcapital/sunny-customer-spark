@@ -1,3 +1,4 @@
+import { QuickFollowUpPrompt } from "@/components/actions/QuickFollowUpPrompt";
 import { PartnerChip } from "@/components/crm/PartnerChip";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
@@ -1151,6 +1152,7 @@ function TargetingPage() {
 
   // Resolving a follow-up clears the flag AND leaves a trail entry, so the history
   // shows that the loop was actually closed.
+  const [nextAfterResolve, setNextAfterResolve] = useState<string | null>(null);
   const resolveFollowUp = () => {
     if (!activeTarget) return;
     const target = activeTarget;
@@ -1180,6 +1182,18 @@ function TargetingPage() {
       data: { targetKey: targetKeyOf(target), urid: target.urid, followUp: false },
     }).catch((e) => console.error("setTargetFollowUp failed", e));
     toast.success("Follow-up resolved.");
+    setNextAfterResolve(targetKeyOf(target));
+  };
+
+  /** Right after Resolve: flag the next follow-up on the same person. */
+  const scheduleNextAfterResolve = (due: string) => {
+    if (!activeTarget) return;
+    const target = activeTarget;
+    updateTarget({ ...target, followUp: true, followUpDue: due });
+    void setTargetFollowUp({ data: { targetKey: targetKeyOf(target), urid: target.urid, followUp: true, due } })
+      .then(() => toast.success(`Next follow-up set for ${due}`))
+      .catch((e) => { console.error("setTargetFollowUp failed", e); toast.error("Couldn't set the next follow-up — try again."); });
+    setNextAfterResolve(null);
   };
 
   // --- Apollo enrichment for targeting ---
@@ -2688,6 +2702,9 @@ function TargetingPage() {
                         Outreach Trail · {activeTarget.outreach.length} entries
                       </h3>
                       <div className="flex items-center gap-2">
+                        {!activeTarget.followUp && nextAfterResolve === targetKeyOf(activeTarget) && (
+                          <QuickFollowUpPrompt onSchedule={scheduleNextAfterResolve} onSkip={() => setNextAfterResolve(null)} />
+                        )}
                         {activeTarget.followUp && (
                           <>
                             <span
