@@ -26,9 +26,20 @@ import { priorityTone } from "@/components/portfolio/WorkstreamsPanel";
 import { cn } from "@/lib/utils";
 import { SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
 import { SELL_IN_FIELD } from "@/lib/sell-in-status";
+import { dellStatusTone } from "@/lib/dell-status-tone";
 
 /** Workstream Priority as the same colored pill used on the company page. */
 const renderPriority = (v: string) => <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", priorityTone(v))}>{v}</span>;
+
+/** Dell statuses as pills in the Dell dashboard's stage colors; multi-choice cells show one pill per status. */
+const renderDellStatus = (v: string) => (
+  <span className="flex flex-wrap gap-1">
+    {v.split(/\s*,\s*/).filter(Boolean).map((s) => (
+      <span key={s} className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", dellStatusTone(s))}>{s}</span>
+    ))}
+  </span>
+);
+const isDellStatus = (key: string) => key === SWD_STATUS_FIELD || key === SELL_IN_FIELD;
 
 const DEFAULT_COLUMNS = ["Segment", "Owner", "Workstream Status", "Workstream Priority", "Sell-In Status", "Dell Targets", "Dell Stakeholders", "Completed"];
 const ARCHIVED = "archived:";
@@ -225,7 +236,10 @@ export function WorkstreamsTableView({ companyNames, contacts = [], onContactsCh
                   );
                   return (
                     <td key={o.key} className="min-w-[130px] max-w-[260px] border-r border-border p-0 last:border-r-0">
-                      <EditableCell kind={editable ? k.kind : "readonly"} options={k.options} value={v} render={o.key === "Workstream Priority" ? renderPriority : undefined} onSave={editable ? (next) => saveCell(w, o.key, v, next) : undefined} />
+                      <EditableCell kind={editable ? k.kind : "readonly"} options={k.options} value={v}
+                        render={o.key === "Workstream Priority" ? renderPriority : isDellStatus(o.key) ? renderDellStatus : undefined}
+                        optionTone={isDellStatus(o.key) ? dellStatusTone : undefined}
+                        onSave={editable ? (next) => saveCell(w, o.key, v, next) : undefined} />
                     </td>
                   );
                 })}

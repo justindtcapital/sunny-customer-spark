@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 export type CellKind = "enum" | "multi_enum" | "number" | "date" | "text" | "readonly";
 const NONE = "__none__";
 
-export function EditableCell({ kind, value, options = [], onSave, className, render, toDraft = (v) => v, fromDraft = (d) => d.trim() }: {
+export function EditableCell({ kind, value, options = [], onSave, className, render, optionTone, toDraft = (v) => v, fromDraft = (d) => d.trim() }: {
   kind: CellKind;
   value: string;
   options?: readonly string[];
@@ -18,6 +18,8 @@ export function EditableCell({ kind, value, options = [], onSave, className, ren
   className?: string;
   /** Custom display (formatted number, colored pill); unset values always show as an empty cell. */
   render?: (value: string) => ReactNode;
+  /** Pill classes per dropdown option (e.g. Dell status colors); options show as colored pills when set. */
+  optionTone?: (option: string) => string;
   /** Typed fields: stored value → editable text, and back (e.g. ownership edited as a percent). */
   toDraft?: (value: string) => string;
   fromDraft?: (draft: string) => string;
@@ -54,7 +56,7 @@ export function EditableCell({ kind, value, options = [], onSave, className, ren
         <SelectContent>
           <SelectItem value={NONE} className="text-xs italic text-muted-foreground">Clear</SelectItem>
           {value && !options.includes(value) && <SelectItem value={value} className="text-xs">{value}</SelectItem>}
-          {options.map((o) => <SelectItem key={o} value={o} className="text-xs">{o}</SelectItem>)}
+          {options.map((o) => <SelectItem key={o} value={o} className="text-xs">{optionTone ? <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", optionTone(o))}>{o}</span> : o}</SelectItem>)}
         </SelectContent>
       </Select>
     );
@@ -72,7 +74,7 @@ export function EditableCell({ kind, value, options = [], onSave, className, ren
             return (
               <label key={o} className="flex items-center gap-2 text-xs">
                 <Checkbox checked={cur.includes(o)} onCheckedChange={(c) => setDraft((c ? [...cur, o] : cur.filter((x) => x !== o)).join(", "))} />
-                {o}
+                {optionTone ? <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", optionTone(o))}>{o}</span> : o}
               </label>
             );
           })}
