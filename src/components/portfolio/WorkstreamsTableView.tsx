@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
 import { SELL_IN_FIELD } from "@/lib/sell-in-status";
 import { dellStatusTone } from "@/lib/dell-status-tone";
+import { orderedColumns } from "@/lib/column-order";
 
 /** Workstream Priority as the same colored pill used on the company page. */
 const renderPriority = (v: string) => <span className={cn("inline-block rounded-full border px-2 py-px text-[11px] font-medium", priorityTone(v))}>{v}</span>;
@@ -88,7 +89,7 @@ export function WorkstreamsTableView({ companyNames, contacts = [], onContactsCh
       ...archived.map((a) => ({ key: ARCHIVED + a, label: a, archived: true })),
     ];
   }, [archives]);
-  const shown = options.filter((o) => cols.includes(o.key));
+  const shown = orderedColumns(options, cols);
 
   const valueOf = (w: Workstream, key: string): string => {
     if (key === "Company") return w.company;

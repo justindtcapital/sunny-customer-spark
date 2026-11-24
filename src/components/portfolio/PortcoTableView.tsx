@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { LEGACY_SWD_FIELD, SWD_STATUS_FIELD } from "@/lib/sell-with-dell-status";
 import { SELL_IN_FIELD } from "@/lib/sell-in-status";
 import { reloadWorkstreams } from "@/lib/use-workstreams";
+import { orderedColumns } from "@/lib/column-order";
 
 const DEFAULT_COLUMNS = ["Owner", "DTC Priority", "Lead Investor", "Company Stage", "DTC Investment ($M)", "DTC Ownership", "GTM Marketing/PMF", "Sales Maturity", "Help / Influence"];
 const ARCHIVED = "archived:";
@@ -64,7 +65,7 @@ export function PortcoTableView({ companies, onOpenCompany, onProfileSaved }: {
     const archived = [...new Set((data?.profiles || []).flatMap((p) => Object.keys(p.archived)))].sort();
     return [{ key: "Owner", label: "Owner" }, ...PROFILE_FIELD_DEFS.map((d) => ({ key: d.name, label: d.name })), ...archived.map((a) => ({ key: ARCHIVED + a, label: a, archived: true }))];
   }, [data]);
-  const shown = options.filter((o) => cols.includes(o.key));
+  const shown = orderedColumns(options, cols);
 
   const valueOf = (c: PortfolioCompany, key: string): string => {
     const p = profileFor(c);

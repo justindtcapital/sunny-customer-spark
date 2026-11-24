@@ -290,37 +290,37 @@ function EngagementList({ rows, websites, drafts, company, onCompany, onOpen, on
   const groups = useMemo(() => engagementList(rows), [rows]);
   if (!groups.length) return <p className="py-6 text-center text-xs text-muted-foreground">No workstreams match these filters.</p>;
   return <div className="overflow-x-auto">
-    <table className="w-full min-w-[1280px] table-fixed text-xs">
-      <colgroup><col className="w-[13rem]" /><col className="w-[17rem]" /><col className="w-[14rem]" /><col className="w-[15rem]" /><col className="w-[24rem]" /><col /></colgroup>
+    <table className="w-full min-w-[1000px] table-fixed text-xs [&_th]:px-3 [&_td]:px-3 [&_th:first-child]:pl-0 [&_td:first-child]:pl-0 [&_th:last-child]:pr-0 [&_td:last-child]:pr-0">
+      <colgroup><col className="w-[14%]" /><col className="w-[16%]" /><col className="w-[22%]" /><col className="w-[16%]" /><col className="w-[18%]" /><col className="w-[14%]" /></colgroup>
       <thead><tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-        <th className="py-2 pr-3 font-medium">Company</th>
-        <th className="py-2 pr-3 font-medium">Engagement</th>
-        <th className="py-2 pr-3 font-medium">
+        <th className="py-2 font-medium">Company</th>
+        <th className="py-2 font-medium">Engagement</th>
+        <th className="py-2 font-medium">
           Where it stands
           <span className="mt-0.5 flex justify-between text-[9px] normal-case tracking-normal">{TRACK_LABELS.map((l) => <span key={l}>{l}</span>)}</span>
         </th>
-        <th className="py-2 pr-3 font-medium">Key Dell stakeholders</th>
-        <th className="py-2 pr-4 font-medium">Current state &amp; next steps</th>
+        <th className="py-2 font-medium">Key Dell stakeholders</th>
+        <th className="py-2 font-medium">Current state &amp; next steps</th>
         <th className="py-2 font-medium">Asks of Dell</th>
       </tr></thead>
       <tbody>
         {groups.flatMap((g) => g.workstreams.map((w, i) => (
           <tr key={w.workstreamId} className={cn("align-top", i === 0 ? "border-t border-border" : "border-t border-dashed border-border/60")}>
-            <td className="py-3 pr-3">
+            <td className="py-3">
               {i === 0 && <button type="button" onClick={() => onCompany(g.company)} className={cn("flex w-full min-w-0 items-center gap-2 rounded-md text-left hover:underline", company === g.company && "font-semibold")}>
                 <RingLogo company={g.company} website={websites[g.company]} motions={DELL_MOTIONS.filter((m) => g.workstreams.some((x) => x.motions.some((y) => y.motion === m)))} size="sm" />
-                <span className="truncate text-sm font-medium text-foreground">{g.company}</span>
+                <span className="min-w-0 break-words text-sm font-medium text-foreground">{g.company}</span>
               </button>}
             </td>
-            <td className="py-3 pr-3">
+            <td className="py-3">
               <button type="button" onClick={() => onOpen(w.workstreamId)} className="group inline-flex max-w-full items-start gap-1 text-left text-sm font-medium text-foreground hover:underline">
-                <span className="min-w-0">{w.name}</span><ExternalLink className="mt-1 h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                <span className="min-w-0 break-words">{w.name}</span><ExternalLink className="mt-1 h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
               </button>
               <p className="mt-0.5 text-[11px] text-muted-foreground">{w.bu}{w.products.length ? ` · ${w.products.map((p) => p.replace(/^Dell /, "")).join(", ")}` : ""}{w.completed ? " · completed" : ""}</p>
             </td>
-            <td className="space-y-2 py-3 pr-3">{w.motions.map((m) => <StageTrack key={m.motion} motion={m.motion} stage={m.stage} statuses={m.statuses} />)}</td>
-            <td className="py-3 pr-3"><People people={peopleOf(rows.filter((r) => r.workstreamId === w.workstreamId))} empty="None named yet" /></td>
-            <td className="py-3 pr-4"><DellTextBox ws={w} kind="notes" drafts={drafts} onSaved={onSaved} /></td>
+            <td className="space-y-2 py-3">{w.motions.map((m) => <StageTrack key={m.motion} motion={m.motion} stage={m.stage} statuses={m.statuses} />)}</td>
+            <td className="py-3"><People people={peopleOf(rows.filter((r) => r.workstreamId === w.workstreamId))} empty="None named yet" /></td>
+            <td className="py-3"><DellTextBox ws={w} kind="notes" drafts={drafts} onSaved={onSaved} /></td>
             <td className="py-3"><DellTextBox ws={w} kind="asks" drafts={drafts} onSaved={onSaved} /></td>
           </tr>
         )))}

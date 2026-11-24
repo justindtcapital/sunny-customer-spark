@@ -40,6 +40,8 @@
 
 ## Layout
 - [x] All pages left-aligned and stretch to the window width
+- [x] Drag-to-reorder selected columns in Edit PortCos and Edit workstreams
+- [x] Balance Dell Leverage workstream column widths and spacing
 
 ## Dell statuses
 - [x] New Sell-In (7) and Sell-With (8) choices; sheet values renamed with backups
