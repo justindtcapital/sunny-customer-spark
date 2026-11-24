@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { LayoutGrid, List } from "lucide-react";
 import { useSelection } from "@/lib/selection-context";
 import { scoreContactSearch } from "@/lib/contact-search";
+import { usePersistedView } from "@/lib/view-mode";
 
 interface ContactListProps {
   contacts: Contact[];
@@ -45,7 +46,7 @@ export function ContactList({
   onToggleKind,
   toolbarExtra,
 }: ContactListProps) {
-  const [view, setView] = useState<"cards" | "table">("table");
+  const [view, setView] = usePersistedView("vp.network.viewMode", "table");
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [localContacts, setLocalContacts] = useState(contacts);

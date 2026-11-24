@@ -3,6 +3,7 @@ import { PartnerChip } from "@/components/crm/PartnerChip";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useFilterOptions } from "@/lib/filter-options-context";
+import { usePersistedView } from "@/lib/view-mode";
 import { enrichContact } from "@/utils/apollo.functions";
 import type { ApolloEnrichmentResult } from "@/utils/apollo.server";
 import { toast } from "sonner";
@@ -821,7 +822,7 @@ function TargetingPage() {
 
   const allSelected = filtered.length > 0 && filtered.every((t) => selectedIds.has(t.id));
 
-  const [view, setView] = useState<"cards" | "table">("cards");
+  const [view, setView] = usePersistedView("vp.prospecting.viewMode", "table");
   const [sort, setSort] = useState<{ key: TSortKey; dir: "asc" | "desc" } | null>(null);
   const toggleSort = (key: TSortKey) =>
     setSort((prev) =>
