@@ -77,12 +77,6 @@ export function DellFunnel({ rows, selected, onStage, compact = false }: { rows:
   </div>;
 }
 
-export function MotionLegend({ small = false }: { small?: boolean }) {
-  return <div className={cn("flex items-center gap-4 text-muted-foreground", small ? "text-[10px]" : "text-xs")}>
-    {DELL_MOTIONS.map((m) => <span key={m} className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm" style={{ background: MOTION_COLOR[m] }} />{m}</span>)}
-  </div>;
-}
-
 /** Ring colour for a company circle: one motion's colour, or split when it holds both. */
 const motionRing = (motions: DellMotion[]) => motions.length > 1
   ? `linear-gradient(90deg, ${MOTION_COLOR["Sell-In"]} 50%, ${MOTION_COLOR["Sell-With"]} 50%)`
@@ -373,23 +367,22 @@ export function DellLeverageDashboard() {
     if (filter.stage || filter.company) listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [listKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const motionButtons = !!all.length && <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Motion">
+    {DELL_MOTIONS.map((m) => {
+      const n = new Set(motionRows.filter((r) => r.motion === m).map((r) => r.workstreamId)).size;
+      const on = filter.motion === m;
+      return <button key={m} type="button" aria-pressed={on} onClick={() => set({ motion: on ? "Both" : m })}
+        className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+          on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:bg-muted",
+          filter.motion !== "Both" && !on && "opacity-50")}>
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: MOTION_COLOR[m] }} />{m}
+        <span className="tabular-nums">{n}</span><span className={on ? "text-primary-foreground/80" : "text-muted-foreground"}>workstream{n === 1 ? "" : "s"}</span>
+      </button>;
+    })}
+  </div>;
+
   const header = <div className="space-y-1">
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Dell Leverage Dashboard</h1>
-      {!!all.length && <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Motion">
-        {DELL_MOTIONS.map((m) => {
-          const n = new Set(motionRows.filter((r) => r.motion === m).map((r) => r.workstreamId)).size;
-          const on = filter.motion === m;
-          return <button key={m} type="button" aria-pressed={on} onClick={() => set({ motion: on ? "Both" : m })}
-            className={cn("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-              on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground hover:bg-muted",
-              filter.motion !== "Both" && !on && "opacity-50")}>
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: MOTION_COLOR[m] }} />{m}
-            <span className="tabular-nums">{n}</span><span className={on ? "text-primary-foreground/80" : "text-muted-foreground"}>workstream{n === 1 ? "" : "s"}</span>
-          </button>;
-        })}
-      </div>}
-    </div>
+    <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Dell Leverage Dashboard</h1>
     <p className="text-sm text-muted-foreground">Where each Sell-In and Sell-With workstream stands with Dell.</p>
   </div>;
 
@@ -415,7 +408,7 @@ export function DellLeverageDashboard() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <h2 className="font-display text-base font-semibold text-foreground">Companies by Dell status</h2>
-          <MotionLegend />
+          {motionButtons}
           <span className="text-xs text-muted-foreground">Split ring = both · number = workstreams at that status</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
