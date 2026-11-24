@@ -118,6 +118,8 @@
   --stage-stalled: oklch(0.769 0.165 70);
   --stage-progressing: oklch(0.696 0.17 162);
   --stage-existing: oklch(0.53 0.16 250);
+  --motion-sell-in: oklch(0.52 0.2 300);
+  --motion-sell-with: oklch(0.66 0.2 42);
   --border: oklch(0.91 0.006 250);
   --input: oklch(0.91 0.006 250);
   --ring: oklch(0.46 0.175 250);
@@ -224,6 +226,8 @@
   --stage-stalled: oklch(0.79 0.16 70);
   --stage-progressing: oklch(0.72 0.16 162);
   --stage-existing: oklch(0.62 0.16 250);
+  --motion-sell-in: oklch(0.65 0.2 300);
+  --motion-sell-with: oklch(0.72 0.18 45);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.615 0.175 241);

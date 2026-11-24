@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-export const MOTION_COLOR: Record<DellMotion, string> = { "Sell-In": "var(--chart-1)", "Sell-With": "var(--chart-3)" };
+export const MOTION_COLOR: Record<DellMotion, string> = { "Sell-In": "var(--motion-sell-in)", "Sell-With": "var(--motion-sell-with)" };
 /** One colour per status, so progress reads left to right: gray → sky blue → amber → green → Dell blue. */
 export const STAGE_COLOR: Record<DellStage, string> = {
   Interested: "var(--stage-interested)",
