@@ -873,8 +873,8 @@ export function FindCompaniesDialog({ open, onOpenChange, onImported, companies 
                     ))}
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Either works alone — keywords match similar titles; seniority is a soft band
-                    (nearby levels + common title variants) so org ladders don&apos;t miss.
+                    Either works alone — keywords match similar titles; seniority filters to the
+                    selected levels.
                   </p>
                 </div>
               </div>

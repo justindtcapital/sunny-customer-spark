@@ -1,7 +1,7 @@
-// Soften Find people-search role criteria across org title ladders.
-// Apollo's person_seniorities facet is binary (vp ≠ head ≠ director); orgs
-// name the same seat differently. We expand selected chips to a ±1 seniority
-// band plus common title synonyms before calling searchPeople.
+// Normalize Apollo people-search role & seniority criteria.
+// Apollo evaluates `person_titles` as OR and intersects it with `person_seniorities` (AND).
+// Never inject generic seniority titles (CEO, CISO, VP, Director…) into `person_titles`:
+// doing so drowns out specific job functions like "Supply Chain" with unrelated executives.
 
 /** Apollo person_seniorities keys, most-senior → least (matches Find chips). */
 export const SENIORITY_ORDER = [
@@ -20,90 +20,76 @@ export const SENIORITY_ORDER = [
 
 export type ApolloSeniority = (typeof SENIORITY_ORDER)[number];
 
-/** Common title strings per Apollo seniority — catch org naming variance. */
-export const SENIORITY_TITLE_SYNONYMS: Record<string, string[]> = {
-  owner: ["Owner", "Co-Owner", "Business Owner", "Proprietor"],
-  founder: ["Founder", "Co-Founder", "Co Founder", "Founding Partner"],
-  c_suite: [
-    "CEO",
-    "CIO",
-    "CTO",
-    "CISO",
-    "CFO",
-    "COO",
-    "CPO",
-    "CMO",
-    "CRO",
-    "Chief Digital Officer",
-    "Chief Data Officer",
-    "Chief Information Security Officer",
-    "Chief Technology Officer",
-    "Chief Information Officer",
-    "President",
-  ],
-  partner: ["Partner", "Managing Partner", "General Partner", "Equity Partner"],
-  vp: [
-    "VP",
-    "Vice President",
-    "SVP",
-    "Senior Vice President",
-    "EVP",
-    "Executive Vice President",
-    "AVP",
-    "Assistant Vice President",
-  ],
-  head: ["Head of", "Head,", "Global Head", "Head"],
-  director: [
-    "Director",
-    "Senior Director",
-    "Managing Director",
-    "Executive Director",
-    "Associate Director",
-  ],
-  manager: ["Manager", "Senior Manager", "Group Manager", "Program Manager"],
-  senior: ["Senior", "Staff", "Principal", "Lead", "Architect"],
-  entry: ["Associate", "Analyst", "Coordinator", "Specialist"],
-  intern: ["Intern", "Internship", "Trainee"],
+/** UI job-level checkboxes (Campaigns / Prospects) → Apollo person_seniorities. */
+export const JOB_LEVEL_SENIORITIES: Record<string, readonly ApolloSeniority[]> = {
+  "C-Suite": ["c_suite"],
+  SVP: ["vp"],
+  VP: ["vp", "head"],
+  Director: ["director"],
+  Manager: ["manager"],
 };
 
-/** Expand selected seniorities to each chip ± one adjacent Apollo level. */
+/** Split comma/semicolon-separated role/function terms, trimming and deduping. */
+export function parseRoleTerms(raw: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    for (const part of entry.split(/[,;]/)) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      const key = trimmed.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(trimmed);
+    }
+  }
+  return out;
+}
+
+/**
+ * Keep selected Apollo seniority levels exact, only adding "head" when "vp" is
+ * picked (many orgs title their VP-level leader "Head of …"). Never expands
+ * downward into more-numerous tiers like "manager", which otherwise crowd out
+ * Director/VP/C-Suite results.
+ */
 export function expandSeniorities(selected: string[]): string[] {
   const out = new Set<string>();
   for (const key of selected) {
-    const i = SENIORITY_ORDER.indexOf(key as ApolloSeniority);
-    if (i < 0) {
-      out.add(key);
-      continue;
-    }
-    out.add(SENIORITY_ORDER[i]);
-    if (i > 0) out.add(SENIORITY_ORDER[i - 1]);
-    if (i < SENIORITY_ORDER.length - 1) out.add(SENIORITY_ORDER[i + 1]);
-  }
-  return [...out];
-}
-
-/** Title synonyms for the user's selected chips (not the expanded band). */
-export function titlesForSeniorities(selected: string[]): string[] {
-  const out = new Set<string>();
-  for (const key of selected) {
-    for (const t of SENIORITY_TITLE_SYNONYMS[key] || []) out.add(t);
+    const clean = key.trim();
+    if (!clean) continue;
+    out.add(clean);
+    if (clean === "vp") out.add("head");
   }
   return [...out];
 }
 
 /**
- * Merge typed titles with seniority synonym fan-out, and soften seniority to a
- * ±1 band. Synonym titles come from the expanded band (not only the clicked
- * chips) so Apollo's titles∩seniorities AND still catches Head/Director naming
- * when the user picked VP. Deduped for Apollo. Empty inputs stay empty.
+ * Keep `titles` strictly to user-entered role/function terms and preserve the
+ * selected Apollo seniority levels (including "head" alongside "vp"). Empty inputs stay empty.
  */
 export function expandFindRoleQuery(input: {
   titles?: string[];
   seniorities?: string[];
 }): { titles: string[]; seniorities: string[] } {
-  const typed = (input.titles || []).map((t) => t.trim()).filter(Boolean);
+  const titles = parseRoleTerms(input.titles || []);
   const selected = (input.seniorities || []).map((s) => s.trim()).filter(Boolean);
   const seniorities = expandSeniorities(selected);
-  const titles = [...new Set([...typed, ...titlesForSeniorities(seniorities)])];
+  return { titles, seniorities };
+}
+
+/**
+ * Build Apollo search parameters from Campaigns/Prospects job-level checkboxes
+ * and role/function text without polluting `person_titles` with generic C-suite titles.
+ */
+export function buildApolloAttributeQuery(input: {
+  jobLevels?: string[];
+  jobFunctions?: string[];
+}): { titles: string[]; seniorities: string[] } {
+  const titles = parseRoleTerms(input.jobFunctions || []);
+  const seniorities = [
+    ...new Set(
+      (input.jobLevels || []).flatMap((level) => JOB_LEVEL_SENIORITIES[level] || []),
+    ),
+  ];
   return { titles, seniorities };
 }

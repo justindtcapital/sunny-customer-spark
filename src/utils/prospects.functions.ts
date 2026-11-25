@@ -3,6 +3,7 @@ import { expandLocations } from "@/lib/metro-areas";
 import { createServerFn } from "@tanstack/react-start";
 import { buildProspects, discoverProspectCompanies, fetchProspectPeople, type ProspectsResult, type ProspectCompany, type ProspectCompaniesResult, type SumbleProspect } from "./sumble.server";
 import { enrichPerson, searchPeople } from "./apollo.server";
+import { buildApolloAttributeQuery } from "./find-role-expand";
 import {
   buildContacts,
   buildTargets,
@@ -51,23 +52,6 @@ interface ProspectInput {
   perCompany?: number;
 }
 
-// Each seniority chip fans out to a set of Apollo person_titles (one request,
-// not one-call-per-title) plus the matching person_seniorities facet for
-// precision. Sent together in a single searchPeople() call.
-const SENIORITY_TITLE_MAP: Record<string, { seniority: string; titles: string[] }> = {
-  "C-Suite": {
-    seniority: "c_suite",
-    titles: [
-      "CEO", "CIO", "CTO", "CISO", "CFO", "COO",
-      "Chief Digital Officer", "Chief Data Officer",
-      "Chief Information Security Officer", "Chief Technology Officer",
-    ],
-  },
-  SVP: { seniority: "vp", titles: ["SVP", "Senior Vice President", "EVP", "Executive Vice President"] },
-  VP: { seniority: "vp", titles: ["VP", "Vice President", "Head of"] },
-  Director: { seniority: "director", titles: ["Director", "Senior Director", "Managing Director"] },
-  Manager: { seniority: "manager", titles: ["Manager", "Senior Manager", "Group Manager"] },
-};
 // Apollo organization_num_employees_ranges expects "min,max" strings.
 const SIZE_TO_APOLLO_RANGE: Record<string, string> = {
   "1k_5k": "1000,5000",
@@ -78,13 +62,10 @@ const SIZE_TO_APOLLO_RANGE: Record<string, string> = {
 };
 
 async function apolloAttributeSearch(data: ProspectInput): Promise<ProspectsResult> {
-  // Seniority chips fan out to titles; freeform job functions add more titles.
-  const seniorityTitles = (data.jobLevels || []).flatMap((l) => SENIORITY_TITLE_MAP[l]?.titles || []);
-  const fnTitles = (data.jobFunctions || []).map((s) => s.trim()).filter(Boolean);
-  const titles = [...new Set([...seniorityTitles, ...fnTitles])];
-  const seniorities = [
-    ...new Set((data.jobLevels || []).map((l) => SENIORITY_TITLE_MAP[l]?.seniority).filter(Boolean)),
-  ];
+  const { titles, seniorities } = buildApolloAttributeQuery({
+    jobLevels: data.jobLevels,
+    jobFunctions: data.jobFunctions,
+  });
   const employeeRanges = (data.sizes || []).map((s) => SIZE_TO_APOLLO_RANGE[s]).filter(Boolean);
   const locations = expandLocations(data.countries || []);
 
@@ -99,7 +80,14 @@ async function apolloAttributeSearch(data: ProspectInput): Promise<ProspectsResu
   const perPage = Math.min(100, Math.max(5, (data.companyLimit ?? 5) * (data.perCompany ?? 5)));
   let res;
   try {
-    res = await searchPeople({ titles, seniorities, locations, employeeRanges, perPage });
+    res = await searchPeople({
+      titles,
+      seniorities,
+      includeSimilarTitles: titles.length > 0,
+      locations,
+      employeeRanges,
+      perPage,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     if (/APOLLO_API_KEY/.test(msg)) return { found: false, prospects: [], error: "APOLLO_API_KEY is not configured." };
