@@ -48,6 +48,7 @@ export const Route = createRootRoute({
       { title: "VenturePulse — DTC Network Intelligence" },
       { name: "description", content: "DTC network management" },
       { name: "author", content: "Dell Technologies Capital" },
+      { name: "twilio-domain-verification", content: "c77c83b71496028b92798d386d3edce3" },
       { property: "og:title", content: "VenturePulse — DTC Network Intelligence" },
       { property: "og:description", content: "DTC network management" },
       { property: "og:type", content: "website" },
