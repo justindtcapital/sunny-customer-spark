@@ -10,5 +10,5 @@ Goal: calls to +1 (650) 382-4252 forward to Chris's cell, so Meta's verification
 
 ## Technical details
 - Twilio REST: GET /2010-04-01/Accounts/{SID}/IncomingPhoneNumbers.json?PhoneNumber=+16503824252, then POST .../IncomingPhoneNumbers/{PN sid}.json with VoiceUrl and VoiceMethod=POST.
-- TwiML Bins have no public listing API, so the bin URL (https://handler.twilio.com/twiml/EH...) comes from the bin page.
+- TwiML Bins have no public listing API. The new console shows only the bin's ID (the code with the copy button, starting EH); the bin's address is built from it as https://handler.twilio.com/twiml/<bin ID>.
 - No app code changes. After verification, voice handling can stay as is; WhatsApp messages go to /api/public/twilio-whatsapp once the sender is registered.
