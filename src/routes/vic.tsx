@@ -9,6 +9,7 @@ import { VicMark } from "@/components/vic/VicMark";
 import { getVicSkill, type VicSkillId } from "@/lib/vic-skills";
 import { VicWorkspaceControls, VicWorkspaceProvider } from "@/components/vic/VicWorkspaceControls";
 import { QuickUpdateButton } from "@/components/vic/QuickUpdateDialog";
+import { VicWhatsAppDialog } from "@/components/vic/VicWhatsAppDialog";
 
 export const Route = createFileRoute("/vic")({
   validateSearch: (s: Record<string, unknown>): { skill?: VicSkillId } => ({ skill: getVicSkill(s.skill)?.id }),
@@ -89,6 +90,7 @@ function VicLayout() {
           )}
         </nav>
         <VicWorkspaceControls />
+        <VicWhatsAppDialog />
         </div>
       </aside>
       <section className="flex-1 min-w-0"><Outlet /></section>

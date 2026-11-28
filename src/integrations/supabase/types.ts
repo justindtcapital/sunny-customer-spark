@@ -393,6 +393,44 @@ export type Database = {
         }
         Relationships: []
       }
+      vic_whatsapp_links: {
+        Row: {
+          created_at: string
+          last_message_at: string | null
+          phone_e164: string
+          team_email: string
+          thread_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          last_message_at?: string | null
+          phone_e164: string
+          team_email: string
+          thread_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          last_message_at?: string | null
+          phone_e164?: string
+          team_email?: string
+          thread_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vic_whatsapp_links_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "vic_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

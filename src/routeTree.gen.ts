@@ -34,6 +34,7 @@ import { Route as VicThreadIdRouteImport } from './routes/vic.$threadId'
 import { Route as ApiCronActivitySyncRouteImport } from './routes/api/cron/activity-sync'
 import { Route as ApiCronIntelScanRouteImport } from './routes/api/cron/intel-scan'
 import { Route as ApiPublicInngestRouteImport } from './routes/api/public/inngest'
+import { Route as ApiPublicTwilioWhatsappRouteImport } from './routes/api/public/twilio-whatsapp'
 import { Route as ApiPublicCronKnowledgeHarvestRouteImport } from './routes/api/public/cron/knowledge-harvest'
 import { Route as ApiPublicCronMorningBriefRouteImport } from './routes/api/public/cron/morning-brief'
 import { Route as ApiPublicCronSheetsMirrorRouteImport } from './routes/api/public/cron/sheets-mirror'
@@ -165,6 +166,11 @@ const ApiPublicInngestRoute = ApiPublicInngestRouteImport.update({
   path: '/api/public/inngest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicTwilioWhatsappRoute = ApiPublicTwilioWhatsappRouteImport.update({
+  id: '/api/public/twilio-whatsapp',
+  path: '/api/public/twilio-whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCronKnowledgeHarvestRoute =
   ApiPublicCronKnowledgeHarvestRouteImport.update({
     id: '/api/public/cron/knowledge-harvest',
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/twilio-whatsapp': typeof ApiPublicTwilioWhatsappRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
   '/api/public/cron/morning-brief': typeof ApiPublicCronMorningBriefRoute
   '/api/public/cron/sheets-mirror': typeof ApiPublicCronSheetsMirrorRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/twilio-whatsapp': typeof ApiPublicTwilioWhatsappRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
   '/api/public/cron/morning-brief': typeof ApiPublicCronMorningBriefRoute
   '/api/public/cron/sheets-mirror': typeof ApiPublicCronSheetsMirrorRoute
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/api/cron/activity-sync': typeof ApiCronActivitySyncRoute
   '/api/cron/intel-scan': typeof ApiCronIntelScanRoute
   '/api/public/inngest': typeof ApiPublicInngestRoute
+  '/api/public/twilio-whatsapp': typeof ApiPublicTwilioWhatsappRoute
   '/api/public/cron/knowledge-harvest': typeof ApiPublicCronKnowledgeHarvestRoute
   '/api/public/cron/morning-brief': typeof ApiPublicCronMorningBriefRoute
   '/api/public/cron/sheets-mirror': typeof ApiPublicCronSheetsMirrorRoute
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/public/inngest'
+    | '/api/public/twilio-whatsapp'
     | '/api/public/cron/knowledge-harvest'
     | '/api/public/cron/morning-brief'
     | '/api/public/cron/sheets-mirror'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/public/inngest'
+    | '/api/public/twilio-whatsapp'
     | '/api/public/cron/knowledge-harvest'
     | '/api/public/cron/morning-brief'
     | '/api/public/cron/sheets-mirror'
@@ -383,6 +394,7 @@ export interface FileRouteTypes {
     | '/api/cron/activity-sync'
     | '/api/cron/intel-scan'
     | '/api/public/inngest'
+    | '/api/public/twilio-whatsapp'
     | '/api/public/cron/knowledge-harvest'
     | '/api/public/cron/morning-brief'
     | '/api/public/cron/sheets-mirror'
@@ -414,6 +426,7 @@ export interface RootRouteChildren {
   ApiCronActivitySyncRoute: typeof ApiCronActivitySyncRoute
   ApiCronIntelScanRoute: typeof ApiCronIntelScanRoute
   ApiPublicInngestRoute: typeof ApiPublicInngestRoute
+  ApiPublicTwilioWhatsappRoute: typeof ApiPublicTwilioWhatsappRoute
   ApiPublicCronKnowledgeHarvestRoute: typeof ApiPublicCronKnowledgeHarvestRoute
   ApiPublicCronMorningBriefRoute: typeof ApiPublicCronMorningBriefRoute
   ApiPublicCronSheetsMirrorRoute: typeof ApiPublicCronSheetsMirrorRoute
@@ -598,6 +611,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/twilio-whatsapp': {
+      id: '/api/public/twilio-whatsapp'
+      path: '/api/public/twilio-whatsapp'
+      fullPath: '/api/public/twilio-whatsapp'
+      preLoaderRoute: typeof ApiPublicTwilioWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/cron/knowledge-harvest': {
       id: '/api/public/cron/knowledge-harvest'
       path: '/api/public/cron/knowledge-harvest'
@@ -672,6 +692,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronActivitySyncRoute: ApiCronActivitySyncRoute,
   ApiCronIntelScanRoute: ApiCronIntelScanRoute,
   ApiPublicInngestRoute: ApiPublicInngestRoute,
+  ApiPublicTwilioWhatsappRoute: ApiPublicTwilioWhatsappRoute,
   ApiPublicCronKnowledgeHarvestRoute: ApiPublicCronKnowledgeHarvestRoute,
   ApiPublicCronMorningBriefRoute: ApiPublicCronMorningBriefRoute,
   ApiPublicCronSheetsMirrorRoute: ApiPublicCronSheetsMirrorRoute,

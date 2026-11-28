@@ -1,0 +1,1 @@
+CREATE INDEX vic_whatsapp_links_thread_id_idx ON public.vic_whatsapp_links (thread_id);
