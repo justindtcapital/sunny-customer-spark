@@ -47,7 +47,7 @@ export const Route = createFileRoute("/api/public/twilio-whatsapp")({
         const link = await findWhatsAppLink(fromRaw);
         if (!link) {
           return xmlResponse(
-            `This WhatsApp number isn't linked to a Venture Pulse account yet. Open V.I.C. (${WHATSAPP_APP_ORIGIN}/vic) and connect your number in the left menu.`,
+            `This phone number isn't linked to a Venture Pulse account yet. Open V.I.C. (${WHATSAPP_APP_ORIGIN}/vic) and connect your number in the left menu.`,
           );
         }
 

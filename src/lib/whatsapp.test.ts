@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  detectTwilioChannel,
+  formatSmsReply,
+  formatTwilioAddress,
   formatWhatsAppReply,
   isWhatsAppResetCommand,
   normalizeWhatsAppPhone,
@@ -32,6 +35,21 @@ describe("formatWhatsAppReply", () => {
     expect(formatWhatsAppReply(md)).toBe(
       "*Top Signal*\n*Tetri* raised Series B — View signal (https://crm.dt-capital.net/signals?open=abc) and TechCrunch (https://tc.example/1).",
     );
+  });
+});
+
+describe("SMS channel routing and formatting", () => {
+  it("distinguishes plain SMS from WhatsApp and formats To/From without adding whatsapp: to SMS", () => {
+    expect(detectTwilioChannel("+13106481253", "+18555785177")).toBe("sms");
+    expect(detectTwilioChannel("whatsapp:+13106481253", "whatsapp:+18555785177")).toBe("whatsapp");
+    expect(formatTwilioAddress("+13106481253", "sms")).toBe("+13106481253");
+    expect(formatTwilioAddress("whatsapp:+13106481253", "sms")).toBe("+13106481253");
+    expect(formatTwilioAddress("+13106481253", "whatsapp")).toBe("whatsapp:+13106481253");
+  });
+
+  it("strips markdown bold and headings into clean plain text for SMS", () => {
+    const md = "### Open Actions\n**Tetri** follow-up — [Open](/my-actions)";
+    expect(formatSmsReply(md)).toBe("Open Actions\nTetri follow-up — Open (https://crm.dt-capital.net/my-actions)");
   });
 });
 

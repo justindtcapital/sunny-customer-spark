@@ -3,10 +3,12 @@ import { convertToModelMessages, generateText, stepCountIs, type UIMessage } fro
 import type { Json } from "@/integrations/supabase/types";
 import {
   WHATSAPP_APP_ORIGIN,
+  detectTwilioChannel,
+  formatSmsReply,
+  formatTwilioAddress,
   formatWhatsAppReply,
   normalizeWhatsAppPhone,
   splitWhatsAppMessage,
-  toTwilioWhatsAppAddress,
 } from "@/lib/whatsapp";
 
 /** Twilio's official X-Twilio-Signature HMAC-SHA1 computation for form POST webhooks. */
@@ -52,7 +54,7 @@ export function verifyTwilioWebhookSignature(
   return candidateWebhookUrls(request).some((url) => safeEqual(sig, computeTwilioSignature(authToken, url, params)));
 }
 
-/** Send a WhatsApp reply back through Twilio's REST API, chunked under Twilio's 1,600-char limit. */
+/** Send an SMS or WhatsApp reply back through Twilio's REST API, chunked under Twilio's 1,600-char limit. */
 export async function sendWhatsAppReply(opts: {
   to: string;
   from: string;
@@ -64,6 +66,7 @@ export async function sendWhatsAppReply(opts: {
     console.error("[twilio-whatsapp] Missing TWILIO_ACCOUNT_SID or TWILIO_AUTH_TOKEN");
     return { ok: false, sids: [], error: "Twilio credentials not configured" };
   }
+  const channel = detectTwilioChannel(opts.from, opts.to);
   const chunks = splitWhatsAppMessage(opts.body, 1500);
   const sids: string[] = [];
   const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
@@ -77,8 +80,8 @@ export async function sendWhatsAppReply(opts: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        To: toTwilioWhatsAppAddress(opts.to),
-        From: toTwilioWhatsAppAddress(opts.from),
+        To: formatTwilioAddress(opts.to, channel),
+        From: formatTwilioAddress(opts.from, channel),
         Body: chunk,
       }),
     });
@@ -135,6 +138,8 @@ export async function handleIncomingWhatsApp(opts: {
 }): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { createVicProvider, vicInstructions, vicTools } = await import("./vic-ai.server");
+  const channel = detectTwilioChannel(opts.fromRaw, opts.toRaw);
+  const channelLabel = channel === "whatsapp" ? "WhatsApp" : "SMS";
 
   try {
     let threadId = opts.link.thread_id;
@@ -149,7 +154,7 @@ export async function handleIncomingWhatsApp(opts: {
     if (!threadId) {
       const { data: created, error: tErr } = await supabaseAdmin
         .from("vic_threads")
-        .insert({ user_id: opts.link.user_id, title: "WhatsApp" })
+        .insert({ user_id: opts.link.user_id, title: channelLabel })
         .select("id")
         .single();
       if (tErr || !created) throw new Error(tErr?.message || "Could not create V.I.C. thread");
@@ -207,14 +212,14 @@ export async function handleIncomingWhatsApp(opts: {
 
     const { provider } = createVicProvider(opts.request);
     const channelNotes = [
-      "Channel: WhatsApp mobile chat.",
+      channel === "whatsapp" ? "Channel: WhatsApp mobile chat." : "Channel: SMS text message.",
       "Keep answers concise and easy to scan on a phone screen using short bullet points (do not use markdown tables).",
       "If you call any propose* tool to prepare a CRM update, briefly summarize the proposal and note that they can tap the Venture Pulse link below to review and approve it.",
     ].join(" ");
 
     const result = await generateText({
       model: provider.responses("openai/gpt-6-astra"),
-      system: `${vicInstructions(opts.link.team_email, "WhatsApp")}\n${channelNotes}`,
+      system: `${vicInstructions(opts.link.team_email, channelLabel)}\n${channelNotes}`,
       messages: modelMessages,
       tools: vicTools({ teamEmail: opts.link.team_email, kbFolderIds: [] }),
       stopWhen: stepCountIs(20),
@@ -260,7 +265,7 @@ export async function handleIncomingWhatsApp(opts: {
       supabaseAdmin.from("vic_whatsapp_links").update({ last_message_at: now, updated_at: now }).eq("user_id", opts.link.user_id),
     ]);
 
-    let outgoing = formatWhatsAppReply(rawReply);
+    let outgoing = channel === "whatsapp" ? formatWhatsAppReply(rawReply) : formatSmsReply(rawReply);
     if (hasProposal) {
       outgoing += `\n\nReview & approve in Venture Pulse: ${WHATSAPP_APP_ORIGIN}/vic/${threadId}`;
     }

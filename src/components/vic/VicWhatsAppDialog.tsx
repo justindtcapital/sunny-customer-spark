@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { VIC_SMS_NUMBER } from "@/lib/whatsapp";
 import {
   getMyWhatsAppLinkFn,
   saveMyWhatsAppLinkFn,
@@ -61,9 +62,9 @@ export function VicWhatsAppDialog() {
       const saved = await saveLink({ data: { phone: phone.trim() } });
       setStatus(saved);
       setPhone(saved.phoneE164 || "");
-      toast.success("WhatsApp number linked to V.I.C.");
+      toast.success("Mobile number linked to V.I.C.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't save WhatsApp number.");
+      toast.error(err instanceof Error ? err.message : "Couldn't save mobile number.");
     } finally {
       setBusy(false);
     }
@@ -76,9 +77,9 @@ export function VicWhatsAppDialog() {
       await unlink();
       setStatus((prev) => (prev ? { ...prev, phoneE164: null, threadId: null, lastMessageAt: null } : prev));
       setPhone("");
-      toast.success("WhatsApp number unlinked.");
+      toast.success("Mobile number unlinked.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't unlink WhatsApp number.");
+      toast.error(err instanceof Error ? err.message : "Couldn't unlink mobile number.");
     } finally {
       setBusy(false);
     }
@@ -105,7 +106,7 @@ export function VicWhatsAppDialog() {
           <Button type="button" variant="ghost" size="sm" className="h-8 w-full justify-between px-2 text-xs">
             <span className="flex items-center gap-1.5">
               <MessageCircle className="size-3.5 text-muted-foreground" />
-              WhatsApp
+              Text V.I.C.
             </span>
             <span className={linked ? "text-[11px] font-medium text-emerald-600 dark:text-emerald-400" : "text-[11px] text-muted-foreground"}>
               {linked ? "Linked" : "Connect"}
@@ -115,15 +116,15 @@ export function VicWhatsAppDialog() {
       </div>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Chat with V.I.C. on WhatsApp</DialogTitle>
+          <DialogTitle>Text with V.I.C. over SMS</DialogTitle>
           <DialogDescription>
-            Link your WhatsApp mobile number so V.I.C. recognizes you and shares your conversation history here.
+            Link your mobile number, then text {VIC_SMS_NUMBER} so V.I.C. recognizes you and shares your conversation history here.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={(e) => void onSave(e)} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="vic-whatsapp-phone">Your WhatsApp phone number</Label>
+            <Label htmlFor="vic-whatsapp-phone">Your mobile phone number</Label>
             <Input
               id="vic-whatsapp-phone"
               type="tel"
@@ -157,7 +158,7 @@ export function VicWhatsAppDialog() {
 
         {status?.webhookUrl && (
           <div className="space-y-1.5 rounded-md border border-border bg-muted/40 p-3">
-            <p className="text-xs font-medium">Twilio Sandbox webhook URL</p>
+            <p className="text-xs font-medium">Twilio SMS webhook URL</p>
             <div className="flex items-center gap-1.5">
               <code className="min-w-0 flex-1 truncate rounded bg-background px-2 py-1 text-[11px] border border-border">
                 {status.webhookUrl}
@@ -167,7 +168,7 @@ export function VicWhatsAppDialog() {
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Paste into Twilio Console → WhatsApp Sandbox Settings → &ldquo;When a message comes in&rdquo; (POST). Text <code>/new</code> on WhatsApp anytime to start a fresh chat.
+              Text <strong>{VIC_SMS_NUMBER}</strong> from your linked mobile. Text <code>/new</code> anytime to start a fresh chat.
             </p>
           </div>
         )}
